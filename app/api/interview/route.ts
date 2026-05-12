@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
+import {
+  behaviorSummary,
+  getBehaviorProfile,
+} from "@/lib/globalBehaviorEngine";
+import {
+  detectCandidateContradictions,
+  extractCandidateFacts,
+  factsToPrompt,
+  type Contradiction,
+} from "@/lib/candidateFactEngine";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -28,9 +39,11 @@ type InterviewSetup = {
   targetRole?: string;
   companyName?: string;
   country?: string;
+  targetMarket?: string;
   language?: string;
   recruiterPersonality?: string;
   recruiterStyle?: string;
+  companyStyle?: string;
   pressureMode?: string;
 };
 
@@ -56,21 +69,15 @@ type InterviewRequestBody = {
   cvText?: string;
   jobDescription?: string;
   targetRole?: string;
+  targetMarket?: string;
   roleTitle?: string;
   companyName?: string;
   country?: string;
   language?: string;
   recruiterPersonality?: string;
   recruiterStyle?: string;
+  companyStyle?: string;
   pressureMode?: string;
-};
-
-type Contradiction = {
-  field: string;
-  candidateClaim: string;
-  resumeEvidence: string;
-  severity: "low" | "medium" | "high";
-  clarificationQuestion: string;
 };
 
 type InterviewApiResponse = {
@@ -100,6 +107,7 @@ type InterviewApiResponse = {
   risks: string[];
   recruiterMemory: MemoryItem[];
   memoryUpdates: MemoryItem[];
+  memoryConfidence: number;
   resultSnapshot: {
     overall: number;
     readiness: "Interview ready" | "Almost ready" | "Needs practice";
@@ -110,30 +118,8 @@ type InterviewApiResponse = {
   };
 };
 
-const recruiterQuestions = [
-  "Tell me about yourself and keep it relevant to this role.",
-  "What measurable impact did you create in your previous role?",
-  "Why should we hire you for this position?",
-  "Tell me about a difficult situation and how you handled it.",
-  "What is your biggest professional weakness right now?",
-  "Walk me through one achievement from your CV that is directly useful for this role.",
-  "I see your background here. What makes you ready for this specific position?",
-];
-
-function randomQuestion() {
-  return recruiterQuestions[Math.floor(Math.random() * recruiterQuestions.length)];
-}
-
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function normalize(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9+.#/\-\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function clamp(value: number, min = 0, max = 100) {
@@ -142,16 +128,26 @@ function clamp(value: number, min = 0, max = 100) {
 }
 
 function getSetup(body: InterviewRequestBody): Required<InterviewSetup> {
+  const country =
+    cleanText(body.setup?.country ?? body.setup?.targetMarket ?? body.country ?? body.targetMarket) ||
+    "Global";
+
+  const companyStyle =
+    cleanText(body.setup?.companyStyle ?? body.setup?.recruiterStyle ?? body.companyStyle ?? body.recruiterStyle) ||
+    "Realistic";
+
   return {
     cvText: cleanText(body.setup?.cvText ?? body.cvText),
     jobDescription: cleanText(body.setup?.jobDescription ?? body.jobDescription),
     targetRole: cleanText(body.setup?.targetRole ?? body.targetRole ?? body.roleTitle) || "General Role",
     companyName: cleanText(body.setup?.companyName ?? body.companyName) || "Target Company",
-    country: cleanText(body.setup?.country ?? body.country) || "Global",
+    country,
+    targetMarket: country,
     language: cleanText(body.setup?.language ?? body.language) || "English",
     recruiterPersonality:
-      cleanText(body.setup?.recruiterPersonality ?? body.recruiterPersonality) || "Analytical recruiter",
-    recruiterStyle: cleanText(body.setup?.recruiterStyle ?? body.recruiterStyle) || "Balanced",
+      cleanText(body.setup?.recruiterPersonality ?? body.recruiterPersonality) || "analytical_hiring_manager",
+    recruiterStyle: companyStyle,
+    companyStyle,
     pressureMode: cleanText(body.setup?.pressureMode ?? body.pressureMode) || "Realistic",
   };
 }
@@ -164,244 +160,18 @@ function normalizeTranscript(items: TranscriptItem[] = []) {
       return { speaker, text };
     })
     .filter((item) => item.text)
-    .slice(-16);
+    .slice(-8);
 }
 
-function extractLikelyNames(text: string) {
-  const names = new Set<string>();
-  const lines = text
-    .split(/\n|•|\|/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, 20);
-
-  for (const line of lines) {
-    const words = line.match(/\b[A-Z][a-z]{2,}\b/g) || [];
-    if (words.length >= 2 && words.length <= 4) {
-      const candidate = words.slice(0, 3).join(" ");
-      if (!/(university|school|engineer|analyst|developer|manager|germany|india|email|phone|linkedin|resume|curriculum)/i.test(candidate)) {
-        names.add(candidate);
-      }
-    }
-  }
-
-  return Array.from(names).slice(0, 4);
-}
-
-function extractYears(text: string) {
-  return Array.from(new Set(text.match(/\b(19|20)\d{2}\b/g) || []));
-}
-
-function extractLocations(text: string) {
-  const locations = [
-    "germany",
-    "berlin",
-    "munich",
-    "hamburg",
-    "nuremberg",
-    "frankfurt",
-    "india",
-    "chennai",
-    "bangalore",
-    "bengaluru",
-    "coimbatore",
-    "hyderabad",
-    "delhi",
-    "london",
-    "netherlands",
-    "amsterdam",
-    "usa",
-    "united states",
-    "canada",
-    "singapore",
-    "dubai",
-  ];
-
-  const lower = normalize(text);
-  return locations.filter((place) => lower.includes(place));
-}
-
-function extractCompanies(text: string) {
-  const companies = new Set<string>();
-  const known =
-    /\b(Zoho|Google|Microsoft|Amazon|WBS Coding School|Accenture|TCS|Infosys|Cognizant|Capgemini|Deloitte|IBM|SAP|Salesforce|Oracle)\b/gi;
-
-  for (const match of text.match(known) || []) {
-    companies.add(match);
-  }
-
-  const lines = text
-    .split(/\n/)
-    .filter((line) => /(engineer|analyst|developer|support|consultant|manager|specialist|intern|company|corp|ltd|gmbh)/i.test(line))
-    .slice(0, 20);
-
-  for (const line of lines) {
-    const words = line.match(/\b[A-Z][A-Za-z0-9&.\-]{1,}\b/g) || [];
-    const phrase = words.slice(0, 4).join(" ");
-    if (phrase && phrase.length > 2) companies.add(phrase);
-  }
-
-  return Array.from(companies).slice(0, 12);
-}
-
-function extractSkills(text: string) {
-  const skills = [
-    "python",
-    "sql",
-    "excel",
-    "tableau",
-    "power bi",
-    "javascript",
-    "typescript",
-    "react",
-    "next.js",
-    "streamlit",
-    "machine learning",
-    "deep learning",
-    "generative ai",
-    "openai",
-    "langchain",
-    "data analysis",
-    "technical support",
-    "customer support",
-    "customer success",
-    "api",
-    "crm",
-    "zoho",
-    "html",
-    "css",
-    "tailwind",
-    "firebase",
-    "supabase",
-  ];
-
-  const lower = normalize(text);
-  return skills.filter((skill) => lower.includes(skill));
-}
-
-function buildResumeFacts(cvText: string) {
-  return {
-    names: extractLikelyNames(cvText),
-    years: extractYears(cvText),
-    locations: extractLocations(cvText),
-    companies: extractCompanies(cvText),
-    skills: extractSkills(cvText),
-  };
+function previousUserAnswers(items: TranscriptItem[] = []) {
+  return normalizeTranscript(items)
+    .filter((item) => item.speaker === "user" || item.speaker === "candidate")
+    .map((item) => item.text)
+    .slice(-6);
 }
 
 function issueText(issue: Contradiction) {
   return `${issue.field}: candidate said "${issue.candidateClaim}", but ${issue.resumeEvidence}`;
-}
-
-function detectContradictions(answer: string, cvText: string): Contradiction[] {
-  if (!answer || !cvText) return [];
-
-  const issues: Contradiction[] = [];
-  const facts = buildResumeFacts(cvText);
-  const normalizedCv = normalize(cvText);
-
-  const nameClaim =
-    answer.match(/\bmy name is\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/i) ||
-    answer.match(/\bi am\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/i);
-
-  if (nameClaim?.[1] && facts.names.length > 0) {
-    const claimed = nameClaim[1];
-    const matches = facts.names.some(
-      (name) => normalize(name).includes(normalize(claimed)) || normalize(claimed).includes(normalize(name))
-    );
-
-    if (!matches) {
-      issues.push({
-        field: "candidate name",
-        candidateClaim: claimed,
-        resumeEvidence: `the CV appears to show ${facts.names.join(", ")}`,
-        severity: "high",
-        clarificationQuestion: `Let me stop you there — you said your name is ${claimed}, but your CV appears to show ${facts.names[0]}. Which one should I use?`,
-      });
-    }
-  }
-
-  const answerLocations = extractLocations(answer);
-  for (const location of answerLocations) {
-    const cvHasLocation = facts.locations.includes(location);
-    const otherLocations = facts.locations.filter((item) => item !== location);
-
-    if (!cvHasLocation && otherLocations.length > 0) {
-      issues.push({
-        field: "location",
-        candidateClaim: location,
-        resumeEvidence: `the CV mentions ${otherLocations.join(", ")}`,
-        severity: "medium",
-        clarificationQuestion: `You mentioned ${location}, but your CV mentions ${otherLocations[0]}. Are you describing your current location, previous location, or something else?`,
-      });
-    }
-  }
-
-  const answerYears = extractYears(answer);
-  for (const year of answerYears) {
-    if (facts.years.length > 0 && !facts.years.includes(year)) {
-      issues.push({
-        field: "timeline",
-        candidateClaim: year,
-        resumeEvidence: `the CV timeline includes ${facts.years.slice(0, 8).join(", ")}`,
-        severity: "medium",
-        clarificationQuestion: `You mentioned ${year}, but I do not see that year in your CV timeline. Can you clarify where it fits?`,
-      });
-    }
-  }
-
-  const answerCompanies = extractCompanies(answer);
-  for (const company of answerCompanies) {
-    if (company.length > 3 && facts.companies.length > 0 && !normalizedCv.includes(normalize(company))) {
-      issues.push({
-        field: "company/employer",
-        candidateClaim: company,
-        resumeEvidence: `the CV company/context includes ${facts.companies.slice(0, 6).join(", ")}`,
-        severity: "medium",
-        clarificationQuestion: `You mentioned ${company}, but I do not clearly see that in your CV. Was this a job, project, client, or example?`,
-      });
-    }
-  }
-
-  const leadershipClaims = [
-    { regex: /\bmanaged\s+([0-9]+|a|the)?\s*(team|people|members|engineers|analysts)/i, label: "team management" },
-    { regex: /\bled\s+(a|the)?\s*(team|project|migration|implementation|initiative)/i, label: "leadership" },
-    { regex: /\bowned\s+(the|a)?\s*(project|product|process|pipeline|system)/i, label: "ownership" },
-  ];
-
-  for (const claim of leadershipClaims) {
-    const match = answer.match(claim.regex)?.[0];
-    if (match && !claim.regex.test(cvText)) {
-      issues.push({
-        field: claim.label,
-        candidateClaim: match,
-        resumeEvidence: `the CV does not clearly support this ${claim.label} claim`,
-        severity: "high",
-        clarificationQuestion: `Let me stop you there — you said "${match}", but I do not see that level of ${claim.label} in your CV. What exactly did you personally own?`,
-      });
-    }
-  }
-
-  const metricMatches = [
-    ...(answer.match(/\b\d+%/g) || []),
-    ...(answer.match(/\b\d+\s*(users|customers|tickets|cases|projects|people|team members|hours|days|weeks|months|years)\b/gi) || []),
-  ];
-
-  for (const metric of metricMatches) {
-    if (!normalizedCv.includes(normalize(metric))) {
-      issues.push({
-        field: "measurable impact",
-        candidateClaim: metric,
-        resumeEvidence: "that exact metric is not visible in the CV context",
-        severity: "medium",
-        clarificationQuestion: `You mentioned ${metric}, but I do not see that number in your CV. Is this a real metric from your work, or are you estimating it?`,
-      });
-    }
-  }
-
-  return Array.from(
-    new Map(issues.map((issue) => [`${issue.field}-${normalize(issue.candidateClaim)}`, issue])).values()
-  ).slice(0, 7);
 }
 
 function strongestIssue(issues: Contradiction[]) {
@@ -412,31 +182,88 @@ function strongestIssue(issues: Contradiction[]) {
   );
 }
 
-function recruiterFollowup(answer: string, contradictions: Contradiction[]) {
+function readinessFromScore(score: number): "Interview ready" | "Almost ready" | "Needs practice" {
+  if (score >= 80) return "Interview ready";
+  if (score >= 65) return "Almost ready";
+  return "Needs practice";
+}
+
+function chooseAdaptiveFollowup(answer: string, profile: ReturnType<typeof getBehaviorProfile>) {
+  const lower = answer.toLowerCase();
+
+  if (profile.companyStyle === "Startup") {
+    if (!/(owned|built|launched|shipped|decided|initiated)/i.test(answer)) {
+      return "I’m missing ownership. What did you personally own from start to finish?";
+    }
+    return "How quickly did you move from problem to action?";
+  }
+
+  if (profile.companyStyle === "Corporate") {
+    if (!/(stakeholder|team|process|escalat|communicat|align)/i.test(answer)) {
+      return "In a corporate setting, stakeholder handling matters. Who was involved and how did you manage expectations?";
+    }
+    return "What process did you follow and how did you reduce risk?";
+  }
+
+  if (profile.companyStyle === "Technical") {
+    if (!/(implemented|debugged|architecture|api|data|system|logic|tradeoff|technical)/i.test(answer)) {
+      return "I need more technical depth. What exactly did you implement or analyze?";
+    }
+    return "What technical tradeoff did you make and why?";
+  }
+
+  if (profile.companyStyle === "Consulting") {
+    if (!/(first|second|third|framework|structured|prioritized|stakeholder|client)/i.test(answer)) {
+      return "Structure that like a consultant: what were the three steps you followed?";
+    }
+    return "What was the stakeholder or client impact?";
+  }
+
+  if (profile.market === "Germany" && !/(process|timeline|responsibility|precise|documented|structured)/i.test(answer)) {
+    return "For this market, I need more precision. What was the exact process, timeline, and your responsibility?";
+  }
+
+  if (profile.market === "US" && !/(impact|result|increased|reduced|saved|growth|revenue|customer)/i.test(lower)) {
+    return "I’m not hearing enough business impact. What changed because of your work?";
+  }
+
+  if (profile.market === "Netherlands" && answer.split(/\s+/).length > 110) {
+    return "Let’s make that more direct. What did you do, what changed, and why does it matter?";
+  }
+
+  return profile.followUpExamples[0] || "Can you make that more specific?";
+}
+
+function recruiterFollowup(answer: string, contradictions: Contradiction[], profile: ReturnType<typeof getBehaviorProfile>) {
   if (contradictions.length > 0) {
     const top = strongestIssue(contradictions);
-    return `Let me stop you there. ${top.clarificationQuestion}`;
+    return top.clarificationQuestion;
   }
 
   const lower = answer.toLowerCase();
   const wordCount = answer.split(/\s+/).filter(Boolean).length;
 
-  if (!lower.includes("%") && !/\b\d+\b/.test(lower) && !/(improved|reduced|increased|saved)/i.test(answer)) {
-    return "Let me stop you there — I still don’t understand the measurable impact.";
+  if (!lower.includes("%") && !/\b\d+\b/.test(lower) && !/(improved|reduced|increased|saved|delivered|resolved|built)/i.test(answer)) {
+    if (profile.market === "US" || profile.companyStyle === "Startup") {
+      return "I still don’t hear the business impact or measurable result. What changed because of your work?";
+    }
+
+    return "I still don’t understand the measurable impact. Give me one result you can defend.";
   }
 
   if (wordCount < 25) {
-    return "That answer is too short. Can you give me a more structured example?";
+    return "That answer is too short. Give me a more structured example.";
   }
 
   if (/\bmaybe|i think|probably|not sure|kind of\b/i.test(answer)) {
-    return "You sound uncertain. Recruiters usually look for stronger ownership.";
+    return "You sound uncertain there. Say it with stronger ownership, or clarify what you actually did.";
   }
 
-  return "Interesting. Give me one specific example with business impact.";
+  return chooseAdaptiveFollowup(answer, profile);
 }
 
-function scoreAnswer(answer: string, contradictions: Contradiction[]): LiveScore {
+function scoreAnswer(answer: string, contradictions: Contradiction[], profile: ReturnType<typeof getBehaviorProfile>): LiveScore {
+  const weights = profile.scoringWeights;
   const wordCount = answer.split(/\s+/).filter(Boolean).length;
   const hasMetric = /%|\b\d+\b|customers?|users?|tickets?|cases?|hours?|days?|weeks?|months?|revenue|cost|saved/i.test(answer);
   const hasImpactVerb = /\bimproved|reduced|increased|saved|resolved|built|automated|delivered|supported\b/i.test(answer);
@@ -444,28 +271,49 @@ function scoreAnswer(answer: string, contradictions: Contradiction[]): LiveScore
   const uncertainty = /\bmaybe|i think|probably|not sure|kind of\b/i.test(answer);
 
   const penalty = contradictions.reduce((total, item) => {
-    if (item.severity === "high") return total + 16;
-    if (item.severity === "medium") return total + 10;
+    if (item.severity === "high") return total + 18;
+    if (item.severity === "medium") return total + 11;
     return total + 5;
   }, 0);
 
-  const evidence = clamp((hasMetric ? 78 : 48) + (hasImpactVerb ? 8 : 0) - penalty);
-  const structure = clamp((wordCount > 40 ? 76 : 52) + (hasStructure ? 10 : 0) - contradictions.length * 3);
-  const confidence = clamp((uncertainty ? 45 : 74) - penalty);
-  const relevance = clamp(72 + (hasImpactVerb ? 6 : 0) - penalty);
-  const clarity = clamp((wordCount >= 25 && wordCount <= 140 ? 76 : 62) - (uncertainty ? 6 : 0) - contradictions.length * 4);
-  const overall = clamp((confidence + relevance + structure + evidence + clarity) / 5);
+  const raw = {
+    evidence: clamp((hasMetric ? 78 : 48) + (hasImpactVerb ? 8 : 0) - penalty),
+    structure: clamp((wordCount > 40 ? 76 : 52) + (hasStructure ? 10 : 0) - contradictions.length * 4),
+    confidence: clamp((uncertainty ? 45 : 74) - penalty),
+    relevance: clamp(72 + (hasImpactVerb ? 6 : 0) - penalty),
+    clarity: clamp((wordCount >= 25 && wordCount <= 140 ? 76 : 62) - (uncertainty ? 6 : 0) - contradictions.length * 4),
+  };
 
-  return { confidence, relevance, structure, evidence, clarity, overall };
+  const totalWeight =
+    weights.confidence + weights.relevance + weights.structure + weights.evidence + weights.clarity;
+
+  const overall = clamp(
+    (raw.confidence * weights.confidence +
+      raw.relevance * weights.relevance +
+      raw.structure * weights.structure +
+      raw.evidence * weights.evidence +
+      raw.clarity * weights.clarity) /
+      totalWeight
+  );
+
+  return { ...raw, overall };
 }
 
-function readinessFromScore(score: number): "Interview ready" | "Almost ready" | "Needs practice" {
-  if (score >= 80) return "Interview ready";
-  if (score >= 65) return "Almost ready";
-  return "Needs practice";
-}
-
-function buildMemory(existingMemory: MemoryItem[], followup: string, contradictions: Contradiction[], score: LiveScore) {
+function buildMemory({
+  existingMemory,
+  followup,
+  contradictions,
+  score,
+  profile,
+  memoryConfidence,
+}: {
+  existingMemory: MemoryItem[];
+  followup: string;
+  contradictions: Contradiction[];
+  score: LiveScore;
+  profile: ReturnType<typeof getBehaviorProfile>;
+  memoryConfidence: number;
+}) {
   const updates: MemoryItem[] = [];
 
   contradictions.forEach((issue) => {
@@ -474,6 +322,18 @@ function buildMemory(existingMemory: MemoryItem[], followup: string, contradicti
       value: issueText(issue),
       importance: issue.severity === "high" ? "high" : "medium",
     });
+  });
+
+  updates.push({
+    label: "Recruiter behavior context",
+    value: `${profile.market} / ${profile.companyStyle}: ${profile.followUpStyle}`,
+    importance: "medium" as const,
+  });
+
+  updates.push({
+    label: "Memory confidence",
+    value: `${memoryConfidence}/100 recruiter trust in candidate consistency`,
+    importance: memoryConfidence < 60 ? "high" : "medium",
   });
 
   updates.push({
@@ -486,7 +346,7 @@ function buildMemory(existingMemory: MemoryItem[], followup: string, contradicti
     updates.push({
       label: "Weak evidence pattern",
       value: "Candidate needs stronger measurable proof and concrete business impact.",
-      importance: "high",
+      importance: "high" as const,
     });
   }
 
@@ -498,10 +358,12 @@ function buildMemory(existingMemory: MemoryItem[], followup: string, contradicti
 
 function localEngine(body: InterviewRequestBody): InterviewApiResponse {
   const setup = getSetup(body);
+  const profile = getBehaviorProfile(setup.country, setup.companyStyle, setup.recruiterPersonality);
   const mode = body.mode ?? "answer";
   const answer = cleanText(body.answer);
   const pressureLevel = clamp(Number(body.pressureLevel ?? 35), 0, 100);
   const existingMemory = Array.isArray(body.recruiterMemory) ? body.recruiterMemory : [];
+  const facts = extractCandidateFacts(setup.cvText);
 
   const neutralScore: LiveScore = {
     confidence: 65,
@@ -520,8 +382,8 @@ function localEngine(body: InterviewRequestBody): InterviewApiResponse {
     return {
       ok: true,
       mode,
-      recruiterReply: "Good to meet you. I have your CV and the role context in front of me, so I’ll keep this close to a real interview.",
-      recruiterReaction: "Good to meet you. I have your CV and the role context in front of me, so I’ll keep this close to a real interview.",
+      recruiterReply: `Good to meet you. I’ll interview you with a ${profile.market} market lens and a ${profile.companyStyle.toLowerCase()} company style.`,
+      recruiterReaction: `Good to meet you. I’ll interview you with a ${profile.market} market lens and a ${profile.companyStyle.toLowerCase()} company style.`,
       question: firstQuestion,
       nextQuestion: firstQuestion,
       interruption: "",
@@ -534,32 +396,59 @@ function localEngine(body: InterviewRequestBody): InterviewApiResponse {
       score: neutralScore,
       strengths: [],
       weaknesses: [],
-      improvements: ["Answer with a clear structure and truthful examples."],
+      improvements: [`Answer in a ${profile.preferredAnswerStyle} way.`],
       risks: [],
-      recruiterMemory: existingMemory,
+      recruiterMemory: [
+        ...existingMemory,
+        {
+          label: "Candidate facts extracted",
+          value: factsToPrompt(facts),
+          importance: "high" as const,
+        },
+      ].slice(-18),
       memoryUpdates: [],
+      memoryConfidence: 82,
       resultSnapshot: {
         overall: 65,
         readiness: "Almost ready",
         recruiterTrust: 68,
-        strongestSignal: "Interview started with CV/JD context.",
+        strongestSignal: `${profile.market} + ${profile.companyStyle} interview context loaded.`,
         weakestSignal: "No answer assessed yet.",
         nextAction: "Answer the first question with a result-first structure.",
       },
     };
   }
 
-  const contradictionDetails = detectContradictions(answer, setup.cvText);
+  const memoryCheck = detectCandidateContradictions({
+    answer,
+    cvText: setup.cvText,
+    previousUserAnswers: previousUserAnswers(body.transcript),
+    sensitivity: profile.contradictionSensitivity,
+  });
+
+  const contradictionDetails = memoryCheck.contradictions;
   const hasContradiction = contradictionDetails.length > 0;
   const top = hasContradiction ? strongestIssue(contradictionDetails) : null;
-  const followup = recruiterFollowup(answer, contradictionDetails);
-  const score = scoreAnswer(answer, contradictionDetails);
-  const updatedPressure = clamp(
-    pressureLevel + (hasContradiction ? 22 : answer.length < 90 ? 10 : -5),
-    0,
-    100
+  const followup = recruiterFollowup(answer, contradictionDetails, profile);
+  const score = scoreAnswer(answer, contradictionDetails, profile);
+  const memoryConfidence = clamp(
+    82 -
+      contradictionDetails.length * 16 -
+      memoryCheck.riskSignals.length * 6 +
+      memoryCheck.confidenceSignals.length * 4
   );
-  const memory = buildMemory(existingMemory, followup, contradictionDetails, score);
+
+  const pressureDelta = hasContradiction ? 24 : answer.length < 90 ? 10 : -5;
+  const updatedPressure = clamp(pressureLevel + pressureDelta * profile.pressureMultiplier, 0, 100);
+  const memory = buildMemory({
+    existingMemory,
+    followup,
+    contradictions: contradictionDetails,
+    score,
+    profile,
+    memoryConfidence,
+  });
+
   const contradictionTexts = contradictionDetails.map(issueText);
 
   const nextQuestion = top
@@ -568,15 +457,15 @@ function localEngine(body: InterviewRequestBody): InterviewApiResponse {
       ? "What measurable result or business impact can you attach to that example?"
       : score.structure < 65
         ? "Can you repeat that using Situation, Action, and Result in under 60 seconds?"
-        : randomQuestion();
+        : chooseAdaptiveFollowup(answer, profile);
 
   const interruption = hasContradiction
     ? {
         shouldInterrupt: true,
-        interruptionMessage: followup,
+        interruptionMessage: `Let me stop you there. ${followup}`,
         severity: top?.severity || "medium",
       }
-    : followup.startsWith("Let me stop you")
+    : score.overall < 62
       ? {
           shouldInterrupt: true,
           interruptionMessage: followup,
@@ -587,8 +476,8 @@ function localEngine(body: InterviewRequestBody): InterviewApiResponse {
   return {
     ok: true,
     mode,
-    recruiterReply: followup,
-    recruiterReaction: followup,
+    recruiterReply: hasContradiction ? `Let me stop you there. ${followup}` : followup,
+    recruiterReaction: hasContradiction ? `Let me stop you there. ${followup}` : followup,
     question: nextQuestion,
     nextQuestion,
     interruption,
@@ -607,77 +496,87 @@ function localEngine(body: InterviewRequestBody): InterviewApiResponse {
       ...(hasContradiction ? ["Answer conflicts with CV context"] : []),
       ...(score.evidence < 65 ? ["Missing measurable proof"] : []),
       ...(score.structure < 65 ? ["Needs stronger answer structure"] : []),
+      ...profile.redFlags.slice(0, 1),
     ].slice(0, 4),
     improvements: [
       hasContradiction
         ? "Clarify the mismatch before continuing. Do not invent or exaggerate details."
-        : "Use result-first structure, then one specific example.",
-      "Add only truthful metrics you can defend.",
+        : `Answer in a ${profile.preferredAnswerStyle} style.`,
+      profile.followUpExamples[0] || "Add truthful metrics you can defend.",
       "Tie the answer directly to the job description.",
     ],
-    risks: contradictionTexts.slice(0, 4),
+    risks: [...contradictionTexts, ...memoryCheck.riskSignals].slice(0, 4),
     recruiterMemory: memory.recruiterMemory,
     memoryUpdates: memory.memoryUpdates,
+    memoryConfidence,
     resultSnapshot: {
       overall: score.overall,
       readiness: readinessFromScore(score.overall),
-      recruiterTrust: clamp((score.confidence + score.relevance + score.structure + score.evidence) / 4 - contradictionDetails.length * 8),
+      recruiterTrust: clamp((score.confidence + score.relevance + score.structure + score.evidence) / 4 - contradictionDetails.length * 10),
       strongestSignal:
         score.evidence >= 75 ? "Used measurable evidence" : score.confidence >= 72 ? "Confident delivery" : "Stayed engaged",
-      weakestSignal: hasContradiction ? "CV contradiction or unsupported claim" : score.evidence < 60 ? "Missing measurable proof" : "Needs deeper role relevance",
+      weakestSignal: hasContradiction ? "CV contradiction or unsupported claim" : score.evidence < 60 ? "Missing measurable proof" : profile.redFlags[0] || "Needs deeper role relevance",
       nextAction: hasContradiction
         ? "Clarify the CV mismatch and retry the answer truthfully."
         : score.overall >= 75
-          ? "Continue with tougher follow-up questions."
-          : "Retry this answer with result first, one example, and one truthful metric.",
+          ? `Continue with ${profile.followUpStyle}.`
+          : `Retry this answer using ${profile.preferredAnswerStyle}.`,
     },
   };
 }
 
-function buildOpenAIPrompt(body: InterviewRequestBody, local: InterviewApiResponse) {
+function compactOpenAIPrompt(body: InterviewRequestBody, local: InterviewApiResponse) {
   const setup = getSetup(body);
+  const profile = getBehaviorProfile(setup.country, setup.companyStyle, setup.recruiterPersonality);
   const answer = cleanText(body.answer);
   const currentQuestion = cleanText(body.currentQuestion ?? body.question);
   const transcript = normalizeTranscript(body.transcript);
-  const memory = Array.isArray(body.recruiterMemory) ? body.recruiterMemory.slice(-10) : [];
+  const facts = extractCandidateFacts(setup.cvText);
 
   return `
 You are WorkZo AI's Real Interview engine.
 
-CRITICAL RULE:
-If the local deterministic analysis contains contradictions, you MUST stop and clarify.
-Do NOT continue the interview normally.
-Do NOT accept the candidate's new detail as true if it conflicts with the CV.
-Your next question must be the clarification question.
+Return ONLY JSON. Keep recruiterReply short: max 35 words.
 
-Candidate answer:
-${answer || "No answer yet."}
+CRITICAL:
+If local contradictions exist, you MUST stop and clarify. Do not continue normally.
 
-Current recruiter question:
+Behavior:
+${behaviorSummary(profile)}
+
+Candidate facts:
+${factsToPrompt(facts)}
+
+Question:
 ${currentQuestion || "No active question."}
 
-CV:
-${setup.cvText.slice(0, 9000) || "No CV text provided."}
-
-Job description:
-${setup.jobDescription.slice(0, 7000) || "No JD provided."}
+Latest answer:
+${answer}
 
 Recent transcript:
-${transcript.length ? transcript.map((item) => `${item.speaker}: ${item.text}`).join("\n") : "No transcript yet."}
+${transcript.map((item) => `${item.speaker}: ${item.text}`).join("\n") || "none"}
 
-Existing memory:
-${memory.length ? memory.map((item) => `- ${item.label}: ${item.value}`).join("\n") : "No memory yet."}
+Local result to preserve:
+${JSON.stringify({
+  recruiterReply: local.recruiterReply,
+  nextQuestion: local.nextQuestion,
+  contradictions: local.contradictions,
+  contradictionDetails: local.contradictionDetails,
+  pressureLevel: local.pressureLevel,
+  liveScore: local.liveScore,
+  memoryConfidence: local.memoryConfidence,
+}, null, 2)}
 
-Local analysis to preserve:
-${JSON.stringify(local, null, 2)}
-
-Return ONLY JSON with the same shape as local analysis.
-Rules:
-- If contradictions exist, recruiterMood must be Skeptical.
-- If contradictions exist, emotionState must be skeptical.
-- If contradictions exist, interruption.shouldInterrupt must be true.
-- If contradictions exist, nextQuestion must ask clarification.
-- Do not inflate scores.
+JSON shape:
+{
+  "recruiterReply": "short recruiter response",
+  "recruiterReaction": "short recruiter response",
+  "question": "next question",
+  "nextQuestion": "next question",
+  "strengths": ["max 3"],
+  "weaknesses": ["max 3"],
+  "improvements": ["max 3"]
+}
 `;
 }
 
@@ -692,6 +591,7 @@ function parseJsonObject(text: string) {
     if (start >= 0 && end > start) {
       return JSON.parse(cleaned.slice(start, end + 1));
     }
+
     throw new Error("OpenAI did not return valid JSON.");
   }
 }
@@ -700,43 +600,29 @@ function mergeAiResponse(local: InterviewApiResponse, ai: Partial<InterviewApiRe
   const hasContradiction = local.contradictionDetails.length > 0;
   const top = hasContradiction ? strongestIssue(local.contradictionDetails) : null;
 
-  const nextQuestion = hasContradiction
-    ? top?.clarificationQuestion || local.nextQuestion
-    : cleanText(ai.nextQuestion ?? ai.question) || local.nextQuestion;
-
-  const recruiterReply = hasContradiction
-    ? cleanText(ai.recruiterReply) || local.recruiterReply
-    : cleanText(ai.recruiterReply ?? ai.recruiterReaction) || local.recruiterReply;
-
-  const score = ai.liveScore || ai.score || local.liveScore;
-
-  const liveScore: LiveScore = {
-    confidence: clamp(Number(score.confidence ?? local.liveScore.confidence)),
-    relevance: clamp(Number(score.relevance ?? local.liveScore.relevance)),
-    structure: clamp(Number(score.structure ?? local.liveScore.structure)),
-    evidence: clamp(Number(score.evidence ?? local.liveScore.evidence)),
-    clarity: clamp(Number(score.clarity ?? local.liveScore.clarity)),
-    overall: clamp(Number(score.overall ?? local.liveScore.overall)),
-  };
-
   return {
     ...local,
-    recruiterReply,
-    recruiterReaction: cleanText(ai.recruiterReaction) || recruiterReply,
-    question: nextQuestion,
-    nextQuestion,
-    recruiterMood: hasContradiction ? "Skeptical" : local.recruiterMood,
-    emotionState: hasContradiction ? "skeptical" : local.emotionState,
-    pressureLevel: hasContradiction ? clamp(local.pressureLevel + 8) : local.pressureLevel,
-    liveScore,
-    score: liveScore,
-    resultSnapshot: {
-      ...local.resultSnapshot,
-      overall: liveScore.overall,
-      recruiterTrust: hasContradiction ? clamp(local.resultSnapshot.recruiterTrust - 12) : local.resultSnapshot.recruiterTrust,
-      weakestSignal: hasContradiction ? "CV contradiction or unsupported claim" : local.resultSnapshot.weakestSignal,
-      nextAction: hasContradiction ? "Clarify the CV mismatch before continuing." : local.resultSnapshot.nextAction,
-    },
+    recruiterReply: hasContradiction
+      ? local.recruiterReply
+      : cleanText(ai.recruiterReply ?? ai.recruiterReaction) || local.recruiterReply,
+    recruiterReaction: hasContradiction
+      ? local.recruiterReaction
+      : cleanText(ai.recruiterReaction ?? ai.recruiterReply) || local.recruiterReaction,
+    question: hasContradiction
+      ? top?.clarificationQuestion || local.question
+      : cleanText(ai.question ?? ai.nextQuestion) || local.question,
+    nextQuestion: hasContradiction
+      ? top?.clarificationQuestion || local.nextQuestion
+      : cleanText(ai.nextQuestion ?? ai.question) || local.nextQuestion,
+    strengths: Array.isArray(ai.strengths)
+      ? ai.strengths.map(cleanText).filter(Boolean).slice(0, 3)
+      : local.strengths,
+    weaknesses: Array.isArray(ai.weaknesses)
+      ? [...local.weaknesses, ...ai.weaknesses.map(cleanText).filter(Boolean)].slice(0, 4)
+      : local.weaknesses,
+    improvements: Array.isArray(ai.improvements)
+      ? [...local.improvements, ...ai.improvements.map(cleanText).filter(Boolean)].slice(0, 4)
+      : local.improvements,
   };
 }
 
@@ -751,6 +637,10 @@ export async function POST(request: NextRequest) {
 
   const local = localEngine(body);
 
+  if (local.contradictionDetails.length > 0) {
+    return NextResponse.json(local);
+  }
+
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({
       ...local,
@@ -758,8 +648,8 @@ export async function POST(request: NextRequest) {
         ...local.recruiterMemory,
         {
           label: "AI fallback mode",
-          value: "OPENAI_API_KEY is missing. WorkZo used the local contradiction-aware interview engine.",
-          importance: "medium",
+          value: "OPENAI_API_KEY is missing. WorkZo used the fast local recruiter engine.",
+          importance: "medium" as const,
         },
       ].slice(-18),
     });
@@ -770,17 +660,18 @@ export async function POST(request: NextRequest) {
 
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-      temperature: 0.25,
+      temperature: 0.18,
+      max_tokens: 450,
       response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
           content:
-            "You are WorkZo AI's strict JSON-only recruiter simulation engine. You must challenge CV contradictions. Never return markdown or prose outside JSON.",
+            "You are a fast JSON-only recruiter engine. Keep answers short. Never ignore contradictions already found by local analysis.",
         },
         {
           role: "user",
-          content: buildOpenAIPrompt(body, local),
+          content: compactOpenAIPrompt(body, local),
         },
       ],
     });
@@ -797,8 +688,8 @@ export async function POST(request: NextRequest) {
         ...local.recruiterMemory,
         {
           label: "OpenAI fallback",
-          value: `OpenAI call failed, so WorkZo used the local contradiction-aware interview engine. ${message}`,
-          importance: "medium",
+          value: `OpenAI call failed, so WorkZo used the fast local recruiter engine. ${message}`,
+          importance: "medium" as const,
         },
       ].slice(-18),
     });
@@ -810,6 +701,6 @@ export async function GET() {
     ok: true,
     service: "WorkZo AI Interview API",
     status: "ready",
-    intelligence: "contradiction-aware",
+    intelligence: "fast-fact-extraction-contradiction-memory",
   });
 }

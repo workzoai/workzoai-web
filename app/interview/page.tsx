@@ -801,6 +801,40 @@ export default function InterviewPage() {
     }
   };
 
+  const startFreshInterview = () => {
+    try {
+      stopVoiceMode();
+    } catch {
+      // Voice session may already be stopped.
+    }
+
+    try {
+      const keysToRemove: string[] = [];
+
+      for (let index = 0; index < window.localStorage.length; index += 1) {
+        const key = window.localStorage.key(index);
+        if (!key) continue;
+
+        const lowerKey = key.toLowerCase();
+
+        if (
+          lowerKey.includes("workzo") ||
+          lowerKey.includes("interview") ||
+          lowerKey.includes("zustand")
+        ) {
+          keysToRemove.push(key);
+        }
+      }
+
+      keysToRemove.forEach((key) => window.localStorage.removeItem(key));
+      window.sessionStorage.clear();
+    } catch {
+      // Storage may be blocked in private mode.
+    }
+
+    window.location.href = "/onboarding";
+  };
+
   const stopVoiceMode = () => {
     try {
       vapiStartedRef.current = false;
@@ -878,7 +912,7 @@ export default function InterviewPage() {
             </div>
             <div>
               <h1 className="text-base font-black leading-tight md:text-xl">WorkZo AI</h1>
-              <p className="text-xs text-slate-400">Real Interview AI</p>
+              <p className="text-xs text-slate-400">Real Interview AI · session memory active</p>
             </div>
           </Link>
 
@@ -906,6 +940,13 @@ export default function InterviewPage() {
               <ArrowLeft className="h-4 w-4" />
               Dashboard
             </Link>
+            <button
+              onClick={startFreshInterview}
+              className="hidden rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-100 transition hover:bg-red-500/20 md:block"
+            >
+              Start Fresh
+            </button>
+
             <Link
               href="/results"
               className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/10"

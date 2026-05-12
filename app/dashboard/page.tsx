@@ -24,7 +24,7 @@ function safeNumber(value: unknown, fallback = 0) {
 }
 
 function readinessPercent(hasCv: boolean, hasRole: boolean, hasJob: boolean) {
-  return Math.min(100, [hasCv, hasRole, hasJob].filter(Boolean).length * 33);
+  return Math.min(99, [hasCv, hasRole, hasJob].filter(Boolean).length * 33);
 }
 
 function displayRecruiter(value?: string) {
@@ -56,6 +56,44 @@ const navItems = [
   { label: "Resources", icon: Briefcase, href: "/onboarding" },
   { label: "Settings", icon: Settings, href: "/onboarding" },
 ];
+
+function MiniTrend({ values }: { values: number[] }) {
+  const safeValues = values.length ? values : [40, 48, 53, 64, 61, 72, 76, 80, 86];
+  const max = Math.max(...safeValues, 100);
+  const min = Math.min(...safeValues, 0);
+  const range = Math.max(1, max - min);
+
+  const points = safeValues
+    .map((value, index) => {
+      const x = (index / Math.max(1, safeValues.length - 1)) * 100;
+      const y = 100 - ((value - min) / range) * 82 - 8;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  return (
+    <div className="relative h-36 overflow-hidden rounded-2xl border border-white/10 bg-[#07111f] p-3">
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.045)_1px,transparent_1px)] bg-[size:42px_34px]" />
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="relative h-full w-full">
+        <polyline
+          points={points}
+          fill="none"
+          stroke="url(#trendGradient)"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+        <defs>
+          <linearGradient id="trendGradient" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="#3b82f6" />
+            <stop offset="100%" stopColor="#22d3ee" />
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const {
@@ -96,32 +134,32 @@ export default function DashboardPage() {
         ];
 
   const trend = recruiterTrustHistory.length
-    ? recruiterTrustHistory.slice(-12)
+    ? recruiterTrustHistory.slice(-14)
     : [42, 48, 56, 61, 68, 76, 72, 81, 78, 88, 92, 96];
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#020817] text-white">
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute left-[-160px] top-[-100px] h-[420px] w-[420px] rounded-full bg-blue-600/18 blur-[95px]" />
-        <div className="absolute right-[-160px] top-[-80px] h-[420px] w-[420px] rounded-full bg-cyan-400/10 blur-[95px]" />
-        <div className="absolute bottom-[-220px] left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-indigo-500/10 blur-[110px]" />
+        <div className="absolute left-[-150px] top-[-100px] h-[360px] w-[360px] rounded-full bg-blue-600/16 blur-[85px]" />
+        <div className="absolute right-[-150px] top-[-80px] h-[380px] w-[380px] rounded-full bg-cyan-400/10 blur-[90px]" />
+        <div className="absolute bottom-[-220px] left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-indigo-500/10 blur-[105px]" />
       </div>
 
       <div className="relative z-10 flex min-h-screen">
-        <aside className="sticky top-0 hidden h-screen w-[220px] shrink-0 border-r border-white/10 bg-[#03101c]/80 p-4 backdrop-blur-2xl xl:block">
-          <Link href="/" className="flex items-center gap-3">
+        <aside className="sticky top-0 hidden h-screen w-[210px] shrink-0 border-r border-white/10 bg-[#03101c]/82 p-3.5 backdrop-blur-2xl xl:block">
+          <Link href="/" className="flex items-center gap-3 px-1">
             <Image
               src="/workzo_icon.png"
               alt="WorkZo AI"
-              width={38}
-              height={38}
+              width={34}
+              height={34}
               className="rounded-xl"
               priority
             />
             <span className="text-lg font-black">WorkZo AI</span>
           </Link>
 
-          <nav className="mt-8 space-y-1.5">
+          <nav className="mt-7 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -141,8 +179,8 @@ export default function DashboardPage() {
             })}
           </nav>
 
-          <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-            <div className="flex items-center gap-3">
+          <div className="absolute bottom-3 left-3 right-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+            <div className="flex items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-amber-200 to-orange-500 text-base">
                 👩🏽
               </div>
@@ -155,14 +193,14 @@ export default function DashboardPage() {
           </div>
         </aside>
 
-        <div className="w-full px-4 py-4 lg:px-6">
-          <header className="mb-4 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-2xl shadow-black/20 backdrop-blur-2xl xl:hidden">
+        <div className="w-full px-4 py-4 lg:px-5">
+          <header className="mb-3 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-2xl shadow-black/20 backdrop-blur-2xl xl:hidden">
             <Link href="/" className="flex items-center gap-3">
               <Image
                 src="/workzo_icon.png"
                 alt="WorkZo AI"
-                width={38}
-                height={38}
+                width={36}
+                height={36}
                 className="rounded-xl"
                 priority
               />
@@ -180,11 +218,11 @@ export default function DashboardPage() {
             </Link>
           </header>
 
-          <div className="grid gap-4 2xl:grid-cols-[1fr_360px]">
-            <section className="space-y-4">
-              <div className="flex flex-col gap-3 rounded-[24px] border border-white/10 bg-white/[0.045] p-4 shadow-2xl shadow-black/20 backdrop-blur-2xl md:flex-row md:items-center md:justify-between">
+          <div className="grid gap-3 2xl:grid-cols-[1fr_350px]">
+            <section className="space-y-3">
+              <div className="flex flex-col gap-3 rounded-[22px] border border-white/10 bg-white/[0.045] p-4 shadow-2xl shadow-black/20 backdrop-blur-2xl md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h1 className="text-2xl font-black md:text-3xl">
+                  <h1 className="text-2xl font-black leading-tight md:text-[30px]">
                     Good morning, Haritha 👋
                   </h1>
                   <p className="mt-1 text-sm text-slate-400">
@@ -192,7 +230,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-2.5">
                   <Link
                     href="/onboarding"
                     className="rounded-xl border border-white/10 bg-white/8 px-4 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/12"
@@ -218,29 +256,29 @@ export default function DashboardPage() {
                 ].map(([label, value, color]) => (
                   <div
                     key={label}
-                    className="rounded-2xl border border-white/10 bg-white/[0.05] p-4"
+                    className="rounded-2xl border border-white/10 bg-white/[0.05] p-3.5"
                   >
-                    <p className={`text-2xl font-black ${color}`}>{value}</p>
-                    <p className="mt-1 text-xs text-slate-400">{label}</p>
+                    <p className={`text-2xl font-black leading-none ${color}`}>{value}</p>
+                    <p className="mt-2 text-xs text-slate-400">{label}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.05] p-4">
+              <div className="grid gap-3 xl:grid-cols-[0.88fr_1.12fr]">
+                <div className="rounded-[22px] border border-white/10 bg-white/[0.05] p-4">
                   <div className="flex items-center justify-between">
                     <h2 className="text-base font-black">Continue Your Last Interview</h2>
-                    <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-bold text-cyan-200">
+                    <span className="rounded-full bg-cyan-400/10 px-2.5 py-1 text-xs font-bold text-cyan-200">
                       {readiness}% Completed
                     </span>
                   </div>
 
-                  <div className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#07111f] p-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/20">
-                      <Bot className="h-6 w-6 text-blue-200" />
+                  <div className="mt-3 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#07111f] p-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/20">
+                      <Bot className="h-5 w-5 text-blue-200" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-black">{setup.targetRole || "General Role"}</p>
+                      <p className="truncate font-black">{setup.targetRole || "General Role"}</p>
                       <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
                         <div
                           className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-300"
@@ -256,8 +294,8 @@ export default function DashboardPage() {
                     </Link>
                   </div>
 
-                  <div className="mt-4">
-                    <div className="mb-3 flex items-center justify-between">
+                  <div className="mt-3">
+                    <div className="mb-2.5 flex items-center justify-between">
                       <h3 className="text-sm font-black">Recent Interviews</h3>
                       <Link href="/results" className="text-xs font-bold text-blue-300">
                         View all
@@ -278,9 +316,9 @@ export default function DashboardPage() {
                             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/25">
                               <Briefcase className="h-4 w-4 text-indigo-200" />
                             </div>
-                            <div>
-                              <p className="text-sm font-bold">{role}</p>
-                              <p className="text-xs text-slate-500">{company}</p>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold">{role}</p>
+                              <p className="truncate text-xs text-slate-500">{company}</p>
                             </div>
                           </div>
                           <span
@@ -296,25 +334,25 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.05] p-4">
-                  <div className="grid gap-4 lg:grid-cols-[230px_1fr]">
+                <div className="rounded-[22px] border border-white/10 bg-white/[0.05] p-4">
+                  <div className="grid gap-3 lg:grid-cols-[210px_1fr]">
                     <div className="rounded-2xl border border-white/10 bg-[#07111f] p-4 text-center">
                       <h2 className="text-base font-black text-left">Readiness Score</h2>
-                      <div className="mx-auto mt-4 flex h-36 w-36 items-center justify-center rounded-full border-[12px] border-blue-500/70 bg-slate-950 shadow-[inset_0_0_34px_rgba(14,165,233,0.12)]">
+                      <div className="mx-auto mt-4 flex h-32 w-32 items-center justify-center rounded-full border-[10px] border-blue-500/75 bg-slate-950 shadow-[inset_0_0_30px_rgba(14,165,233,0.12)]">
                         <div>
-                          <p className="text-4xl font-black">{averageScore.toFixed(1)}</p>
+                          <p className="text-4xl font-black leading-none">{averageScore.toFixed(1)}</p>
                           <p className="text-xs text-slate-400">/10</p>
                         </div>
                       </div>
                       <p className="mt-3 font-black text-emerald-300">Great Job!</p>
-                      <p className="mt-2 text-xs leading-5 text-slate-400">
-                        You’re better than 76% of candidates in your target role.
+                      <p className="mt-1.5 text-xs leading-5 text-slate-400">
+                        Better than 76% of candidates in your target role.
                       </p>
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="rounded-2xl border border-white/10 bg-[#07111f] p-4">
-                        <div className="mb-3 flex items-center justify-between">
+                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-1">
+                      <div className="rounded-2xl border border-white/10 bg-[#07111f] p-3.5">
+                        <div className="mb-2.5 flex items-center justify-between">
                           <h3 className="text-sm font-black">Strengths</h3>
                           <span className="text-xs text-blue-300">View all</span>
                         </div>
@@ -328,8 +366,8 @@ export default function DashboardPage() {
                         )}
                       </div>
 
-                      <div className="rounded-2xl border border-white/10 bg-[#07111f] p-4">
-                        <div className="mb-3 flex items-center justify-between">
+                      <div className="rounded-2xl border border-white/10 bg-[#07111f] p-3.5">
+                        <div className="mb-2.5 flex items-center justify-between">
                           <h3 className="text-sm font-black text-red-300">Areas to Improve</h3>
                           <span className="text-xs text-blue-300">View all</span>
                         </div>
@@ -345,22 +383,22 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.05] p-4">
+              <div className="grid gap-3 xl:grid-cols-[1fr_0.9fr]">
+                <div className="rounded-[22px] border border-white/10 bg-white/[0.05] p-4">
                   <h2 className="text-base font-black">AI Recommendation</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                    Focus on providing more metrics and measurable results. Practice
-                    handling follow-up questions and interruption moments.
+                    Focus on measurable results and truthful proof. Practice follow-up questions,
+                    contradiction checks, and interruption moments.
                   </p>
                   <Link
                     href="/interview"
-                    className="mt-4 inline-flex rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-black transition hover:bg-indigo-400"
+                    className="mt-3 inline-flex rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-black transition hover:bg-indigo-400"
                   >
                     Start Practice
                   </Link>
                 </div>
 
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.05] p-4">
+                <div className="rounded-[22px] border border-white/10 bg-white/[0.05] p-4">
                   <div className="flex items-center justify-between">
                     <h2 className="text-base font-black">Weakness Patterns</h2>
                     <Link href="/results" className="text-xs font-bold text-blue-300">
@@ -389,23 +427,23 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            <aside className="space-y-4">
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.05] p-4">
+            <aside className="space-y-3">
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.05] p-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-base font-black">Latest Result</h2>
                   <Link
                     href="/results"
                     className="rounded-xl border border-white/10 bg-white/8 px-3 py-2 text-xs font-bold transition hover:bg-white/12"
                   >
-                    View Full Report
+                    View Report
                   </Link>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-white/10 bg-[#07111f] p-4">
+                <div className="mt-3 rounded-2xl border border-white/10 bg-[#07111f] p-4">
                   <div className="flex items-center gap-4">
-                    <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-full border-[10px] border-emerald-400/80 bg-slate-950">
+                    <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-[9px] border-emerald-400/80 bg-slate-950">
                       <div className="text-center">
-                        <p className="text-3xl font-black">{averageScore.toFixed(1)}</p>
+                        <p className="text-3xl font-black leading-none">{averageScore.toFixed(1)}</p>
                         <p className="text-xs text-slate-500">/10</p>
                       </div>
                     </div>
@@ -438,22 +476,22 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.05] p-4">
-                <h2 className="text-base font-black">Recruiter Trust Trend</h2>
-                <p className="mt-1 text-xs text-slate-500">Your trust score over time</p>
-
-                <div className="mt-4 flex h-40 items-end gap-2 rounded-2xl border border-white/10 bg-[#07111f] p-4">
-                  {trend.map((value, index) => (
-                    <div key={`${value}-${index}`} className="flex flex-1 items-end">
-                      <div
-                        className="w-full rounded-t-xl bg-gradient-to-t from-blue-500 to-cyan-300"
-                        style={{ height: `${Math.max(12, Number(value))}%` }}
-                      />
-                    </div>
-                  ))}
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.05] p-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-base font-black">Recruiter Trust Trend</h2>
+                    <p className="mt-1 text-xs text-slate-500">Confidence movement over time</p>
+                  </div>
+                  <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs font-bold text-emerald-300">
+                    {trend[trend.length - 1] || 82}
+                  </span>
                 </div>
 
-                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                <div className="mt-3">
+                  <MiniTrend values={trend} />
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-2xl bg-black/20 p-3">
                     <p className="text-xs text-slate-500">Answers</p>
                     <p className="mt-1 text-xl font-black">{answerHistory.length || 23}</p>
@@ -471,7 +509,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.05] p-4">
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.05] p-4">
                 <h2 className="text-base font-black">Current Setup</h2>
                 <div className="mt-3 grid gap-2">
                   {[
