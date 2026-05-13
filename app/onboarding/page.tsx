@@ -46,6 +46,15 @@ type SetupState = {
   language?: string;
 };
 
+type CardIcon = typeof FileText;
+
+type PreviewCard = {
+  label: string;
+  value: string;
+  Icon: CardIcon;
+};
+
+
 const steps = [
   { id: 1, label: "Upload CV" },
   { id: 2, label: "Job Role" },
@@ -54,7 +63,14 @@ const steps = [
   { id: 5, label: "Start" },
 ];
 
-const markets: Market[] = ["Global", "Germany", "US", "UK", "India", "Netherlands"];
+const markets: { label: Market; flag: string }[] = [
+  { label: "Global", flag: "🌍" },
+  { label: "Germany", flag: "🇩🇪" },
+  { label: "US", flag: "🇺🇸" },
+  { label: "UK", flag: "🇬🇧" },
+  { label: "India", flag: "🇮🇳" },
+  { label: "Netherlands", flag: "🇳🇱" },
+];
 const companyStyles: CompanyStyle[] = ["Realistic", "Startup", "Corporate", "Technical", "Consulting"];
 
 const recruiters: {
@@ -110,6 +126,13 @@ const analysisSignals = [
   "Recruiter memory",
   "Pressure moments",
   "Market expectations",
+];
+
+const liveStatusMessages = [
+  "Analyzing communication style",
+  "Matching recruiter expectations",
+  "Building contradiction memory",
+  "Preparing pressure follow-ups",
 ];
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -183,6 +206,16 @@ export default function OnboardingPage() {
     const jdBonus = Boolean(jobDescription.trim());
     return Math.min(100, [cvReady, roleReady, preferencesReady, jdBonus].filter(Boolean).length * 25);
   }, [manualCv, setup.cvText, role, market, companyStyle, recruiter, jobDescription]);
+
+  const visualReadinessByStep: Record<number, number> = {
+    1: 25,
+    2: 50,
+    3: 75,
+    4: 90,
+    5: 100,
+  };
+
+  const visualReadiness = Math.max(readiness, visualReadinessByStep[step] || readiness);
 
   const currentStepLabel = steps.find((item) => item.id === step)?.label || "Setup";
 
@@ -296,6 +329,14 @@ export default function OnboardingPage() {
           0%, 100% { opacity: .45; transform: scale(.86); }
           50% { opacity: 1; transform: scale(1); }
         }
+
+        @keyframes wzStatusSlide {
+          0%, 20% { transform: translateY(0); }
+          25%, 45% { transform: translateY(-1.5rem); }
+          50%, 70% { transform: translateY(-3rem); }
+          75%, 95% { transform: translateY(-4.5rem); }
+          100% { transform: translateY(0); }
+        }
       `}</style>
 
       <div className="pointer-events-none fixed inset-0">
@@ -362,7 +403,7 @@ export default function OnboardingPage() {
                     </div>
                   </div>
 
-                  <label className="mt-4 flex h-[145px] shrink-0 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-blue-300/30 bg-blue-500/8 p-5 text-center transition hover:bg-blue-500/12">
+                  <label className="mt-4 flex h-[138px] shrink-0 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-blue-300/30 bg-blue-500/8 p-5 text-center transition hover:bg-blue-500/12">
                     <Upload className="h-8 w-8 text-blue-200" />
                     <p className="mt-3 text-lg font-black">{uploading ? "Reading CV..." : "Choose CV file"}</p>
                     <p className="mt-1.5 text-sm text-slate-400">
@@ -401,7 +442,7 @@ export default function OnboardingPage() {
                     value={manualCv}
                     onChange={(event) => setManualCv(event.target.value)}
                     placeholder="Or paste your CV text here..."
-                    className="mt-3 min-h-0 flex-1 resize-none rounded-3xl border border-white/10 bg-[#050b16] p-5 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
+                    className="mt-3 h-[250px] shrink-0 resize-none rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,0.10),transparent_34%),#050b16] p-5 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
                   />
                 </div>
               )}
@@ -465,14 +506,17 @@ export default function OnboardingPage() {
                     <div className="mt-3 flex flex-wrap gap-2.5">
                       {markets.map((item) => (
                         <button
-                          key={item}
-                          onClick={() => setMarket(item)}
+                          key={item.label}
+                          onClick={() => setMarket(item.label)}
                           className={cn(
-                            "rounded-2xl px-5 py-3 text-sm font-black transition",
-                            market === item ? "bg-blue-500 text-white" : "bg-white/10 text-slate-300 hover:bg-white/14"
+                            "rounded-2xl px-4 py-2.5 text-sm font-black transition hover:scale-[1.02]",
+                            market === item.label
+                              ? "bg-gradient-to-r from-blue-500 to-cyan-400 text-white shadow-[0_0_24px_rgba(14,165,233,0.22)]"
+                              : "bg-white/10 text-slate-300 hover:bg-white/14"
                           )}
                         >
-                          {item}
+                          <span className="mr-2">{item.flag}</span>
+                          {item.label}
                         </button>
                       ))}
                     </div>
@@ -486,7 +530,7 @@ export default function OnboardingPage() {
                           key={item}
                           onClick={() => setCompanyStyle(item)}
                           className={cn(
-                            "rounded-2xl px-5 py-3 text-sm font-black transition",
+                            "rounded-2xl px-4 py-2.5 text-sm font-black transition hover:scale-[1.02]",
                             companyStyle === item
                               ? "bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white"
                               : "bg-white/10 text-slate-300 hover:bg-white/14"
@@ -498,28 +542,33 @@ export default function OnboardingPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 grid min-h-0 gap-3 overflow-hidden sm:grid-cols-2">
+                  <div className="mt-4 grid min-h-0 gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
                     {recruiters.map((item) => (
                       <button
                         key={item.key}
                         onClick={() => setRecruiter(item.key)}
                         className={cn(
-                          "rounded-3xl border p-4 text-left transition",
+                          "relative rounded-3xl border p-3.5 text-left transition",
                           recruiter === item.key
-                            ? "border-blue-400 bg-blue-500/16 shadow-[0_0_30px_rgba(59,130,246,0.18)]"
+                            ? "border-cyan-300 bg-gradient-to-br from-blue-500/22 to-indigo-500/12 shadow-[0_0_34px_rgba(34,211,238,0.20)]"
                             : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]"
                         )}
                       >
+                        {recruiter === item.key && (
+                          <span className="absolute right-3 top-3 rounded-full bg-cyan-300/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
+                            Selected
+                          </span>
+                        )}
                         <div className="flex items-start justify-between gap-3">
-                          <div>
+                          <div className="pr-16">
                             <h3 className="font-black">{item.name} · {item.role}</h3>
-                            <p className="mt-1 text-sm leading-5 text-slate-400">{item.description}</p>
+                            <p className="mt-1 text-[13px] leading-5 text-slate-400">{item.description}</p>
                           </div>
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-lg">
                             {item.avatar}
                           </div>
                         </div>
-                        <p className="mt-3 rounded-2xl bg-black/20 p-3 text-sm italic text-slate-300">
+                        <p className="mt-2 rounded-2xl bg-black/20 p-2.5 text-[13px] italic text-slate-300">
                           “{item.quote}”
                         </p>
                       </button>
@@ -543,20 +592,22 @@ export default function OnboardingPage() {
                   </div>
 
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                    {[
-                      ["CV Status", manualCv || setup.cvText ? "CV ready" : "Missing", FileText],
-                      ["Target Role", compactText(role, "General Role"), Briefcase],
-                      ["Market", market, Globe2],
-                      ["Company Style", companyStyle, Building2],
-                      ["Recruiter", recruiterLabel(recruiter), UserRound],
-                      ["Readiness", `${readiness}%`, Sparkles],
-                    ].map(([label, value, Icon]) => (
-                      <div key={String(label)} className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                    {(
+                      [
+                        { label: "CV Status", value: manualCv || setup.cvText ? "CV ready" : "Missing", Icon: FileText },
+                        { label: "Target Role", value: compactText(role, "General Role"), Icon: Briefcase },
+                        { label: "Market", value: market, Icon: Globe2 },
+                        { label: "Company Style", value: companyStyle, Icon: Building2 },
+                        { label: "Recruiter", value: recruiterLabel(recruiter), Icon: UserRound },
+                        { label: "Readiness", value: `${readiness}%`, Icon: Sparkles },
+                      ] satisfies PreviewCard[]
+                    ).map(({ label, value, Icon }) => (
+                      <div key={label} className="rounded-3xl border border-white/10 bg-black/20 p-4">
                         <Icon className="h-5 w-5 text-blue-200" />
                         <p className="mt-3 text-xs font-black uppercase tracking-[0.24em] text-slate-500">
                           {label}
                         </p>
-                        <p className="mt-2 text-lg font-black">{value as string}</p>
+                        <p className="mt-2 text-lg font-black">{value}</p>
                       </div>
                     ))}
                   </div>
@@ -569,7 +620,7 @@ export default function OnboardingPage() {
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-300"
-                        style={{ width: `${readiness}%` }}
+                        style={{ width: `${visualReadiness}%` }}
                       />
                     </div>
                     <p className="mt-4 text-sm leading-6 text-slate-400">
@@ -602,7 +653,7 @@ export default function OnboardingPage() {
               )}
             </div>
 
-            <div className="flex h-[70px] shrink-0 items-center justify-between border-t border-white/10 px-5">
+            <div className="flex h-[62px] shrink-0 items-center justify-between border-t border-white/10 bg-gradient-to-r from-white/[0.02] via-blue-500/5 to-indigo-500/8 px-5 backdrop-blur-xl">
               <button
                 onClick={back}
                 disabled={step === 1}
@@ -614,7 +665,7 @@ export default function OnboardingPage() {
               {step < 5 ? (
                 <button
                   onClick={next}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 px-6 py-3 text-sm font-black text-white shadow-[0_14px_35px_rgba(37,99,235,0.28)] transition hover:scale-[1.02]"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-6 py-2.5 text-sm font-black text-white shadow-[0_14px_34px_rgba(37,99,235,0.30)] transition hover:scale-[1.02]"
                 >
                   Continue
                   <ChevronRight className="h-4 w-4" />
@@ -622,7 +673,7 @@ export default function OnboardingPage() {
               ) : (
                 <button
                   onClick={startInterview}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 px-6 py-3 text-sm font-black text-white shadow-[0_14px_35px_rgba(14,165,233,0.28)] transition hover:scale-[1.02]"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-6 py-2.5 text-sm font-black text-white shadow-[0_14px_34px_rgba(37,99,235,0.30)] transition hover:scale-[1.02]"
                 >
                   Start Interview
                   <ChevronRight className="h-4 w-4" />
@@ -632,7 +683,7 @@ export default function OnboardingPage() {
           </div>
 
           <aside className="min-h-0 rounded-[26px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_30px_110px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
-            <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#050b16] p-5">
+            <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#050b16] p-4">
               <div className="pointer-events-none absolute inset-0">
                 <div className="absolute left-1/2 top-28 h-72 w-72 -translate-x-1/2 rounded-full bg-blue-500/18 blur-[80px]" />
                 <div className="absolute bottom-8 right-[-70px] h-56 w-56 rounded-full bg-cyan-400/12 blur-[80px]" />
@@ -645,7 +696,7 @@ export default function OnboardingPage() {
                     <Wand2 className="h-3.5 w-3.5" />
                     AI setup engine
                   </div>
-                  <h2 className="mt-4 text-2xl font-black tracking-tight">
+                  <h2 className="mt-3 text-2xl font-black tracking-tight">
                     Preparing recruiter intelligence
                   </h2>
                   <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">
@@ -658,10 +709,10 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
-              <div className="relative z-10 mt-4 rounded-3xl border border-white/10 bg-slate-950/55 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+              <div className="relative z-10 mt-3 rounded-3xl border border-white/10 bg-slate-950/55 p-3.5 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
                 <div className="pointer-events-none absolute inset-x-4 top-0 h-16 rounded-full bg-cyan-300/10 blur-2xl" />
 
-                <div className="relative overflow-hidden rounded-2xl border border-cyan-300/15 bg-black/24 p-4">
+                <div className="relative overflow-hidden rounded-2xl border border-cyan-300/15 bg-black/24 p-3.5">
                   <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-cyan-300/12 to-transparent [animation:wzScan_3.6s_ease-in-out_infinite]" />
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -670,7 +721,7 @@ export default function OnboardingPage() {
                       </div>
                       <div>
                         <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">Live analysis</p>
-                        <p className="mt-1 text-lg font-black">{readiness}% ready</p>
+                        <p className="mt-1 text-lg font-black">{visualReadiness}% ready</p>
                       </div>
                     </div>
 
@@ -688,14 +739,14 @@ export default function OnboardingPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-300 to-emerald-300"
                       style={{ width: `${readiness}%` }}
                     />
                   </div>
 
-                  <div className="mt-4 flex h-8 items-end gap-1 overflow-hidden">
+                  <div className="mt-3 flex h-8 items-end gap-1 overflow-hidden">
                     {waveform.map((height, index) => (
                       <span
                         key={index}
@@ -710,7 +761,7 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-2">
+                <div className="mt-3 grid gap-2">
                   {analysisSignals.map((signal, index) => {
                     const active =
                       index === 0 ||
@@ -721,7 +772,7 @@ export default function OnboardingPage() {
                     return (
                       <div
                         key={signal}
-                        className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5"
+                        className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2"
                       >
                         <div className="flex items-center gap-3">
                           <span
@@ -745,15 +796,17 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
-              <div className="relative z-10 mt-3 grid gap-2.5">
-                {[
-                  ["Current step", currentStepLabel, Sparkles],
-                  ["Recruiter style", recruiterLabel(recruiter), UserRound],
-                  ["Privacy", "CV text stays in this setup", Lock],
-                ].map(([label, value, Icon]) => (
+              <div className="relative z-10 mt-3 grid gap-2">
+                {(
+                  [
+                    { label: "Current step", value: currentStepLabel, Icon: Sparkles },
+                    { label: "Recruiter style", value: recruiterLabel(recruiter), Icon: UserRound },
+                    { label: "Privacy", value: "CV text stays in this setup", Icon: Lock },
+                  ] satisfies PreviewCard[]
+                ).map(({ label, value, Icon }) => (
                   <div
-                    key={String(label)}
-                    className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3"
+                    key={label}
+                    className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-2.5"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/14 text-blue-200">
@@ -761,7 +814,7 @@ export default function OnboardingPage() {
                       </div>
                       <div>
                         <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">{label}</p>
-                        <p className="mt-1 text-sm font-bold text-white">{value as string}</p>
+                        <p className="mt-1 text-sm font-bold text-white">{value}</p>
                       </div>
                     </div>
                     <Check className="h-4 w-4 text-emerald-300" />

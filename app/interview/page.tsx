@@ -1,1374 +1,1320 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import Vapi from "@vapi-ai/web";
+import { useRouter } from "next/navigation";
+import type { FormEvent, ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle,
   ArrowLeft,
-  BarChart3,
-  Bot,
+  ArrowRight,
   Brain,
   CheckCircle2,
-  ChevronRight,
+  ChevronDown,
   Clock3,
-  FileText,
   Mic,
   MicOff,
-  PhoneOff,
-  Radio,
+  RotateCcw,
   Send,
   ShieldAlert,
   Sparkles,
-  Timer,
+  TrendingDown,
+  TrendingUp,
   Volume2,
   Zap,
 } from "lucide-react";
 
 import { useInterviewStore } from "@/store/interviewStore";
+import {
+  getRecruiterSystemBehavior,
+  getRecruiterVoiceProfile,
+  getVapiAssistantIdForRecruiter,
+} from "@/lib/recruiterVoiceConfig";
 
-type VoiceState = "idle" | "starting" | "listening" | "speaking" | "muted";
-type Speaker = "user" | "assistant" | null;
+type InterviewSetup = {
+  cvText?: string;
+  targetRole?: string;
+  jobDescription?: string;
+  targetMarket?: string;
+  country?: string;
+  companyStyle?: string;
+  recruiterStyle?: string;
+  recruiterPersonality?: string;
+  language?: string;
+};
 
-type RecruiterProfile = {
-  id: string;
-  name: string;
-  title: string;
-  avatar: string;
-  tone: string;
-  questionStyle: string;
-  pressureBias: number;
-  interruptionBias: number;
-  feedbackStyle: string;
+type ScoreSet = {
+  confidence: number;
+  clarity: number;
+  relevance: number;
+  evidence: number;
+  structure: number;
+};
+
+type MemoryBlock = {
+  strengths: string[];
+  weaknesses: string[];
+  improvements: string[];
+  risks: string[];
+  contradictions?: string[];
+  missingMetrics?: string[];
+  vagueAnswers?: string[];
+  repeatedPatterns?: string[];
+  confidenceTrend?: number[];
+  trustHistory?: number[];
+  recruiterMoodHistory?: string[];
+};
+
+type Interruption = {
+  shouldInterrupt: boolean;
+  interruptionMessage: string;
+  severity: "low" | "medium" | "high";
+};
+
+type TranscriptItem = {
+  role: "recruiter" | "candidate" | "system";
+  text: string;
+  time: string;
+};
+
+type WowMoment = {
+  shouldTrigger?: boolean;
+  type?: string;
+  line?: string;
+  emotionalTag?: string;
+  intensity?: "low" | "medium" | "high";
+};
+
+type TrustTimelineEvent = {
+  time?: string;
+  direction?: "up" | "down" | "stable";
+  value?: number;
+  reason?: string;
+};
+
+type RealtimeSignal = {
+  type?: string;
+  label?: string;
+  message?: string;
+  intensity?: "low" | "medium" | "high";
+  delayMs?: number;
+};
+
+type LiveUiState = {
+  theme?: string;
+  glow?: string;
+  recruiterExpression?: string;
+  motion?: string;
+  label?: string;
+};
+
+type InterviewArc = {
+  phase?: "opening" | "probing" | "pressure" | "recovery" | "closing";
+  instruction?: string;
+};
+
+type PsychologyReport = {
+  finalDecision?: "continue" | "borderline" | "reject";
+  finalPerception?: string;
+  trustTimeline?: TrustTimelineEvent[];
+  strongestSignal?: string;
+  weakestPattern?: string;
+  recoveryMoment?: string;
+  biggestTrustDrop?: string;
+  nextPracticeAction?: string;
 };
 
 type InterviewApiResponse = {
   question?: string;
-  nextQuestion?: string;
-  recruiterReaction?: string;
-  recruiterReply?: string;
-  score?: {
-    clarity?: number;
-    relevance?: number;
-    confidence?: number;
-    structure?: number;
-    evidence?: number;
-    overall?: number;
-  };
-  liveScore?: {
-    clarity?: number;
-    relevance?: number;
-    confidence?: number;
-    structure?: number;
-    evidence?: number;
-    overall?: number;
-  };
-  memoryUpdates?: {
-    label: string;
-    value: string;
-    importance: "low" | "medium" | "high";
-  }[];
-  recruiterMemory?: {
-    label: string;
-    value: string;
-    importance: "low" | "medium" | "high";
-  }[];
-  pressureLevel?: number;
-  emotionState?: string;
-  strengths?: string[];
-  weaknesses?: string[];
-  improvements?: string[];
-  risks?: string[];
-  recruiterProfile?: RecruiterProfile;
-  interruption?:
-    | {
-        shouldInterrupt: boolean;
-        interruptionMessage: string;
-        severity: "low" | "medium" | "high";
-      }
-    | string;
+  recruiterMessage?: string;
+  followUpQuestion?: string;
+  feedback?: string;
+  mood?: string;
+  emotion?: string;
+  pressure?: number;
+  recruiterTrust?: number;
+  score?: Partial<ScoreSet>;
+  scores?: Partial<ScoreSet>;
+  memory?: Partial<MemoryBlock>;
+  contradiction?: string;
   contradictions?: string[];
+  interruption?: Interruption | string | null;
+  wowMoment?: WowMoment;
+  arc?: InterviewArc;
+  trustTimeline?: TrustTimelineEvent[];
+  liveUiState?: LiveUiState;
+  realtimeSignals?: RealtimeSignal[];
+  postInterviewPsychologyReport?: PsychologyReport;
 };
 
-const recruiterProfiles: Record<
+type StoreLike = {
+  setup?: InterviewSetup;
+  interviewSetup?: InterviewSetup;
+  setSetup?: (setup: InterviewSetup) => void;
+  updateSetup?: (setup: InterviewSetup) => void;
+  addAnswer?: (answer: string) => void;
+  setResults?: (result: unknown) => void;
+  updateResults?: (result: unknown) => void;
+  resetInterview?: () => void;
+};
+
+const DEFAULT_QUESTION =
+  "Good to meet you. Let’s begin. Tell me about yourself and keep it relevant to this position.";
+
+const defaultMemory: MemoryBlock = {
+  strengths: [],
+  weaknesses: [],
+  improvements: [],
+  risks: [],
+  contradictions: [],
+  missingMetrics: [],
+  vagueAnswers: [],
+  repeatedPatterns: [],
+  confidenceTrend: [],
+  trustHistory: [],
+  recruiterMoodHistory: [],
+};
+
+const defaultScores: ScoreSet = {
+  confidence: 0,
+  clarity: 0,
+  relevance: 0,
+  evidence: 0,
+  structure: 0,
+};
+
+const waveform = [
+  8, 18, 27, 12, 21, 34, 16, 24, 10, 29, 19, 36, 13, 23, 17, 31, 11, 22,
+  15, 30, 18, 25, 12, 28, 14, 21, 9, 18, 13, 26, 11, 19, 8, 16,
+];
+
+const emotionTheme: Record<
   string,
   {
-    name: string;
-    title: string;
-    avatar: string;
-    quote: string;
-    accent: string;
+    glow: string;
+    border: string;
+    badge: string;
+    label: string;
+    wave: string;
   }
 > = {
-  friendly_hr: {
-    name: "Sarah",
-    title: "Friendly HR",
-    avatar: "👩🏻‍💼",
-    quote: "I want to understand how you communicate and work with people.",
-    accent: "from-emerald-400 to-cyan-300",
+  neutral: {
+    glow: "from-blue-500/26 via-cyan-500/8 to-transparent",
+    border: "border-blue-300/20",
+    badge: "bg-blue-400/12 text-blue-100",
+    label: "Recruiter is listening closely",
+    wave: "from-blue-500 via-cyan-300 to-emerald-300",
   },
-  analytical_hiring_manager: {
-    name: "Daniel",
-    title: "Hiring Manager",
-    avatar: "👨🏻‍💼",
-    quote: "Can you prove the measurable impact behind that answer?",
-    accent: "from-blue-400 to-cyan-300",
+  skeptical: {
+    glow: "from-amber-500/35 via-blue-500/8 to-transparent",
+    border: "border-amber-300/35",
+    badge: "bg-amber-400/14 text-amber-100",
+    label: "Recruiter is not fully convinced",
+    wave: "from-amber-500 via-orange-300 to-cyan-300",
   },
-  startup_recruiter: {
-    name: "Priya",
-    title: "Startup Recruiter",
-    avatar: "👩🏽‍💼",
-    quote: "What did you specifically own, and how fast did you execute?",
-    accent: "from-fuchsia-400 to-orange-300",
+  pressure: {
+    glow: "from-rose-500/38 via-blue-500/8 to-transparent",
+    border: "border-rose-300/40",
+    badge: "bg-rose-400/14 text-rose-100",
+    label: "Pressure is increasing",
+    wave: "from-rose-500 via-orange-300 to-cyan-300",
   },
-  corporate_recruiter: {
-    name: "Markus",
-    title: "Corporate Recruiter",
-    avatar: "👨🏼‍💼",
-    quote: "Keep the answer concise, structured, and relevant.",
-    accent: "from-slate-300 to-blue-300",
+  impressed: {
+    glow: "from-emerald-500/35 via-blue-500/8 to-transparent",
+    border: "border-emerald-300/35",
+    badge: "bg-emerald-400/14 text-emerald-100",
+    label: "Recruiter confidence is improving",
+    wave: "from-emerald-500 via-cyan-300 to-blue-300",
   },
-  pressure_interviewer: {
-    name: "Alex",
-    title: "Pressure Interviewer",
-    avatar: "🧑🏻‍💼",
-    quote: "Let me stop you there. I still do not understand the impact.",
-    accent: "from-red-400 to-orange-300",
+  clarifying: {
+    glow: "from-cyan-500/34 via-blue-500/8 to-transparent",
+    border: "border-cyan-300/35",
+    badge: "bg-cyan-400/14 text-cyan-100",
+    label: "Recruiter is checking consistency",
+    wave: "from-cyan-500 via-blue-300 to-emerald-300",
   },
 };
 
-function isNormalVapiEnd(error: unknown) {
-  const message = String((error as any)?.message || error || "");
-
-  return (
-    message.includes("Meeting ended due to ejection") ||
-    message.includes("Meeting has ended") ||
-    message.includes("Customer/Silence") ||
-    message.includes("Silence") ||
-    message.includes("meeting has ended")
-  );
-}
-
-function safeArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item) => typeof item === "string" && item.trim().length > 0)
-    : [];
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
 }
 
 function safeNumber(value: unknown, fallback = 0) {
-  return typeof value === "number" && !Number.isNaN(value) ? Math.round(value) : fallback;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(0, Math.min(100, Math.round(number)));
 }
 
-function normalizeText(value: string) {
-  return value.toLowerCase().replace(/\s+/g, " ").trim();
+function timeLabel() {
+  return new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-function emotionLabel(value?: string) {
-  if (!value) return "Neutral";
-  return value.charAt(0).toUpperCase() + value.slice(1);
+function getSetupFromStore(store: StoreLike): InterviewSetup {
+  return store.setup || store.interviewSetup || {};
 }
 
-function pressureCopy(value: number) {
-  if (value >= 75) return "High pressure";
-  if (value >= 45) return "Medium pressure";
-  return "Calm pressure";
+function normalizeMemory(memory?: Partial<MemoryBlock>): MemoryBlock {
+  return {
+    strengths: memory?.strengths || [],
+    weaknesses: memory?.weaknesses || [],
+    improvements: memory?.improvements || [],
+    risks: memory?.risks || [],
+    contradictions: memory?.contradictions || [],
+    missingMetrics: memory?.missingMetrics || [],
+    vagueAnswers: memory?.vagueAnswers || [],
+    repeatedPatterns: memory?.repeatedPatterns || [],
+    confidenceTrend: memory?.confidenceTrend || [],
+    trustHistory: memory?.trustHistory || [],
+    recruiterMoodHistory: memory?.recruiterMoodHistory || [],
+  };
 }
 
-function pressureColor(value: number) {
-  if (value >= 75) return "from-red-500 to-orange-400";
-  if (value >= 45) return "from-amber-400 to-orange-400";
-  return "from-blue-500 to-cyan-300";
-}
+function normalizeInterruption(value: InterviewApiResponse["interruption"]): Interruption | null {
+  if (!value) return null;
 
-function scoreLabel(score: number) {
-  if (score >= 80) return "Strong";
-  if (score >= 65) return "Improving";
-  if (score >= 45) return "Needs proof";
-  return "Weak";
-}
-
-function normalizeInterruption(
-  interruption: InterviewApiResponse["interruption"] | null
-): {
-  shouldInterrupt: boolean;
-  interruptionMessage: string;
-  severity: "low" | "medium" | "high";
-} | null {
-  if (!interruption) return null;
-
-  if (typeof interruption === "string") {
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text) return null;
     return {
-      shouldInterrupt: interruption.trim().length > 0,
-      interruptionMessage: interruption,
+      shouldInterrupt: true,
+      interruptionMessage: text,
       severity: "medium",
     };
   }
 
-  return interruption;
+  if (!value.interruptionMessage?.trim()) return null;
+
+  return {
+    shouldInterrupt: Boolean(value.shouldInterrupt),
+    interruptionMessage: value.interruptionMessage,
+    severity: value.severity || "medium",
+  };
 }
 
-function Waveform({
-  active,
-  intense = false,
-  bars = 36,
-}: {
-  active: boolean;
-  intense?: boolean;
-  bars?: number;
-}) {
-  return (
-    <div className="flex h-14 items-end gap-1.5">
-      {Array.from({ length: bars }).map((_, index) => (
-        <span
-          key={index}
-          className={`w-1.5 rounded-full bg-gradient-to-t ${
-            intense ? "from-orange-500 to-red-300" : "from-blue-500 to-cyan-300"
-          } ${active ? "animate-pulse" : ""}`}
-          style={{
-            height: `${12 + ((index * 11) % 36)}px`,
-            animationDelay: `${index * 55}ms`,
-          }}
-        />
-      ))}
-    </div>
-  );
+function getOverallScore(scores: ScoreSet) {
+  const values = [
+    scores.confidence,
+    scores.clarity,
+    scores.relevance,
+    scores.evidence,
+    scores.structure,
+  ];
+  const active = values.filter((item) => item > 0);
+  if (!active.length) return 0;
+  return Math.round(active.reduce((sum, item) => sum + item, 0) / active.length);
 }
 
-function ScoreBar({
-  label,
-  value,
-  hot = false,
-}: {
-  label: string;
-  value: number;
-  hot?: boolean;
-}) {
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between text-sm">
-        <span className="text-slate-400">{label}</span>
-        <span className="font-bold text-white">{safeNumber(value)}%</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-white/10">
-        <div
-          className={`h-full rounded-full bg-gradient-to-r ${
-            hot ? pressureColor(value) : "from-blue-500 to-cyan-300"
-          }`}
-          style={{ width: `${Math.max(4, Math.min(100, safeNumber(value)))}%` }}
-        />
-      </div>
-    </div>
-  );
+function getPressureLabel(pressure: number) {
+  if (pressure >= 72) return "High pressure";
+  if (pressure >= 42) return "Probing deeper";
+  return "Calm pressure";
+}
+
+function recruiterEmoji(name: string) {
+  if (name === "Sarah") return "👩🏻‍💼";
+  if (name === "Priya") return "👩🏽‍💼";
+  if (name === "Markus") return "👨🏼‍💼";
+  return "👨🏻‍💼";
+}
+
+function normalizeThemeKey(state?: LiveUiState, mood?: string, pressure?: number, trust?: number) {
+  const raw = (state?.theme || mood || "neutral").toLowerCase();
+
+  if (raw.includes("pressure") || raw.includes("interrupt") || (pressure || 0) >= 70) return "pressure";
+  if (raw.includes("skept") || raw.includes("doubt") || (trust || 50) < 42) return "skeptical";
+  if (raw.includes("impress") || (trust || 0) >= 70) return "impressed";
+  if (raw.includes("clarif")) return "clarifying";
+  return "neutral";
+}
+
+function getSignalPhrase(label: string, value: number) {
+  const normalized = label.toLowerCase();
+
+  if (normalized.includes("pressure")) {
+    if (value >= 70) return "High pressure";
+    if (value >= 40) return "Probing deeper";
+    return "Calm";
+  }
+
+  if (normalized.includes("trust")) {
+    if (value >= 70) return "Trust rising";
+    if (value >= 40) return "Still evaluating";
+    return "Needs proof";
+  }
+
+  if (value >= 70) return "Strong";
+  if (value >= 40) return "Building";
+  if (value > 0) return "Weak";
+  return "Awaiting answer";
 }
 
 export default function InterviewPage() {
-  const {
-    setup,
-    mode,
-    vapiStatus,
-    vapiError,
-    currentQuestion,
-    transcript,
-    recruiterMemory,
-    liveScore,
-    pressureLevel,
-    emotionState,
-    setMode,
-    setVapiStatus,
-    setVapiError,
-    startSession,
-    endSession,
-    setCurrentQuestion,
-    setLastUserAnswer,
-    addTranscript,
-    addRecruiterMemory,
-    updateLiveScore,
-    setPressureLevel,
-    setEmotionState,
-    recordAnswerHistory,
-    recordInterruption,
-  } = useInterviewStore();
+  const router = useRouter();
+  const store = useInterviewStore() as unknown as StoreLike;
+  const setup = getSetupFromStore(store);
+
+  const recruiterProfile = getRecruiterVoiceProfile(setup.recruiterPersonality);
+  const recruiterBehavior = getRecruiterSystemBehavior(setup.recruiterPersonality);
 
   const [answer, setAnswer] = useState("");
-  const [aiReply, setAiReply] = useState("");
-  const [isThinking, setIsThinking] = useState(false);
-  const [isAnalyzingVoice, setIsAnalyzingVoice] = useState(false);
-
-  const [voiceMode, setVoiceMode] = useState(false);
-  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
-  const [liveTranscript, setLiveTranscript] = useState("");
-  const [liveSpeaker, setLiveSpeaker] = useState<Speaker>(null);
-
-  const [strengths, setStrengths] = useState<string[]>([]);
-  const [weaknesses, setWeaknesses] = useState<string[]>([]);
-  const [improvements, setImprovements] = useState<string[]>([]);
-  const [risks, setRisks] = useState<string[]>([]);
+  const [question, setQuestion] = useState(DEFAULT_QUESTION);
+  const [feedback, setFeedback] = useState("");
+  const [mood, setMood] = useState("neutral");
+  const [pressure, setPressure] = useState(35);
+  const [recruiterTrust, setRecruiterTrust] = useState(46);
+  const [scores, setScores] = useState<ScoreSet>(defaultScores);
+  const [memory, setMemory] = useState<MemoryBlock>(defaultMemory);
   const [contradictions, setContradictions] = useState<string[]>([]);
-  const [interruption, setInterruption] =
-    useState<InterviewApiResponse["interruption"] | null>(null);
-  const [recruiterProfile, setRecruiterProfile] =
-    useState<RecruiterProfile | null>(null);
+  const [interruption, setInterruption] = useState<Interruption | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
+  const [voiceStatus, setVoiceStatus] = useState("Voice ready");
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [clientTime, setClientTime] = useState("--:--");
+  const [liveUiState, setLiveUiState] = useState<LiveUiState | null>(null);
+  const [trustTimeline, setTrustTimeline] = useState<TrustTimelineEvent[]>([]);
+  const [realtimeSignals, setRealtimeSignals] = useState<RealtimeSignal[]>([
+    {
+      type: "listening",
+      label: "Listening",
+      message: "Recruiter is evaluating clarity, proof, and ownership.",
+      intensity: "low",
+    },
+  ]);
+  const [wowMoment, setWowMoment] = useState<WowMoment | null>(null);
+  const [interviewArc, setInterviewArc] = useState<InterviewArc | null>({
+    phase: "opening",
+    instruction: "Start professional and establish baseline confidence.",
+  });
+  const [postInterviewPsychologyReport, setPostInterviewPsychologyReport] =
+    useState<PsychologyReport | null>(null);
+  const [recruiterThinking, setRecruiterThinking] = useState(false);
+  const [liveStatus, setLiveStatus] = useState("Recruiter is listening closely");
+  const [transcript, setTranscript] = useState<TranscriptItem[]>([
+    {
+      role: "recruiter",
+      text: DEFAULT_QUESTION,
+      time: "--:--",
+    },
+  ]);
 
-  const vapiRef = useRef<Vapi | null>(null);
-  const vapiStartedRef = useRef(false);
-  const mountedRef = useRef(false);
-  const lastVoiceAnswerRef = useRef("");
-  const voiceAnalysisTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
-  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  const vapiRef = useRef<unknown>(null);
+  const realtimeAbortRef = useRef<AbortController | null>(null);
 
-  const publicKey = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
-  const defaultAssistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
-  const maleAssistantId = process.env.NEXT_PUBLIC_VAPI_MALE_ASSISTANT_ID;
-  const femaleAssistantId = process.env.NEXT_PUBLIC_VAPI_FEMALE_ASSISTANT_ID;
+  const role = setup.targetRole || "General Role";
+  const market = setup.targetMarket || setup.country || "Global";
+  const companyStyle = setup.companyStyle || setup.recruiterStyle || "Realistic";
+  const overallScore = useMemo(() => getOverallScore(scores), [scores]);
 
-  const targetRole = setup.targetRole || "Target role";
-  const targetMarket = setup.targetMarket || "Global";
-  const companyStyle = setup.companyStyle || "Realistic";
-  const recruiterPersonality = setup.recruiterPersonality || "Professional";
-  const cvText = setup.cvText || "";
-  const jobDescription = setup.jobDescription || "";
+  const themeKey = normalizeThemeKey(liveUiState || undefined, mood, pressure, recruiterTrust);
+  const theme = emotionTheme[themeKey] || emotionTheme.neutral;
 
-  const recruiter = useMemo(() => {
-    if (recruiterProfile) {
-      return {
-        name: recruiterProfile.name || "AI Recruiter",
-        title: recruiterProfile.title || "Hiring Manager",
-        avatar: recruiterProfile.avatar || "👨🏻‍💼",
-        quote: recruiterProfile.questionStyle || "I will test your answers like a real recruiter.",
-        accent: "from-blue-400 to-cyan-300",
-      };
-    }
+  const speakingText = recruiterThinking
+    ? "Hmm... let me think about that for a moment."
+    : interruption?.shouldInterrupt
+      ? interruption.interruptionMessage
+      : question;
 
-    return (
-      recruiterProfiles[recruiterPersonality] ||
-      recruiterProfiles.analytical_hiring_manager
-    );
-  }, [recruiterPersonality, recruiterProfile]);
-
-  const recruiterVoiceGender =
-    recruiterPersonality === "friendly_hr" || recruiterPersonality === "startup_recruiter"
-      ? "female"
-      : "male";
-
-  const assistantId =
-    recruiterVoiceGender === "male"
-      ? maleAssistantId || defaultAssistantId
-      : femaleAssistantId || defaultAssistantId;
-
-  const normalizedInterruption = normalizeInterruption(interruption);
-  const trustScore = safeNumber(
-    (liveScore.confidence + liveScore.relevance + liveScore.structure + liveScore.evidence) / 4,
-    52
-  );
-
-  const speakingActive =
-    voiceState === "speaking" ||
-    isThinking ||
-    isAnalyzingVoice ||
-    Boolean(aiReply);
-
-  const transcriptPreview = transcript.slice(-8);
-  const latestRecruiterLine =
-    liveSpeaker === "assistant" && liveTranscript
-      ? liveTranscript
-      : aiReply || currentQuestion || recruiter.quote;
-
-  const memorySummary =
-    recruiterMemory.length > 0
-      ? recruiterMemory.map((item) => `${item.label}: ${item.value}`).join(" ")
-      : "Memory is building during the interview.";
-
-  const topicsMentioned = transcript
-    .filter((item) => item.speaker === "user")
-    .flatMap((item) =>
-      item.text
-        .split(/[,.]/)
-        .map((part) => part.trim())
-        .filter((part) => part.length > 8)
-    )
-    .slice(-5);
+  const arcLabel = interviewArc?.phase
+    ? interviewArc.phase.charAt(0).toUpperCase() + interviewArc.phase.slice(1)
+    : "Opening";
 
   useEffect(() => {
-    mountedRef.current = true;
-    startSession();
+    setClientTime(timeLabel());
+    const interval = window.setInterval(() => setClientTime(timeLabel()), 30_000);
 
-    if (!currentQuestion) {
-      const firstQuestion = `Good to meet you. Let’s begin with the ${targetRole} role. Tell me about yourself and keep it relevant to this position.`;
-      setCurrentQuestion(firstQuestion);
-      addTranscript({ speaker: "recruiter", text: firstQuestion });
-    }
+    setTranscript((items) =>
+      items.map((item, index) =>
+        index === 0 && item.time === "--:--" ? { ...item, time: timeLabel() } : item
+      )
+    );
 
-    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      if (isNormalVapiEnd(event.reason)) {
-        event.preventDefault();
-        setVapiStatus("ended");
-        setVapiError(null);
-        setVoiceMode(false);
-        setVoiceState("idle");
-      }
-    };
-
-    window.addEventListener("unhandledrejection", handleUnhandledRejection);
-
-    return () => {
-      mountedRef.current = false;
-      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
-
-      if (voiceAnalysisTimerRef.current) {
-        clearTimeout(voiceAnalysisTimerRef.current);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [transcript, liveTranscript, aiReply]);
+    const saved =
+      window.localStorage.getItem("workzo-interview-setup") ||
+      window.localStorage.getItem("workzo_setup");
 
-  async function analyzeAnswer(userAnswer: string, source: "text" | "voice") {
-    const cleanAnswer = userAnswer.trim();
-
-    if (!cleanAnswer) return;
-
-    if (source === "voice") {
-      setIsAnalyzingVoice(true);
-    } else {
-      setIsThinking(true);
-    }
+    if (!saved) return;
 
     try {
+      const parsed = JSON.parse(saved) as InterviewSetup;
+
+      if (!setup.cvText && parsed.cvText) {
+        if (typeof store.setSetup === "function") store.setSetup(parsed);
+        else if (typeof store.updateSetup === "function") store.updateSetup(parsed);
+      }
+    } catch {
+      // Ignore invalid storage.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!answer.trim() || answer.trim().length < 24) return;
+
+    const timer = window.setTimeout(() => {
+      realtimeAbortRef.current?.abort();
+
+      const controller = new AbortController();
+      realtimeAbortRef.current = controller;
+
+      fetch("/api/interview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          mode: "realtime",
+          partialAnswer: answer,
+          elapsedSeconds: Math.min(120, Math.round(answer.trim().split(/\s+/).length / 2.1)),
+          pressure,
+          recruiterTrust,
+          scores,
+          memory,
+        }),
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data?.realtimeSignals?.length) {
+            setRealtimeSignals(data.realtimeSignals);
+            setLiveStatus(data.primarySignal?.message || data.realtimeSignals[0]?.message || liveStatus);
+          }
+        })
+        .catch(() => {
+          // Ignore live signal failures so typing remains smooth.
+        });
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [answer, pressure, recruiterTrust, scores, memory, liveStatus]);
+
+  async function submitAnswer(event?: FormEvent) {
+    event?.preventDefault();
+
+    const candidateAnswer = answer.trim();
+    if (!candidateAnswer || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setRecruiterThinking(true);
+    setLiveStatus("Recruiter is thinking");
+    setFeedback("");
+    setInterruption(null);
+    setWowMoment(null);
+
+    const nextTranscript: TranscriptItem[] = [
+      ...transcript,
+      {
+        role: "candidate",
+        text: candidateAnswer,
+        time: clientTime !== "--:--" ? clientTime : timeLabel(),
+      },
+    ];
+
+    setTranscript(nextTranscript);
+    setAnswer("");
+
+    try {
+      if (typeof store.addAnswer === "function") store.addAnswer(candidateAnswer);
+
+      await new Promise((resolve) => window.setTimeout(resolve, 850));
+
       const response = await fetch("/api/interview", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          mode: source === "voice" ? "answer" : "answer",
-          answer: cleanAnswer,
-          currentQuestion,
-          question: currentQuestion,
-          setup: {
-            cvText,
-            jobDescription,
-            targetRole,
-            country: targetMarket,
-            recruiterPersonality,
-            recruiterStyle: companyStyle,
-            pressureMode: pressureCopy(pressureLevel),
-          },
-          targetRole,
-          targetMarket,
+          answer: candidateAnswer,
+          currentQuestion: question,
+          transcript: nextTranscript,
+          setup,
+          cvText: setup.cvText || "",
+          jobDescription: setup.jobDescription || "",
+          targetRole: role,
+          country: market,
+          targetMarket: market,
           companyStyle,
-          recruiterPersonality,
-          cvText,
-          jobDescription,
-          transcript,
-          recruiterMemory,
-          lastUserAnswer: cleanAnswer,
-          pressureLevel,
-          emotionState,
+          recruiterPersonality: setup.recruiterPersonality,
+          recruiterBehavior,
+          recruiterName: recruiterProfile.name,
+          recruiterRole: recruiterProfile.role,
+          pressure,
+          recruiterTrust,
+          scores,
+          memory,
+          contradictions,
+          trustTimeline,
         }),
       });
 
+      const data = (await response.json().catch(() => ({}))) as InterviewApiResponse;
+
       if (!response.ok) {
-        throw new Error(`Interview API failed with ${response.status}`);
+        throw new Error(data?.feedback || "Interview response failed");
       }
 
-      const data = (await response.json()) as InterviewApiResponse;
-
-      const recruiterReaction =
-        data.recruiterReaction ||
-        data.recruiterReply ||
-        "Interesting. I want to understand the evidence behind that answer.";
-
+      const normalizedInterruption = normalizeInterruption(data.interruption);
       const nextQuestion =
+        data.followUpQuestion ||
         data.question ||
-        data.nextQuestion ||
-        "Can you give me one specific example with situation, action, and result?";
+        data.recruiterMessage ||
+        "Let me push further. What was your specific contribution, and what changed because of it?";
 
-      if (source === "text") {
-        setAiReply(`${recruiterReaction}\n\n${nextQuestion}`);
+      const mergedScores: ScoreSet = {
+        confidence: safeNumber(data.score?.confidence ?? data.scores?.confidence, scores.confidence),
+        clarity: safeNumber(data.score?.clarity ?? data.scores?.clarity, scores.clarity),
+        relevance: safeNumber(data.score?.relevance ?? data.scores?.relevance, scores.relevance),
+        evidence: safeNumber(data.score?.evidence ?? data.scores?.evidence, scores.evidence),
+        structure: safeNumber(data.score?.structure ?? data.scores?.structure, scores.structure),
+      };
 
-        addTranscript({ speaker: "recruiter", text: recruiterReaction });
-        addTranscript({ speaker: "recruiter", text: nextQuestion });
+      const uniqueContradictions = Array.from(
+        new Set([
+          ...contradictions,
+          ...(data.contradiction ? [data.contradiction] : []),
+          ...(data.contradictions || []),
+        ].filter(Boolean))
+      ).slice(-6);
+
+      const normalizedMemory = normalizeMemory(data.memory);
+      const recruiterText = normalizedInterruption?.shouldInterrupt
+        ? normalizedInterruption.interruptionMessage
+        : nextQuestion;
+
+      const finalTranscript: TranscriptItem[] = [
+        ...nextTranscript,
+        {
+          role: "recruiter",
+          text: recruiterText,
+          time: timeLabel(),
+        },
+      ];
+
+      setQuestion(nextQuestion);
+      setFeedback(data.feedback || "");
+      setMood(data.mood || data.emotion || "neutral");
+      setPressure(safeNumber(data.pressure, pressure));
+      setRecruiterTrust(safeNumber(data.recruiterTrust, recruiterTrust));
+      setScores(mergedScores);
+      setMemory(normalizedMemory);
+      setContradictions(uniqueContradictions);
+      setInterruption(normalizedInterruption);
+      setTranscript(finalTranscript);
+      setWowMoment(data.wowMoment || null);
+      setInterviewArc(data.arc || null);
+      setTrustTimeline(data.trustTimeline || trustTimeline);
+      setLiveUiState(data.liveUiState || null);
+      setRealtimeSignals(data.realtimeSignals?.length ? data.realtimeSignals : realtimeSignals);
+      setPostInterviewPsychologyReport(data.postInterviewPsychologyReport || null);
+      setLiveStatus(data.liveUiState?.label || data.wowMoment?.emotionalTag || "Recruiter is listening closely");
+
+      const resultsPayload = {
+        setup,
+        overallScore: getOverallScore(mergedScores),
+        scores: mergedScores,
+        memory: normalizedMemory,
+        contradictions: uniqueContradictions,
+        transcript: finalTranscript,
+        recruiter: recruiterProfile,
+        pressure: safeNumber(data.pressure, pressure),
+        recruiterTrust: safeNumber(data.recruiterTrust, recruiterTrust),
+        feedback: data.feedback || "",
+        wowMoment: data.wowMoment || null,
+        arc: data.arc || null,
+        trustTimeline: data.trustTimeline || trustTimeline,
+        liveUiState: data.liveUiState || null,
+        realtimeSignals: data.realtimeSignals || [],
+        postInterviewPsychologyReport: data.postInterviewPsychologyReport || null,
+      };
+
+      if (typeof store.setResults === "function") store.setResults(resultsPayload);
+      if (typeof store.updateResults === "function") store.updateResults(resultsPayload);
+
+      try {
+        window.localStorage.setItem("workzo-last-results", JSON.stringify(resultsPayload));
+      } catch {
+        // Ignore storage issues.
       }
-
-      setCurrentQuestion(nextQuestion);
-
-      setStrengths(safeArray(data.strengths));
-      setWeaknesses(safeArray(data.weaknesses));
-      setImprovements(safeArray(data.improvements));
-      setRisks(safeArray(data.risks));
-      setContradictions(safeArray(data.contradictions));
-
-      if (data.recruiterProfile) {
-        setRecruiterProfile(data.recruiterProfile);
-      }
-
-      if (data.interruption) {
-        setInterruption(data.interruption);
-
-        const normalized = normalizeInterruption(data.interruption);
-        if (normalized?.shouldInterrupt) {
-          recordInterruption(
-            normalized.interruptionMessage,
-            normalized.severity
-          );
-        }
-
-        setTimeout(() => {
-          setInterruption(null);
-        }, 5200);
-      }
-
-      recordAnswerHistory(cleanAnswer, source);
-
-      const score = data.score || data.liveScore;
-
-      if (score) {
-        updateLiveScore({
-          clarity: safeNumber(score.clarity, liveScore.clarity),
-          relevance: safeNumber(score.relevance, liveScore.relevance),
-          confidence: safeNumber(score.confidence, liveScore.confidence),
-          structure: safeNumber(score.structure, liveScore.structure),
-          evidence: safeNumber(score.evidence, liveScore.evidence),
-          overall: safeNumber(score.overall, liveScore.overall),
-        });
-      }
-
-      if (typeof data.pressureLevel === "number") {
-        setPressureLevel(data.pressureLevel);
-      }
-
-      if (data.emotionState) {
-        setEmotionState(data.emotionState);
-      }
-
-      const updates = Array.isArray(data.memoryUpdates)
-        ? data.memoryUpdates
-        : Array.isArray(data.recruiterMemory)
-          ? data.recruiterMemory
-          : [];
-
-      updates.forEach((item) => {
-        addRecruiterMemory({
-          label: item.label,
-          value: item.value,
-          importance: item.importance,
-        });
-      });
     } catch (error) {
-      console.error(error);
+      const message = error instanceof Error ? error.message : "The recruiter could not respond.";
 
-      if (source === "text") {
-        setAiReply("The recruiter connection failed. Please try again.");
-      }
+      setFeedback(message);
+      setTranscript([
+        ...nextTranscript,
+        {
+          role: "system",
+          text: message,
+          time: timeLabel(),
+        },
+      ]);
     } finally {
-      if (source === "voice") {
-        setIsAnalyzingVoice(false);
-      } else {
-        setIsThinking(false);
-      }
+      setRecruiterThinking(false);
+      setIsSubmitting(false);
     }
   }
 
-  const handleTextSubmit = async () => {
-    if (!answer.trim() || isThinking) return;
-
-    const userAnswer = answer.trim();
-
-    addTranscript({ speaker: "user", text: userAnswer });
-    setLastUserAnswer(userAnswer);
-    setAnswer("");
-
-    await analyzeAnswer(userAnswer, "text");
-  };
-
-  function handleVoiceUserTranscript(text: string) {
-    const cleanText = text.trim();
-
-    if (cleanText.length < 12) return;
-
-    const normalized = normalizeText(cleanText);
-    const previous = normalizeText(lastVoiceAnswerRef.current);
-
-    if (normalized === previous) return;
-
-    if (previous && normalized.includes(previous)) {
-      lastVoiceAnswerRef.current = cleanText;
-    } else {
-      lastVoiceAnswerRef.current = cleanText;
-
-      addTranscript({
-        speaker: "user",
-        text: cleanText,
-      });
-    }
-
-    setLastUserAnswer(cleanText);
-
-    if (voiceAnalysisTimerRef.current) {
-      clearTimeout(voiceAnalysisTimerRef.current);
-    }
-
-    voiceAnalysisTimerRef.current = setTimeout(() => {
-      if (!mountedRef.current) return;
-      void analyzeAnswer(cleanText, "voice");
-    }, 900);
-  }
-
-  const startVoiceMode = async () => {
-    if (!publicKey || !assistantId) {
-      setVapiStatus("error");
-      setVapiError("Missing Vapi keys in .env.local");
-      setLiveTranscript("Missing Vapi keys in .env.local");
-      setLiveSpeaker("assistant");
-      return;
-    }
-
-    if (
-      vapiStartedRef.current ||
-      vapiStatus === "starting" ||
-      vapiStatus === "active"
-    ) {
-      return;
-    }
+  async function startVoiceInterview() {
+    setVoiceError("");
 
     try {
-      setMode("voice");
-      setVapiError(null);
-      setVapiStatus("starting");
-      setVoiceMode(true);
-      setVoiceState("starting");
-      setLiveTranscript("Requesting microphone access...");
-      setLiveSpeaker("assistant");
+      const publicKey = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
+      const assistantId = getVapiAssistantIdForRecruiter(setup.recruiterPersonality);
 
-      await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-
-      if (!vapiRef.current) {
-        vapiRef.current = new Vapi(publicKey);
+      if (!publicKey || !assistantId) {
+        throw new Error(
+          "Missing Vapi key or recruiter assistant ID. Add NEXT_PUBLIC_VAPI_PUBLIC_KEY and recruiter assistant IDs in .env.local."
+        );
       }
 
-      const vapi = vapiRef.current;
-      vapiStartedRef.current = true;
+      const VapiModule = await import("@vapi-ai/web");
+      const Vapi = VapiModule.default;
+      const vapi = new Vapi(publicKey);
 
-      vapi.removeAllListeners?.();
+      vapiRef.current = vapi;
+      setVoiceStatus(`${recruiterProfile.name} voice connecting...`);
+      setLiveStatus(`${recruiterProfile.name} voice connecting`);
 
       vapi.on("call-start", () => {
-        if (!mountedRef.current) return;
-
-        setVoiceMode(true);
-        setVoiceState("listening");
-        setVapiStatus("active");
-        setVapiError(null);
-        setLiveTranscript("Voice interview started. Speak after the recruiter finishes.");
-        setLiveSpeaker("assistant");
-      });
-
-      vapi.on("speech-start", () => {
-        if (!mountedRef.current) return;
-        setVoiceState("speaking");
-      });
-
-      vapi.on("speech-end", () => {
-        if (!mountedRef.current) return;
-        setVoiceState("listening");
+        setVoiceActive(true);
+        setVoiceStatus(`${recruiterProfile.name} is listening`);
+        setLiveStatus(`${recruiterProfile.name} is listening`);
       });
 
       vapi.on("call-end", () => {
-        if (!mountedRef.current) return;
-
-        vapiStartedRef.current = false;
-        setVoiceMode(false);
-        setVoiceState("idle");
-        setVapiStatus("ended");
-        setVapiError(null);
-        setLiveTranscript("Voice interview session ended.");
-        setLiveSpeaker("assistant");
-        endSession();
+        setVoiceActive(false);
+        setVoiceStatus("Voice interview stopped");
+        setLiveStatus("Recruiter is listening closely");
       });
 
-      vapi.on("message", (message: any) => {
-        if (!mountedRef.current) return;
+      vapi.on("message", (message: unknown) => {
+        const payload = message as {
+          type?: string;
+          transcript?: string;
+          role?: "assistant" | "user";
+          transcriptType?: string;
+        };
 
-        if (message?.type === "transcript") {
-          const text = String(message?.transcript || "").trim();
-          if (!text) return;
-
-          const speaker = message.role === "user" ? "user" : "assistant";
-          const isFinal =
-            message.transcriptType === "final" ||
-            message.isFinal === true ||
-            message.final === true ||
-            message.type === "transcript";
-
-          setLiveSpeaker(speaker);
-          setLiveTranscript(text);
-
-          if (speaker === "assistant") {
-            const previousLast =
-              transcript.length > 0 ? transcript[transcript.length - 1]?.text : "";
-
-            if (normalizeText(previousLast || "") !== normalizeText(text)) {
-              addTranscript({
-                speaker: "recruiter",
-                text,
-              });
-            }
-          }
-
-          if (speaker === "user" && isFinal) {
-            handleVoiceUserTranscript(text);
-          }
-        }
-
-        if (message?.type === "end-of-call-report") {
-          const reason = message?.endedReason || "unknown";
-          setLiveTranscript(`Voice interview ended. Reason: ${reason}`);
-          setLiveSpeaker("assistant");
+        if (payload.type === "transcript" && payload.transcript && payload.transcriptType === "final") {
+          setTranscript((items) => [
+            ...items,
+            {
+              role: payload.role === "assistant" ? "recruiter" : "candidate",
+              text: payload.transcript || "",
+              time: timeLabel(),
+            },
+          ]);
         }
       });
 
-      void vapi
-        .start(assistantId, {
-          variableValues: {
-            targetRole,
-            targetMarket,
-            companyStyle,
-            recruiterPersonality,
-            recruiterName: recruiter.name,
-            recruiterTitle: recruiter.title,
-            recruiterVoiceGender,
-            recruiterInstruction:
-              recruiterVoiceGender === "male"
-                ? "Use a professional male recruiter voice and tone."
-                : "Use a professional female recruiter voice and tone.",
-            recruiterMemory:
-              recruiterMemory.length > 0
-                ? recruiterMemory
-                    .map((item) => `${item.label}: ${item.value}`)
-                    .join("\n")
-                : "No recruiter memory yet.",
-            cvSummary: cvText
-              ? cvText.slice(0, 2500)
-              : "No CV uploaded. Ask role-relevant interview questions.",
-            jobDescription: jobDescription
-              ? jobDescription.slice(0, 2500)
-              : "No job description provided.",
-          },
-        })
-        .catch((error: unknown) => {
-          if (!mountedRef.current) return;
+      vapi.on("error", (error: unknown) => {
+        const message = error instanceof Error ? error.message : "Voice interview error";
+        setVoiceError(message);
+        setVoiceStatus("Voice issue");
+        setVoiceActive(false);
+      });
 
-          if (isNormalVapiEnd(error)) {
-            setVapiStatus("ended");
-            setVapiError(null);
-            setLiveTranscript("Voice interview ended.");
-          } else {
-            const message = String((error as any)?.message || error || "");
-            setVapiStatus("error");
-            setVapiError(message || "Voice session could not start.");
-            setLiveTranscript("Voice session could not start. Please try again.");
-          }
-
-          vapiStartedRef.current = false;
-          setVoiceMode(false);
-          setVoiceState("idle");
-          setLiveSpeaker("assistant");
-        });
+      await vapi.start(assistantId);
     } catch (error) {
-      if (isNormalVapiEnd(error)) {
-        setVapiStatus("ended");
-        setVapiError(null);
-      } else {
-        const message = String((error as any)?.message || error || "");
-        setVapiStatus("error");
-        setVapiError(message || "Microphone permission failed.");
-        setLiveTranscript("Microphone permission failed. Please allow microphone access.");
-      }
-
-      vapiStartedRef.current = false;
-      setVoiceMode(false);
-      setVoiceState("idle");
-      setLiveSpeaker("assistant");
+      const message = error instanceof Error ? error.message : "Could not start voice interview.";
+      setVoiceError(message);
+      setVoiceStatus("Voice unavailable");
+      setVoiceActive(false);
     }
-  };
+  }
 
-  const startFreshInterview = () => {
-    try {
-      stopVoiceMode();
-    } catch {
-      // Voice session may already be stopped.
-    }
+  async function stopVoiceInterview() {
+    const current = vapiRef.current as { stop?: () => void } | null;
+    current?.stop?.();
+    setVoiceActive(false);
+    setVoiceStatus("Voice interview stopped");
+    setLiveStatus("Recruiter is listening closely");
+  }
 
-    try {
-      const keysToRemove: string[] = [];
+  function startFresh() {
+    setAnswer("");
+    setQuestion(DEFAULT_QUESTION);
+    setFeedback("");
+    setMood("neutral");
+    setPressure(35);
+    setRecruiterTrust(46);
+    setScores(defaultScores);
+    setMemory(defaultMemory);
+    setContradictions([]);
+    setInterruption(null);
+    setTranscriptOpen(false);
+    setLiveUiState(null);
+    setTrustTimeline([]);
+    setRealtimeSignals([
+      {
+        type: "listening",
+        label: "Listening",
+        message: "Recruiter is evaluating clarity, proof, and ownership.",
+        intensity: "low",
+      },
+    ]);
+    setWowMoment(null);
+    setInterviewArc({
+      phase: "opening",
+      instruction: "Start professional and establish baseline confidence.",
+    });
+    setPostInterviewPsychologyReport(null);
+    setRecruiterThinking(false);
+    setLiveStatus("Recruiter is listening closely");
+    setTranscript([
+      {
+        role: "recruiter",
+        text: DEFAULT_QUESTION,
+        time: clientTime !== "--:--" ? clientTime : timeLabel(),
+      },
+    ]);
 
-      for (let index = 0; index < window.localStorage.length; index += 1) {
-        const key = window.localStorage.key(index);
-        if (!key) continue;
+    if (typeof store.resetInterview === "function") store.resetInterview();
+  }
 
-        const lowerKey = key.toLowerCase();
-
-        if (
-          lowerKey.includes("workzo") ||
-          lowerKey.includes("interview") ||
-          lowerKey.includes("zustand")
-        ) {
-          keysToRemove.push(key);
-        }
-      }
-
-      keysToRemove.forEach((key) => window.localStorage.removeItem(key));
-      window.sessionStorage.clear();
-    } catch {
-      // Storage may be blocked in private mode.
-    }
-
-    window.location.href = "/onboarding";
-  };
-
-  const stopVoiceMode = () => {
-    try {
-      vapiStartedRef.current = false;
-      setVapiStatus("ending");
-      vapiRef.current?.stop();
-    } catch (error) {
-      if (isNormalVapiEnd(error)) {
-        setVapiStatus("ended");
-        setVapiError(null);
-      } else {
-        const message = String((error as any)?.message || error || "");
-        setVapiStatus("error");
-        setVapiError(message || "Voice interview could not stop cleanly.");
-      }
-    } finally {
-      setVoiceMode(false);
-      setVoiceState("idle");
-      setLiveTranscript("Voice interview stopped.");
-      setLiveSpeaker("assistant");
-      endSession();
-    }
-  };
-
-  const toggleMute = () => {
-    if (!vapiRef.current) return;
-
-    if (voiceState === "muted") {
-      vapiRef.current.setMuted(false);
-      setVoiceState("listening");
-    } else {
-      vapiRef.current.setMuted(true);
-      setVoiceState("muted");
-    }
-  };
+  function goToResults() {
+    router.push("/results");
+  }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#020817] text-white">
+    <main className="min-h-screen overflow-y-auto bg-[#020712] text-white lg:h-screen lg:overflow-hidden">
+      <style jsx global>{`
+        @keyframes wzPulseBar {
+          0%, 100% { transform: scaleY(0.72); opacity: 0.68; }
+          50% { transform: scaleY(1.18); opacity: 1; }
+        }
+
+        @keyframes wzLivePulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.42); }
+          50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+        }
+
+        @keyframes wzCameraBreath {
+          0%, 100% { transform: scale(1) translateY(0); }
+          50% { transform: scale(1.014) translateY(-2px); }
+        }
+
+        @keyframes wzEyeFocus {
+          0%, 100% { opacity: .04; transform: translateX(-8px); }
+          50% { opacity: .16; transform: translateX(10px); }
+        }
+
+        @keyframes wzTrustLine {
+          from { stroke-dashoffset: 180; }
+          to { stroke-dashoffset: 0; }
+        }
+
+        @keyframes wzScan {
+          0% { transform: translateY(-80%); opacity: 0; }
+          25% { opacity: 0.28; }
+          60% { opacity: 0.52; }
+          100% { transform: translateY(520%); opacity: 0; }
+        }
+
+        @keyframes wzTextPulse {
+          0%, 100% { opacity: .78; }
+          50% { opacity: 1; }
+        }
+      `}</style>
+
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute left-[-180px] top-[-120px] h-[520px] w-[520px] rounded-full bg-blue-600/18 blur-[130px]" />
-        <div className="absolute right-[-180px] top-[-80px] h-[620px] w-[620px] rounded-full bg-cyan-400/10 blur-[150px]" />
-        <div className="absolute bottom-[-260px] left-1/3 h-[520px] w-[520px] rounded-full bg-indigo-600/12 blur-[150px]" />
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
+        <div className="absolute left-[-260px] top-[-220px] h-[560px] w-[560px] rounded-full bg-blue-600/15 blur-[130px]" />
+        <div className="absolute right-[-220px] top-[-160px] h-[580px] w-[580px] rounded-full bg-cyan-400/12 blur-[140px]" />
+        <div className="absolute bottom-[-280px] left-1/2 h-[580px] w-[580px] -translate-x-1/2 rounded-full bg-indigo-600/12 blur-[140px]" />
       </div>
 
-      {normalizedInterruption?.shouldInterrupt && (
-        <div className="fixed inset-x-4 top-24 z-50 mx-auto max-w-4xl rounded-[2rem] border border-red-400/35 bg-red-950/80 p-5 shadow-[0_24px_90px_rgba(239,68,68,0.22)] backdrop-blur-2xl">
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-500/20">
-              <ShieldAlert className="h-6 w-6 text-red-200" />
-            </div>
-            <div>
-              <p className="text-sm font-black uppercase tracking-[0.24em] text-red-200">
-                Recruiter interruption
-              </p>
-              <p className="mt-2 text-xl font-black leading-8 text-white">
-                “{normalizedInterruption.interruptionMessage}”
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1680px] flex-col px-4 py-4 md:px-6">
-        <header className="mb-4 flex items-center justify-between rounded-[1.7rem] border border-white/10 bg-white/[0.055] px-4 py-3 shadow-2xl shadow-black/20 backdrop-blur-2xl md:px-5">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1540px] flex-col px-3 py-3 sm:px-5 lg:h-screen lg:min-h-0">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.045] px-3 py-3 shadow-[0_20px_90px_rgba(0,0,0,0.32)] backdrop-blur-2xl sm:px-5 lg:h-[60px] lg:flex-nowrap lg:py-0">
           <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-blue-500/20">
-              <Image
-                src="/workzo_icon.png"
-                alt="WorkZo AI"
-                width={44}
-                height={44}
-                className="h-full w-full object-cover"
-                priority
-              />
-            </div>
+            <Image
+              src="/workzo_icon.png"
+              alt="WorkZo AI"
+              width={38}
+              height={38}
+              className="rounded-2xl shadow-[0_0_28px_rgba(14,165,233,0.32)]"
+            />
             <div>
-              <h1 className="text-base font-black leading-tight md:text-xl">WorkZo AI</h1>
-              <p className="text-xs text-slate-400">Real Interview AI · session memory active</p>
+              <p className="text-base font-black leading-tight sm:text-lg">WorkZo AI</p>
+              <p className="hidden text-xs text-slate-400 sm:block">
+                Real Interview AI · recruiter memory active
+              </p>
             </div>
           </Link>
 
-          <div className="hidden items-center gap-3 md:flex">
-            <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
-              {targetRole}
-            </div>
-            <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
-              {targetMarket}
-            </div>
-            <div
-              className={`rounded-full bg-gradient-to-r ${pressureColor(
-                pressureLevel
-              )} px-4 py-2 text-sm font-black text-white`}
-            >
-              {pressureCopy(pressureLevel)}
-            </div>
+          <div className="hidden items-center gap-2 lg:flex">
+            <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-bold text-slate-300">
+              {role}
+            </span>
+            <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-bold text-slate-300">
+              {market}
+            </span>
+            <span className={cn("rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.18em]", theme.badge, theme.border)}>
+              {arcLabel}
+            </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <Link
               href="/dashboard"
-              className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/10 sm:flex"
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-black text-slate-200 transition hover:bg-white/10 sm:px-4"
             >
               <ArrowLeft className="h-4 w-4" />
-              Dashboard
+              <span className="hidden sm:inline">Dashboard</span>
             </Link>
             <button
-              onClick={startFreshInterview}
-              className="hidden rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-100 transition hover:bg-red-500/20 md:block"
+              onClick={startFresh}
+              className="inline-flex items-center gap-2 rounded-2xl border border-red-300/20 bg-red-500/10 px-3 py-2 text-sm font-black text-red-100 transition hover:bg-red-500/15 sm:px-4"
             >
-              Start Fresh
+              <RotateCcw className="h-4 w-4" />
+              <span className="hidden sm:inline">Start Fresh</span>
             </button>
-
-            <Link
-              href="/results"
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/10"
+            <button
+              onClick={goToResults}
+              className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-black text-white transition hover:bg-white/10 sm:px-4"
             >
               Results
-            </Link>
+            </button>
           </div>
         </header>
 
-        <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_410px] 2xl:grid-cols-[minmax(0,1fr)_440px]">
-          <section className="grid gap-4">
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-              <div className="relative min-h-[520px] overflow-hidden rounded-[2rem] border border-white/10 bg-[#050b16] shadow-2xl lg:min-h-[560px]">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_15%,rgba(59,130,246,0.28),rgba(2,6,23,0.26)_36%,rgba(2,6,23,0.98)_100%)]" />
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/70" />
+        <section className="grid flex-1 gap-3 py-3 lg:min-h-0 lg:grid-cols-[1fr_360px] xl:grid-cols-[1fr_390px]">
+          <div className="grid gap-3 lg:min-h-0 lg:grid-rows-[minmax(0,1fr)_178px]">
+            <section className={cn("relative h-[430px] overflow-hidden rounded-[26px] border bg-white/[0.045] shadow-[0_34px_120px_rgba(0,0,0,0.46)] backdrop-blur-2xl sm:h-[500px] lg:h-auto lg:min-h-0", theme.border)}>
+              <div className="absolute inset-0">
+                <Image
+                  src="/workzo_recruiter_hero.png"
+                  alt={`${recruiterProfile.name} recruiter interview`}
+                  fill
+                  priority
+                  sizes="(min-width: 1024px) 70vw, 100vw"
+                  className={cn(
+                    "object-cover object-[center_34%] opacity-92 [animation:wzCameraBreath_9s_ease-in-out_infinite] sm:object-[center_37%]",
+                    recruiterThinking && "scale-[1.01]"
+                  )}
+                />
+                <div className={cn("absolute inset-0 bg-gradient-to-br opacity-80 transition-all duration-700", theme.glow)} />
+                <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,7,18,.68)_0%,rgba(2,7,18,.18)_38%,rgba(2,7,18,.26)_100%),linear-gradient(180deg,rgba(2,7,18,.06)_0%,rgba(2,7,18,.12)_44%,rgba(2,7,18,.78)_100%)]" />
+                <div className="absolute inset-0 shadow-[inset_0_0_110px_rgba(0,0,0,.70)]" />
+                <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-cyan-300/7 to-transparent [animation:wzScan_4s_ease-in-out_infinite]" />
+                <div className="absolute left-[47%] top-[28%] h-20 w-44 rounded-full bg-white [animation:wzEyeFocus_5.5s_ease-in-out_infinite] blur-3xl" />
+              </div>
 
-                <div className="absolute left-5 top-5 z-10 rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/20">
-                      <Bot className="h-5 w-5 text-blue-200" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-black">AI Recruiter</p>
-                      <p className="text-xs text-slate-400">
-                        {voiceMode ? "Using Vapi Voice" : "Text + Voice ready"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-center gap-2 text-xs text-emerald-300">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-                    {vapiStatus === "active" ? "Live" : "Ready"}
-                  </div>
-                </div>
-
-                <div className="absolute right-5 top-5 z-10 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-sm backdrop-blur-xl">
-                  <div className="flex items-center gap-2">
-                    <Clock3 className="h-4 w-4 text-slate-400" />
-                    <span>{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                  </div>
-                </div>
-
-                <div className="absolute inset-x-6 top-24 flex justify-center">
-                  <div className="relative flex h-[390px] w-full max-w-[560px] items-end justify-center overflow-hidden rounded-b-[2.4rem]">
-                    <div className="absolute inset-x-16 bottom-0 h-[330px] rounded-t-full bg-gradient-to-b from-slate-700/80 via-slate-900 to-black shadow-[0_0_100px_rgba(14,165,233,0.22)]" />
-                    <div className="relative mb-8 flex h-56 w-56 items-center justify-center rounded-full bg-gradient-to-br from-amber-100 via-orange-200 to-orange-600 text-8xl shadow-2xl">
-                      {recruiter.avatar}
-                      {speakingActive && (
-                        <span className="absolute inset-[-12px] animate-ping rounded-full border border-cyan-300/35" />
-                      )}
-                    </div>
-                    <div className="absolute bottom-0 h-40 w-[440px] rounded-t-[6rem] bg-gradient-to-br from-slate-100 via-slate-300 to-slate-700" />
-                    <div className="absolute bottom-0 h-32 w-72 rounded-t-[4rem] bg-gradient-to-b from-white to-slate-300" />
-                  </div>
-                </div>
-
-                <div className="absolute bottom-5 left-5 right-5 z-10">
-                  <div className="rounded-[1.5rem] border border-white/10 bg-black/65 p-4 shadow-2xl backdrop-blur-2xl">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                      <div className="min-w-0">
-                        <div className="mb-3 flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-200">
-                            {voiceState === "speaking"
-                              ? "Recruiter speaking"
-                              : voiceState === "listening"
-                                ? "Listening"
-                                : isThinking || isAnalyzingVoice
-                                  ? "Analyzing"
-                                  : "Recruiter says"}
-                          </span>
-                          <span className="rounded-full bg-amber-400/10 px-3 py-1.5 text-xs font-bold text-amber-200">
-                            {pressureCopy(pressureLevel)}
-                          </span>
-                          <span className="rounded-full bg-purple-400/10 px-3 py-1.5 text-xs font-bold text-purple-200">
-                            {emotionLabel(emotionState)}
-                          </span>
-                        </div>
-                        <p className="text-lg font-black leading-7 text-white md:text-xl md:leading-8">
-                          “{latestRecruiterLine}”
-                        </p>
+              <div className="relative z-10 flex h-full min-h-0 flex-col justify-between p-3 sm:p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="rounded-2xl border border-white/8 bg-black/30 p-2 shadow-2xl backdrop-blur-md sm:p-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-500/18 text-lg">
+                        {recruiterEmoji(recruiterProfile.name)}
+                        <span className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-slate-950 bg-emerald-400 [animation:wzLivePulse_1.8s_ease-in-out_infinite]" />
                       </div>
-                      <Waveform
-                        active={voiceState === "speaking" || isThinking || isAnalyzingVoice}
-                        intense={pressureLevel > 70}
-                        bars={28}
-                      />
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
+                          AI Recruiter
+                        </p>
+                        <p className="mt-0.5 text-base font-black">{recruiterProfile.name}</p>
+                        <p className="text-xs text-slate-300">{recruiterProfile.role}</p>
+                      </div>
                     </div>
+
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      <span className="rounded-full bg-emerald-400/12 px-2 py-0.5 text-[10px] font-bold text-emerald-200">
+                        {voiceActive ? "Listening" : "Ready"}
+                      </span>
+                      <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", theme.badge)}>
+                        {liveStatus}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/28 px-3 py-2 backdrop-blur-md sm:px-4 sm:py-3">
+                    <div className="flex items-center gap-2 text-sm font-bold text-slate-200">
+                      <Clock3 className="h-4 w-4 text-slate-400" />
+                      {clientTime}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="max-w-[680px] rounded-[20px] border border-white/10 bg-slate-950/62 px-5 py-3 shadow-[0_22px_75px_rgba(0,0,0,0.56)] backdrop-blur-2xl">
+                  <div className="mb-2.5 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-emerald-400/12 px-3 py-1 text-xs font-black text-emerald-200">
+                      Recruiter says
+                    </span>
+                    <span className={cn("rounded-full px-3 py-1 text-xs font-black", theme.badge)}>
+                      {theme.label}
+                    </span>
+                    {interruption?.shouldInterrupt && (
+                      <span className="rounded-full bg-red-400/14 px-3 py-1 text-xs font-black text-red-100">
+                        Interruption
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-[14px] font-black leading-[1.35] tracking-tight text-white sm:text-[16px] xl:text-[18px] [animation:wzTextPulse_2.2s_ease-in-out_infinite]">
+                    “{speakingText}”
+                  </p>
+
+                  <div className={cn("mt-2 flex h-5 items-end gap-1 overflow-hidden", pressure >= 70 && "animate-pulse")}>
+                    {waveform.map((height, index) => (
+                      <span
+                        key={index}
+                        className={cn("w-1.5 shrink-0 origin-bottom rounded-full bg-gradient-to-t shadow-[0_0_10px_rgba(34,211,238,.28)]", theme.wave)}
+                        style={{
+                          height: Math.max(6, Math.round(height * (pressure >= 70 ? 1 : 0.78))),
+                          animation: `wzPulseBar ${1.1 + (index % 5) * 0.12}s ease-in-out infinite`,
+                          animationDelay: `${index * 0.035}s`,
+                        }}
+                      />
+                    ))}
                   </div>
                 </div>
               </div>
+            </section>
 
-              <aside className="hidden rounded-[2rem] border border-white/10 bg-white/[0.05] p-5 backdrop-blur-2xl xl:block">
-                <div className="flex items-start justify-between">
+            <section className="grid min-h-0 gap-3 lg:grid-cols-[1fr_360px] xl:grid-cols-[1fr_390px]">
+              <form
+                onSubmit={submitAnswer}
+                className="flex min-h-[260px] flex-col rounded-[22px] border border-white/10 bg-white/[0.045] p-3 shadow-[0_18px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl lg:min-h-0"
+              >
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-bold text-cyan-200">Recruiter state</p>
-                    <h2 className="mt-2 text-2xl font-black">
-                      {recruiter.name}
-                    </h2>
-                    <p className="text-sm text-slate-400">{recruiter.title}</p>
-                  </div>
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/15 text-3xl">
-                    {recruiter.avatar}
-                  </div>
-                </div>
-
-                <div className="mt-6 rounded-3xl border border-white/10 bg-black/25 p-4">
-                  <p className="text-sm italic leading-7 text-slate-300">
-                    “{recruiter.quote}”
-                  </p>
-                </div>
-
-                <div className="mt-6 space-y-5">
-                  <ScoreBar label="Recruiter trust" value={trustScore} />
-                  <ScoreBar label="Pressure" value={pressureLevel} hot />
-                  <ScoreBar label="Evidence" value={liveScore.evidence} />
-                  <ScoreBar label="Structure" value={liveScore.structure} />
-                </div>
-
-                <div className="mt-6 grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl bg-black/25 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                      Score
-                    </p>
-                    <p className="mt-2 text-3xl font-black">{safeNumber(liveScore.overall)}%</p>
-                  </div>
-                  <div className="rounded-2xl bg-black/25 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                      Status
-                    </p>
-                    <p className="mt-2 text-lg font-black">{scoreLabel(liveScore.overall)}</p>
-                  </div>
-                </div>
-              </aside>
-            </div>
-
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
-              <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-4 backdrop-blur-2xl md:p-5">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-black md:text-xl">Your answer</h2>
-                    <p className="text-sm text-slate-400">
-                      Keep it specific, truthful, and tied to the role.
+                    <h2 className="text-base font-black sm:text-lg">Your answer</h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {answer.trim().split(/\s+/).filter(Boolean).length > 110 ? "You may be losing the point." : answer.trim().split(/\s+/).filter(Boolean).length > 30 ? "Daniel is listening for proof." : "Answer directly with result, action, impact."}
                     </p>
                   </div>
-                  <button
-                    onClick={() => setMode("text")}
-                    className={`hidden rounded-2xl px-4 py-2 text-sm font-bold transition sm:block ${
-                      mode === "text"
-                        ? "bg-cyan-400/10 text-cyan-200"
-                        : "bg-white/8 text-slate-300 hover:bg-white/12"
-                    }`}
-                  >
+                  <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-black text-cyan-200">
                     Text mode
-                  </button>
+                  </span>
                 </div>
 
                 <textarea
-                  rows={4}
                   value={answer}
                   onChange={(event) => setAnswer(event.target.value)}
+                  placeholder="Answer directly. Example: I reduced ticket resolution time by 25% by..."
+                  className="mt-2 min-h-[130px] flex-1 resize-none rounded-3xl lg:min-h-0 border border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,0.08),transparent_34%),#050b16] p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 transition focus:border-cyan-300/50 focus:shadow-[0_0_26px_rgba(34,211,238,0.10)]"
                   onKeyDown={(event) => {
-                    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                      void handleTextSubmit();
+                    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                      void submitAnswer();
                     }
                   }}
-                  placeholder="Type your answer here... Example: In my previous role, I reduced ticket resolution time by..."
-                  className="min-h-[110px] w-full resize-none rounded-3xl border border-white/10 bg-[#050b16] p-4 text-base leading-7 outline-none placeholder:text-slate-600 focus:border-blue-400"
                 />
 
-                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mt-2 flex items-center justify-between gap-3">
                   <p className="text-xs text-slate-500">
-                    Tip: Press Ctrl/⌘ + Enter to submit.
+                    {recruiterThinking ? "Recruiter is thinking..." : "Tip: result → action → measurable impact."}
                   </p>
                   <button
-                    onClick={handleTextSubmit}
-                    disabled={isThinking || !answer.trim()}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 px-6 py-3 font-black text-white shadow-[0_16px_38px_rgba(14,165,233,0.28)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+                    type="submit"
+                    disabled={!answer.trim() || isSubmitting}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2 text-sm font-black text-white shadow-[0_0_30px_rgba(34,211,238,0.25)] transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-45"
                   >
-                    {isThinking ? "Recruiter thinking..." : "Submit Answer"}
+                    {isSubmitting ? "Thinking..." : "Submit"}
                     <Send className="h-4 w-4" />
                   </button>
                 </div>
-              </div>
+              </form>
 
-              <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-4 backdrop-blur-2xl md:p-5">
-                <h2 className="text-lg font-black md:text-xl">Voice controls</h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  Use Vapi for a live recruiter call.
-                </p>
-
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  {!voiceMode ? (
-                    <button
-                      onClick={startVoiceMode}
-                      className="col-span-2 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 px-5 py-4 font-black text-white shadow-[0_16px_38px_rgba(14,165,233,0.25)] transition hover:scale-[1.01]"
-                    >
-                      <Mic className="h-5 w-5" />
-                      Start Voice Interview
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        onClick={toggleMute}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/8 px-4 py-4 font-bold transition hover:bg-white/12"
-                      >
-                        {voiceState === "muted" ? (
-                          <Mic className="h-5 w-5" />
-                        ) : (
-                          <MicOff className="h-5 w-5" />
-                        )}
-                        {voiceState === "muted" ? "Unmute" : "Mute"}
-                      </button>
-
-                      <button
-                        onClick={stopVoiceMode}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-4 font-bold text-red-200 transition hover:bg-red-500/20"
-                      >
-                        <PhoneOff className="h-5 w-5" />
-                        Stop
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                {vapiError && (
-                  <p className="mt-4 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                    {vapiError}
-                  </p>
-                )}
-
-                {liveTranscript && (
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4">
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
-                      {liveSpeaker === "user" ? "You are saying" : "Live transcript"}
-                    </p>
-                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-200">
-                      {liveTranscript}
-                    </p>
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.045] p-3 shadow-[0_18px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-base font-black sm:text-lg">Voice mode</h2>
+                    <p className="mt-1 text-sm text-slate-400">{voiceStatus}</p>
                   </div>
-                )}
-              </div>
-            </div>
-          </section>
-
-          <aside className="grid gap-4 lg:grid-rows-[auto_minmax(320px,1fr)_auto]">
-            <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-5 backdrop-blur-2xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-black">Live intelligence</h2>
-                  <p className="text-sm text-slate-400">Scoring updates after each answer.</p>
+                  <span
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs font-black",
+                      voiceActive ? "bg-emerald-400/12 text-emerald-200" : "bg-white/8 text-slate-300"
+                    )}
+                  >
+                    {voiceActive ? "Live" : "Ready"}
+                  </span>
                 </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/15">
-                  <BarChart3 className="h-6 w-6 text-blue-200" />
-                </div>
-              </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-black/25 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                    Overall
-                  </p>
-                  <p className="mt-2 text-4xl font-black">{safeNumber(liveScore.overall)}%</p>
-                </div>
-                <div className="rounded-2xl bg-black/25 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                    Emotion
-                  </p>
-                  <p className="mt-2 text-xl font-black">{emotionLabel(emotionState)}</p>
-                </div>
-              </div>
-
-              <div className="mt-5 space-y-4">
-                <ScoreBar label="Confidence" value={liveScore.confidence} />
-                <ScoreBar label="Clarity" value={liveScore.clarity} />
-                <ScoreBar label="Relevance" value={liveScore.relevance} />
-                <ScoreBar label="Evidence" value={liveScore.evidence} />
-              </div>
-            </div>
-
-            <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-5 backdrop-blur-2xl">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-black">Transcript</h2>
-                <span className="rounded-full bg-white/8 px-3 py-1 text-xs text-slate-400">
-                  {transcript.length} lines
-                </span>
-              </div>
-
-              <div className="mt-4 max-h-[360px] space-y-3 overflow-y-auto pr-1">
-                {transcriptPreview.length > 0 ? (
-                  transcriptPreview.map((item, index) => (
-                    <div
-                      key={item.id || `${item.speaker}-${index}-${item.text?.slice(0, 10)}`}
-                      className={`rounded-2xl p-4 text-sm leading-6 ${
-                        item.speaker === "user"
-                          ? "ml-7 bg-blue-500 text-white"
-                          : "mr-7 border border-white/10 bg-black/25 text-slate-200"
-                      }`}
-                    >
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <p className="text-xs font-black uppercase tracking-[0.18em] opacity-70">
-                          {item.speaker === "user" ? "You" : "Recruiter"}
-                        </p>
-                        {item.speaker !== "user" && (
-                          <span className="rounded-full bg-white/8 px-2 py-1 text-[10px] text-cyan-200">
-                            {emotionLabel(emotionState)}
-                          </span>
-                        )}
-                      </div>
-                      {item.text}
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-white/10 bg-black/25 p-4 text-sm leading-6 text-slate-400">
-                    Transcript appears during the interview.
-                  </div>
-                )}
-
-                {(isThinking || isAnalyzingVoice) && (
-                  <div className="mr-7 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm text-cyan-100">
-                    <div className="flex items-center gap-3">
-                      <Radio className="h-4 w-4 animate-pulse" />
-                      Recruiter is analyzing your answer...
-                    </div>
-                  </div>
-                )}
-
-                <div ref={transcriptEndRef} />
-              </div>
-            </div>
-
-            <div className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-5 backdrop-blur-2xl">
-              <div className="flex items-center gap-3">
-                <Brain className="h-5 w-5 text-cyan-300" />
-                <h2 className="text-xl font-black">Recruiter memory</h2>
-              </div>
-
-              <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-400">
-                {memorySummary}
-              </p>
-
-              <div className="mt-4 grid gap-3">
-                {[
-                  {
-                    label: "Strengths",
-                    value: strengths.length ? strengths.join(", ") : "Not enough signal yet.",
-                    tone: "green",
-                    icon: CheckCircle2,
-                  },
-                  {
-                    label: "Weaknesses",
-                    value: weaknesses.length ? weaknesses.join(", ") : "No repeated weakness yet.",
-                    tone: "red",
-                    icon: AlertTriangle,
-                  },
-                  {
-                    label: "Improvements",
-                    value: improvements.length ? improvements.join(", ") : "Answer once to receive targeted improvement.",
-                    tone: "amber",
-                    icon: Sparkles,
-                  },
-                  {
-                    label: "Risks",
-                    value:
-                      risks.length || contradictions.length
-                        ? [...risks, ...contradictions].join(", ")
-                        : "No major risk detected yet.",
-                    tone: "purple",
-                    icon: Zap,
-                  },
-                ].map((card) => {
-                  const Icon = card.icon;
-                  const toneClass =
-                    card.tone === "green"
-                      ? "bg-emerald-500/10 text-emerald-200"
-                      : card.tone === "red"
-                        ? "bg-red-500/10 text-red-200"
-                        : card.tone === "amber"
-                          ? "bg-amber-500/10 text-amber-200"
-                          : "bg-purple-500/10 text-purple-200";
-
-                  return (
-                    <div key={card.label} className={`rounded-2xl p-4 ${toneClass}`}>
-                      <div className="flex items-center gap-2">
-                        <Icon className="h-4 w-4" />
-                        <p className="text-sm font-black">{card.label}</p>
-                      </div>
-                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-300">
-                        {card.value}
+                <div className="mt-2.5 rounded-3xl border border-white/10 bg-slate-950/60 p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
+                        Recruiter voice
+                      </p>
+                      <p className="mt-1 font-black">
+                        {recruiterProfile.name} · {recruiterProfile.voiceGender}
                       </p>
                     </div>
-                  );
-                })}
+                    <Volume2 className="h-5 w-5 text-cyan-200" />
+                  </div>
+
+                  <div className="mt-2 flex h-6 items-end gap-1 overflow-hidden rounded-2xl bg-black/18 px-3 py-1">
+                    {waveform.slice(0, 24).map((height, index) => (
+                      <span
+                        key={index}
+                        className={cn("w-1 shrink-0 origin-bottom rounded-full bg-gradient-to-t", voiceActive ? theme.wave : "from-blue-500 to-cyan-300")}
+                        style={{
+                          height: Math.max(5, Math.round(height * 0.48)),
+                          animation: `wzPulseBar ${1.1 + (index % 5) * 0.12}s ease-in-out infinite`,
+                          animationDelay: `${index * 0.04}s`,
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  {voiceError && (
+                    <div className="mt-2.5 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-3 text-xs leading-5 text-amber-100">
+                      {voiceError}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={voiceActive ? stopVoiceInterview : startVoiceInterview}
+                    className={cn(
+                      "mt-2.5 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-2 text-sm font-black text-white shadow-[0_16px_38px_rgba(14,165,233,.24)] transition hover:scale-[1.01]",
+                      voiceActive
+                        ? "bg-gradient-to-r from-red-500 to-rose-500"
+                        : "bg-gradient-to-r from-blue-500 to-cyan-400"
+                    )}
+                  >
+                    {voiceActive ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    {voiceActive ? "Stop Voice" : "Start Voice"}
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <aside className="grid gap-3 lg:min-h-0 lg:grid-rows-[196px_minmax(0,1fr)]">
+            <section className="rounded-[22px] border border-white/10 bg-white/[0.045] p-3 shadow-[0_18px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-base font-black sm:text-lg">Recruiter perception</h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    {liveUiState?.label || "Live signals from this answer."}
+                  </p>
+                </div>
+                <div className={cn("flex h-11 w-11 items-center justify-center rounded-2xl", theme.badge)}>
+                  <Brain className="h-5 w-5" />
+                </div>
               </div>
 
-              {topicsMentioned.length > 0 && (
-                <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4">
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
-                    Topics mentioned
-                  </p>
-                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-300">
-                    {topicsMentioned.join(", ")}
-                  </p>
+              <div className="mt-2.5 grid gap-2">
+                {realtimeSignals.slice(0, 2).map((signal, index) => (
+                  <div key={`${signal.label}-${index}`} className="rounded-2xl border border-white/10 bg-slate-950/46 p-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-black text-white">{signal.label || "Listening"}</p>
+                      <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-black", signal.intensity === "high" ? "bg-rose-400/14 text-rose-100" : signal.intensity === "medium" ? "bg-amber-400/14 text-amber-100" : "bg-blue-400/14 text-blue-100")}>
+                        {signal.intensity || "low"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">{signal.message}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="min-h-0 overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.045] p-3 shadow-[0_18px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-black">Recruiter memory</h2>
+                <Brain className="h-5 w-5 text-cyan-200" />
+              </div>
+              <p className="mt-1 text-sm text-slate-400">
+                What the recruiter is learning about you.
+              </p>
+
+              <div className="mt-2.5 grid gap-2">
+                {wowMoment?.shouldTrigger && (
+                  <div className="rounded-2xl border border-rose-300/25 bg-rose-500/12 p-3">
+                    <div className="flex items-center gap-2 text-sm font-black text-rose-100">
+                      <Zap className="h-4 w-4" />
+                      Recruiter challenge
+                    </div>
+                    <p className="mt-2 text-sm leading-5 text-rose-50/90">{wowMoment.line}</p>
+                  </div>
+                )}
+
+                {contradictions.length > 0 && (
+                  <div className="rounded-2xl border border-red-300/20 bg-red-500/12 p-3">
+                    <div className="flex items-center gap-2 text-sm font-black text-red-100">
+                      <ShieldAlert className="h-4 w-4" />
+                      Contradiction detected
+                    </div>
+                    <p className="mt-2 text-sm leading-5 text-red-50/90">
+                      {contradictions[contradictions.length - 1]}
+                    </p>
+                  </div>
+                )}
+
+                <MemoryCard
+                  title="What feels strong"
+                  icon={<CheckCircle2 className="h-4 w-4" />}
+                  items={memory.strengths}
+                  fallback={`${recruiterProfile.name} is waiting for one strong proof point.`}
+                  color="emerald"
+                />
+                <MemoryCard
+                  title="What worries the recruiter"
+                  icon={<ShieldAlert className="h-4 w-4" />}
+                  items={memory.weaknesses}
+                  fallback={`${recruiterProfile.name} has not spotted a repeated weakness yet.`}
+                  color="rose"
+                />
+                <MemoryCard
+                  title="Fix next"
+                  icon={<Sparkles className="h-4 w-4" />}
+                  items={memory.improvements}
+                  fallback={feedback || "Your next improvement will appear here."}
+                  color="amber"
+                />
+
+                <div className="rounded-2xl border border-white/10 bg-slate-950/46 p-2.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
+                      Recruiter trust
+                    </p>
+                    <span className="text-xs font-black text-slate-300">{recruiterTrust}/100</span>
+                  </div>
+
+                  <TrustSparkline values={trustTimeline.length ? trustTimeline.slice(-8).map((event) => event.value || recruiterTrust) : [46, recruiterTrust]} />
+
+                  <div className="mt-2 space-y-2">
+                    {trustTimeline.length ? (
+                      trustTimeline.slice(-2).map((event, index) => (
+                        <div key={`${event.time}-${index}`} className="rounded-xl bg-white/[0.04] px-3 py-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-1.5 font-black text-white">
+                              {event.direction === "up" ? <TrendingUp className="h-3.5 w-3.5 text-emerald-200" /> : event.direction === "down" ? <TrendingDown className="h-3.5 w-3.5 text-rose-200" /> : <Brain className="h-3.5 w-3.5 text-blue-200" />}
+                              {event.direction === "up" ? "Trust improved" : event.direction === "down" ? "Trust dropped" : "Trust stable"}
+                            </span>
+                            <span className="text-slate-400">{event.value || recruiterTrust}/100</span>
+                          </div>
+                          <p className="mt-1 text-xs leading-5 text-slate-400">{event.reason}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs leading-5 text-slate-400">Timeline starts after your first answer.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setTranscriptOpen((value) => !value)}
+                className="mt-2.5 inline-flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-2.5 text-sm font-black text-white transition hover:bg-white/12"
+              >
+                Transcript · {transcript.length} lines
+                <ChevronDown className={cn("h-4 w-4 transition", transcriptOpen && "rotate-180")} />
+              </button>
+
+              {transcriptOpen && (
+                <div className="mt-2 max-h-[180px] overflow-y-auto rounded-2xl lg:max-h-[120px] border border-white/10 bg-slate-950/55 p-3">
+                  <div className="space-y-3">
+                    {transcript.slice(-6).map((item, index) => (
+                      <div key={`${item.time}-${index}`}>
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                          {item.role} · {item.time}
+                        </p>
+                        <p className="mt-1 text-sm leading-5 text-slate-200">{item.text}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              <Link
-                href="/results"
-                className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-sm font-black transition hover:bg-white/12"
+              <button
+                onClick={goToResults}
+                className="mt-2.5 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm font-black text-white transition hover:bg-white/14"
               >
                 View full report
-                <ChevronRight className="h-4 w-4" />
-              </Link>
-            </div>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </section>
           </aside>
-        </div>
-      </div>
-
-      <div className="pointer-events-none fixed bottom-5 left-1/2 z-20 hidden -translate-x-1/2 rounded-full border border-white/10 bg-black/60 px-4 py-2 text-xs text-slate-400 backdrop-blur-xl md:block">
-        <span className="inline-flex items-center gap-2">
-          <Timer className="h-3.5 w-3.5" />
-          Real Interview AI · memory, pressure, interruptions, voice
-        </span>
+        </section>
       </div>
     </main>
+  );
+}
+
+
+function TrustSparkline({ values }: { values: number[] }) {
+  const normalized = values.length ? values : [46, 46];
+  const width = 280;
+  const height = 54;
+  const step = width / Math.max(1, normalized.length - 1);
+  const points = normalized
+    .map((value, index) => {
+      const x = index * step;
+      const y = height - (Math.max(0, Math.min(100, value)) / 100) * height;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  return (
+    <svg className="mt-3 h-[54px] w-full overflow-visible" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="trustLineGradient" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0%" stopColor="#3b82f6" />
+          <stop offset="52%" stopColor="#22d3ee" />
+          <stop offset="100%" stopColor="#34d399" />
+        </linearGradient>
+      </defs>
+      <polyline
+        fill="none"
+        stroke="url(#trustLineGradient)"
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        points={points}
+        style={{ strokeDasharray: 180, animation: "wzTrustLine 1.3s ease-out both" }}
+      />
+      {normalized.map((value, index) => {
+        const x = index * step;
+        const y = height - (Math.max(0, Math.min(100, value)) / 100) * height;
+        return <circle key={index} cx={x} cy={y} r="3.4" fill="#67e8f9" />;
+      })}
+    </svg>
+  );
+}
+
+function MemoryCard({
+  title,
+  icon,
+  items,
+  fallback,
+  color,
+}: {
+  title: string;
+  icon: ReactNode;
+  items: string[];
+  fallback: string;
+  color: "emerald" | "rose" | "amber";
+}) {
+  const colorClass = {
+    emerald: "bg-emerald-500/11 text-emerald-100 border-emerald-300/10",
+    rose: "bg-rose-500/11 text-rose-100 border-rose-300/10",
+    amber: "bg-amber-500/11 text-amber-100 border-amber-300/10",
+  }[color];
+
+  return (
+    <div className={cn("rounded-2xl border p-2.5", colorClass)}>
+      <div className="flex items-center gap-2 text-sm font-black">
+        {icon}
+        {title}
+      </div>
+      <div className="mt-2 space-y-1">
+        {items.length ? (
+          items.slice(0, 2).map((item) => (
+            <p key={item} className="text-sm leading-5 text-white/86">
+              {item}
+            </p>
+          ))
+        ) : (
+          <p className="text-sm leading-5 text-white/76">{fallback}</p>
+        )}
+      </div>
+    </div>
   );
 }
