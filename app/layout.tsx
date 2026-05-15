@@ -10,8 +10,10 @@ export const metadata: Metadata = {
   description:
     "Practice realistic AI recruiter interviews based on your CV, target role, and job description.",
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
+    icon: [
+      { url: "/favicon.ico?v=2" },
+    ],
+    shortcut: "/favicon.ico?v=2",
     apple: "/apple-icon.png",
   },
   openGraph: {
