@@ -163,3 +163,57 @@ select {
     transform: translateY(300%);
   }
 }
+
+/* WorkZo mobile performance patch */
+@media (max-width: 768px) {
+  .wz-mobile-no-animation * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .wz-mobile-no-animation .blur-\[120px\],
+  .wz-mobile-no-animation .blur-\[130px\],
+  .wz-mobile-no-animation .blur-\[100px\],
+  .wz-mobile-no-animation .blur-\[90px\] {
+    filter: blur(40px) !important;
+  }
+
+  .wz-mobile-no-animation .backdrop-blur-2xl {
+    backdrop-filter: blur(8px) !important;
+  }
+
+  .wz-mobile-bottom-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+/* WorkZo final mobile performance patch */
+@media (max-width: 768px) {
+  .wz-mobile-no-animation * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .wz-mobile-no-animation .blur-\[120px\],
+  .wz-mobile-no-animation .blur-\[130px\],
+  .wz-mobile-no-animation .blur-\[100px\],
+  .wz-mobile-no-animation .blur-\[90px\] {
+    filter: blur(40px) !important;
+  }
+
+  .wz-mobile-no-animation .backdrop-blur-2xl {
+    backdrop-filter: blur(8px) !important;
+  }
+
+  .wz-mobile-bottom-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .wz-mobile-compact-card {
+    padding: 1rem !important;
+    border-radius: 22px !important;
+  }
+
+  .wz-mobile-tight-section {
+    margin-top: 0.75rem !important;
+  }
+}

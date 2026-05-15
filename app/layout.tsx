@@ -1,23 +1,41 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import SessionFreshnessGuard from "@/components/SessionFreshnessGuard";
 
 export const metadata: Metadata = {
-  title: "WorkZo AI | Real Interview AI",
+  metadataBase: new URL("https://workzoai.com"),
+  title: {
+    default: "WorkZo AI",
+    template: "%s | WorkZo AI",
+  },
   description:
-    "Practice a real interview before the real one with an AI recruiter that reads your CV, asks follow-ups, applies pressure, and gives honest feedback.",
+    "Practice realistic AI recruiter interviews based on your CV, target role, and job description.",
   icons: {
-    icon: [
-      { url: "/workzo_icon.png", type: "image/png" },
-      { url: "/favicon.ico" },
-    ],
-    shortcut: "/workzo_icon.png",
-    apple: "/workzo_icon.png",
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/apple-icon.png",
   },
   openGraph: {
-    title: "WorkZo AI | Real Interview AI",
-    description: "Face a real interview before the real one.",
-    images: ["/workzo_icon.png"],
+    title: "WorkZo AI",
+    description:
+      "Practice realistic AI recruiter interviews based on your CV, target role, and job description.",
+    url: "https://workzoai.com",
+    siteName: "WorkZo AI",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "WorkZo AI",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "WorkZo AI",
+    description:
+      "Practice realistic AI recruiter interviews based on your CV, target role, and job description.",
+    images: ["/og-image.png"],
   },
 };
 
@@ -28,10 +46,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
-        <SessionFreshnessGuard />
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

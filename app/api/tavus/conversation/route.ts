@@ -9,6 +9,11 @@ type TavusRequest = {
   pressure?: number;
 };
 
+type TavusEndRequest = {
+  conversationId?: string;
+  reason?: string;
+};
+
 function requiredEnv(name: string) {
   const value = process.env[name];
 
@@ -48,12 +53,14 @@ You are ${recruiterName}, a realistic recruiter inside WorkZo AI.
 Current recruiter trust: ${recruiterTrust}/100
 Current pressure: ${pressure}/100
 
-Stay professional, realistic, analytical, and emotionally believable.
+Stay professional, realistic, analytical, skeptical, and emotionally believable.
 Ask one question at a time.
 Challenge vague answers.
 Ask for measurable impact, ownership, and proof.
+If the candidate rambles, interrupt politely.
 Do not behave like a coach.
 Do not give long explanations.
+Do not say you are an AI assistant.
         `.trim(),
       }),
     });
@@ -66,7 +73,7 @@ Do not give long explanations.
           error:
             data?.message ||
             data?.error ||
-            `Tavus conversation failed with status ${response.status}`,
+            "Live recruiter unavailable. Continuing interview.",
           raw: data,
         },
         { status: response.status }
@@ -98,7 +105,63 @@ Do not give long explanations.
         error:
           error instanceof Error
             ? error.message
-            : "Could not create Tavus conversation",
+            : "Live recruiter unavailable. Continuing interview.",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const body = (await request.json().catch(() => ({}))) as TavusEndRequest;
+    const conversationId = body.conversationId?.trim();
+
+    if (!conversationId) {
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        reason: "No conversationId provided.",
+      });
+    }
+
+    const apiKey = requiredEnv("TAVUS_API_KEY");
+
+    const response = await fetch(
+      `https://tavusapi.com/v2/conversations/${encodeURIComponent(conversationId)}/end`,
+      {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+        },
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: data?.message || data?.error || "Could not end video conversation.",
+          raw: data,
+        },
+        { status: response.status }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      conversationId,
+      reason: body.reason || "manual",
+      raw: data,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          error instanceof Error ? error.message : "Could not end video conversation",
       },
       { status: 500 }
     );

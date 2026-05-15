@@ -25,7 +25,6 @@ import {
 import { ChangeEvent, useMemo, useState } from "react";
 
 import { useInterviewStore } from "@/store/interviewStore";
-import { buildAndSaveInterviewSetup } from "@/lib/workzoCvClient";
 
 type Market = "Global" | "Germany" | "US" | "UK" | "India" | "Netherlands";
 type CompanyStyle = "Realistic" | "Startup" | "Corporate" | "Technical" | "Consulting";
@@ -45,12 +44,6 @@ type SetupState = {
   recruiterStyle?: string;
   recruiterPersonality?: string;
   language?: string;
-  recruiterMemoryProfile?: unknown;
-  jobMemoryProfile?: unknown;
-  setupVersion?: number;
-  setupId?: string;
-  updatedAt?: string;
-  source?: string;
 };
 
 type CardIcon = typeof FileText;
@@ -183,13 +176,8 @@ function saveSetupToStore(nextSetup: SetupState, store: unknown) {
   }
 
   try {
-    window.localStorage.setItem("workzo-interview-setup-v4", JSON.stringify(nextSetup));
-    window.localStorage.removeItem("workzo-interview-setup-v3");
-    window.localStorage.removeItem("workzo-interview-setup-v2");
-    window.localStorage.removeItem("workzo-interview-setup");
-    window.localStorage.removeItem("workzo_setup");
-    window.localStorage.removeItem("workzo-onboarding");
-    window.localStorage.removeItem("workzo_onboarding");
+    window.localStorage.setItem("workzo-interview-setup", JSON.stringify(nextSetup));
+    window.localStorage.setItem("workzo_setup", JSON.stringify(nextSetup));
   } catch {
     // localStorage may be blocked. The Zustand state update above is enough for the active session.
   }
@@ -231,41 +219,23 @@ export default function OnboardingPage() {
 
   const currentStepLabel = steps.find((item) => item.id === step)?.label || "Setup";
 
-  async function persist(nextStep?: number) {
-    const cvText = (manualCv || setup.cvText || "").trim();
-    const jdText = jobDescription.trim();
+  function buildSetup(): SetupState {
+    return {
+      ...setup,
+      cvText: manualCv || setup.cvText || "",
+      targetRole: role || "General Role",
+      jobDescription,
+      targetMarket: market,
+      country: market,
+      companyStyle,
+      recruiterStyle: companyStyle,
+      recruiterPersonality: recruiter,
+      language: setup.language || "English",
+    };
+  }
 
-    let nextSetup: SetupState;
-
-    // Do NOT call /api/cv unless there is actual CV or JD text.
-    // This prevents "CV text or job description is required."
-    if (cvText.length > 0 || jdText.length > 0) {
-      nextSetup = (await buildAndSaveInterviewSetup({
-        cvText,
-        jobDescription: jdText,
-        targetRole: role || "General Role",
-        targetMarket: market,
-        companyStyle,
-        recruiterPersonality: recruiter,
-        language: setup.language || "English",
-      })) as SetupState;
-    } else {
-      nextSetup = {
-        ...setup,
-        cvText: "",
-        jobDescription: "",
-        targetRole: role || "General Role",
-        targetMarket: market,
-        country: market,
-        companyStyle,
-        recruiterStyle: companyStyle,
-        recruiterPersonality: recruiter,
-        language: setup.language || "English",
-      };
-    }
-
-    saveSetupToStore(nextSetup, store);
-
+  function persist(nextStep?: number) {
+    saveSetupToStore(buildSetup(), store);
     if (nextStep) setStep(nextStep);
   }
 
@@ -297,38 +267,14 @@ export default function OnboardingPage() {
         throw new Error("PDF uploaded, but no readable CV text was found. Paste the CV text manually.");
       }
 
-      const cleanedExtracted = extracted.trim();
-      setManualCv(cleanedExtracted);
-
-      if (cleanedExtracted || jobDescription.trim()) {
-        const nextSetup = await buildAndSaveInterviewSetup({
-          cvText: cleanedExtracted,
-          jobDescription: jobDescription.trim(),
-          targetRole: role || "General Role",
-          targetMarket: market,
-          companyStyle,
-          recruiterPersonality: recruiter,
-          language: setup.language || "English",
-        });
-
-        saveSetupToStore(nextSetup as SetupState, store);
-      } else {
-        saveSetupToStore(
-          {
-            ...setup,
-            cvText: "",
-            jobDescription,
-            targetRole: role || "General Role",
-            targetMarket: market,
-            country: market,
-            companyStyle,
-            recruiterStyle: companyStyle,
-            recruiterPersonality: recruiter,
-            language: setup.language || "English",
-          },
-          store
-        );
-      }
+      setManualCv(extracted);
+      saveSetupToStore(
+        {
+          ...buildSetup(),
+          cvText: extracted,
+        },
+        store
+      );
     } catch (error) {
       const message =
         error instanceof Error
@@ -341,21 +287,21 @@ export default function OnboardingPage() {
     }
   }
 
-  async function next() {
-    await persist(Math.min(5, step + 1));
+  function next() {
+    persist(Math.min(5, step + 1));
   }
 
   function back() {
     setStep(Math.max(1, step - 1));
   }
 
-  async function startInterview() {
-    await persist();
+  function startInterview() {
+    persist();
     router.push("/interview");
   }
 
   return (
-    <main className="wz-mobile-no-animation wz-mobile-bottom-safe min-h-screen overflow-x-hidden bg-[#020712] text-white">
+    <main className="min-h-screen overflow-x-hidden bg-[#020712] text-white">
       <style jsx global>{`
         @keyframes wzPulseBar {
           0%, 100% { transform: scaleY(0.72); opacity: 0.72; }
@@ -414,7 +360,7 @@ export default function OnboardingPage() {
               return (
                 <div key={item.id} className="flex items-center gap-3">
                   <button
-                    onClick={() => void persist(item.id)}
+                    onClick={() => persist(item.id)}
                     className={cn(
                       "flex h-10 w-10 items-center justify-center rounded-full border text-sm font-black transition",
                       complete && "border-emerald-400/35 bg-emerald-400/12 text-emerald-200",
@@ -440,11 +386,11 @@ export default function OnboardingPage() {
           </Link>
         </header>
 
-        <section className="grid flex-1 gap-4 py-3 lg:min-h-0 lg:grid-cols-[1fr_0.82fr]">
-          <div className="flex flex-col overflow-visible rounded-[26px] lg:min-h-0 lg:overflow-hidden border border-white/10 bg-white/[0.045] shadow-[0_30px_110px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
-            <div className="flex-1 overflow-visible p-5 lg:min-h-0 lg:overflow-hidden">
+        <section className="grid min-h-0 flex-1 gap-4 overflow-hidden py-3 pb-20 lg:grid-cols-[1fr_0.82fr]">
+          <div className="flex min-h-0 flex-col overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] shadow-[0_30px_110px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+            <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-28 lg:h-[calc(100vh-210px)]">
               {step === 1 && (
-                <div className="flex min-h-[460px] flex-col lg:h-full lg:min-h-0">
+                <div className="flex min-h-0 flex-col lg:h-full lg:min-h-0">
                   <div className="flex items-center gap-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/18 text-blue-200">
                       <Upload className="h-6 w-6" />
@@ -496,13 +442,13 @@ export default function OnboardingPage() {
                     value={manualCv}
                     onChange={(event) => setManualCv(event.target.value)}
                     placeholder="Or paste your CV text here..."
-                    className="mt-3 h-[250px] shrink-0 resize-none rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,0.10),transparent_34%),#050b16] p-5 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
+                    className="mt-3 h-[220px] shrink-0 resize-none rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,0.10),transparent_34%),#050b16] p-5 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
                   />
                 </div>
               )}
 
               {step === 2 && (
-                <div className="flex min-h-[460px] flex-col lg:h-full lg:min-h-0">
+                <div className="flex min-h-0 flex-col lg:h-full lg:min-h-0">
                   <div className="flex items-center gap-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/16 text-cyan-200">
                       <Briefcase className="h-6 w-6" />
@@ -602,7 +548,7 @@ export default function OnboardingPage() {
                         key={item.key}
                         onClick={() => setRecruiter(item.key)}
                         className={cn(
-                          "relative rounded-3xl border p-3.5 text-left transition",
+                          "relative min-h-[138px] rounded-[22px] border p-3 text-left transition",
                           recruiter === item.key
                             ? "border-cyan-300 bg-gradient-to-br from-blue-500/22 to-indigo-500/12 shadow-[0_0_34px_rgba(34,211,238,0.20)]"
                             : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]"
@@ -622,7 +568,7 @@ export default function OnboardingPage() {
                             {item.avatar}
                           </div>
                         </div>
-                        <p className="mt-2 rounded-2xl bg-black/20 p-2.5 text-[13px] italic text-slate-300">
+                        <p className="mt-2 rounded-2xl bg-black/20 p-2 text-xs italic leading-5 text-slate-300">
                           “{item.quote}”
                         </p>
                       </button>
@@ -632,7 +578,7 @@ export default function OnboardingPage() {
               )}
 
               {step === 4 && (
-                <div className="flex min-h-[460px] flex-col lg:h-full lg:min-h-0">
+                <div className="flex min-h-0 flex-col lg:h-full lg:min-h-0">
                   <div className="flex items-center gap-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/16 text-emerald-200">
                       <ShieldCheck className="h-6 w-6" />
@@ -696,7 +642,7 @@ export default function OnboardingPage() {
                     </p>
 
                     <button
-                      onClick={() => router.push("/dashboard")}
+                      onClick={startInterview}
                       className="mt-8 inline-flex h-14 items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 px-8 text-base font-black text-white shadow-[0_18px_45px_rgba(14,165,233,0.34)] transition hover:scale-[1.02]"
                     >
                       Enter Interview Room
@@ -707,36 +653,36 @@ export default function OnboardingPage() {
               )}
             </div>
 
-            <div className="flex h-[62px] shrink-0 items-center justify-between border-t border-white/10 bg-gradient-to-r from-white/[0.02] via-blue-500/5 to-indigo-500/8 px-5 backdrop-blur-xl">
+            <div className="fixed inset-x-4 bottom-4 z-[95] mx-auto flex h-[58px] max-w-[900px] items-center justify-between rounded-[24px] border border-white/10 bg-slate-950/88 px-4 shadow-[0_24px_90px_rgba(0,0,0,0.48)] backdrop-blur-2xl sm:px-5">
               <button
                 onClick={back}
                 disabled={step === 1}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                className="h-11 rounded-2xl border border-white/10 bg-white/[0.06] px-5 text-sm font-bold text-slate-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Back
               </button>
 
               {step < 5 ? (
                 <button
-                  onClick={() => void next()}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-6 py-2.5 text-sm font-black text-white shadow-[0_14px_34px_rgba(37,99,235,0.30)] transition hover:scale-[1.02]"
+                  onClick={next}
+                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-6 text-sm font-black text-white shadow-[0_14px_34px_rgba(37,99,235,0.30)] transition hover:scale-[1.02]"
                 >
                   Continue
                   <ChevronRight className="h-4 w-4" />
                 </button>
               ) : (
                 <button
-                  onClick={() => void startInterview()}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-6 py-2.5 text-sm font-black text-white shadow-[0_14px_34px_rgba(37,99,235,0.30)] transition hover:scale-[1.02]"
+                  onClick={startInterview}
+                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-6 text-sm font-black text-white shadow-[0_14px_34px_rgba(37,99,235,0.30)] transition hover:scale-[1.02]"
                 >
-                  Go to Dashboard
+                  Start Interview
                   <ChevronRight className="h-4 w-4" />
                 </button>
               )}
             </div>
           </div>
 
-          <aside className="min-h-0 wz-mobile-soft-card wz-mobile-compact-card rounded-[26px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_30px_110px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+          <aside className="min-h-0 overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_30px_110px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
             <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#050b16] p-4">
               <div className="pointer-events-none absolute inset-0">
                 <div className="absolute left-1/2 top-28 h-72 w-72 -translate-x-1/2 rounded-full bg-blue-500/18 blur-[80px]" />
@@ -753,7 +699,7 @@ export default function OnboardingPage() {
                   <h2 className="mt-3 text-2xl font-black tracking-tight">
                     Preparing recruiter intelligence
                   </h2>
-                  <p className="wz-mobile-compact-subtitle mt-2 max-w-md text-sm leading-6 text-slate-400">
+                  <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">
                     WorkZo is assembling your CV, role, market, and recruiter style into one interview simulation.
                   </p>
                 </div>
@@ -776,6 +722,7 @@ export default function OnboardingPage() {
                       <div>
                         <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">Live analysis</p>
                         <p className="mt-1 text-lg font-black">{visualReadiness}% ready</p>
+                        <p className="mt-1 text-xs text-cyan-100/70">Recruiter memory calibrated for realistic follow-ups.</p>
                       </div>
                     </div>
 
@@ -850,7 +797,7 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
-              <div className="relative z-10 mt-3 grid gap-2">
+              <div className="relative z-10 mt-2 grid gap-1.5 sm:grid-cols-2">
                 {(
                   [
                     { label: "Current step", value: currentStepLabel, Icon: Sparkles },
@@ -860,7 +807,10 @@ export default function OnboardingPage() {
                 ).map(({ label, value, Icon }) => (
                   <div
                     key={label}
-                    className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-2.5"
+                    className={cn(
+                      "flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-1.5",
+                      label === "Privacy" && "sm:col-span-2 bg-emerald-400/8"
+                    )}
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/14 text-blue-200">
