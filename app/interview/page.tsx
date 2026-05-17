@@ -243,38 +243,37 @@ function buildNaturalInterviewBridge({
   answerCount: number;
   nextQuestion: string;
 }) {
-  const generalTransitions =
+  const transitions =
     recruiterId === "startup_recruiter"
       ? [
           "Okay, thanks. Let’s move to the next part.",
           "Got it. I’ll switch direction slightly.",
           "Alright. Let’s look at another situation.",
-          "Thanks. I want to understand a different side of your experience now.",
+          "Thanks. I want to understand another side of your experience.",
         ]
       : recruiterId === "friendly_hr"
         ? [
             "Thank you, that helps. Let’s continue.",
             "Okay, I understand. Let’s move to another example.",
-            "That gives me useful context. I’d like to ask about something else now.",
-            "Thanks for explaining that. Let’s continue with the next question.",
+            "That gives me useful context. I’d like to ask about something else.",
+            "Thanks for explaining that. Let’s continue.",
           ]
         : recruiterId === "german_corporate"
           ? [
               "Thank you. Let’s continue with the next area.",
               "Understood. I’ll move to another question now.",
-              "That gives me context. Let’s keep the discussion structured.",
+              "That gives me context. Let’s keep this structured.",
               "Thank you. I’d like to cover another situation.",
             ]
           : [
               "Okay, thanks. Let’s go to the next area.",
-              "Understood. I want to explore another example now.",
+              "Understood. I want to explore another example.",
               "That gives me some context. Let’s continue.",
               "Thanks. I’ll move the interview forward.",
             ];
 
-  const transition =
-    generalTransitions[answerCount % generalTransitions.length];
-  return `${transition} ${nextQuestion}`.replace(/\s+/g, " ").trim();
+  const transition = transitions[answerCount % transitions.length];
+  return cleanLiveRecruiterSpeech(`${transition} ${nextQuestion}`);
 }
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -410,13 +409,12 @@ function getAnswerSnippet(answer: string) {
 }
 
 function buildHumanPauseMs(analysis: AnswerAnalysis) {
-  if (analysis.state === "losing_confidence") return 1850;
-  if (analysis.state === "pressuring") return 1450;
-  if (analysis.state === "skeptical") return 1250;
-  if (analysis.state === "recovering_trust") return 950;
-  if (analysis.state === "engaged" || analysis.state === "interested")
-    return 650;
-  return 1050;
+  // Keep the live interview moving like a real conversation.
+  // Deeper critique is saved for the results page, not spoken mid-call.
+  if (analysis.signal === "rambling") return 900;
+  if (analysis.signal === "strong_metrics" || analysis.signal === "good_ownership") return 520;
+  if (analysis.signal === "recovery") return 620;
+  return 680;
 }
 
 function softenRecruiterSpeech(text: string) {
@@ -567,32 +565,23 @@ function recruiterQuestionLead(
   recruiterId: RecruiterId,
   state: RecruiterState,
 ) {
-  if (state === "losing_confidence") {
-    if (recruiterId === "german_corporate")
-      return "Let’s stay structured here.";
-    if (recruiterId === "startup_recruiter")
-      return "Let’s go one level deeper.";
-    if (recruiterId === "friendly_hr") return "Let’s slow that down slightly.";
-    return "I want to understand that more clearly.";
-  }
+  if (recruiterId === "startup_recruiter") return "Okay, thanks.";
+  if (recruiterId === "friendly_hr") return "Thank you, that helps.";
+  if (recruiterId === "german_corporate") return "Understood.";
+  return "Okay, I understand.";
+}
 
-  if (state === "pressuring" || state === "skeptical") {
-    if (recruiterId === "german_corporate") return "Be precise here.";
-    if (recruiterId === "startup_recruiter") return "Let’s move quickly.";
-    if (recruiterId === "friendly_hr") return "Stay concrete for me.";
-    return "Let’s understand the evidence.";
-  }
-
-  if (state === "recovering_trust") return "That was a better direction.";
-  if (state === "engaged" || state === "interested")
-    return "Good, let’s build on that.";
-
-  if (recruiterId === "german_corporate") return "Let’s keep this structured.";
-  if (recruiterId === "startup_recruiter")
-    return "Alright, let’s get practical.";
-  if (recruiterId === "friendly_hr")
-    return "I’d like to understand your experience better.";
-  return "I want to understand your thinking.";
+function cleanLiveRecruiterSpeech(text: string) {
+  return softenRecruiterSpeech(text)
+    .replace(/let me stop you there(?: for a second)?\.?/gi, "")
+    .replace(/i noticed this pattern earlier too:?/gi, "")
+    .replace(/answer was too short[^.?!]*[.?!]?/gi, "")
+    .replace(/missing measurable impact[^.?!]*[.?!]?/gi, "")
+    .replace(/i'?m going to be direct here\.?/gi, "")
+    .replace(/recruiter is (exploring|inviting|guiding|asking|keeping)[^.?!]*[.?!]?/gi, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([.?!,])/g, "$1")
+    .trim();
 }
 
 function buildConversationalRecruiterSpeech({
@@ -615,8 +604,6 @@ function buildConversationalRecruiterSpeech({
   isOpening?: boolean;
 }) {
   const question = screenQuestion.replace(/\s+/g, " ").trim();
-  const weakness = memory.rememberedWeaknesses?.[0];
-  const strength = memory.rememberedStrengths?.[0];
   const lead = recruiterQuestionLead(recruiterId, state);
 
   if (isOpening) {
@@ -660,27 +647,19 @@ function buildConversationalRecruiterSpeech({
     return softenRecruiterSpeech(question);
   }
 
-  // Keep live interview speech natural. Do not speak diagnostic coaching such as
-  // "missing measurable impact" or "answer too short" during the call; save that
-  // for the result page. Live speech should sound curious, not corrective.
-  const gentleStatePrefix =
-    state === "recovering_trust"
-      ? "That gives me a better sense of your experience. "
-      : state === "engaged" || state === "interested"
-        ? "Okay, thanks. "
-        : state === "skeptical" ||
-            state === "pressuring" ||
-            state === "losing_confidence"
-          ? "I understand. Let’s look at it a little more closely. "
-          : "";
+  // Live speech should sound like a calm recruiter, not an AI coach.
+  // Do not verbalize scoring, weakness labels, repeated patterns, or diagnostics.
+  const spokenQuestion = cleanLiveRecruiterSpeech(question);
+  const spokenBridge = cleanLiveRecruiterSpeech(bridge || lead);
 
-  const spokenQuestion = softenRecruiterSpeech(question);
-  const spokenBridge = bridge ? softenRecruiterSpeech(bridge) : lead;
+  const prefix =
+    state === "engaged" || state === "interested"
+      ? "Okay, thanks."
+      : state === "recovering_trust"
+        ? "That helps."
+        : "Understood.";
 
-  return `${gentleStatePrefix}${spokenBridge} ${spokenQuestion}`
-    .replace(/\s+/g, " ")
-    .replace(/\s+\./g, ".")
-    .trim();
+  return cleanLiveRecruiterSpeech(`${prefix} ${spokenBridge} ${spokenQuestion}`);
 }
 
 function getRecognitionConstructor() {
@@ -741,7 +720,7 @@ function analyzeAnswer(
       signal: "too_short",
       state: "interested",
       trustDelta: 0,
-      caption: "Recruiter is inviting more context",
+      caption: "Recruiter is listening",
       bridge: "Okay, I’m following you.",
       followUp:
         "Can you continue that example and give me a little more context about the situation and your role?",
@@ -753,11 +732,11 @@ function analyzeAnswer(
       signal: "rambling",
       state: "interested",
       trustDelta: -3,
-      caption: "Recruiter is guiding the answer gently",
+      caption: "Recruiter is listening",
       bridge: "Thanks, that gives me a lot of context.",
       followUp:
         "What would you say was the most important part of your contribution in that story?",
-      weakness: "Answer could be more focused.",
+      weakness: "Answer could be more focused in the final structure.",
     };
   }
 
@@ -766,10 +745,10 @@ function analyzeAnswer(
       signal: "unclear_ownership",
       state: "interested",
       trustDelta: repeatedOwnershipIssue ? -4 : -2,
-      caption: "Recruiter is exploring ownership",
+      caption: "Recruiter is listening",
       bridge: "That helps me understand the situation.",
       followUp: "What part of that work was directly handled by you?",
-      weakness: "Ownership needs clearer detail.",
+      weakness: "Ownership could be clearer in the final answer.",
     };
   }
 
@@ -778,11 +757,11 @@ function analyzeAnswer(
       signal: "missing_metrics",
       state: "interested",
       trustDelta: repeatedMetricsIssue ? -4 : -2,
-      caption: "Recruiter is exploring impact",
+      caption: "Recruiter is listening",
       bridge: "Got it — that gives me the story.",
       followUp:
         "What changed after your work? It can be time saved, fewer issues, better quality, or even a rough estimate.",
-      weakness: "Impact could be more measurable.",
+      weakness: "Impact could be more measurable in the final answer.",
     };
   }
 
@@ -791,11 +770,11 @@ function analyzeAnswer(
       signal: "too_generic",
       state: "interested",
       trustDelta: -2,
-      caption: "Recruiter is asking for a concrete example",
+      caption: "Recruiter is listening",
       bridge: "Okay, I see the direction.",
       followUp:
         "Can you make it more concrete with one specific situation you remember?",
-      weakness: "Answer could use a more concrete example.",
+      weakness: "Answer could use a more concrete example in the final answer.",
     };
   }
 
@@ -820,7 +799,7 @@ function analyzeAnswer(
       signal: hasNumber ? "strong_metrics" : "good_ownership",
       state: "engaged",
       trustDelta: 9,
-      caption: "Strong ownership signal detected",
+      caption: "Recruiter engaged",
       bridge:
         "That is more convincing because you gave me ownership and impact.",
       followUp: `Let’s go one level deeper: what was the hardest decision you made in that ${questionContext}?`,
@@ -832,7 +811,7 @@ function analyzeAnswer(
     signal: "good_ownership",
     state: "interested",
     trustDelta: 5,
-    caption: "Recruiter engaged by specifics",
+    caption: "Recruiter engaged",
     bridge: "Good, that is clearer.",
     followUp:
       "What would your manager or stakeholder say was the strongest part of your contribution?",
@@ -1556,6 +1535,8 @@ export default function InterviewPage() {
 
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const currentRecruiterAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const recruiterAudioUnlockedRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const isLiveRef = useRef(false);
@@ -1617,6 +1598,10 @@ export default function InterviewPage() {
         recognitionRef.current?.stop();
       } catch {}
       try {
+        currentAudioSourceRef.current?.stop();
+        currentAudioSourceRef.current = null;
+      } catch {}
+      try {
         currentRecruiterAudioRef.current?.pause();
         currentRecruiterAudioRef.current = null;
       } catch {}
@@ -1654,6 +1639,23 @@ export default function InterviewPage() {
   const unlockRecruiterAudio = useCallback(() => {
     if (typeof window === "undefined") return;
     if (recruiterAudioUnlockedRef.current) return;
+
+    try {
+      const AudioContextConstructor =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+
+      if (AudioContextConstructor && !audioContextRef.current) {
+        audioContextRef.current = new AudioContextConstructor();
+      }
+
+      void audioContextRef.current?.resume().then(() => {
+        recruiterAudioUnlockedRef.current = true;
+      });
+    } catch {
+      // Continue to the HTMLAudio fallback below.
+    }
 
     try {
       const audio = currentRecruiterAudioRef.current || new Audio();
@@ -1703,6 +1705,10 @@ export default function InterviewPage() {
       const cleanText = softenRecruiterSpeech(text);
 
       try {
+        currentAudioSourceRef.current?.stop();
+        currentAudioSourceRef.current = null;
+      } catch {}
+      try {
         currentRecruiterAudioRef.current?.pause();
       } catch {}
 
@@ -1716,6 +1722,52 @@ export default function InterviewPage() {
           recruiterId,
           text: cleanText,
         });
+
+        let didFinishAudio = false;
+        const finishAudio = () => {
+          if (didFinishAudio) return;
+          didFinishAudio = true;
+          try {
+            currentAudioSourceRef.current?.disconnect();
+          } catch {}
+          currentAudioSourceRef.current = null;
+          isSpeakingRef.current = false;
+          setIsSpeaking(false);
+          setVoiceStatus("Listening...");
+          afterSpeak?.();
+        };
+
+        const safetyTimeout = window.setTimeout(
+          finishAudio,
+          Math.min(26000, Math.max(6500, cleanText.length * 110)),
+        );
+
+        const AudioContextConstructor =
+          typeof window !== "undefined"
+            ? window.AudioContext ||
+              (window as Window & { webkitAudioContext?: typeof AudioContext })
+                .webkitAudioContext
+            : null;
+
+        if (AudioContextConstructor) {
+          const context = audioContextRef.current || new AudioContextConstructor();
+          audioContextRef.current = context;
+          await context.resume();
+
+          const arrayBuffer = await audioBlob.arrayBuffer();
+          const audioBuffer = await context.decodeAudioData(arrayBuffer.slice(0));
+          const source = context.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(context.destination);
+          source.onended = () => {
+            window.clearTimeout(safetyTimeout);
+            finishAudio();
+          };
+          currentAudioSourceRef.current = source;
+          source.start(0);
+          return;
+        }
+
         const audioUrl = URL.createObjectURL(audioBlob);
         const audio = currentRecruiterAudioRef.current || new Audio();
         currentRecruiterAudioRef.current = audio;
@@ -1727,31 +1779,14 @@ export default function InterviewPage() {
         audio.volume = 1;
         (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
 
-        let didFinishAudio = false;
-        const finishAudio = () => {
-          if (didFinishAudio) return;
-          didFinishAudio = true;
+        const finishHtmlAudio = () => {
+          window.clearTimeout(safetyTimeout);
           URL.revokeObjectURL(audioUrl);
-          isSpeakingRef.current = false;
-          setIsSpeaking(false);
-          setVoiceStatus("Listening...");
-          afterSpeak?.();
-        };
-
-        const safetyTimeout = window.setTimeout(
-          finishAudio,
-          Math.min(22000, Math.max(5500, cleanText.length * 95)),
-        );
-
-        audio.onended = () => {
-          window.clearTimeout(safetyTimeout);
           finishAudio();
         };
 
-        audio.onerror = () => {
-          window.clearTimeout(safetyTimeout);
-          finishAudio();
-        };
+        audio.onended = finishHtmlAudio;
+        audio.onerror = finishHtmlAudio;
 
         try {
           audio.load();
@@ -1850,7 +1885,7 @@ export default function InterviewPage() {
         const wordCount = finalAnswer.split(" ").filter(Boolean).length;
 
         if (!finalAnswer || wordCount < 6) {
-          setVoiceStatus("Continue speaking...");
+          setVoiceStatus("Keep going — I’m listening...");
           return;
         }
 
@@ -1861,7 +1896,7 @@ export default function InterviewPage() {
         pendingAnswerRef.current = "";
         setIsListening(false);
         handleCandidateAnswerRef.current(finalAnswer);
-      }, 3200);
+      }, 4700);
     };
 
     recognitionRef.current = recognition;
@@ -1902,7 +1937,7 @@ export default function InterviewPage() {
           };
           addTranscript(recruiterReply);
           speakRecruiter(clarificationReply, () => {
-            window.setTimeout(() => listenForAnswer(), 420);
+            window.setTimeout(() => listenForAnswer(), 650);
           });
         }, 650);
         return;
@@ -1935,7 +1970,7 @@ export default function InterviewPage() {
           addTranscript(recruiterReply);
           setQuestion(introQuestion);
           speakRecruiter(spokenIntro, () => {
-            window.setTimeout(() => listenForAnswer(), 420);
+            window.setTimeout(() => listenForAnswer(), 650);
           });
         }, 850);
         return;
@@ -1966,7 +2001,7 @@ export default function InterviewPage() {
           addTranscript(recruiterReply);
           setQuestion(transitionQuestion);
           speakRecruiter(transitionSpeech, () => {
-            window.setTimeout(() => listenForAnswer(), 420);
+            window.setTimeout(() => listenForAnswer(), 650);
           });
         }, 1050);
         return;
@@ -2018,10 +2053,7 @@ export default function InterviewPage() {
         nextQuestion,
       });
 
-      const thinkingDelay = Math.min(
-        1200,
-        Math.max(650, buildHumanPauseMs(analysis) - 450),
-      );
+      const thinkingDelay = Math.min(900, Math.max(450, buildHumanPauseMs(analysis)));
 
       setVoiceStatus("Recruiter is thinking...");
 
@@ -2037,7 +2069,7 @@ export default function InterviewPage() {
         addTranscript(recruiterReply);
         setQuestion(nextQuestion);
         speakRecruiter(spokenReply, () => {
-          window.setTimeout(() => listenForAnswer(), 350);
+          window.setTimeout(() => listenForAnswer(), 650);
         });
       }, thinkingDelay);
 
@@ -2154,7 +2186,7 @@ export default function InterviewPage() {
     });
 
     speakRecruiter(spokenOpening, () => {
-      window.setTimeout(() => listenForAnswer(), 400);
+      window.setTimeout(() => listenForAnswer(), 650);
     });
   }, [addTranscript, listenForAnswer, speakRecruiter, unlockRecruiterAudio]);
 
@@ -2255,6 +2287,10 @@ export default function InterviewPage() {
   const handleToggleSpeaker = useCallback(() => {
     setSpeakerOn((value) => !value);
     if (speakerOn) {
+      try {
+        currentAudioSourceRef.current?.stop();
+        currentAudioSourceRef.current = null;
+      } catch {}
       try {
         currentRecruiterAudioRef.current?.pause();
         currentRecruiterAudioRef.current = null;
