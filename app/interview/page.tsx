@@ -1845,70 +1845,84 @@ export default function InterviewPage() {
     recruiterStateRef.current = recruiterState;
   }, [recruiterState]);
 
-  const unlockRecruiterAudio = useCallback(() => {
-    if (typeof window === "undefined") return;
-    if (recruiterAudioUnlockedRef.current) return;
+  const unlockRecruiterAudio = useCallback(async () => {
+    if (typeof window === "undefined") return false;
+    if (recruiterAudioUnlockedRef.current) return true;
+
+    let unlocked = false;
+
+    const AudioContextConstructor =
+      window.AudioContext ||
+      (window as Window & { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
 
     try {
-      const AudioContextConstructor =
-        window.AudioContext ||
-        (window as Window & { webkitAudioContext?: typeof AudioContext })
-          .webkitAudioContext;
-
       if (AudioContextConstructor && !audioContextRef.current) {
         audioContextRef.current = new AudioContextConstructor();
       }
 
-      void audioContextRef.current?.resume().then(() => {
-        recruiterAudioUnlockedRef.current = true;
-      });
-    } catch {
-      // Continue to the HTMLAudio fallback below.
+      const context = audioContextRef.current;
+      if (context) {
+        await context.resume();
+
+        // iOS/Chrome mobile needs an audible graph to be started directly from
+        // the tap event. A near-silent oscillator unlocks the audio session
+        // without the user hearing a click.
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        gain.gain.value = 0.0001;
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start();
+        oscillator.stop(context.currentTime + 0.045);
+        unlocked = true;
+      }
+    } catch (error) {
+      console.warn("WorkZo AudioContext unlock failed:", error);
     }
 
     try {
       const audio = currentRecruiterAudioRef.current || new Audio();
-      audio.preload = "auto";
-      audio.volume = 0;
-      audio.muted = true;
-      audio.setAttribute("playsinline", "true");
-      (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline =
-        true;
+      currentRecruiterAudioRef.current = audio;
+
       if (typeof document !== "undefined" && !audio.isConnected) {
         audio.setAttribute("data-workzo-recruiter-audio", "true");
         audio.style.position = "fixed";
         audio.style.left = "-9999px";
+        audio.style.top = "0";
         audio.style.width = "1px";
         audio.style.height = "1px";
         audio.style.opacity = "0";
         document.body.appendChild(audio);
       }
+
+      audio.preload = "auto";
+      audio.autoplay = false;
+      audio.controls = false;
+      audio.loop = false;
+      audio.muted = false;
+      audio.volume = 0.01;
+      audio.setAttribute("playsinline", "true");
+      (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline =
+        true;
+
+      // Unmuted near-silent WAV. Do NOT use muted audio here: mobile browsers
+      // often do not unlock future audible playback from muted media.
       audio.src =
         "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQQAAAAAAA==";
-      currentRecruiterAudioRef.current = audio;
+      audio.load();
 
-      const playPromise = audio.play();
-      if (playPromise && typeof playPromise.then === "function") {
-        playPromise
-          .then(() => {
-            recruiterAudioUnlockedRef.current = true;
-            audio.pause();
-            audio.currentTime = 0;
-            audio.muted = false;
-            audio.volume = 1;
-          })
-          .catch(() => {
-            audio.muted = false;
-            audio.volume = 1;
-          });
-      } else {
-        recruiterAudioUnlockedRef.current = true;
-        audio.muted = false;
-        audio.volume = 1;
-      }
-    } catch {
-      // Ignore unlock failures; the normal play path will still try.
+      await audio.play();
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = 1;
+      unlocked = true;
+    } catch (error) {
+      console.warn("WorkZo HTML audio unlock failed:", error);
     }
+
+    recruiterAudioUnlockedRef.current = unlocked;
+    return unlocked;
   }, []);
 
   const addTranscript = useCallback((item: TranscriptItem) => {
@@ -2419,6 +2433,10 @@ export default function InterviewPage() {
     );
     setActiveSetup(setup);
 
+    // Must run directly from the user's tap before any long async work,
+    // otherwise mobile Chrome/Safari may block ElevenLabs playback silently.
+    await unlockRecruiterAudio();
+
     try {
       await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -2432,8 +2450,6 @@ export default function InterviewPage() {
       setVoiceStatus("Microphone permission is needed to start.");
       return;
     }
-
-    unlockRecruiterAudio();
 
     const profile = getRecruiterVoiceProfile(setup.recruiterPersonality);
     const recruiterVoiceId = openAiVoiceIdForRecruiter(
@@ -2565,8 +2581,8 @@ export default function InterviewPage() {
     transcript,
   ]);
 
-  const handleMicClick = useCallback(() => {
-    unlockRecruiterAudio();
+  const handleMicClick = useCallback(async () => {
+    await unlockRecruiterAudio();
 
     if (isLive) {
       if (!isSpeaking) {
