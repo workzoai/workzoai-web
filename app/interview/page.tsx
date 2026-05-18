@@ -1743,6 +1743,7 @@ export default function InterviewPage() {
   const currentRecruiterAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const silentAudioSourceRef = useRef<OscillatorNode | null>(null);
   const recruiterAudioUnlockedRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const isLiveRef = useRef(false);
@@ -1805,6 +1806,10 @@ export default function InterviewPage() {
         recognitionRef.current?.stop();
       } catch {}
       try {
+        recognitionRef.current?.stop();
+      } catch {}
+
+      try {
         currentAudioSourceRef.current?.stop();
         currentAudioSourceRef.current = null;
       } catch {}
@@ -1865,16 +1870,18 @@ export default function InterviewPage() {
       if (context) {
         await context.resume();
 
-        // iOS/Chrome mobile needs an audible graph to be started directly from
-        // the tap event. A near-silent oscillator unlocks the audio session
-        // without the user hearing a click.
-        const oscillator = context.createOscillator();
-        const gain = context.createGain();
-        gain.gain.value = 0.0001;
-        oscillator.connect(gain);
-        gain.connect(context.destination);
-        oscillator.start();
-        oscillator.stop(context.currentTime + 0.045);
+        // Mobile browsers need an audio graph started directly from the
+        // user's tap. Keep a near-silent oscillator alive for the session so
+        // later ElevenLabs playback is not blocked after the async fetch.
+        if (!silentAudioSourceRef.current) {
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          gain.gain.value = 0.00001;
+          oscillator.connect(gain);
+          gain.connect(context.destination);
+          oscillator.start();
+          silentAudioSourceRef.current = oscillator;
+        }
         unlocked = true;
       }
     } catch (error) {
@@ -2068,11 +2075,14 @@ export default function InterviewPage() {
         const arrayBuffer = await audioBlob.arrayBuffer();
         const audioBuffer = await context.decodeAudioData(arrayBuffer.slice(0));
         const source = context.createBufferSource();
+        const gain = context.createGain();
+        gain.gain.value = 1;
         source.buffer = audioBuffer;
-        source.connect(context.destination);
+        source.connect(gain);
+        gain.connect(context.destination);
         source.onended = finishSpeech;
         currentAudioSourceRef.current = source;
-        source.start(0);
+        source.start(context.currentTime + 0.02);
       };
 
       isSpeakingRef.current = true;
@@ -2091,17 +2101,13 @@ export default function InterviewPage() {
           text: cleanText,
         });
 
-        // Mobile browsers are stricter about WebAudio autoplay. Use the
-        // already-unlocked HTMLAudioElement first on mobile, and use
-        // AudioContext only on desktop for lower latency.
-        if (isMobileBrowser()) {
+        // Use the unlocked AudioContext on mobile too. Reused HTMLAudioElement
+        // playback can still be silent on iOS/Chrome mobile after async fetches.
+        try {
+          await playWithAudioContext(audioBlob);
+        } catch (webAudioError) {
+          console.warn("WorkZo WebAudio playback failed, trying HTML audio:", webAudioError);
           await playWithHtmlAudio(audioBlob);
-        } else {
-          try {
-            await playWithAudioContext(audioBlob);
-          } catch {
-            await playWithHtmlAudio(audioBlob);
-          }
         }
       } catch (error) {
         console.warn("WorkZo ElevenLabs voice failed:", error);
