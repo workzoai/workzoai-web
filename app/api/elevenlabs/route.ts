@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     const recruiterId = normalizeRecruiterId(body.recruiterId);
     const voiceId = getVoiceId(recruiterId);
-    const modelId = process.env.ELEVENLABS_MODEL_ID || "eleven_turbo_v2_5";
+    const modelId = process.env.ELEVENLABS_MODEL_ID || "eleven_flash_v2_5";
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,

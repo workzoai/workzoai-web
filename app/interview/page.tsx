@@ -103,25 +103,37 @@ type ElevenLabsVoiceRequest = {
   text: string;
 };
 
+const ELEVENLABS_CLIENT_TIMEOUT_MS = 8000;
+
 async function fetchElevenLabsAudio({
   recruiterId,
   text,
 }: ElevenLabsVoiceRequest) {
-  const response = await fetch("/api/elevenlabs", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ recruiterId, text }),
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => {
+    controller.abort();
+  }, ELEVENLABS_CLIENT_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const details = await response.text().catch(() => "");
-    throw new Error(details || "ElevenLabs voice request failed");
+  try {
+    const response = await fetch("/api/elevenlabs", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ recruiterId, text }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const details = await response.text().catch(() => "");
+      throw new Error(details || "ElevenLabs voice request failed");
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return new Blob([arrayBuffer], { type: "audio/mpeg" });
+  } finally {
+    window.clearTimeout(timeout);
   }
-
-  const arrayBuffer = await response.arrayBuffer();
-  return new Blob([arrayBuffer], { type: "audio/mpeg" });
 }
 
 type AnswerAnalysis = {
@@ -2129,7 +2141,7 @@ export default function InterviewPage() {
 
       safetyTimeout = window.setTimeout(
         finishSpeech,
-        Math.min(30000, Math.max(7000, cleanText.length * 120)),
+        Math.min(16000, Math.max(5500, cleanText.length * 85)),
       );
 
       // Product Hunt-safe mobile behavior:
