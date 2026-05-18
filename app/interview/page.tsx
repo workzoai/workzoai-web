@@ -640,7 +640,6 @@ function recruiterPressureLine(
   return "Answer like this is a real final-round conversation.";
 }
 
-
 type WowMomentKind =
   | "quiet_progression"
   | "curiosity_spike"
@@ -691,36 +690,66 @@ function buildRecruiterMoodSnapshot({
   const turn = memoryTurnIndex(memory) + 1;
   const seed = `${recruiterId}:${turn}:${previousTrust}:${nextTrust}:${question}:${clean}`;
   const delta = nextTrust - previousTrust;
-  const hasSpecificWork = /customer|client|ticket|stakeholder|dashboard|analysis|support|project|process|data|report|automation|migration|incident|escalation|sales|revenue|conversion|retention|sla|api|sql|python|excel|power bi|tableau/i.test(clean);
-  const hasLeadershipSignal = /led|owned|decided|coordinated|managed|prioriti[sz]ed|handled|resolved|designed|implemented|launched|improved|reduced|increased/i.test(clean);
-  const hasMetricSignal = /\d|percent|%|hours?|days?|weeks?|months?|saved|reduced|increased|improved|faster|tickets?|customers?|users?|revenue|cost|sla|accuracy/i.test(clean);
-  const hasAvoidance = /not sure|maybe|kind of|sort of|basically|i think|we usually|we did|helped with|involved in/i.test(lower);
-  const context = `${summarizeCandidateExperience(setup)} ${summarizeJobContext(setup)}`.toLowerCase();
-  const canCallback = turn >= 3 && stableTextHash(seed) % 6 === 0 && context.length > 40;
+  const hasSpecificWork =
+    /customer|client|ticket|stakeholder|dashboard|analysis|support|project|process|data|report|automation|migration|incident|escalation|sales|revenue|conversion|retention|sla|api|sql|python|excel|power bi|tableau/i.test(
+      clean,
+    );
+  const hasLeadershipSignal =
+    /led|owned|decided|coordinated|managed|prioriti[sz]ed|handled|resolved|designed|implemented|launched|improved|reduced|increased/i.test(
+      clean,
+    );
+  const hasMetricSignal =
+    /\d|percent|%|hours?|days?|weeks?|months?|saved|reduced|increased|improved|faster|tickets?|customers?|users?|revenue|cost|sla|accuracy/i.test(
+      clean,
+    );
+  const hasAvoidance =
+    /not sure|maybe|kind of|sort of|basically|i think|we usually|we did|helped with|involved in/i.test(
+      lower,
+    );
+  const context =
+    `${summarizeCandidateExperience(setup)} ${summarizeJobContext(setup)}`.toLowerCase();
+  const canCallback =
+    turn >= 3 && stableTextHash(seed) % 6 === 0 && context.length > 40;
   const canPanelWhisper = turn >= 4 && stableTextHash(seed) % 9 === 0;
   const canTopicSwitch = turn >= 5 && stableTextHash(seed) % 7 === 0;
 
   let kind: WowMomentKind = "quiet_progression";
-  if (delta <= -7 || analysis.state === "losing_confidence") kind = "trust_drop";
-  else if (analysis.state === "recovering_trust" || delta >= 7) kind = "trust_recovery";
-  else if (analysis.state === "skeptical" || analysis.state === "pressuring" || hasAvoidance)
+  if (delta <= -7 || analysis.state === "losing_confidence")
+    kind = "trust_drop";
+  else if (analysis.state === "recovering_trust" || delta >= 7)
+    kind = "trust_recovery";
+  else if (
+    analysis.state === "skeptical" ||
+    analysis.state === "pressuring" ||
+    hasAvoidance
+  )
     kind = "skeptical_pause";
-  else if (canPanelWhisper && (hasSpecificWork || hasLeadershipSignal)) kind = "panel_whisper";
+  else if (canPanelWhisper && (hasSpecificWork || hasLeadershipSignal))
+    kind = "panel_whisper";
   else if (canCallback) kind = "memory_callback";
   else if (canTopicSwitch) kind = "topic_switch";
-  else if (hasSpecificWork || hasLeadershipSignal || hasMetricSignal) kind = "curiosity_spike";
+  else if (hasSpecificWork || hasLeadershipSignal || hasMetricSignal)
+    kind = "curiosity_spike";
 
   const skepticism = clampScore(
-    45 + (previousTrust - nextTrust) * 1.5 + (hasAvoidance ? 16 : 0) +
-      (analysis.state === "skeptical" || analysis.state === "pressuring" ? 12 : 0),
+    45 +
+      (previousTrust - nextTrust) * 1.5 +
+      (hasAvoidance ? 16 : 0) +
+      (analysis.state === "skeptical" || analysis.state === "pressuring"
+        ? 12
+        : 0),
   );
   const interest = clampScore(
-    42 + (hasSpecificWork ? 15 : 0) + (hasLeadershipSignal ? 12 : 0) +
-      (hasMetricSignal ? 10 : 0) + Math.max(0, delta) * 1.2 -
+    42 +
+      (hasSpecificWork ? 15 : 0) +
+      (hasLeadershipSignal ? 12 : 0) +
+      (hasMetricSignal ? 10 : 0) +
+      Math.max(0, delta) * 1.2 -
       (analysis.signal === "rambling" ? 12 : 0),
   );
   const patience = clampScore(
-    70 - (analysis.signal === "rambling" ? 18 : 0) -
+    70 -
+      (analysis.signal === "rambling" ? 18 : 0) -
       (analysis.signal === "too_short" ? 9 : 0) -
       (kind === "trust_drop" ? 14 : 0) +
       (kind === "trust_recovery" ? 8 : 0),
@@ -730,7 +759,10 @@ function buildRecruiterMoodSnapshot({
   const callbacks = extractSafeCvSignals(setup);
   const callbackLine = callbacks.length
     ? pickHumanLine(
-        callbacks.map((item) => `I’m connecting this back to your ${item.toLowerCase()} experience.`),
+        callbacks.map(
+          (item) =>
+            `I’m connecting this back to your ${item.toLowerCase()} experience.`,
+        ),
         seed,
         memory,
       )
@@ -1557,15 +1589,39 @@ function analyzeAnswer(
     strength: "Answer showed useful specificity.",
   };
 }
+function isInterviewControlQuestion(answer: string) {
+  const lower = answer.replace(/\s+/g, " ").trim().toLowerCase();
+  if (!lower) return false;
+
+  return (
+    /\b(what do i need to do|what should i do|what am i supposed to do|how does this work|what happens now|what is next|what should i answer|how should i answer)\b/.test(lower) ||
+    /\b(can you repeat|repeat the question|say that again|what was the question|explain the question|i didn'?t understand the question|help me understand)\b/.test(lower) ||
+    /\b(start again|restart|reset the interview|pause the interview|stop the interview)\b/.test(lower)
+  );
+}
+
+function isGreetingOrCourtesy(answer: string) {
+  const lower = answer.replace(/\s+/g, " ").trim().toLowerCase();
+  if (!lower) return false;
+
+  if (/^(hi|hello|hey|good morning|good afternoon|good evening)[!. ]*$/.test(lower)) return true;
+  if (/^(i'?m|i am)?\s*(good|fine|great|okay|ok|doing well|well)\s*(thank you|thanks|thankyou)?[,.! ]*(and you|how are you|what about you)?[?.! ]*$/.test(lower)) return true;
+  if (/\b(how are you|how are you doing|nice to meet you|thank you|thanks)\b/.test(lower) && lower.split(/\s+/).length <= 12) return true;
+
+  return false;
+}
+
 function isClarificationOrMetaQuestion(answer: string) {
   const lower = answer.replace(/\s+/g, " ").trim().toLowerCase();
   if (!lower) return false;
 
+  if (isInterviewControlQuestion(answer)) return true;
+
   const clarificationPatterns = [
     /\b(can|could|do|did) you (see|read|have|access|look at|review)\b.*\b(resume|cv|job description|jd|job|role)\b/,
     /\b(resume|cv|job description|jd)\b.*\b(see|read|review|access|available|loaded|uploaded)\b/,
-    /\bwhat\b.*\b(role|company|job|position)\b/,
-    /\bwhich\b.*\b(role|company|job|position)\b/,
+    /\bwhat\b.*\b(role|company|job|position|interview|question|task)\b/,
+    /\bwhich\b.*\b(role|company|job|position|interview|question)\b/,
     /\bcan you hear me\b/,
     /\bare you there\b/,
     /\bhello\b/,
@@ -1768,61 +1824,242 @@ function buildAvailableContextReply(setup: WorkZoInterviewSetup) {
   return "I can see the interview setup, but I don’t have enough readable CV or job-description detail loaded. That means I should not pretend I know your background. Tell me the role and one or two key experiences, and I’ll interview from there.";
 }
 
-
-
 type RecruiterKnowledgeHit = {
   name: string;
   short: string;
   interviewAngle: string;
 };
 
+type CandidateIntent =
+  | "interview_answer"
+  | "context_question"
+  | "company_question"
+  | "concept_question"
+  | "correction_or_fact_check"
+  | "sense_check"
+  | "small_talk";
+
 const recruiterKnowledgeBase: RecruiterKnowledgeHit[] = [
   {
     name: "Tesla",
     short:
-      "Tesla is best known for electric vehicles, battery technology, energy storage, charging infrastructure, software-heavy vehicles, and automation-heavy manufacturing.",
+      "Tesla is known for electric vehicles, batteries, energy products, charging infrastructure, and software-heavy manufacturing.",
     interviewAngle:
-      "For Tesla-style roles, I would listen for speed, ownership, technical curiosity, operational problem-solving, ambiguity tolerance, and whether you can explain impact under pressure.",
+      "For a Tesla-style interview, I would listen for speed, ownership, problem-solving under pressure, and measurable execution.",
   },
   {
     name: "Microsoft",
     short:
-      "Microsoft is a global technology company known for cloud platforms, enterprise software, Windows, Microsoft 365, Azure, developer tools, security, gaming, and AI products.",
+      "Microsoft is known for Azure, Microsoft 365, Windows, developer tools, security, gaming, and enterprise AI products.",
     interviewAngle:
-      "For Microsoft-style roles, I would listen for structured thinking, collaboration, customer empathy, learning mindset, technical depth where relevant, and examples that show business impact.",
+      "For a Microsoft-style interview, I would listen for structured thinking, collaboration, customer impact, and learning mindset.",
   },
   {
     name: "Amazon",
     short:
-      "Amazon is known for e-commerce, AWS cloud services, logistics, marketplace operations, devices, advertising, and a strong culture around customer obsession and operational excellence.",
+      "Amazon is known for e-commerce, AWS, logistics, marketplace operations, devices, advertising, and operational excellence.",
     interviewAngle:
-      "For Amazon-style interviews, I would expect strong behavioral examples, clear ownership, metrics, trade-offs, customer impact, and concise stories that show decisions under pressure.",
+      "For an Amazon-style interview, I would expect ownership, metrics, customer impact, trade-offs, and concise behavioral examples.",
   },
   {
     name: "Google",
     short:
-      "Google is known for search, advertising, Android, YouTube, cloud services, AI research, developer platforms, and large-scale consumer and enterprise products.",
+      "Google is known for search, ads, Android, YouTube, cloud, AI, and large-scale consumer and enterprise products.",
     interviewAngle:
-      "For Google-style roles, I would listen for problem-solving clarity, collaboration, technical reasoning where needed, user impact, and the ability to explain complex ideas simply.",
+      "For a Google-style interview, I would listen for problem-solving clarity, collaboration, technical reasoning, and user impact.",
   },
   {
     name: "Apple",
     short:
-      "Apple is known for consumer hardware, software, services, design quality, privacy positioning, ecosystem thinking, and tightly integrated product experiences.",
+      "Apple is known for consumer hardware, software, services, privacy positioning, design quality, and ecosystem thinking.",
     interviewAngle:
-      "For Apple-style roles, I would listen for product judgment, attention to detail, ownership, cross-functional collaboration, customer experience, and high-quality execution.",
+      "For an Apple-style interview, I would listen for product judgment, attention to detail, execution quality, and customer experience.",
   },
   {
     name: "Meta",
     short:
-      "Meta is known for Facebook, Instagram, WhatsApp, advertising systems, social products, AI, virtual reality, and large-scale consumer platforms.",
+      "Meta is known for Facebook, Instagram, WhatsApp, ads, AI, and large-scale social products.",
     interviewAngle:
-      "For Meta-style roles, I would listen for speed, experimentation, measurable impact, product sense, technical or analytical depth, and comfort with fast-changing priorities.",
+      "For a Meta-style interview, I would listen for speed, experimentation, product sense, measurable impact, and comfort with change.",
+  },
+  {
+    name: "Zoho",
+    short:
+      "Zoho is a SaaS company known for business software across CRM, support, finance, collaboration, analytics, and productivity tools.",
+    interviewAngle:
+      "For Zoho-related experience, I would listen for customer communication, product understanding, troubleshooting depth, ownership, and how you handled B2B and B2C users differently.",
+  },
+  {
+    name: "eBay",
+    short:
+      "eBay is an online marketplace known for buyer-seller commerce, payments, trust and safety, seller tools, and marketplace operations.",
+    interviewAngle:
+      "For an eBay-style role, I would listen for marketplace thinking, customer trust, operational judgment, data awareness, and practical problem-solving.",
+  },
+  {
+    name: "LinkedIn",
+    short:
+      "LinkedIn is a professional network focused on hiring, careers, learning, ads, and professional identity.",
+    interviewAngle:
+      "For LinkedIn-style roles, I would listen for user empathy, professional communication, data-informed decisions, and trust in product experience.",
+  },
+  {
+    name: "Salesforce",
+    short:
+      "Salesforce is known for CRM, enterprise cloud software, sales, service, marketing, analytics, and platform tools.",
+    interviewAngle:
+      "For Salesforce-style roles, I would listen for enterprise customer understanding, stakeholder management, CRM knowledge, and measurable business impact.",
+  },
+  {
+    name: "SAP",
+    short:
+      "SAP is known for enterprise resource planning, business applications, supply chain, finance, HR, analytics, and cloud ERP.",
+    interviewAngle:
+      "For SAP-style roles, I would listen for enterprise process understanding, structured communication, precision, and cross-functional collaboration.",
+  },
+  {
+    name: "Netflix",
+    short:
+      "Netflix is known for streaming, content technology, personalization, entertainment platforms, and data-driven product decisions.",
+    interviewAngle:
+      "For Netflix-style roles, I would listen for judgment, ownership, impact, clarity, and comfort with high-performance expectations.",
+  },
+  {
+    name: "OpenAI",
+    short:
+      "OpenAI is known for AI models, ChatGPT, developer APIs, safety research, and AI products for consumers and businesses.",
+    interviewAngle:
+      "For OpenAI-style roles, I would listen for technical curiosity, user impact, careful judgment, communication clarity, and responsible execution.",
+  },
+
+  {
+    name: "IBM",
+    short:
+      "IBM is known for enterprise technology, consulting, cloud, AI, cybersecurity, infrastructure, and large-scale business transformation.",
+    interviewAngle:
+      "For IBM-style roles, I would listen for structured problem-solving, enterprise customer handling, technical clarity, and stakeholder communication.",
+  },
+  {
+    name: "Oracle",
+    short:
+      "Oracle is known for databases, enterprise software, cloud infrastructure, ERP, HCM, and business applications.",
+    interviewAngle:
+      "For Oracle-style roles, I would listen for enterprise product understanding, precision, customer impact, and technical-commercial communication.",
+  },
+  {
+    name: "Adobe",
+    short:
+      "Adobe is known for creative software, document tools, marketing cloud, analytics, and digital experience products.",
+    interviewAngle:
+      "For Adobe-style roles, I would listen for product empathy, user experience thinking, measurable impact, and cross-functional collaboration.",
+  },
+  {
+    name: "Uber",
+    short:
+      "Uber is known for mobility, delivery, marketplace operations, logistics, pricing, maps, and real-time platform reliability.",
+    interviewAngle:
+      "For Uber-style roles, I would listen for operational judgment, data-driven decisions, ambiguity handling, and fast execution.",
+  },
+  {
+    name: "Airbnb",
+    short:
+      "Airbnb is known for travel, hosting, marketplace trust, design-led product experience, and community-driven hospitality.",
+    interviewAngle:
+      "For Airbnb-style roles, I would listen for trust, customer empathy, product judgment, and handling complex stakeholder needs.",
+  },
+  {
+    name: "Spotify",
+    short:
+      "Spotify is known for music streaming, personalization, recommendations, creator tools, ads, and subscription products.",
+    interviewAngle:
+      "For Spotify-style roles, I would listen for user empathy, experimentation, product thinking, and measurable growth or engagement impact.",
+  },
+  {
+    name: "Stripe",
+    short:
+      "Stripe is known for payments infrastructure, developer tools, fintech products, risk, compliance, and global internet business enablement.",
+    interviewAngle:
+      "For Stripe-style roles, I would listen for clarity, systems thinking, customer obsession, precision, and strong written communication.",
+  },
+  {
+    name: "PayPal",
+    short:
+      "PayPal is known for digital payments, wallets, merchant services, risk management, fraud prevention, and consumer finance products.",
+    interviewAngle:
+      "For PayPal-style roles, I would listen for trust, risk awareness, customer impact, operational discipline, and clear communication.",
+  },
+  {
+    name: "Accenture",
+    short:
+      "Accenture is known for consulting, technology services, digital transformation, cloud, data, operations, and enterprise delivery.",
+    interviewAngle:
+      "For Accenture-style roles, I would listen for client communication, structured delivery, adaptability, stakeholder handling, and project ownership.",
+  },
+  {
+    name: "Deloitte",
+    short:
+      "Deloitte is known for consulting, audit, tax, risk advisory, technology transformation, and business services.",
+    interviewAngle:
+      "For Deloitte-style roles, I would listen for structured thinking, client readiness, communication maturity, and practical business judgment.",
   },
 ];
 
+const commonCompanyAliases: Record<string, string> = {
+  ebay: "eBay",
+  zoho: "Zoho",
+  tesla: "Tesla",
+  amazon: "Amazon",
+  microsoft: "Microsoft",
+  google: "Google",
+  apple: "Apple",
+  meta: "Meta",
+  facebook: "Meta",
+  instagram: "Meta",
+  linkedin: "LinkedIn",
+  salesforce: "Salesforce",
+  sap: "SAP",
+  netflix: "Netflix",
+  openai: "OpenAI",
+  ibm: "IBM",
+  oracle: "Oracle",
+  adobe: "Adobe",
+  uber: "Uber",
+  airbnb: "Airbnb",
+  spotify: "Spotify",
+  stripe: "Stripe",
+  paypal: "PayPal",
+  accenture: "Accenture",
+  deloitte: "Deloitte",
+};
+
+const companyQuestionPattern =
+  /\b(do you know|do u know|have you heard of|have you heard about|know about|what is|what are|tell me about|can you explain|do you understand|are you aware of)\b/i;
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeCompanyName(value: string) {
+  const cleaned = value
+    .replace(/[^a-zA-Z0-9&.\-\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return "";
+
+  const lower = cleaned.toLowerCase();
+  if (commonCompanyAliases[lower]) return commonCompanyAliases[lower];
+
+  return cleaned
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((word) => {
+      const alias = commonCompanyAliases[word.toLowerCase()];
+      if (alias) return alias;
+      if (word.length <= 3 && word === word.toUpperCase()) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ");
 }
 
 function detectRecruiterKnowledgeHits(answer: string) {
@@ -1833,31 +2070,105 @@ function detectRecruiterKnowledgeHits(answer: string) {
   });
 }
 
+function extractAskedCompanyNames(answer: string) {
+  const lower = answer.replace(/\s+/g, " ").trim().toLowerCase();
+  const names = new Set<string>();
+
+  detectRecruiterKnowledgeHits(answer).forEach((item) => names.add(item.name));
+
+  Object.entries(commonCompanyAliases).forEach(([alias, display]) => {
+    if (new RegExp(`\\b${escapeRegExp(alias)}\\b`, "i").test(answer)) {
+      names.add(display);
+    }
+  });
+
+  const directMatch = answer.match(
+    /(?:do you know|do u know|have you heard of|have you heard about|know about|what is|what are|tell me about|can you explain|do you understand|are you aware of)\s+(.+?)(?:\?|$)/i,
+  );
+
+  if (directMatch?.[1]) {
+    const raw = directMatch[1]
+      .replace(
+        /\b(company|companies|startup|startups|firm|firms|organization|organisations|organizations)\b/gi,
+        " ",
+      )
+      .replace(/\b(or|and) other\b.*$/i, " ");
+
+    raw
+      .split(/,|\/|\bor\b|\band\b/gi)
+      .map(normalizeCompanyName)
+      .filter(
+        (name) =>
+          name.length >= 2 && !/^(it|that|this|them|those)$/i.test(name),
+      )
+      .forEach((name) => names.add(name));
+  }
+
+  // If the candidate says only a company name with a question mark, treat it as a company question.
+  if (lower.endsWith("?") && lower.split(" ").length <= 4) {
+    const guessed = normalizeCompanyName(answer.replace("?", ""));
+    if (guessed) names.add(guessed);
+  }
+
+  return Array.from(names).slice(0, 4);
+}
+
 function asksIfRecruiterKnowsCompany(answer: string) {
   const lower = answer.replace(/\s+/g, " ").trim().toLowerCase();
-  if (!detectRecruiterKnowledgeHits(lower).length) return false;
-  return (
-    /\b(do you know|have you heard|know about|what is|what are|tell me about|can you explain|do u know)\b/.test(lower) ||
-    /\b(tesla|microsoft|amazon|google|apple|meta)\b/.test(lower)
-  );
+  if (!lower) return false;
+  if (/\b(b2b|b2c|sla|ats|crm|kpi|api|saas)\b/.test(lower)) return false;
+
+  if (
+    companyQuestionPattern.test(lower) &&
+    extractAskedCompanyNames(answer).length > 0
+  )
+    return true;
+
+  const hasKnownCompany = detectRecruiterKnowledgeHits(answer).length > 0;
+  if (hasKnownCompany && /\?/.test(answer)) return true;
+
+  // Short questions such as "Zoho?", "eBay?", "What about IBM?" should be treated
+  // as recruiter-world/company context, not as interview answers.
+  if (/\?$/.test(lower) && lower.split(" ").length <= 6) {
+    const stripped = lower
+      .replace(/\?|what about|and|or|also|then|next/gi, " ")
+      .trim();
+    if (stripped.length >= 2 && !/^(why|how|when|where|who)$/.test(stripped))
+      return true;
+  }
+
+  return false;
 }
 
 function buildCompanyKnowledgeReply(answer: string) {
   const hits = detectRecruiterKnowledgeHits(answer);
-  if (!hits.length) {
-    return "Yes — I can discuss companies and industries at a recruiter level. I’ll connect them back to the role instead of giving a random definition.";
+  const askedNames = extractAskedCompanyNames(answer);
+  const hitByName = new Map(
+    hits.map((item) => [item.name.toLowerCase(), item]),
+  );
+
+  if (!askedNames.length) {
+    return "Yes — I can discuss companies at a recruiter level. I’ll keep it brief and interview-relevant, not a long company lecture. Which company and role are you preparing for?";
   }
 
-  if (hits.length === 1) {
-    const company = hits[0];
-    return `Yes — I know ${company.name}. ${company.short} ${company.interviewAngle} If this is one of your target companies, I would not prepare generic answers; I would prepare examples with ownership, scale, trade-offs, and measurable impact.`;
+  if (askedNames.length === 1) {
+    const asked = askedNames[0];
+    const known = hitByName.get(asked.toLowerCase());
+
+    if (known) {
+      return `Yes — I know ${known.name}. Recruiter view: ${known.interviewAngle.replace(/^For .*?, I would listen for /, "I’d listen for ")} What role are you connecting ${known.name} to?`;
+    }
+
+    return `Yes — I know ${asked} at a general recruiter level. I’ll avoid pretending I have live company research in this browser interview, but I can still prepare you properly: we would connect the role to ${asked}’s product, customers, business model, and the proof in your examples. What role are you targeting there?`;
   }
 
-  const names = hits.map((item) => item.name).join(", ");
-  const shortLines = hits
-    .map((item) => `${item.name}: ${item.short}`)
-    .join(" ");
-  return `Yes — I know ${names}. ${shortLines} Interview-wise, I would adapt your answers differently for each: Amazon needs strong ownership and metrics, Microsoft needs structured collaboration and customer impact, and Tesla needs speed, problem-solving, and comfort with pressure. Now I’d bring it back to you: which type of environment are you trying to prove you can handle?`;
+  const shortList = askedNames.map((name) => {
+    const known = hitByName.get(name.toLowerCase());
+    if (known) return known.name;
+    return name;
+  });
+
+  return `Yes — I can discuss ${joinHumanList(shortList, 4)} at an interview-prep level. I’ll keep this short: pick one company and one role, then I’ll interview you as if that recruiter is testing your fit.`;
 }
 
 function buildConceptReply(answer: string) {
@@ -1868,41 +2179,701 @@ function buildConceptReply(answer: string) {
   }
 
   if (/\bb2b\b/.test(lower) || /\bb2c\b/.test(lower)) {
-    return "Yes. B2B means business-to-business — the customer is another company, so the work often involves accounts, admins, contracts, SLAs, integrations, and stakeholder communication. B2C means business-to-consumer — the customer is an individual user, so the focus is usually volume, speed, empathy, usability, and direct customer satisfaction. In an interview, if you mention both, I would expect you to explain how your communication changed between a company client and an individual user.";
+    return "Yes. B2B means business-to-business: the customer is another company, so interviews often look for stakeholder handling, accounts, contracts, SLAs, integrations, and escalation judgment. B2C means business-to-consumer: the customer is an individual user, so speed, empathy, clarity, and customer satisfaction matter more. If you mention both, I’ll expect one example showing how your communication changed between them.";
   }
 
   if (/\bsla\b/.test(lower)) {
-    return "Yes. SLA means service-level agreement — the expected response or resolution standard. In support roles, I would listen for how you handled priority, escalation, ownership, and customer communication when an SLA was at risk.";
+    return "Yes. SLA means service-level agreement — the expected response or resolution standard. In support roles, I would listen for priority handling, escalation, ownership, and customer communication when an SLA was at risk.";
   }
 
   if (/\bats\b/.test(lower)) {
-    return "Yes. ATS means applicant tracking system. For this interview, I care less about the term itself and more about whether your CV examples match the role requirements clearly enough for both software screening and a human recruiter.";
+    return "Yes. ATS means applicant tracking system. In this interview, I care less about the term and more about whether your CV examples clearly match the role for both software screening and a human recruiter.";
   }
 
-  return "Yes, I can answer that briefly. But I’ll keep it interview-focused: I’m checking whether you understand the concept well enough to apply it in a real work situation, not just define it.";
+  if (/\bcrm\b/.test(lower)) {
+    return "Yes. CRM means customer relationship management. In an interview, I’d connect it to how you tracked customers, handled follow-ups, managed accounts, or understood the customer lifecycle.";
+  }
+
+  if (/\bkpi\b/.test(lower)) {
+    return "Yes. KPI means key performance indicator. In your answers, KPIs matter because they prove scale: response time, resolution rate, CSAT, revenue impact, conversion, quality, or efficiency.";
+  }
+
+  if (/\bapi\b/.test(lower)) {
+    return "Yes. API means application programming interface. For interviews, I’d expect you to explain it practically: how systems exchange data, what problem it solved, and what your role was in using or troubleshooting it.";
+  }
+
+  if (/\bsaas\b/.test(lower)) {
+    return "Yes. SaaS means software as a service. For interview prep, I’d listen for subscription-product thinking, customer retention, support quality, onboarding, renewals, and product adoption.";
+  }
+
+  return "Yes — I can answer that briefly. I’ll keep it interview-focused: definition first, then how you used it in a real situation. Ask me the term, and then I’ll bring us back to the interview.";
+}
+
+type RecruiterTruthCheck = {
+  reply: string;
+  severity: "light" | "firm";
+};
+
+const likelySpellingCorrections: Array<{
+  pattern: RegExp;
+  correct: string;
+  context?: string;
+}> = [
+  { pattern: /\bzooho\b|\bzohoo\b|\bzohho\b|\bzoh0\b/i, correct: "Zoho" },
+  { pattern: /\bebey\b|\bebayy\b|\be bay\b/i, correct: "eBay" },
+  { pattern: /\bamazn\b|\bamazone\b|\bamzon\b/i, correct: "Amazon" },
+  { pattern: /\bteslsa\b|\btesela\b|\btelsa\b/i, correct: "Tesla" },
+  {
+    pattern: /\bmicrosft\b|\bmicrosof\b|\bmicro soft\b/i,
+    correct: "Microsoft",
+  },
+  { pattern: /\bgooogle\b|\bgogle\b/i, correct: "Google" },
+  { pattern: /\blinkdin\b|\blinked in\b/i, correct: "LinkedIn" },
+  {
+    pattern: /\bsales force\b/i,
+    correct: "Salesforce",
+    context: "as the company/product name",
+  },
+  {
+    pattern: /\bopen ai\b/i,
+    correct: "OpenAI",
+    context: "as the company name",
+  },
+  {
+    pattern: /\bpay pal\b/i,
+    correct: "PayPal",
+    context: "as the company name",
+  },
+];
+
+
+const knownInterviewEntities = [
+  "Zoho",
+  "eBay",
+  "Amazon",
+  "Tesla",
+  "Microsoft",
+  "Google",
+  "LinkedIn",
+  "Salesforce",
+  "OpenAI",
+  "PayPal",
+  "HubSpot",
+  "Shopify",
+  "Netflix",
+  "Meta",
+  "Apple",
+  "Oracle",
+  "SAP",
+  "ServiceNow",
+  "Zendesk",
+  "Freshworks",
+  "Atlassian",
+  "Jira",
+  "Slack",
+  "Notion",
+  "Figma",
+  "Canva",
+  "Stripe",
+  "Airbnb",
+  "Uber",
+  "Adobe",
+  "GitHub",
+  "ChatGPT",
+  "Salesforce CRM",
+  "Zoho CRM",
+];
+
+function normalizeEntityToken(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function levenshteinDistance(a: string, b: string) {
+  const dp = Array.from({ length: a.length + 1 }, () =>
+    Array.from({ length: b.length + 1 }, () => 0),
+  );
+  for (let i = 0; i <= a.length; i += 1) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j += 1) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+function detectFuzzyEntityCorrection(answer: string): RecruiterTruthCheck | null {
+  const rawTokens = answer.match(/\b[A-Za-z][A-Za-z0-9-]{2,}\b/g) ?? [];
+  const tokens = Array.from(new Set(rawTokens)).slice(0, 18);
+
+  for (const token of tokens) {
+    const normalizedToken = normalizeEntityToken(token);
+    if (normalizedToken.length < 4) continue;
+
+    for (const entity of knownInterviewEntities) {
+      const normalizedEntity = normalizeEntityToken(entity);
+      if (normalizedToken === normalizedEntity) continue;
+      if (Math.abs(normalizedToken.length - normalizedEntity.length) > 2) continue;
+
+      const distance = levenshteinDistance(normalizedToken, normalizedEntity);
+      const threshold = normalizedEntity.length <= 5 ? 1 : 2;
+      if (distance > 0 && distance <= threshold) {
+        return {
+          severity: "light",
+          reply: `Small correction — I think you mean ${entity}. I’m not saying this to be strict; in a real interview, confident naming matters. Continue, but phrase it accurately.`,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function detectLikelySpellingCorrection(
+  answer: string,
+): RecruiterTruthCheck | null {
+  for (const item of likelySpellingCorrections) {
+    if (item.pattern.test(answer)) {
+      return {
+        severity: "light",
+        reply: `Small correction — I think you mean ${item.correct}${item.context ? ` ${item.context}` : ""}. That matters in an interview because names should sound precise. Go on — what were you connecting it to?`,
+      };
+    }
+  }
+  return null;
+}
+
+const factCorrectionRules: Array<{
+  pattern: RegExp;
+  reply: string;
+  severity: "light" | "firm";
+}> = [
+  {
+    pattern:
+      /\btesla\b.{0,120}\b(engine|combustion engine|petrol engine|gas engine|diesel engine)\b|\b(engine|combustion engine|petrol engine|gas engine|diesel engine)\b.{0,120}\btesla\b/i,
+    severity: "firm",
+    reply:
+      "I’m going to stop you there because that sounds inaccurate. Tesla is primarily an electric vehicle company, so saying you designed an ‘engine’ there is not the right wording unless you mean electric motor, powertrain, battery system, thermal system, or manufacturing component. In a real interview, that kind of claim would immediately need clarification. What exactly did you design, and was this a real role or a hypothetical example?",
+  },
+  {
+    pattern:
+      /\b(i|i\s+have|i\s+had|i\s+was)\b.{0,60}\b(designed|built|created|invented|launched)\b.{0,70}\b(chatgpt|gpt-4|iphone|windows|google search|amazon prime|tesla autopilot|tesla engine|facebook|instagram|youtube)\b/i,
+    severity: "firm",
+    reply:
+      "I need to challenge that. That sounds like a very large public-product claim, and a real interviewer would not accept it without precise evidence. Be careful: if the claim is exaggerated or hypothetical, say so. If it is true, explain your exact scope, team, dates, and contribution in one sentence.",
+  },
+  {
+    pattern:
+      /\b(i\s+was|i\s+worked\s+as|my\s+role\s+was)\b.{0,60}\b(ceo|cto|founder|head of|vp|director)\b.{0,80}\b(amazon|tesla|microsoft|google|apple|meta|netflix|openai)\b/i,
+    severity: "firm",
+    reply:
+      "I’m going to treat that carefully. That is a senior public-company claim, so in a real interview I would ask for verification and exact scope before accepting it. If you mean a project title, internship, team role, or simulation, phrase it accurately. What was your actual position and responsibility?",
+  },
+  {
+    pattern:
+      /\btesla\b.{0,60}\b(found|founded|started|created)\b.{0,40}\b(elon|musk)\b|\b(elon|musk)\b.{0,40}\b(found|founded|started|created)\b.{0,60}\btesla\b/i,
+    severity: "firm",
+    reply:
+      "Small correction before we continue: Tesla was founded by Martin Eberhard and Marc Tarpenning. Elon Musk joined very early, invested, and later became CEO — but saying he founded it would be inaccurate in an interview.",
+  },
+  {
+    pattern:
+      /\bamazon\b.{0,70}\b(found|founded|started|created)\b.{0,45}\b(elon|musk|bill gates|steve jobs)\b|\b(elon|musk|bill gates|steve jobs)\b.{0,45}\b(found|founded|started|created)\b.{0,70}\bamazon\b/i,
+    severity: "firm",
+    reply:
+      "Careful — Amazon was founded by Jeff Bezos. If you mention company background in an interview, keep it accurate and very brief.",
+  },
+  {
+    pattern:
+      /\bmicrosoft\b.{0,70}\b(found|founded|started|created)\b.{0,45}\b(steve jobs|elon|musk|jeff bezos)\b|\b(steve jobs|elon|musk|jeff bezos)\b.{0,45}\b(found|founded|started|created)\b.{0,70}\bmicrosoft\b/i,
+    severity: "firm",
+    reply:
+      "Small correction: Microsoft was founded by Bill Gates and Paul Allen. I’d avoid mixing founder facts during an interview — it weakens credibility quickly.",
+  },
+  {
+    pattern:
+      /\bapple\b.{0,70}\b(found|founded|started|created)\b.{0,45}\b(bill gates|elon|musk|jeff bezos)\b|\b(bill gates|elon|musk|jeff bezos)\b.{0,45}\b(found|founded|started|created)\b.{0,70}\bapple\b/i,
+    severity: "firm",
+    reply:
+      "Small correction: Apple was founded by Steve Jobs, Steve Wozniak, and Ronald Wayne. That kind of detail should be accurate if you bring it up.",
+  },
+  {
+    pattern:
+      /\bgoogle\b.{0,70}\b(found|founded|started|created)\b.{0,45}\b(bill gates|elon|musk|jeff bezos|steve jobs)\b|\b(bill gates|elon|musk|jeff bezos|steve jobs)\b.{0,45}\b(found|founded|started|created)\b.{0,70}\bgoogle\b/i,
+    severity: "firm",
+    reply:
+      "Small correction: Google was founded by Larry Page and Sergey Brin. I’m pointing it out because interviewers do notice confident but incorrect claims.",
+  },
+  {
+    pattern:
+      /\bebay\b.{0,70}\b(found|founded|started|created)\b.{0,45}\b(elon|musk|jeff bezos|bill gates|steve jobs)\b|\b(elon|musk|jeff bezos|bill gates|steve jobs)\b.{0,45}\b(found|founded|started|created)\b.{0,70}\bebay\b/i,
+    severity: "firm",
+    reply:
+      "Small correction: eBay was founded by Pierre Omidyar. If you use company examples, keep the factual parts tight and accurate.",
+  },
+  {
+    pattern:
+      /\bzoho\b.{0,80}\b(only|mainly)\b.{0,30}\b(b2c|consumer)\b|\bzoho\b.{0,80}\bnot\b.{0,25}\b(b2b|saas|business software)\b/i,
+    severity: "firm",
+    reply:
+      "I’d correct that: Zoho is strongly B2B/SaaS-focused, with products for businesses across CRM, support, finance, collaboration, and operations. That distinction matters if you describe your Zoho experience.",
+  },
+  {
+    pattern:
+      /\bb2b\b.{0,40}\b(individual customers|normal consumers|single users)\b|\bb2c\b.{0,40}\b(companies|business customers|enterprise clients)\b/i,
+    severity: "firm",
+    reply:
+      "Quick correction: B2B is business-to-business, while B2C is business-to-consumer. In interviews, that changes how you explain stakeholders, urgency, communication, and impact.",
+  },
+  {
+    pattern:
+      /\bapi\b.{0,50}\b(app|application)\b.{0,15}\binstalled\b|\bapi\b.{0,50}\buser interface\b/i,
+    severity: "light",
+    reply:
+      "Small correction: an API is not the user interface itself. It is a way for systems to communicate. If you mention APIs, explain the system interaction and your role in using or troubleshooting it.",
+  },
+  {
+    pattern:
+      /\bcrm\b.{0,50}\bcustomer service team\b(?!\s*software)|\bcrm\b.{0,50}\bonly\b.{0,20}\bemail\b/i,
+    severity: "light",
+    reply:
+      "Tiny correction: CRM usually means customer relationship management — often software and process together, not just a support team or email inbox. In an interview, connect it to customer history, follow-ups, account handling, or lifecycle visibility.",
+  },
+];
+
+function detectKnownFactCorrection(answer: string): RecruiterTruthCheck | null {
+  const spelling = detectLikelySpellingCorrection(answer);
+  if (spelling) return spelling;
+
+  const fuzzyEntity = detectFuzzyEntityCorrection(answer);
+  if (fuzzyEntity) return fuzzyEntity;
+
+  for (const rule of factCorrectionRules) {
+    if (rule.pattern.test(answer)) {
+      return { severity: rule.severity, reply: rule.reply };
+    }
+  }
+
+  return null;
+}
+
+function buildTruthCorrectionReply(answer: string) {
+  const correction = detectKnownFactCorrection(answer);
+  if (!correction)
+    return "Small correction — I’m not fully convinced that fact is accurate. I’d phrase it more carefully in a real interview, then connect it back to your actual experience.";
+
+  if (correction.severity === "firm") {
+    return `${correction.reply} Now continue, but keep it practical: what was your actual role or example there?`;
+  }
+
+  return correction.reply;
+}
+
+function shouldTruthCheckBeforeScoring(answer: string) {
+  const lower = answer.replace(/\s+/g, " ").trim().toLowerCase();
+  if (!lower) return false;
+
+  // Do not interrupt normal answers for vague uncertainty. Only intervene for clear factual or naming issues.
+  if (detectKnownFactCorrection(answer)) return true;
+
+  // Also catch short company/concept statements that look like the user is testing recruiter knowledge.
+  if (
+    /\b(isn'?t|is|are|was|were)\b/.test(lower) &&
+    /\b(tesla|amazon|microsoft|google|apple|zoho|ebay|b2b|b2c|api|crm|saas)\b/.test(
+      lower,
+    )
+  ) {
+    return factCorrectionRules.some((rule) => rule.pattern.test(answer));
+  }
+
+  return false;
 }
 
 function isConceptOrKnowledgeQuestion(answer: string) {
   const lower = answer.replace(/\s+/g, " ").trim().toLowerCase();
-  if (asksIfRecruiterKnowsCompany(lower)) return true;
+  if (!lower) return false;
+
+  if (asksIfRecruiterKnowsCompany(answer)) return true;
+
+  const looksLikeQuestion =
+    lower.includes("?") ||
+    /\b(what is|what are|do you know|does it know|meaning of|means|define|difference between|tell me about|know about|can you explain)\b/.test(
+      lower,
+    );
+
+  if (!looksLikeQuestion) return false;
+
+  return /\b(b2b|b2c|sla|ats|crm|kpi|api|saas)\b/.test(lower);
+}
+
+function looksLikeCandidateInterruption(answer: string) {
+  const lower = answer.replace(/\s+/g, " ").trim().toLowerCase();
+  if (!lower) return false;
+  return /\b(wait|hold on|sorry|one second|can i interrupt|let me stop you|i want to ask|before you continue|pause)\b/.test(
+    lower,
+  );
+}
+
+
+function inferTargetRoleFromQuestion(question: string) {
+  const clean = question.replace(/\s+/g, " ").trim();
+  const patterns = [
+    /\bfor\s+(?:a|an|the)?\s*([A-Z][A-Za-z /&+-]{2,70}?)(?:\s+interview|\s+role|\s+position|\.|\?|$)/i,
+    /\bto\s+(?:a|an|the)?\s*([A-Z][A-Za-z /&+-]{2,70}?)(?:\s+role|\s+position|\.|\?|$)/i,
+    /\bconnect(?:\s+your)?\s+experience\s+to\s+(?:a|an|the)?\s*([A-Z][A-Za-z /&+-]{2,70}?)(?:\.|\?|$)/i,
+    /\bthis\s+([A-Z][A-Za-z /&+-]{2,70}?)\s+(?:interview|role|position)\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = clean.match(pattern);
+    if (match?.[1]) {
+      return match[1]
+        .replace(/\binterview\b|\brole\b|\bposition\b/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+  }
+
+  if (/customer success/i.test(clean)) return "Customer Success Manager";
+  if (/data analyst/i.test(clean)) return "Data Analyst";
+  if (/technical support/i.test(clean)) return "Technical Support";
+  if (/product manager/i.test(clean)) return "Product Manager";
+  if (/software engineer|developer/i.test(clean)) return "Software Engineer";
+  return "this role";
+}
+
+function roleKeywordFamily(role: string) {
+  const lower = role.toLowerCase();
+  if (/customer success|account manager|client success|customer support|customer experience|support/i.test(lower)) {
+    return {
+      family: "customer-facing",
+      positive: /\b(customer|client|account|renewal|retention|onboarding|stakeholder|support|relationship|success|adoption|churn|csat|nps|ticket|escalation|sla|b2b|b2c|communication|empathy)\b/i,
+      challenge: "customers, accounts, onboarding, retention, stakeholder handling, escalations, or business impact",
+    };
+  }
+  if (/data analyst|analytics|business analyst|bi/i.test(lower)) {
+    return {
+      family: "analytics",
+      positive: /\b(data|sql|dashboard|analysis|metric|kpi|report|insight|excel|python|tableau|power bi|stakeholder|trend|dataset|visualization|forecast|experiment)\b/i,
+      challenge: "data, metrics, analysis, dashboards, business questions, or measurable insights",
+    };
+  }
+  if (/product manager|product owner/i.test(lower)) {
+    return {
+      family: "product",
+      positive: /\b(user|customer|roadmap|priorit|requirement|stakeholder|metric|experiment|feature|launch|research|trade-off|backlog|adoption|retention)\b/i,
+      challenge: "users, product decisions, trade-offs, stakeholders, launch outcomes, or metrics",
+    };
+  }
+  if (/software engineer|developer|frontend|backend|full stack|fullstack/i.test(lower)) {
+    return {
+      family: "engineering",
+      positive: /\b(code|api|system|architecture|bug|deploy|database|frontend|backend|performance|testing|repository|debug|security|scalability)\b/i,
+      challenge: "technical scope, systems, code, debugging, architecture, or measurable engineering impact",
+    };
+  }
+
+  return {
+    family: "general",
+    positive: /\b(role|team|project|stakeholder|result|impact|customer|business|manager|problem|solution|metric|responsibility|decision)\b/i,
+    challenge: "the role responsibilities, stakeholders, decisions, and measurable outcomes",
+  };
+}
+
+const highCredibilityClaimPattern =
+  /\b(i|we|my team)\b.{0,80}\b(built|created|invented|designed|launched|founded|led|owned|fixed|saved|scaled|managed)\b.{0,100}\b(global|entire|whole|all|every|millions|billion|unicorn|fortune 500|ceo|cto|vp|director|head of|public company|famous|world'?s biggest|industry leading)\b/i;
+
+function looksLikeUnsupportedHighCredibilityClaim(answer: string) {
+  const clean = answer.replace(/\s+/g, " ").trim();
+  if (!highCredibilityClaimPattern.test(clean)) return false;
+  return !/\b(team of|as part of|contributed|supported|helped|intern|student project|prototype|simulation|under supervision|one module|my part|responsible for)\b/i.test(clean);
+}
+
+type SenseCheckResult = {
+  severity: "light" | "firm";
+  reason: string;
+  reply: string;
+};
+
+
+function isCandidateQuestionNotInterviewAnswer(answer: string) {
+  const clean = answer.replace(/\s+/g, " ").trim();
+  const lower = clean.toLowerCase();
+  if (!clean) return false;
+
+  // Real interviewers distinguish candidate questions from answers.
+  // These must never advance the interview counter or get judged as a poor answer.
+  if (isInterviewControlQuestion(clean) || isClarificationOrMetaQuestion(clean)) return true;
+  if (asksIfRecruiterKnowsCompany(clean) || isConceptOrKnowledgeQuestion(clean)) return true;
+
+  const shortQuestion = clean.endsWith("?") && clean.split(/\s+/).length <= 18;
+  const candidateQuestionLead = /^(what|why|how|when|where|which|who|can|could|do|does|did|are|is|will|would|should)\b/i.test(clean);
+  const asksAboutProcess = /\b(interview|question|answer|role|company|jd|job description|resume|cv|task|need to do|supposed to do|should i)\b/i.test(lower);
+
+  return Boolean((shortQuestion || candidateQuestionLead) && asksAboutProcess);
+}
+
+function currentQuestionNeedsRealAnswer(currentQuestion: string) {
+  const q = currentQuestion.replace(/\s+/g, " ").trim().toLowerCase();
+  if (!q) return false;
+  return (
+    /\b(tell me about yourself|walk me through|introduce yourself|your background|your experience|describe a time|tell me about a time|give me an example|what happened|how did you|why did you|what was your role|what did you do|what was the outcome)\b/.test(q)
+  );
+}
+
+function answerDirectlyAddressesQuestion(answer: string, currentQuestion: string) {
+  const clean = answer.replace(/\s+/g, " ").trim();
+  const lower = clean.toLowerCase();
+  const q = currentQuestion.replace(/\s+/g, " ").trim().toLowerCase();
+  const words = clean.split(/\s+/).filter(Boolean);
+
+  if (!clean) return false;
+  if (isGreetingOrCourtesy(clean) || isCandidateQuestionNotInterviewAnswer(clean)) return false;
+
+  // If the interviewer asked for a self-introduction, the answer should contain
+  // at least some candidate/work signal. Otherwise we guide, not score.
+  if (/\b(tell me about yourself|walk me through|introduce yourself|your background|your experience)\b/.test(q)) {
+    return (
+      words.length >= 10 &&
+      /\b(i|i'm|i am|my|worked|work|experience|background|role|support|customer|data|project|team|company|handled|built|managed|learned|responsible)\b/i.test(clean)
+    );
+  }
+
+  // If the interviewer asks for an example/situation, require a real-work signal.
+  if (/\b(describe a time|tell me about a time|give me an example|specific example|situation|moment)\b/.test(q)) {
+    return (
+      words.length >= 12 &&
+      /\b(i|we|my|our|customer|client|team|manager|project|ticket|issue|problem|handled|resolved|built|created|managed|led|improved|result|outcome)\b/i.test(clean)
+    );
+  }
+
+  if (!currentQuestionNeedsRealAnswer(currentQuestion)) return true;
+  return words.length >= 8;
+}
+
+function buildHumanNotAnswerReply(currentQuestion: string) {
+  const activeQuestion = currentQuestion || "the question I asked";
+  return `No problem — but I won’t treat that as an interview answer. For this question, answer directly: “${activeQuestion}” Give me the real situation, your role, what you did, and the result. Take a moment and answer naturally.`;
+}
+
+function detectAnswerSenseProblem(
+  answer: string,
+  currentQuestion = "",
+  setup?: WorkZoInterviewSetup,
+): SenseCheckResult | null {
+  const clean = answer.replace(/\s+/g, " ").trim();
+  const lower = clean.toLowerCase();
+  if (!clean) return null;
 
   if (
-    !lower.includes("?") &&
-    !/\b(what is|what are|do you know|does it know|meaning of|means|define|difference between|tell me about|know about)\b/.test(
-      lower,
-    )
-  )
-    return false;
-  return (
-    /\b(b2b|b2c|sla|ats|crm|kpi|api|saas)\b/.test(lower) ||
-    asksIfRecruiterKnowsCompany(lower)
+    isGreetingOrCourtesy(clean) ||
+    isClarificationOrMetaQuestion(clean) ||
+    asksIfRecruiterKnowsCompany(clean) ||
+    isConceptOrKnowledgeQuestion(clean)
+  ) {
+    return null;
+  }
+
+  const words = clean.split(/\s+/).filter(Boolean);
+
+  if (currentQuestionNeedsRealAnswer(currentQuestion) && !answerDirectlyAddressesQuestion(clean, currentQuestion)) {
+    return {
+      severity: "light",
+      reason: "not_an_interview_answer",
+      reply: buildHumanNotAnswerReply(currentQuestion),
+    };
+  }
+
+  const uniqueRatio =
+    new Set(words.map((word) => word.toLowerCase())).size /
+    Math.max(1, words.length);
+  const repeatedShortLoop = words.length >= 10 && uniqueRatio < 0.38;
+  const fillerOnly =
+    words.length >= 6 &&
+    !/\b(i|we|my|our|customer|team|project|role|result|issue|problem|resolved|built|created|managed|led|improved|reduced|increased|because|therefore|so)\b/i.test(
+      clean,
+    );
+
+  if (repeatedShortLoop || fillerOnly) {
+    return {
+      severity: "firm",
+      reason: "unclear_or_word_salad",
+      reply:
+        "Let me stop you there for a second — I’m not able to follow that answer clearly. In a real interview, that would make me worry that you’re not answering the question. Give me one concrete situation, what happened, and what you personally did.",
+    };
+  }
+
+  const impossibleImpactPatterns = [
+    /\b(increased|improved|reduced|decreased|saved|grew)\b.{0,50}\b(1000|10000|million|billion)\s*%\b/i,
+    /\b(single[-\s]?handedly|alone|by myself)\b.{0,80}\b(entire|whole|global|company[-\s]?wide)\b/i,
+    /\b(fixed|solved|built|created|launched)\b.{0,80}\b(all|every)\b.{0,30}\b(bug|issue|problem|customer complaint|ticket)s?\b.{0,40}\b(one day|overnight|in an hour)\b/i,
+    /\bnever made a mistake\b|\bno weakness\b|\bi have no weakness\b|\bi know everything\b/i,
+  ];
+
+  if (impossibleImpactPatterns.some((pattern) => pattern.test(clean))) {
+    return {
+      severity: "firm",
+      reason: "implausible_claim",
+      reply:
+        "I’m going to challenge that, because it sounds exaggerated. A real interviewer would not fully trust that claim without evidence. Give me the realistic version: what was the scale, what exactly changed, and how do you know it was your work?",
+    };
+  }
+
+  const contradictionPatterns = [
+    /\bi\s+(never|did not|didn'?t)\s+(work|worked|handle|handled|lead|led|manage|managed).{0,70}\b(but|however)\b.{0,70}\bi\s+(led|managed|handled|owned|built|created)/i,
+    /\b(no experience|never used|don'?t know)\b.{0,60}\bbut\b.{0,60}\b(expert|advanced|led|owned|managed|trained others)\b/i,
+    /\bnot involved\b.{0,70}\b(my decision|i decided|i owned|i led)\b/i,
+  ];
+
+  if (contradictionPatterns.some((pattern) => pattern.test(clean))) {
+    return {
+      severity: "firm",
+      reason: "internal_contradiction",
+      reply:
+        "I need to pause you there — that answer contradicts itself a little. First you reduce your involvement, then you describe ownership. Which one is accurate? Give me the clean version, because consistency matters in a real interview.",
+    };
+  }
+
+  // General real-world recruiter check: do not politely accept claims that are
+  // unsupported, unrelated to the target role, or too high-stakes without scope.
+  // This is intentionally role-agnostic, so we do not hard-code one example.
+  const roleQuestionSignals = /\b(tell me about yourself|background|experience|walk me through your profile|introduce yourself|connect your experience)\b/i.test(
+    currentQuestion,
   );
+  const setupRole = setup ? getRole(setup) : "";
+  const targetRole = setupRole && setupRole !== "General Role" && setupRole !== "Target Role"
+    ? setupRole
+    : inferTargetRoleFromQuestion(currentQuestion);
+  const roleFamily = roleKeywordFamily(targetRole);
+  const jobContextForBridge = setup ? buildJobContext(setup) : "";
+  const answerHasRoleBridge =
+    roleFamily.positive.test(clean) ||
+    Boolean(jobContextForBridge && roleFamily.positive.test(jobContextForBridge) && roleFamily.positive.test(clean));
+  const famousCompanyOrProduct = /\b(tesla|amazon|microsoft|google|apple|meta|openai|netflix|ebay|zoho|salesforce|chatgpt|iphone|windows|youtube|instagram|facebook|autopilot|prime|aws|azure)\b/i.test(
+    clean,
+  );
+  const unrelatedIdentityClaim =
+    /\b(i\s+(worked|work)\s+as|my\s+role\s+was|i\s+am|i\s+was)\b.{0,70}\b(engineer|designer|doctor|lawyer|scientist|architect|founder|ceo|cto|director|pilot|professor|researcher)\b/i.test(
+      clean,
+    );
+  const creationOwnershipClaim = /\b(i|we)\b.{0,60}\b(designed|built|created|invented|launched|founded|owned|led)\b/i.test(
+    clean,
+  );
+
+  if (
+    roleQuestionSignals &&
+    !answerHasRoleBridge &&
+    (famousCompanyOrProduct || unrelatedIdentityClaim || creationOwnershipClaim)
+  ) {
+    return {
+      severity: "firm",
+      reason: "role_fit_claim_needs_verification",
+      reply: `Let me pause you there. I’m not rejecting the experience, but I don’t yet see how it connects to ${targetRole}. In a real interview, I would need the believable bridge to ${roleFamily.challenge}. Was that your real role, what was your exact scope, and why does it make you stronger for this position?`,
+    };
+  }
+
+  if (looksLikeUnsupportedHighCredibilityClaim(clean)) {
+    return {
+      severity: "firm",
+      reason: "unsupported_high_credibility_claim",
+      reply:
+        "I need to challenge the scale of that claim. It sounds too broad to accept without proof. In a real interview, I’d ask you to narrow it down: what exactly was your part, what team were you in, what dates, and what measurable result can you personally stand behind?",
+    };
+  }
+
+  const currentLower = currentQuestion.toLowerCase();
+  const asksForExample =
+    /\b(time|example|situation|moment|describe|tell me about)\b/.test(
+      currentLower,
+    );
+  const candidateGivesDefinitionOnly =
+    words.length >= 10 &&
+    /\bmeans|is when|refers to|definition|basically|generally\b/i.test(clean) &&
+    !/\b(i|we|my|our|customer|team|manager|client|project)\b/i.test(clean);
+
+  if (asksForExample && candidateGivesDefinitionOnly) {
+    return {
+      severity: "light",
+      reason: "definition_instead_of_example",
+      reply:
+        "That explains the idea, but it doesn’t answer the interview question yet. I asked for a real example. Pick one situation you actually experienced and walk me through your role.",
+    };
+  }
+
+  const offTopicSignals =
+    /\b(weather|movie|food|cricket|football|song|holiday|recipe|politics)\b/i.test(
+      clean,
+    );
+  const hasWorkSignal =
+    /\b(work|job|role|customer|team|project|company|manager|client|product|issue|ticket|data|analysis|support|interview)\b/i.test(
+      clean,
+    );
+  if (words.length >= 8 && offTopicSignals && !hasWorkSignal) {
+    return {
+      severity: "light",
+      reason: "off_topic",
+      reply:
+        "I’ll bring you back to the interview. That answer doesn’t connect to the role or the question. Give me a work-related example instead.",
+    };
+  }
+
+  return null;
+}
+
+function shouldSenseCheckBeforeScoring(
+  answer: string,
+  currentQuestion = "",
+  setup?: WorkZoInterviewSetup,
+) {
+  return Boolean(detectAnswerSenseProblem(answer, currentQuestion, setup));
+}
+
+function buildSenseCheckReply(
+  answer: string,
+  currentQuestion = "",
+  setup?: WorkZoInterviewSetup,
+) {
+  const problem = detectAnswerSenseProblem(answer, currentQuestion, setup);
+  if (problem) return problem.reply;
+  return "I’m not fully following that answer. Let’s reset it like a real interview: one situation, your role, the action you took, and the result.";
+}
+
+function classifyCandidateIntent(
+  answer: string,
+  currentQuestion = "",
+  setup?: WorkZoInterviewSetup,
+): CandidateIntent {
+  const lower = answer.replace(/\s+/g, " ").trim().toLowerCase();
+  if (!lower) return "interview_answer";
+  if (isGreetingOrCourtesy(answer) || /^(hi|hello|hey|are you there|can you hear me)\??$/i.test(lower)) {
+    return "small_talk";
+  }
+  if (looksLikeCandidateInterruption(answer) || isCandidateQuestionNotInterviewAnswer(answer)) {
+    return "context_question";
+  }
+  if (
+    asksForExactAvailableContext(answer) ||
+    isClarificationOrMetaQuestion(answer)
+  ) {
+    return "context_question";
+  }
+  if (asksIfRecruiterKnowsCompany(answer)) return "company_question";
+  if (isConceptOrKnowledgeQuestion(answer)) return "concept_question";
+  if (shouldTruthCheckBeforeScoring(answer)) return "correction_or_fact_check";
+  if (shouldSenseCheckBeforeScoring(answer, currentQuestion, setup))
+    return "sense_check";
+  return "interview_answer";
 }
 
 function buildClarificationReply(
   answer: string,
   setup: WorkZoInterviewSetup,
   recruiterId: RecruiterId,
+  currentQuestion = "",
 ) {
   const lower = answer.toLowerCase();
 
@@ -1915,10 +2886,18 @@ function buildClarificationReply(
   const hasCv = hasUsableCv(setup);
   const hasJob = buildJobContext(setup).length > 80;
 
-  if (/\b(can you hear me|are you there|hello|hi)\b/i.test(lower)) {
+  if (isInterviewControlQuestion(answer)) {
+    const activeQuestion = currentQuestion || "the question on screen";
+    return `No problem. Just answer naturally as if this is a real interview. For this step, respond to: “${activeQuestion}” Keep it simple: your situation, your role, what you did, and the result. I won’t count this as an interview answer — take your time and answer when you’re ready.`;
+  }
+
+  if (/\b(can you hear me|are you there|hello|hi)\b/i.test(lower) || isGreetingOrCourtesy(answer)) {
+    if (/\bhow are you\b/i.test(lower) || /\b(good|fine|great|doing well)\b/i.test(lower)) {
+      return "I’m good, thank you. Let’s begin properly now — I’ll ask the questions, and you can answer naturally like you would in a real interview.";
+    }
     return recruiterId === "startup_recruiter"
-      ? "Yes, I can hear you. Let’s continue — give me a focused answer to the question."
-      : "Yes, I’m here and I can hear you. Let’s continue with the interview question.";
+      ? "Yes, I can hear you. We’ll keep this natural — answer the question on screen when you’re ready."
+      : "Yes, I’m here and I can hear you. We’ll keep this natural — answer the question on screen when you’re ready.";
   }
 
   if (
@@ -1945,7 +2924,111 @@ function buildClarificationReply(
     return "I don’t have enough clear resume or job-description detail available, so I won’t pretend I’ve read details that are not loaded. Tell me the role and the experience you want me to evaluate, and I’ll continue from there.";
   }
 
-  return "Good question. I’ll answer briefly, then we’ll continue the interview. Yes, I’m using the available role and background context to guide this conversation.";
+  if (cleanQuestionIntent(lower)) {
+    const activeQuestion = currentQuestion || "the question on screen";
+    return `Good question. What you need to do now is answer this like a real interview, not perfectly — just clearly. For this step, respond to: “${activeQuestion}” I’m listening for your actual experience, your role, and the result.`;
+  }
+
+  return "Good question. I’ll answer briefly, then we’ll continue the interview. I’m using the available role and background context, but I’ll only judge a message as an answer when it actually answers the interview question.";
+}
+
+function cleanQuestionIntent(lower: string) {
+  return /(what|how|why|when|where|which|who|can|could|do|does|did|are|is|will|would|should)/.test(lower);
+}
+
+
+type BestRecruiterBrainReply = {
+  question?: string;
+  feedback?: string;
+  recruiterState?: unknown;
+  analysis?: unknown;
+  interruption?: {
+    shouldInterrupt?: boolean;
+    interruptionMessage?: string;
+    severity?: "low" | "medium" | "high";
+  };
+};
+
+function isUsefulAiRecruiterQuestion(value: unknown) {
+  if (typeof value !== "string") return false;
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length < 12 || clean.length > 520) return false;
+  if (/^(ok|okay|thanks|thank you)[.!]?$/i.test(clean)) return false;
+  if (/as an ai|language model|i cannot|i can'?t help/i.test(clean)) return false;
+  return true;
+}
+
+function buildLocalRecruiterReasoningPrompt(input: {
+  answer: string;
+  currentQuestion: string;
+  setup: WorkZoInterviewSetup;
+  transcript: TranscriptItem[];
+}) {
+  const role = getRole(input.setup);
+  const company = getCompany(input.setup);
+  return {
+    targetRole: role,
+    targetCompany: company,
+    cvText: buildCandidateContext(input.setup),
+    jobDescription: buildJobContext(input.setup),
+    setup: {
+      cvText: buildCandidateContext(input.setup),
+      jobDescription: buildJobContext(input.setup),
+      targetRole: role,
+      companyStyle: input.setup.companyStyle,
+      recruiterPersonality: input.setup.recruiterPersonality,
+      recruiterMemoryProfile: input.setup.recruiterMemoryProfile,
+      jobMemoryProfile: input.setup.jobMemoryProfile,
+    },
+    answer: input.answer,
+    currentQuestion: input.currentQuestion,
+    transcript: input.transcript.slice(-10),
+  };
+}
+
+async function askBestRecruiterBrain(input: {
+  answer: string;
+  currentQuestion: string;
+  setup: WorkZoInterviewSetup;
+  transcript: TranscriptItem[];
+  timeoutMs?: number;
+}): Promise<BestRecruiterBrainReply | null> {
+  if (typeof window === "undefined") return null;
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(
+    () => controller.abort(),
+    input.timeoutMs ?? 2800,
+  );
+
+  try {
+    const response = await fetch("/api/interview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildLocalRecruiterReasoningPrompt(input)),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) return null;
+    const data = (await response.json()) as BestRecruiterBrainReply;
+    if (!isUsefulAiRecruiterQuestion(data.question)) return null;
+    return data;
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function makeRecruiterReplyMoreHuman(value: string) {
+  return value
+    .replace(/\bYour answer is too generic\b/gi, "I’m not fully seeing the real example yet")
+    .replace(/\bYour answer is too short\b/gi, "I need a little more context before I can judge that")
+    .replace(/\bI noticed this pattern earlier\b/gi, "I’m seeing the same concern again")
+    .replace(/\bCan you elaborate further\??\b/gi, "Walk me through the real situation")
+    .replace(/\bPlease provide\b/gi, "Give me")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function updateMemoryWithAnalysis(
@@ -2065,6 +3148,17 @@ function Sidebar({
   );
 }
 
+function isProgressCandidateAnswer(text: string) {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (!clean) return false;
+  if (isGreetingOrCourtesy(clean)) return false;
+  if (isClarificationOrMetaQuestion(clean)) return false;
+  if (asksIfRecruiterKnowsCompany(clean)) return false;
+  if (isConceptOrKnowledgeQuestion(clean)) return false;
+  if (shouldTruthCheckBeforeScoring(clean)) return false;
+  return clean.split(/\s+/).filter(Boolean).length >= 3;
+}
+
 function InterviewRoom({
   recruiterName,
   recruiterRole,
@@ -2122,7 +3216,7 @@ function InterviewRoom({
     12,
     Math.max(
       1,
-      transcript.filter((item) => item.role === "candidate").length + 1,
+      transcript.filter((item) => item.role === "candidate" && isProgressCandidateAnswer(item.text)).length + 1,
     ),
   );
   const progressPercent = Math.min(100, Math.max(12, progressStep * 8.3));
@@ -2930,7 +4024,7 @@ export default function InterviewPage() {
   }, [activeSetup.language]);
 
   const handleCandidateAnswer = useCallback(
-    (answer: string) => {
+    async (answer: string) => {
       if (!isLiveRef.current) return;
 
       const candidateItem: TranscriptItem = {
@@ -2942,37 +4036,71 @@ export default function InterviewPage() {
       addTranscript(candidateItem);
 
       const currentStep = interviewStepRef.current;
-      const isMetaQuestion =
-        isClarificationOrMetaQuestion(answer) ||
-        asksForExactAvailableContext(answer);
-      const isConceptQuestion = isConceptOrKnowledgeQuestion(answer);
+      const candidateIntent = classifyCandidateIntent(
+        answer,
+        questionRef.current,
+        activeSetup,
+      );
 
-      if (isConceptQuestion) {
-        const conceptReply = buildConceptReply(answer);
+      if (
+        candidateIntent === "company_question" ||
+        candidateIntent === "concept_question" ||
+        candidateIntent === "correction_or_fact_check" ||
+        candidateIntent === "sense_check"
+      ) {
+        const conceptReply =
+          candidateIntent === "correction_or_fact_check"
+            ? buildTruthCorrectionReply(answer)
+            : candidateIntent === "sense_check"
+              ? buildSenseCheckReply(answer, questionRef.current, activeSetup)
+              : buildConceptReply(answer);
 
-        setRecruiterState("engaged");
-        setVoiceStatus("Recruiter is answering briefly...");
+        setRecruiterState(
+          candidateIntent === "correction_or_fact_check" ||
+            candidateIntent === "sense_check"
+            ? "skeptical"
+            : "engaged",
+        );
+        setVoiceStatus(
+          candidateIntent === "company_question"
+            ? "Recruiter is answering company context..."
+            : candidateIntent === "correction_or_fact_check"
+              ? "Recruiter is correcting the detail..."
+              : candidateIntent === "sense_check"
+                ? "Recruiter is checking the answer..."
+                : "Recruiter is answering briefly...",
+        );
 
-        window.setTimeout(() => {
-          if (!isLiveRef.current) return;
-          const recruiterReply: TranscriptItem = {
-            role: "recruiter",
-            text: conceptReply,
-            time: timeLabel(),
-          };
-          addTranscript(recruiterReply);
-          speakRecruiter(conceptReply, () => {
-            window.setTimeout(() => listenForAnswer(), 420);
-          });
-        }, 550);
+        window.setTimeout(
+          () => {
+            if (!isLiveRef.current) return;
+            const recruiterReply: TranscriptItem = {
+              role: "recruiter",
+              text: conceptReply,
+              time: timeLabel(),
+            };
+            addTranscript(recruiterReply);
+            speakRecruiter(conceptReply, () => {
+              window.setTimeout(() => listenForAnswer(), 420);
+            });
+          },
+          candidateIntent === "correction_or_fact_check" ||
+            candidateIntent === "sense_check"
+            ? 680
+            : 520,
+        );
         return;
       }
 
-      if (isMetaQuestion) {
+      if (
+        candidateIntent === "context_question" ||
+        candidateIntent === "small_talk"
+      ) {
         const clarificationReply = buildClarificationReply(
           answer,
           activeSetup,
           recruiterId,
+          questionRef.current,
         );
 
         setRecruiterState("engaged");
@@ -2980,16 +4108,23 @@ export default function InterviewPage() {
 
         window.setTimeout(() => {
           if (!isLiveRef.current) return;
+          let replyText = clarificationReply;
+          if (candidateIntent === "small_talk" && currentStep === "greeting") {
+            interviewStepRef.current = "intro";
+            const introQuestion = buildOpeningContextAwareQuestion(recruiterId, activeSetup);
+            setQuestion(introQuestion);
+            replyText = `${clarificationReply} Let’s start with this: ${introQuestion}`;
+          }
           const recruiterReply: TranscriptItem = {
             role: "recruiter",
-            text: clarificationReply,
+            text: replyText,
             time: timeLabel(),
           };
           addTranscript(recruiterReply);
-          speakRecruiter(clarificationReply, () => {
+          speakRecruiter(replyText, () => {
             window.setTimeout(() => listenForAnswer(), 420);
           });
-        }, 650);
+        }, 600);
         return;
       }
 
@@ -3029,6 +4164,25 @@ export default function InterviewPage() {
       }
 
       if (currentStep === "intro") {
+        if (!answerDirectlyAddressesQuestion(answer, questionRef.current)) {
+          const guidance = buildHumanNotAnswerReply(questionRef.current);
+          setRecruiterState("engaged");
+          setVoiceStatus("Recruiter is guiding the answer...");
+          window.setTimeout(() => {
+            if (!isLiveRef.current) return;
+            const recruiterReply: TranscriptItem = {
+              role: "recruiter",
+              text: guidance,
+              time: timeLabel(),
+            };
+            addTranscript(recruiterReply);
+            speakRecruiter(guidance, () => {
+              window.setTimeout(() => listenForAnswer(), 420);
+            });
+          }, 520);
+          return;
+        }
+
         interviewStepRef.current = "deep_dive";
         const transitionQuestion = buildNaturalIntroQuestion(
           recruiterId,
@@ -3101,8 +4255,8 @@ export default function InterviewPage() {
       saveRecruiterMemory(nextMemory);
       setVoiceStatus(analysis.caption);
 
-      const nextQuestion = analysis.followUp;
-      const spokenReply = buildConversationalRecruiterSpeech({
+      let nextQuestion = analysis.followUp;
+      let spokenReply = buildConversationalRecruiterSpeech({
         recruiterId,
         candidateName,
         screenQuestion: nextQuestion,
@@ -3112,9 +4266,28 @@ export default function InterviewPage() {
         trust: nextTrust,
       });
 
-      const thinkingDelay = buildHumanPauseMs(analysis);
-
       setVoiceStatus("Recruiter is thinking...");
+
+      // Best-intelligence layer: when the server/OpenAI brain is available, let it
+      // reason over the full CV/JD/transcript and replace the local fallback with
+      // a sharper recruiter response. If it is slow or unavailable, the stable
+      // local engine continues immediately. This does not touch voice transport.
+      const aiBrain = await askBestRecruiterBrain({
+        answer,
+        currentQuestion: questionRef.current,
+        setup: activeSetup,
+        transcript: [...transcript, candidateItem],
+        timeoutMs: 2200,
+      });
+
+      if (aiBrain?.question && isUsefulAiRecruiterQuestion(aiBrain.question)) {
+        nextQuestion = makeRecruiterReplyMoreHuman(aiBrain.question);
+        spokenReply = makeRecruiterReplyMoreHuman(nextQuestion);
+      }
+
+      const thinkingDelay = aiBrain ? 420 : buildHumanPauseMs(analysis);
+
+      if (aiBrain) setVoiceStatus("Recruiter is responding with context...");
 
       window.setTimeout(() => {
         if (!isLiveRef.current) return;
@@ -3157,6 +4330,7 @@ export default function InterviewPage() {
       recruiterProfile.name,
       role,
       speakRecruiter,
+      transcript,
     ],
   );
 
@@ -3305,9 +4479,27 @@ export default function InterviewPage() {
 
   const handleMicClick = useCallback(() => {
     if (isLive) {
-      // During a live session the mic button is only a manual resume.
-      // It must never start listening while the recruiter is speaking.
-      if (!isSpeaking && !isListening) {
+      // Human-like interruption support: if the candidate taps mic while
+      // recruiter is speaking, stop the recruiter and give the floor back.
+      // This keeps the existing stable voice pipeline intact, but allows
+      // natural "wait, can I ask something?" moments.
+      if (isSpeaking) {
+        try {
+          window.speechSynthesis?.cancel();
+        } catch {}
+        try {
+          recognitionRef.current?.abort?.();
+          recognitionRef.current?.stop();
+        } catch {}
+        isSpeakingRef.current = false;
+        setIsSpeaking(false);
+        setIsListening(false);
+        setVoiceStatus("Paused — go ahead");
+        window.setTimeout(() => listenForAnswer(), 220);
+        return;
+      }
+
+      if (!isListening) {
         listenForAnswer();
       }
       return;
