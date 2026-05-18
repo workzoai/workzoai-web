@@ -585,6 +585,16 @@ function speakWithSystemVoiceFallback({
   try {
     const utterance = new SpeechSynthesisUtterance(text);
     const runtimeVoice = recruiterRuntimeVoice(recruiterId);
+    const voices = window.speechSynthesis.getVoices();
+    const preferred =
+      voices.find((voice) =>
+        runtimeVoice.browserVoiceNames.some((preferredName) =>
+          `${voice.name} ${voice.voiceURI}`
+            .toLowerCase()
+            .includes(preferredName.toLowerCase()),
+        ),
+      ) || null;
+    if (preferred) utterance.voice = preferred;
     utterance.pitch = runtimeVoice.pitch;
     utterance.rate = Math.min(0.94, runtimeVoice.rate);
     utterance.volume = 1;
@@ -1945,6 +1955,19 @@ export default function InterviewPage() {
 
       const cleanText = softenRecruiterSpeech(text);
 
+      // Recruiter audio and candidate mic must never run together.
+      // Mobile Chrome/Safari can mute/duck playback if SpeechRecognition is active.
+      try {
+        recognitionRef.current?.abort?.();
+        recognitionRef.current?.stop();
+      } catch {}
+      pendingAnswerRef.current = "";
+      if (finalizationTimerRef.current) {
+        window.clearTimeout(finalizationTimerRef.current);
+        finalizationTimerRef.current = null;
+      }
+      setIsListening(false);
+
       try {
         currentAudioSourceRef.current?.stop();
         currentAudioSourceRef.current = null;
@@ -2095,26 +2118,41 @@ export default function InterviewPage() {
         Math.min(30000, Math.max(7000, cleanText.length * 120)),
       );
 
+      // Product Hunt-safe mobile behavior:
+      // On many mobile browsers, async ElevenLabs blob playback remains silent
+      // even after audio unlock. Use native system speech on mobile so the
+      // recruiter is always audible, and keep ElevenLabs for desktop where it is stable.
+      if (isMobileBrowser()) {
+        const fallbackStarted = speakWithSystemVoiceFallback({
+          recruiterId,
+          text: cleanText,
+          onDone: finishSpeech,
+        });
+
+        if (!fallbackStarted) {
+          finishSpeech();
+        }
+        return;
+      }
+
       try {
         const audioBlob = await fetchElevenLabsAudio({
           recruiterId,
           text: cleanText,
         });
 
-        // Use the unlocked AudioContext on mobile too. Reused HTMLAudioElement
-        // playback can still be silent on iOS/Chrome mobile after async fetches.
         try {
           await playWithAudioContext(audioBlob);
         } catch (webAudioError) {
-          console.warn("WorkZo WebAudio playback failed, trying HTML audio:", webAudioError);
+          console.warn(
+            "WorkZo WebAudio playback failed, trying HTML audio:",
+            webAudioError,
+          );
           await playWithHtmlAudio(audioBlob);
         }
       } catch (error) {
         console.warn("WorkZo ElevenLabs voice failed:", error);
 
-        // Never show a scary error during the interview. If ElevenLabs or
-        // mobile playback fails, use system speech as an audible fallback and
-        // keep the interview moving naturally.
         const fallbackStarted = speakWithSystemVoiceFallback({
           recruiterId,
           text: cleanText,
