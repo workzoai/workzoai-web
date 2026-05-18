@@ -47,7 +47,6 @@ import {
   clearExpiredInterviewState,
   touchWorkZoSession,
 } from "@/lib/workzoStorage";
-import MobileInterviewRoom from "@/components/interview/MobileInterviewRoom";
 
 type TranscriptItem = {
   role: "recruiter" | "candidate" | "system";
@@ -97,31 +96,6 @@ type WindowWithSpeechRecognition = Window & {
   SpeechRecognition?: SpeechRecognitionConstructor;
   webkitSpeechRecognition?: SpeechRecognitionConstructor;
 };
-
-type ElevenLabsVoiceRequest = {
-  recruiterId: RecruiterId;
-  text: string;
-};
-
-async function fetchElevenLabsAudio({
-  recruiterId,
-  text,
-}: ElevenLabsVoiceRequest) {
-  const response = await fetch("/api/elevenlabs", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ recruiterId, text }),
-  });
-
-  if (!response.ok) {
-    const details = await response.text().catch(() => "");
-    throw new Error(details || "ElevenLabs voice request failed");
-  }
-
-  return response.blob();
-}
 
 type AnswerAnalysis = {
   signal:
@@ -182,99 +156,6 @@ const fallbackQuestions = [
   "Tell me about a mistake you made and how you recovered from it.",
   "Why are you a strong fit for this role?",
 ];
-
-const naturalInterviewQuestions = [
-  "Tell me about a project where you personally improved a process or outcome.",
-  "Walk me through a situation where you had to solve a difficult problem.",
-  "Describe a time you handled a customer or stakeholder under pressure.",
-  "Give me an example where you used data or evidence to make a better decision.",
-  "Tell me about a time you had to learn something quickly for work.",
-  "Tell me about a mistake you made and how you handled it.",
-  "How do you usually communicate progress when work is unclear or changing?",
-  "Why are you interested in this role, and what makes you a strong fit?",
-];
-
-const lightFollowUpQuestions = [
-  "What made that situation difficult?",
-  "What did you personally do in that situation?",
-  "How did you know your approach worked?",
-  "What would you do differently if you had to handle it again?",
-];
-
-function getCandidateAnswerCount(items: TranscriptItem[]) {
-  return items.filter((item) => item.role === "candidate").length;
-}
-
-function pickNaturalNextQuestion({
-  answerCount,
-  currentQuestion,
-}: {
-  answerCount: number;
-  currentQuestion: string;
-}) {
-  // Real interviews should not dissect every answer. Most of the time, move the
-  // conversation forward. Only occasionally ask a light follow-up.
-  const shouldAskLightFollowUp = answerCount > 3 && answerCount % 4 === 0;
-
-  if (shouldAskLightFollowUp) {
-    const followUpIndex =
-      Math.floor(answerCount / 4) % lightFollowUpQuestions.length;
-    return lightFollowUpQuestions[followUpIndex];
-  }
-
-  const normalizedCurrent = currentQuestion.trim().toLowerCase();
-  const currentIndex = naturalInterviewQuestions.findIndex(
-    (question) => question.trim().toLowerCase() === normalizedCurrent,
-  );
-
-  const nextIndex =
-    currentIndex >= 0 ? currentIndex + 1 : Math.max(0, answerCount - 2);
-  return naturalInterviewQuestions[
-    nextIndex % naturalInterviewQuestions.length
-  ];
-}
-
-function buildNaturalInterviewBridge({
-  recruiterId,
-  answerCount,
-  nextQuestion,
-}: {
-  recruiterId: RecruiterId;
-  answerCount: number;
-  nextQuestion: string;
-}) {
-  const transitions =
-    recruiterId === "startup_recruiter"
-      ? [
-          "Okay, thanks. Let’s move to the next part.",
-          "Got it. I’ll switch direction slightly.",
-          "Alright. Let’s look at another situation.",
-          "Thanks. I want to understand another side of your experience.",
-        ]
-      : recruiterId === "friendly_hr"
-        ? [
-            "Thank you, that helps. Let’s continue.",
-            "Okay, I understand. Let’s move to another example.",
-            "That gives me useful context. I’d like to ask about something else.",
-            "Thanks for explaining that. Let’s continue.",
-          ]
-        : recruiterId === "german_corporate"
-          ? [
-              "Thank you. Let’s continue with the next area.",
-              "Understood. I’ll move to another question now.",
-              "That gives me context. Let’s keep this structured.",
-              "Thank you. I’d like to cover another situation.",
-            ]
-          : [
-              "Okay, thanks. Let’s go to the next area.",
-              "Understood. I want to explore another example.",
-              "That gives me some context. Let’s continue.",
-              "Thanks. I’ll move the interview forward.",
-            ];
-
-  const transition = transitions[answerCount % transitions.length];
-  return cleanLiveRecruiterSpeech(`${transition} ${nextQuestion}`);
-}
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -409,16 +290,13 @@ function getAnswerSnippet(answer: string) {
 }
 
 function buildHumanPauseMs(analysis: AnswerAnalysis) {
-  // Keep the live interview moving like a real conversation.
-  // Deeper critique is saved for the results page, not spoken mid-call.
-  if (analysis.signal === "rambling") return 900;
-  if (
-    analysis.signal === "strong_metrics" ||
-    analysis.signal === "good_ownership"
-  )
-    return 520;
-  if (analysis.signal === "recovery") return 620;
-  return 680;
+  if (analysis.state === "losing_confidence") return 1850;
+  if (analysis.state === "pressuring") return 1450;
+  if (analysis.state === "skeptical") return 1250;
+  if (analysis.state === "recovering_trust") return 950;
+  if (analysis.state === "engaged" || analysis.state === "interested")
+    return 650;
+  return 1050;
 }
 
 function softenRecruiterSpeech(text: string) {
@@ -471,9 +349,7 @@ type RecruiterRuntimeVoice = {
   browserVoiceNames: string[];
 };
 
-function recruiterRuntimeVoice(
-  recruiterId: RecruiterId,
-): RecruiterRuntimeVoice {
+function recruiterRuntimeVoice(recruiterId: RecruiterId): RecruiterRuntimeVoice {
   if (recruiterId === "friendly_hr") {
     return {
       voiceId: "shimmer",
@@ -561,243 +437,95 @@ function recruiterRuntimeVoice(
   };
 }
 
+function isLikelyFemaleVoice(voice: SpeechSynthesisVoice) {
+  return /shimmer|aria|jenny|samantha|victoria|zira|sonia|natasha|susan|hazel|karen|moira|tessa|veena|serena|ava|emma|female/i.test(
+    `${voice.name} ${voice.voiceURI}`,
+  );
+}
+
+function isLikelyMaleVoice(voice: SpeechSynthesisVoice) {
+  return /alloy|echo|daniel|david|mark|george|alex|fred|tom|arthur|guy|male/i.test(
+    `${voice.name} ${voice.voiceURI}`,
+  );
+}
+
+function findVoiceByPreferredName(
+  voices: SpeechSynthesisVoice[],
+  preferredNames: string[],
+) {
+  for (const preferredName of preferredNames) {
+    const exact = voices.find((voice) =>
+      `${voice.name} ${voice.voiceURI}`
+        .toLowerCase()
+        .includes(preferredName.toLowerCase()),
+    );
+    if (exact) return exact;
+  }
+
+  return null;
+}
+
+function selectBrowserVoice(recruiterId: RecruiterId) {
+  if (typeof window === "undefined" || !window.speechSynthesis) return null;
+
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return null;
+
+  const runtimeVoice = recruiterRuntimeVoice(recruiterId);
+  const englishVoices = voices.filter((voice) =>
+    voice.lang?.toLowerCase().startsWith("en"),
+  );
+  const pool = englishVoices.length ? englishVoices : voices;
+
+  const preferred = findVoiceByPreferredName(pool, runtimeVoice.browserVoiceNames);
+  if (preferred) return preferred;
+
+  if (runtimeVoice.gender === "female") {
+    return (
+      pool.find(isLikelyFemaleVoice) ||
+      voices.find(isLikelyFemaleVoice) ||
+      pool.find((voice) => !isLikelyMaleVoice(voice)) ||
+      null
+    );
+  }
+
+  return pool.find(isLikelyMaleVoice) || voices.find(isLikelyMaleVoice) || null;
+}
+
 function openAiVoiceIdForRecruiter(recruiterId: RecruiterId) {
   return recruiterRuntimeVoice(recruiterId).voiceId;
-}
-
-function isMobileBrowser() {
-  if (typeof navigator === "undefined") return false;
-  return /iphone|ipad|ipod|android|mobile/i.test(navigator.userAgent || "");
-}
-
-function speakWithSystemVoiceFallback({
-  recruiterId,
-  text,
-  onDone,
-}: {
-  recruiterId: RecruiterId;
-  text: string;
-  onDone: () => void;
-}) {
-  if (typeof window === "undefined" || !window.speechSynthesis) return false;
-
-  try {
-    const utterance = new SpeechSynthesisUtterance(text);
-    const runtimeVoice = recruiterRuntimeVoice(recruiterId);
-    utterance.pitch = runtimeVoice.pitch;
-    utterance.rate = Math.min(0.94, runtimeVoice.rate);
-    utterance.volume = 1;
-    utterance.onend = onDone;
-    utterance.onerror = onDone;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function recruiterQuestionLead(
   recruiterId: RecruiterId,
   state: RecruiterState,
 ) {
-  if (recruiterId === "startup_recruiter") return "Okay, thanks.";
-  if (recruiterId === "friendly_hr") return "Thank you, that helps.";
-  if (recruiterId === "german_corporate") return "Understood.";
-  return "Okay, I understand.";
-}
-
-function cleanLiveRecruiterSpeech(text: string) {
-  return softenRecruiterSpeech(text)
-    .replace(/let me stop you there(?: for a second)?\.?/gi, "")
-    .replace(/i noticed this pattern earlier too:?/gi, "")
-    .replace(/answer was too short[^.?!]*[.?!]?/gi, "")
-    .replace(/answer is too generic[^.?!]*[.?!]?/gi, "")
-    .replace(/too generic[^.?!]*[.?!]?/gi, "")
-    .replace(/missing measurable impact[^.?!]*[.?!]?/gi, "")
-    .replace(/answer (?:was|is) (?:too )?(?:short|generic|vague)[^.?!]*[.?!]?/gi, "")
-    .replace(/pattern earlier[^.?!]*[.?!]?/gi, "")
-    .replace(/i still don[’']t hear[^.?!]*[.?!]?/gi, "")
-    .replace(/impact could be more measurable[^.?!]*[.?!]?/gi, "")
-    .replace(/ownership needs clearer detail[^.?!]*[.?!]?/gi, "")
-    .replace(/i'?m going to be direct here\.?/gi, "")
-    .replace(/recruiter is (exploring|inviting|guiding|asking|keeping|listening)[^.?!]*[.?!]?/gi, "")
-    .replace(/\s+/g, " ")
-    .replace(/\s+([.?!,])/g, "$1")
-    .replace(/\.\s*\./g, ".")
-    .trim();
-}
-
-function extractAnswerFocus(answer: string) {
-  const clean = answer
-    .replace(/\s+/g, " ")
-    .replace(/[^a-zA-Z0-9%.,\- ]/g, "")
-    .trim();
-
-  if (!clean) return "";
-
-  const lower = clean.toLowerCase();
-  const knownSignals = [
-    "onboarding",
-    "customer support",
-    "support tickets",
-    "ticketing",
-    "dashboard",
-    "sql",
-    "python",
-    "excel",
-    "automation",
-    "reporting",
-    "stakeholders",
-    "incident",
-    "process",
-    "workflow",
-    "data analysis",
-    "customer issue",
-    "team",
-    "project",
-  ];
-
-  const signal = knownSignals.find((item) => lower.includes(item));
-  if (signal) return signal;
-
-  const actionMatch = clean.match(
-    /(?:worked on|built|created|handled|improved|managed|resolved|implemented|analyzed|led|owned)\s+([^,.]{6,70})/i,
-  );
-  if (actionMatch?.[1]) return actionMatch[1].trim();
-
-  const words = clean.split(" ").filter(Boolean);
-  if (words.length >= 7) return words.slice(0, 7).join(" ");
-  return "";
-}
-
-function buildHumanReactiveFollowUp({
-  recruiterId,
-  answer,
-  answerCount,
-  nextQuestion,
-  analysis,
-  memory,
-}: {
-  recruiterId: RecruiterId;
-  answer: string;
-  answerCount: number;
-  nextQuestion: string;
-  analysis: AnswerAnalysis;
-  memory?: RecruiterMemory;
-}) {
-  const focus = extractAnswerFocus(answer);
-  const hasUsefulFocus = Boolean(focus && focus.length >= 4);
-  const hasNumber = /\d|percent|percentage|hours?|days?|weeks?|months?|customers?|tickets?|users?|reduced|increased|saved|improved|faster|slower|revenue|cost/i.test(answer);
-  const hasOwnership = /\bi\b|\bmy\b|\bpersonally\b|\bled\b|\bbuilt\b|\bcreated\b|\bowned\b|\bhandled\b|\bresolved\b|\bimplemented\b|\banalyzed\b|\bdesigned\b|\bimproved\b/i.test(answer);
-
-  const acknowledgements =
-    recruiterId === "startup_recruiter"
-      ? ["Okay, that helps.", "Got it.", "That gives me context.", "Alright, useful."]
-      : recruiterId === "friendly_hr"
-        ? ["Thank you, that helps.", "Okay, I understand.", "That gives me useful context.", "Thanks for explaining that."]
-        : recruiterId === "german_corporate"
-          ? ["Understood.", "Thank you, that gives me context.", "Okay.", "That is helpful."]
-          : ["Okay, that makes sense.", "Understood.", "That gives me a clearer picture.", "Thanks, that helps."];
-
-  const ack = acknowledgements[answerCount % acknowledgements.length];
-
-  // Restore the wow factor: sometimes stay with the candidate's answer and ask
-  // a human follow-up based on their words. Keep it occasional so it feels like
-  // a real recruiter, not an AI analyzer.
-  const shouldStayOnAnswer = hasUsefulFocus && (answerCount <= 3 || answerCount % 3 === 0);
-  const shouldUseMemoryCallback =
-    Boolean(memory) &&
-    answerCount >= 5 &&
-    answerCount % 5 === 0 &&
-    ((memory?.rememberedStrengths?.length || 0) > 0 ||
-      (memory?.rememberedWeaknesses?.length || 0) > 0);
-
-  if (shouldUseMemoryCallback) {
-    const rememberedStrength = memory?.rememberedStrengths?.[0];
-    const rememberedWeakness = memory?.rememberedWeaknesses?.[0];
-    const naturalCallback = rememberedStrength
-      ? `Earlier you gave a stronger example around ${rememberedStrength.toLowerCase()}. I want the same level of clarity here.`
-      : rememberedWeakness
-        ? `I want to come back to something from earlier, but in a practical way.`
-        : "I want to connect this with what you said earlier.";
-
-    const followUp = hasUsefulFocus
-      ? `When you mention ${focus}, what was the most important decision you made there?`
-      : nextQuestion;
-
-    return cleanLiveRecruiterSpeech(`${ack} ${naturalCallback} ${followUp}`);
+  if (state === "losing_confidence") {
+    if (recruiterId === "german_corporate") return "I need to be direct here.";
+    if (recruiterId === "startup_recruiter")
+      return "I’m going to push you a bit.";
+    if (recruiterId === "friendly_hr")
+      return "Let me pause you there for a second.";
+    return "I’m not convinced yet.";
   }
 
-  if (shouldStayOnAnswer) {
-    const focusQuestions =
-      recruiterId === "startup_recruiter"
-        ? hasNumber
-          ? [
-              `You mentioned ${focus}. What drove that result?`,
-              `On ${focus}, what was the trade-off you had to make?`,
-              `That part about ${focus} is interesting. What made it difficult?`,
-            ]
-          : [
-              `You mentioned ${focus}. What was the hardest part to get right there?`,
-              `On ${focus}, what did you personally change or decide?`,
-              `Stay with ${focus} for a moment. What was the real challenge?`,
-            ]
-        : recruiterId === "friendly_hr"
-          ? [
-              `When you mention ${focus}, what was your role in that situation?`,
-              `What did you learn from that ${focus} experience?`,
-              `How did you work with others around ${focus}?`,
-            ]
-          : recruiterId === "german_corporate"
-            ? [
-                `For ${focus}, what was your exact responsibility?`,
-                `How did you structure your work around ${focus}?`,
-                `What result came out of that ${focus} work?`,
-              ]
-            : [
-                `When you say ${focus}, what was the key technical or business challenge?`,
-                `What decision did you make around ${focus}?`,
-                `How did you know the work around ${focus} was successful?`,
-              ];
-
-    return cleanLiveRecruiterSpeech(
-      `${ack} ${focusQuestions[answerCount % focusQuestions.length]}`,
-    );
+  if (state === "pressuring" || state === "skeptical") {
+    if (recruiterId === "german_corporate") return "Be precise here.";
+    if (recruiterId === "startup_recruiter") return "Let’s move quickly.";
+    if (recruiterId === "friendly_hr") return "Stay concrete for me.";
+    return "Let’s test the evidence.";
   }
 
-  // If the candidate is still building the answer, invite continuation rather
-  // than judging them. Detailed coaching belongs in the results page.
-  if (analysis.signal === "too_short") {
-    return cleanLiveRecruiterSpeech(
-      `${ack} Continue that thought a bit more. What happened next?`,
-    );
-  }
+  if (state === "recovering_trust") return "That was a better direction.";
+  if (state === "engaged" || state === "interested")
+    return "Good, let’s build on that.";
 
-  if (analysis.signal === "unclear_ownership" && !hasOwnership) {
-    return cleanLiveRecruiterSpeech(
-      `${ack} And in that situation, which part was directly handled by you?`,
-    );
-  }
-
-  const naturalTransitions =
-    analysis.signal === "strong_metrics" || analysis.signal === "good_ownership" || analysis.signal === "recovery"
-      ? [
-          `Good. Let’s go one level deeper. ${nextQuestion}`,
-          `That is useful context. I want to explore another angle. ${nextQuestion}`,
-          `Okay, thanks. Let’s continue. ${nextQuestion}`,
-          `That gives me a clearer picture. ${nextQuestion}`,
-        ]
-      : [
-          `Okay, I understand. Let’s look at this from another angle. ${nextQuestion}`,
-          `Thanks. I’ll move the conversation forward. ${nextQuestion}`,
-          `That gives me context. Let’s continue. ${nextQuestion}`,
-          `Understood. I want to ask about a different situation now. ${nextQuestion}`,
-        ];
-
-  return cleanLiveRecruiterSpeech(
-    naturalTransitions[answerCount % naturalTransitions.length],
-  );
+  if (recruiterId === "german_corporate") return "Let’s keep this structured.";
+  if (recruiterId === "startup_recruiter")
+    return "Alright, let’s get practical.";
+  if (recruiterId === "friendly_hr")
+    return "I’d like to understand your experience better.";
+  return "I want to understand your thinking.";
 }
 
 function buildConversationalRecruiterSpeech({
@@ -820,11 +548,14 @@ function buildConversationalRecruiterSpeech({
   isOpening?: boolean;
 }) {
   const question = screenQuestion.replace(/\s+/g, " ").trim();
+  const weakness = memory.rememberedWeaknesses?.[0];
+  const strength = memory.rememberedStrengths?.[0];
   const lead = recruiterQuestionLead(recruiterId, state);
 
   if (isOpening) {
     const firstName = getFirstName(candidateName);
 
+    // Natural recruiter opening: no onboarding narration, no repeated full name, no reading UI labels.
     if (/how are you/i.test(question)) {
       if (recruiterId === "startup_recruiter") {
         return firstName
@@ -862,9 +593,61 @@ function buildConversationalRecruiterSpeech({
     return softenRecruiterSpeech(question);
   }
 
-  const spokenQuestion = cleanLiveRecruiterSpeech(question);
-  const spokenBridge = cleanLiveRecruiterSpeech(bridge || lead);
-  return cleanLiveRecruiterSpeech(`${spokenBridge} ${spokenQuestion}`);
+  // Keep live interview speech natural. Do not speak diagnostic coaching such as
+  // "missing measurable impact" or "answer too short" during the call; save that
+  // for the result page. Live speech should sound curious, not corrective.
+  const gentleStatePrefix =
+    state === "recovering_trust"
+      ? "That gives me a better sense of your experience. "
+      : state === "engaged" || state === "interested"
+        ? "Okay, thanks. "
+        : state === "skeptical" ||
+            state === "pressuring" ||
+            state === "losing_confidence"
+          ? "I understand. Let’s look at it a little more closely. "
+          : "";
+
+  const spokenQuestion = softenRecruiterSpeech(question);
+  const spokenBridge = bridge ? softenRecruiterSpeech(bridge) : lead;
+
+  return `${gentleStatePrefix}${spokenBridge} ${spokenQuestion}`
+    .replace(/\s+/g, " ")
+    .replace(/\s+\./g, ".")
+    .trim();
+}
+
+
+function isMobileBrowser() {
+  if (typeof navigator === "undefined") return false;
+  return /iphone|ipad|ipod|android|mobile/i.test(navigator.userAgent);
+}
+
+function unlockMobileSpeechSynthesis() {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+
+  try {
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.resume();
+
+    if (!isMobileBrowser()) return;
+
+    // Mobile browsers require the audio session to be opened inside the tap event.
+    // This tiny inaudible utterance unlocks speechSynthesis before async mic permission starts.
+    const unlockUtterance = new SpeechSynthesisUtterance(" ");
+    unlockUtterance.volume = 0.01;
+    unlockUtterance.rate = 1;
+    unlockUtterance.pitch = 1;
+    unlockUtterance.lang = "en-US";
+
+    window.speechSynthesis.speak(unlockUtterance);
+    window.setTimeout(() => {
+      try {
+        window.speechSynthesis.resume();
+      } catch {}
+    }, 80);
+  } catch (error) {
+    console.warn("WorkZo mobile speech unlock skipped:", error);
+  }
 }
 
 function getRecognitionConstructor() {
@@ -925,10 +708,10 @@ function analyzeAnswer(
       signal: "too_short",
       state: "interested",
       trustDelta: 0,
-      caption: "Recruiter is listening",
+      caption: "Recruiter is inviting more context",
       bridge: "Okay, I’m following you.",
       followUp:
-        "Take a moment and continue that example from where you were going.",
+        "Can you continue that example and give me a little more context about the situation and your role?",
     };
   }
 
@@ -937,11 +720,11 @@ function analyzeAnswer(
       signal: "rambling",
       state: "interested",
       trustDelta: -3,
-      caption: "Recruiter is listening",
+      caption: "Recruiter is guiding the answer gently",
       bridge: "Thanks, that gives me a lot of context.",
       followUp:
         "What would you say was the most important part of your contribution in that story?",
-      weakness: "Answer could be more focused in the final structure.",
+      weakness: "Answer could be more focused.",
     };
   }
 
@@ -950,10 +733,10 @@ function analyzeAnswer(
       signal: "unclear_ownership",
       state: "interested",
       trustDelta: repeatedOwnershipIssue ? -4 : -2,
-      caption: "Recruiter is listening",
+      caption: "Recruiter is exploring ownership",
       bridge: "That helps me understand the situation.",
-      followUp: "Which part of that work did you handle yourself?",
-      weakness: "Ownership could be clearer in the final answer.",
+      followUp: "What part of that work was directly handled by you?",
+      weakness: "Ownership needs clearer detail.",
     };
   }
 
@@ -962,11 +745,11 @@ function analyzeAnswer(
       signal: "missing_metrics",
       state: "interested",
       trustDelta: repeatedMetricsIssue ? -4 : -2,
-      caption: "Recruiter is listening",
+      caption: "Recruiter is exploring impact",
       bridge: "Got it — that gives me the story.",
       followUp:
-        "What changed after that work? A rough estimate is fine.",
-      weakness: "Impact could be more measurable in the final answer.",
+        "What changed after your work? It can be time saved, fewer issues, better quality, or even a rough estimate.",
+      weakness: "Impact could be more measurable.",
     };
   }
 
@@ -975,11 +758,11 @@ function analyzeAnswer(
       signal: "too_generic",
       state: "interested",
       trustDelta: -2,
-      caption: "Recruiter is listening",
+      caption: "Recruiter is asking for a concrete example",
       bridge: "Okay, I see the direction.",
       followUp:
-        "What was one specific situation that comes to mind?",
-      weakness: "Answer could use a more concrete example in the final answer.",
+        "Can you make it more concrete with one specific situation you remember?",
+      weakness: "Answer could use a more concrete example.",
     };
   }
 
@@ -1004,7 +787,7 @@ function analyzeAnswer(
       signal: hasNumber ? "strong_metrics" : "good_ownership",
       state: "engaged",
       trustDelta: 9,
-      caption: "Recruiter engaged",
+      caption: "Strong ownership signal detected",
       bridge:
         "That is more convincing because you gave me ownership and impact.",
       followUp: `Let’s go one level deeper: what was the hardest decision you made in that ${questionContext}?`,
@@ -1016,7 +799,7 @@ function analyzeAnswer(
     signal: "good_ownership",
     state: "interested",
     trustDelta: 5,
-    caption: "Recruiter engaged",
+    caption: "Recruiter engaged by specifics",
     bridge: "Good, that is clearer.",
     followUp:
       "What would your manager or stakeholder say was the strongest part of your contribution?",
@@ -1107,7 +890,9 @@ function buildCandidateContext(setup: WorkZoInterviewSetup) {
 
 function buildJobContext(setup: WorkZoInterviewSetup) {
   const jdText =
-    typeof setup.jobDescription === "string" ? setup.jobDescription.trim() : "";
+    typeof setup.jobDescription === "string"
+      ? setup.jobDescription.trim()
+      : "";
 
   const memoryText = setup.jobMemoryProfile
     ? JSON.stringify(setup.jobMemoryProfile)
@@ -1136,8 +921,8 @@ function buildClarificationReply(
 
   if (/\b(can you hear me|are you there|hello|hi)\b/i.test(lower)) {
     return recruiterId === "startup_recruiter"
-      ? "Yes, I can hear you. Let’s continue."
-      : "Yes, I’m here and I can hear you. Let’s continue.";
+      ? "Yes, I can hear you. Let’s continue — give me a focused answer to the question."
+      : "Yes, I’m here and I can hear you. Let’s continue with the interview question.";
   }
 
   if (
@@ -1145,7 +930,7 @@ function buildClarificationReply(
     lower.includes("company") ||
     lower.includes("job")
   ) {
-    return `Yes. We are interviewing for ${role}${company && company !== "Selected Company" ? ` at ${company}` : ""}. I’ll keep that context in mind as we continue.`;
+    return `Yes. We are interviewing for ${role}${company && company !== "Selected Company" ? ` at ${company}` : ""}. I’ll use that context as I evaluate your answers.`;
   }
 
   if (
@@ -1158,7 +943,7 @@ function buildClarificationReply(
       const signalLine = cvSignals.length
         ? ` I can clearly see signals like ${cvSignals.join(", ")}.`
         : "";
-      return `Yes — I have your resume context and the job description available.${signalLine} I’ll keep both in mind as we continue the conversation.`;
+      return `Yes — I have your resume context and the job description available.${signalLine} I’ll only refer to details I can clearly verify, and I’ll use the role requirements to guide the interview.`;
     }
 
     if (hasCv) {
@@ -1739,10 +1524,6 @@ export default function InterviewPage() {
   const [recruiterTrust, setRecruiterTrust] = useState(58);
 
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
-  const currentRecruiterAudioRef = useRef<HTMLAudioElement | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const recruiterAudioUnlockedRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const isLiveRef = useRef(false);
   const questionRef = useRef(question);
@@ -1756,11 +1537,26 @@ export default function InterviewPage() {
     "greeting",
   );
   const handleCandidateAnswerRef = useRef<(answer: string) => void>(() => {});
-  const pendingAnswerRef = useRef("");
-  const finalizationTimerRef = useRef<number | null>(null);
 
-  // Standard Interview now uses ElevenLabs TTS for recruiter speech.
-  // Browser SpeechRecognition is still used only for candidate answers.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+
+    // Warm browser voices before the first recruiter sentence.
+    // This prevents Chrome/Edge from using a random default voice on the first attempt.
+    const warmVoices = () => {
+      window.speechSynthesis.getVoices();
+    };
+
+    warmVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", warmVoices);
+
+    const warmTimer = window.setTimeout(warmVoices, 900);
+
+    return () => {
+      window.clearTimeout(warmTimer);
+      window.speechSynthesis.removeEventListener("voiceschanged", warmVoices);
+    };
+  }, []);
 
   const recruiterProfile = useMemo(
     () => getRecruiterVoiceProfile(activeSetup.recruiterPersonality),
@@ -1797,20 +1593,10 @@ export default function InterviewPage() {
     return () => {
       isLiveRef.current = false;
       if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
-      if (finalizationTimerRef.current)
-        window.clearTimeout(finalizationTimerRef.current);
-      pendingAnswerRef.current = "";
       try {
         recognitionRef.current?.stop();
       } catch {}
-      try {
-        currentAudioSourceRef.current?.stop();
-        currentAudioSourceRef.current = null;
-      } catch {}
-      try {
-        currentRecruiterAudioRef.current?.pause();
-        currentRecruiterAudioRef.current = null;
-      } catch {}
+      window.speechSynthesis?.cancel();
     };
   }, []);
 
@@ -1842,62 +1628,6 @@ export default function InterviewPage() {
     recruiterStateRef.current = recruiterState;
   }, [recruiterState]);
 
-  const unlockRecruiterAudio = useCallback(() => {
-    if (typeof window === "undefined") return;
-    if (recruiterAudioUnlockedRef.current) return;
-
-    try {
-      const AudioContextConstructor =
-        window.AudioContext ||
-        (window as Window & { webkitAudioContext?: typeof AudioContext })
-          .webkitAudioContext;
-
-      if (AudioContextConstructor && !audioContextRef.current) {
-        audioContextRef.current = new AudioContextConstructor();
-      }
-
-      void audioContextRef.current?.resume().then(() => {
-        recruiterAudioUnlockedRef.current = true;
-      });
-    } catch {
-      // Continue to the HTMLAudio fallback below.
-    }
-
-    try {
-      const audio = currentRecruiterAudioRef.current || new Audio();
-      audio.preload = "auto";
-      audio.volume = 0;
-      audio.muted = true;
-      (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline =
-        true;
-      audio.src =
-        "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQQAAAAAAA==";
-      currentRecruiterAudioRef.current = audio;
-
-      const playPromise = audio.play();
-      if (playPromise && typeof playPromise.then === "function") {
-        playPromise
-          .then(() => {
-            recruiterAudioUnlockedRef.current = true;
-            audio.pause();
-            audio.currentTime = 0;
-            audio.muted = false;
-            audio.volume = 1;
-          })
-          .catch(() => {
-            audio.muted = false;
-            audio.volume = 1;
-          });
-      } else {
-        recruiterAudioUnlockedRef.current = true;
-        audio.muted = false;
-        audio.volume = 1;
-      }
-    } catch {
-      // Ignore unlock failures; the normal play path will still try.
-    }
-  }, []);
-
   const addTranscript = useCallback((item: TranscriptItem) => {
     setTranscript((items) => [...items, item].slice(-40));
   }, []);
@@ -1913,38 +1643,18 @@ export default function InterviewPage() {
         return;
       }
 
-      const cleanText = cleanLiveRecruiterSpeech(softenRecruiterSpeech(text));
-      const runtimeVoice = recruiterRuntimeVoice(recruiterId);
+      window.speechSynthesis.cancel();
 
-      try {
-        recognitionRef.current?.abort?.();
-        recognitionRef.current?.stop();
-      } catch {}
+      const speakNow = () => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        const runtimeVoice = recruiterRuntimeVoice(recruiterId);
+        const voice = selectBrowserVoice(recruiterId);
+        if (voice) utterance.voice = voice;
 
-      try {
-        window.speechSynthesis.cancel();
-      } catch {}
+        utterance.lang = activeSetup.language?.toLowerCase().startsWith("de")
+          ? "de-DE"
+          : "en-US";
 
-      let didFinish = false;
-      let safetyTimeout: number | null = null;
-
-      const finishSpeech = () => {
-        if (didFinish) return;
-        didFinish = true;
-
-        if (safetyTimeout) {
-          window.clearTimeout(safetyTimeout);
-          safetyTimeout = null;
-        }
-
-        isSpeakingRef.current = false;
-        setIsSpeaking(false);
-        setVoiceStatus("Listening...");
-        afterSpeak?.();
-      };
-
-      try {
-        const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.pitch = runtimeVoice.pitch;
         utterance.rate =
           recruiterStateRef.current === "pressuring" ||
@@ -1953,26 +1663,88 @@ export default function InterviewPage() {
             : runtimeVoice.rate;
         utterance.volume = 1;
 
-        utterance.onend = finishSpeech;
-        utterance.onerror = finishSpeech;
+        try {
+          console.info("WorkZo browser voice selected", {
+            recruiterId,
+            expectedDashboardVoice: runtimeVoice.voiceId,
+            browserVoice: voice?.name || "browser-default",
+            note:
+              "Standard Interview uses browser speech. Vapi dashboard voice applies to Live Interview only.",
+          });
+        } catch {}
 
         isSpeakingRef.current = true;
         setIsSpeaking(true);
         setIsListening(false);
         setVoiceStatus("Recruiter speaking...");
 
-        safetyTimeout = window.setTimeout(
-          finishSpeech,
-          Math.min(16000, Math.max(3500, cleanText.length * 55)),
-        );
+        let finished = false;
+        const finishSpeaking = () => {
+          if (finished) return;
+          finished = true;
+          isSpeakingRef.current = false;
+          setIsSpeaking(false);
+          setVoiceStatus("Listening...");
+          afterSpeak?.();
+        };
 
-        window.speechSynthesis.speak(utterance);
-      } catch (error) {
-        console.warn("WorkZo browser voice failed:", error);
-        finishSpeech();
+        utterance.onend = finishSpeaking;
+
+        utterance.onerror = (event) => {
+          console.warn("WorkZo speech synthesis error:", event);
+          finishSpeaking();
+        };
+
+        try {
+          window.speechSynthesis.resume();
+          window.speechSynthesis.speak(utterance);
+
+          // iOS/Chrome mobile sometimes pauses speechSynthesis immediately after speak().
+          // Resuming shortly after start makes the same desktop voice path audible on mobile.
+          if (isMobileBrowser()) {
+            window.setTimeout(() => {
+              try {
+                window.speechSynthesis.resume();
+              } catch {}
+            }, 220);
+          }
+
+          const estimatedMs = Math.min(18000, Math.max(3500, text.length * 72));
+          window.setTimeout(() => {
+            if (isSpeakingRef.current && !window.speechSynthesis.speaking) {
+              finishSpeaking();
+            }
+          }, estimatedMs);
+        } catch (error) {
+          console.warn("WorkZo recruiter speech failed:", error);
+          finishSpeaking();
+        }
+      };
+
+      const waitForVoices = () => {
+        let didSpeak = false;
+        const speakOnce = () => {
+          if (didSpeak) return;
+          didSpeak = true;
+          window.speechSynthesis.removeEventListener("voiceschanged", speakOnce);
+          speakNow();
+        };
+
+        window.speechSynthesis.addEventListener("voiceschanged", speakOnce);
+        window.setTimeout(speakOnce, 1200);
+      };
+
+      const voices = window.speechSynthesis.getVoices();
+      const selectedVoice = selectBrowserVoice(recruiterId);
+
+      if (!voices.length || !selectedVoice) {
+        waitForVoices();
+        return;
       }
+
+      speakNow();
     },
-    [recruiterId, speakerOn],
+    [activeSetup.language, recruiterId, speakerOn],
   );
 
   const listenForAnswer = useCallback(() => {
@@ -1991,7 +1763,7 @@ export default function InterviewPage() {
     } catch {}
 
     const recognition = new Recognition();
-    recognition.continuous = true;
+    recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = activeSetup.language?.toLowerCase().startsWith("de")
       ? "de-DE"
@@ -2030,42 +1802,26 @@ export default function InterviewPage() {
     };
 
     recognition.onresult = (event: BrowserSpeechRecognitionEvent) => {
-      let capturedText = "";
+      let finalText = "";
 
-      // Build the full current recognition buffer, not only the latest chunk.
-      // This prevents the recruiter from reacting to half a sentence.
-      for (let index = 0; index < event.results.length; index += 1) {
+      for (
+        let index = event.resultIndex;
+        index < event.results.length;
+        index += 1
+      ) {
         const result = event.results[index];
-        capturedText += `${result[0]?.transcript || ""} `;
+        if (result.isFinal) finalText += result[0].transcript;
       }
 
-      const answer = capturedText.replace(/\s+/g, " ").trim();
+      const answer = finalText.replace(/\s+/g, " ").trim();
       if (!answer || answer.length < 3) return;
 
-      pendingAnswerRef.current = answer;
-      setVoiceStatus("Listening to your answer...");
+      try {
+        recognition.stop();
+      } catch {}
 
-      if (finalizationTimerRef.current) {
-        window.clearTimeout(finalizationTimerRef.current);
-      }
-
-      // Wait longer before treating the answer as complete. Real candidates
-      // pause while thinking, so the recruiter should not jump in immediately.
-      finalizationTimerRef.current = window.setTimeout(() => {
-        const finalAnswer = pendingAnswerRef.current
-          .replace(/\s+/g, " ")
-          .trim();
-
-        if (!finalAnswer) return;
-
-        try {
-          recognition.stop();
-        } catch {}
-
-        pendingAnswerRef.current = "";
-        setIsListening(false);
-        handleCandidateAnswerRef.current(finalAnswer);
-      }, 7200);
+      setIsListening(false);
+      handleCandidateAnswerRef.current(answer);
     };
 
     recognitionRef.current = recognition;
@@ -2106,7 +1862,7 @@ export default function InterviewPage() {
           };
           addTranscript(recruiterReply);
           speakRecruiter(clarificationReply, () => {
-            window.setTimeout(() => listenForAnswer(), 650);
+            window.setTimeout(() => listenForAnswer(), 420);
           });
         }, 650);
         return;
@@ -2139,7 +1895,7 @@ export default function InterviewPage() {
           addTranscript(recruiterReply);
           setQuestion(introQuestion);
           speakRecruiter(spokenIntro, () => {
-            window.setTimeout(() => listenForAnswer(), 650);
+            window.setTimeout(() => listenForAnswer(), 420);
           });
         }, 850);
         return;
@@ -2147,15 +1903,16 @@ export default function InterviewPage() {
 
       if (currentStep === "intro") {
         interviewStepRef.current = "deep_dive";
-        const transitionQuestion = naturalInterviewQuestions[0];
+        const transitionQuestion = fallbackQuestions[0];
+        const introSnippet = getAnswerSnippet(answer);
         const transitionSpeech =
           recruiterId === "startup_recruiter"
-            ? `Okay, thanks. Let’s move from background to one practical example. ${transitionQuestion}`
+            ? `Okay, that gives me a starting point. You mentioned ${introSnippet || "your recent work"}. Now I want one real example, not a broad overview. ${transitionQuestion}`
             : recruiterId === "friendly_hr"
-              ? `Thanks, that helps. I’d like to understand one real example from your experience now. ${transitionQuestion}`
+              ? `Thanks, that helps. I want to understand one real example from your background now. ${transitionQuestion}`
               : recruiterId === "german_corporate"
-                ? `Thank you. Let’s move from background to a concrete work example. ${transitionQuestion}`
-                : `Thanks. Let’s move from responsibilities to one specific example. ${transitionQuestion}`;
+                ? `Thank you. Now let’s move from background to evidence. ${transitionQuestion}`
+                : `Thanks. Now I want to understand ownership, not just responsibilities. ${transitionQuestion}`;
 
         setRecruiterState("engaged");
         setVoiceStatus("Recruiter is moving deeper...");
@@ -2170,7 +1927,7 @@ export default function InterviewPage() {
           addTranscript(recruiterReply);
           setQuestion(transitionQuestion);
           speakRecruiter(transitionSpeech, () => {
-            window.setTimeout(() => listenForAnswer(), 650);
+            window.setTimeout(() => listenForAnswer(), 420);
           });
         }, 1050);
         return;
@@ -2211,24 +1968,18 @@ export default function InterviewPage() {
       saveRecruiterMemory(nextMemory);
       setVoiceStatus(analysis.caption);
 
-      const answerCount = getCandidateAnswerCount(transcriptRef.current) + 1;
-      const nextQuestion = pickNaturalNextQuestion({
-        answerCount,
-        currentQuestion: questionRef.current,
-      });
-      const spokenReply = buildHumanReactiveFollowUp({
+      const nextQuestion = analysis.followUp;
+      const spokenReply = buildConversationalRecruiterSpeech({
         recruiterId,
-        answer,
-        answerCount,
-        nextQuestion,
-        analysis,
+        candidateName,
+        screenQuestion: nextQuestion,
+        bridge: analysis.bridge,
         memory: nextMemory,
+        state: analysis.state,
+        trust: nextTrust,
       });
 
-      const thinkingDelay = Math.min(
-        650,
-        Math.max(250, Math.round(buildHumanPauseMs(analysis) * 0.45)),
-      );
+      const thinkingDelay = buildHumanPauseMs(analysis);
 
       setVoiceStatus("Recruiter is thinking...");
 
@@ -2244,7 +1995,7 @@ export default function InterviewPage() {
         addTranscript(recruiterReply);
         setQuestion(nextQuestion);
         speakRecruiter(spokenReply, () => {
-          window.setTimeout(() => listenForAnswer(), 650);
+          window.setTimeout(() => listenForAnswer(), 350);
         });
       }, thinkingDelay);
 
@@ -2280,6 +2031,8 @@ export default function InterviewPage() {
   }, [handleCandidateAnswer]);
 
   const startStandardInterview = useCallback(async () => {
+    unlockMobileSpeechSynthesis();
+
     const setup = saveLatestInterviewSetup(
       normalizeSetup(readLatestInterviewSetup()),
     );
@@ -2299,18 +2052,19 @@ export default function InterviewPage() {
       return;
     }
 
-    unlockRecruiterAudio();
-
     const profile = getRecruiterVoiceProfile(setup.recruiterPersonality);
     const recruiterVoiceId = openAiVoiceIdForRecruiter(
       setup.recruiterPersonality as RecruiterId,
     );
+    const browserVoice = selectBrowserVoice(setup.recruiterPersonality as RecruiterId);
     try {
       console.info("WorkZo recruiter voice mapping", {
         recruiter: profile.name,
-        standardVoiceEngine: "ElevenLabs",
-        mappedVoice: recruiterVoiceId,
+        expectedDashboardVoice: recruiterVoiceId,
+        browserVoice: browserVoice?.name || "browser-default",
         mode: "voice",
+        note:
+          "Standard Interview uses browser speech for stability. Vapi dashboard voice changes apply only to Live Interview.",
       });
     } catch {}
     const memory = createInitialRecruiterMemory();
@@ -2361,9 +2115,9 @@ export default function InterviewPage() {
     });
 
     speakRecruiter(spokenOpening, () => {
-      window.setTimeout(() => listenForAnswer(), 650);
+      window.setTimeout(() => listenForAnswer(), 400);
     });
-  }, [addTranscript, listenForAnswer, speakRecruiter, unlockRecruiterAudio]);
+  }, [addTranscript, listenForAnswer, speakRecruiter]);
 
   const stopInterview = useCallback(() => {
     isLiveRef.current = false;
@@ -2372,16 +2126,10 @@ export default function InterviewPage() {
     setIsSpeaking(false);
     setVoiceStatus("Alright. That gives me enough context for now.");
     if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
-    if (finalizationTimerRef.current)
-      window.clearTimeout(finalizationTimerRef.current);
-    pendingAnswerRef.current = "";
     try {
       recognitionRef.current?.stop();
     } catch {}
-    try {
-      currentRecruiterAudioRef.current?.pause();
-      currentRecruiterAudioRef.current = null;
-    } catch {}
+    window.speechSynthesis?.cancel();
 
     try {
       window.localStorage.setItem(
@@ -2430,7 +2178,9 @@ export default function InterviewPage() {
   ]);
 
   const handleMicClick = useCallback(() => {
-    unlockRecruiterAudio();
+    // Must run directly inside the tap/click event. This unlocks mobile audio
+    // before any async microphone permission or interview setup work starts.
+    unlockMobileSpeechSynthesis();
 
     if (isLive) {
       if (!isSpeaking) {
@@ -2439,13 +2189,7 @@ export default function InterviewPage() {
       return;
     }
     void startStandardInterview();
-  }, [
-    isLive,
-    isSpeaking,
-    listenForAnswer,
-    startStandardInterview,
-    unlockRecruiterAudio,
-  ]);
+  }, [isLive, isSpeaking, listenForAnswer, startStandardInterview]);
 
   const handleModeChange = useCallback(
     (nextMode: InterviewMode) => {
@@ -2463,14 +2207,7 @@ export default function InterviewPage() {
   const handleToggleSpeaker = useCallback(() => {
     setSpeakerOn((value) => !value);
     if (speakerOn) {
-      try {
-        currentAudioSourceRef.current?.stop();
-        currentAudioSourceRef.current = null;
-      } catch {}
-      try {
-        currentRecruiterAudioRef.current?.pause();
-        currentRecruiterAudioRef.current = null;
-      } catch {}
+      window.speechSynthesis?.cancel();
       isSpeakingRef.current = false;
       setIsSpeaking(false);
     }
@@ -2504,52 +2241,28 @@ export default function InterviewPage() {
 
       {mode === "video" ? (
         <div className="relative h-full min-h-screen overflow-hidden bg-[#020617]">
-          <div className="block h-full lg:hidden">
-            <MobileInterviewRoom
-              recruiterName={recruiterName}
-              recruiterRole={recruiterRole}
-              recruiterImageSrc={recruiterImagePath(recruiterName, recruiterId)}
-              question="Live Interview is ready. Use Standard Interview for the stable Product Hunt demo."
-              status={voiceStatus}
-              isLive={false}
-              isSpeaking={false}
-              isListening={false}
-              recruiterState={recruiterState}
-              recruiterTrust={recruiterTrust}
-              selectedMode={mode}
-              onSelectMode={handleModeChange}
-              elapsed={elapsed}
-              transcript={transcript}
-              onMicClick={() => handleModeChange("standard")}
-              onEndInterview={stopInterview}
-              speakerOn={speakerOn}
-              onToggleSpeaker={handleToggleSpeaker}
-            />
-          </div>
-          <div className="hidden h-full lg:block">
-            <InterviewRoom
-              recruiterName={recruiterName}
-              recruiterRole={recruiterRole}
-              recruiterId={recruiterId}
-              question="Live Interview is ready. Use Standard Interview for the stable Product Hunt demo."
-              status={voiceStatus}
-              isLive={false}
-              isSpeaking={false}
-              isListening={false}
-              isMuted={false}
-              recruiterState={recruiterState}
-              recruiterTrust={recruiterTrust}
-              selectedMode={mode}
-              onSelectMode={handleModeChange}
-              elapsed={elapsed}
-              transcript={transcript}
-              onMicClick={() => handleModeChange("standard")}
-              onEndInterview={stopInterview}
-              speakerOn={speakerOn}
-              onToggleSpeaker={handleToggleSpeaker}
-            />
-          </div>
-          <div className="absolute inset-x-0 bottom-28 z-50 mx-auto hidden max-w-xl rounded-[26px] border border-violet-300/15 bg-violet-500/10 p-5 text-center backdrop-blur-2xl lg:block">
+          <InterviewRoom
+            recruiterName={recruiterName}
+            recruiterRole={recruiterRole}
+            recruiterId={recruiterId}
+            question="Live Interview is ready. Use Standard Interview for the stable Product Hunt demo."
+            status={voiceStatus}
+            isLive={false}
+            isSpeaking={false}
+            isListening={false}
+            isMuted={false}
+            recruiterState={recruiterState}
+            recruiterTrust={recruiterTrust}
+            selectedMode={mode}
+            onSelectMode={handleModeChange}
+            elapsed={elapsed}
+            transcript={transcript}
+            onMicClick={() => handleModeChange("standard")}
+            onEndInterview={stopInterview}
+            speakerOn={speakerOn}
+            onToggleSpeaker={handleToggleSpeaker}
+          />
+          <div className="absolute inset-x-0 bottom-28 z-50 mx-auto max-w-xl rounded-[26px] border border-violet-300/15 bg-violet-500/10 p-5 text-center backdrop-blur-2xl">
             <Video className="mx-auto h-7 w-7 text-violet-200" />
             <p className="mt-3 text-lg font-black text-white">
               Live video mode is ready for Tavus testing.
@@ -2568,53 +2281,27 @@ export default function InterviewPage() {
           </div>
         </div>
       ) : (
-        <>
-          <div className="block h-full lg:hidden">
-            <MobileInterviewRoom
-              recruiterName={recruiterName}
-              recruiterRole={recruiterRole}
-              recruiterImageSrc={recruiterImagePath(recruiterName, recruiterId)}
-              question={question}
-              status={voiceStatus}
-              isLive={isLive}
-              isSpeaking={isSpeaking}
-              isListening={isListening}
-              recruiterState={recruiterState}
-              recruiterTrust={recruiterTrust}
-              selectedMode={mode}
-              onSelectMode={handleModeChange}
-              elapsed={elapsed}
-              transcript={transcript}
-              onMicClick={handleMicClick}
-              onEndInterview={stopInterview}
-              speakerOn={speakerOn}
-              onToggleSpeaker={handleToggleSpeaker}
-            />
-          </div>
-          <div className="hidden h-full lg:block">
-            <InterviewRoom
-              recruiterName={recruiterName}
-              recruiterRole={recruiterRole}
-              recruiterId={recruiterId}
-              question={question}
-              status={voiceStatus}
-              isLive={isLive}
-              isSpeaking={isSpeaking}
-              isListening={isListening}
-              isMuted={false}
-              recruiterState={recruiterState}
-              recruiterTrust={recruiterTrust}
-              selectedMode={mode}
-              onSelectMode={handleModeChange}
-              elapsed={elapsed}
-              transcript={transcript}
-              onMicClick={handleMicClick}
-              onEndInterview={stopInterview}
-              speakerOn={speakerOn}
-              onToggleSpeaker={handleToggleSpeaker}
-            />
-          </div>
-        </>
+        <InterviewRoom
+          recruiterName={recruiterName}
+          recruiterRole={recruiterRole}
+          recruiterId={recruiterId}
+          question={question}
+          status={voiceStatus}
+          isLive={isLive}
+          isSpeaking={isSpeaking}
+          isListening={isListening}
+          isMuted={false}
+          recruiterState={recruiterState}
+          recruiterTrust={recruiterTrust}
+          selectedMode={mode}
+          onSelectMode={handleModeChange}
+          elapsed={elapsed}
+          transcript={transcript}
+          onMicClick={handleMicClick}
+          onEndInterview={stopInterview}
+          speakerOn={speakerOn}
+          onToggleSpeaker={handleToggleSpeaker}
+        />
       )}
     </main>
   );
