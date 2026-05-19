@@ -22,7 +22,6 @@ import {
   Volume2,
   VolumeX,
   Wand2,
-  Video,
 } from "lucide-react";
 
 import {
@@ -262,6 +261,46 @@ function recruiterImagePath(name: string, recruiterId?: string) {
   return "/recruiters/priya.png";
 }
 
+function recruiterIdleVideoPath(name: string, recruiterId?: string) {
+  const lower = `${name} ${recruiterId || ""}`.toLowerCase();
+  if (lower.includes("sarah") || lower.includes("friendly_hr"))
+    return "/recruiters/sarah-idle.mp4";
+  if (lower.includes("priya") || lower.includes("startup_recruiter"))
+    return "/recruiters/priya-idle.mp4";
+  if (lower.includes("markus") || lower.includes("german_corporate"))
+    return "/recruiters/markus-idle.mp4";
+  if (lower.includes("daniel") || lower.includes("analytical_hiring_manager"))
+    return "/recruiters/daniel-idle.mp4";
+  return "/recruiters/sarah-idle.mp4";
+}
+
+function recruiterVideoPathForState(
+  name: string,
+  recruiterId: string | undefined,
+  _visualState: "idle" | "present" | "speaking" | "listening" | "thinking",
+) {
+  const lower = `${name} ${recruiterId || ""}`.toLowerCase();
+  const folder =
+    lower.includes("sarah") || lower.includes("friendly_hr")
+      ? "sarah"
+      : lower.includes("priya") || lower.includes("startup_recruiter")
+        ? "priya"
+        : lower.includes("markus") || lower.includes("german_corporate")
+          ? "markus"
+          : lower.includes("daniel") ||
+              lower.includes("analytical_hiring_manager")
+            ? "daniel"
+            : "sarah";
+
+  // IMPORTANT: keep the same recruiter MP4 alive through all states.
+  // If we switch to /speaking.mp4 or /listening.mp4 before those files exist,
+  // the browser fires onError and falls back to the static poster exactly when
+  // the interview starts. State-specific behavior is created with glow, zoom,
+  // waveform, transcript streaming, and overlays. Later, if you add state MP4s,
+  // this can be safely upgraded to choose them.
+  return `/recruiters/${folder}/idle.mp4`;
+}
+
 function getCandidateName(setup: WorkZoInterviewSetup) {
   const profile = setup.recruiterMemoryProfile;
   if (profile && typeof profile === "object" && "candidateName" in profile) {
@@ -371,7 +410,9 @@ type RecruiterRuntimeVoice = {
   browserVoiceNames: string[];
 };
 
-function recruiterRuntimeVoice(recruiterId: RecruiterId): RecruiterRuntimeVoice {
+function recruiterRuntimeVoice(
+  recruiterId: RecruiterId,
+): RecruiterRuntimeVoice {
   if (recruiterId === "friendly_hr") {
     return {
       voiceId: "shimmer",
@@ -383,7 +424,6 @@ function recruiterRuntimeVoice(recruiterId: RecruiterId): RecruiterRuntimeVoice 
         "Microsoft Jenny",
         "Microsoft Zira",
         "Google UK English Female",
-        "Google US English",
         "Samantha",
         "Victoria",
         "Karen",
@@ -407,7 +447,6 @@ function recruiterRuntimeVoice(recruiterId: RecruiterId): RecruiterRuntimeVoice 
         "Microsoft Jenny",
         "Microsoft Zira",
         "Google UK English Female",
-        "Google US English",
         "Samantha",
         "Victoria",
         "Karen",
@@ -487,6 +526,21 @@ function findVoiceByPreferredName(
   return null;
 }
 
+function browserVoiceSignature(voice: SpeechSynthesisVoice) {
+  return `${voice.name}|||${voice.voiceURI}|||${voice.lang}`;
+}
+
+function voiceMatchesRuntimeGender(
+  voice: SpeechSynthesisVoice,
+  runtimeVoice: RecruiterRuntimeVoice,
+) {
+  // Female recruiters must not accidentally fall back to ambiguous/default voices
+  // such as "Google US English", which can sound male on some browsers.
+  // Lock only clearly female browser voices for Sarah/Priya.
+  if (runtimeVoice.gender === "female") return isLikelyFemaleVoice(voice);
+  return isLikelyMaleVoice(voice) || !isLikelyFemaleVoice(voice);
+}
+
 function selectBrowserVoice(recruiterId: RecruiterId) {
   if (typeof window === "undefined" || !window.speechSynthesis) return null;
 
@@ -499,7 +553,10 @@ function selectBrowserVoice(recruiterId: RecruiterId) {
   );
   const pool = englishVoices.length ? englishVoices : voices;
 
-  const preferred = findVoiceByPreferredName(pool, runtimeVoice.browserVoiceNames);
+  const preferred = findVoiceByPreferredName(
+    pool,
+    runtimeVoice.browserVoiceNames,
+  );
   if (preferred) return preferred;
 
   if (runtimeVoice.gender === "female") {
@@ -878,9 +935,7 @@ function buildCandidateContext(setup: WorkZoInterviewSetup) {
 
 function buildJobContext(setup: WorkZoInterviewSetup) {
   const jdText =
-    typeof setup.jobDescription === "string"
-      ? setup.jobDescription.trim()
-      : "";
+    typeof setup.jobDescription === "string" ? setup.jobDescription.trim() : "";
 
   const memoryText = setup.jobMemoryProfile
     ? JSON.stringify(setup.jobMemoryProfile)
@@ -1108,379 +1163,811 @@ function InterviewRoom({
   speakerOn: boolean;
   onToggleSpeaker: () => void;
 }) {
-  const stateLabel = recruiterStateLabel(recruiterState, recruiterTrust);
-  const compactHint = recruiterPressureLine(
+  const isCinematicLive = true;
+  const [recruiterVideoFailed, setRecruiterVideoFailed] = useState(false);
+  const recruiterPosterSrc = recruiterImagePath(recruiterName, recruiterId);
+
+  const normalizedStatus = status.toLowerCase();
+  const recruiterVisualState = isSpeaking
+    ? "speaking"
+    : isListening
+      ? "listening"
+      : normalizedStatus.includes("thinking") ||
+          normalizedStatus.includes("analyzing") ||
+          normalizedStatus.includes("preparing")
+        ? "thinking"
+        : isLive
+          ? "present"
+          : "idle";
+
+  const recruiterVideoSrc = recruiterVideoPathForState(
+    recruiterName,
     recruiterId,
-    recruiterState,
-    recruiterTrust,
+    recruiterVisualState,
   );
-  const latestCaption =
+
+  useEffect(() => {
+    setRecruiterVideoFailed(false);
+  }, [recruiterName, recruiterId, recruiterVideoSrc]);
+
+  const stateLabel = recruiterStateLabel(recruiterState, recruiterTrust);
+  const latestRecruiterLine =
     transcript
       .slice()
       .reverse()
-      .find((item) => item.role === "recruiter")?.text || compactHint;
+      .find((item) => item.role === "recruiter")?.text ||
+    "Hi Haritha, nice to meet you. How are you today?";
+
+  const [visibleRecruiterLine, setVisibleRecruiterLine] =
+    useState(latestRecruiterLine);
+
+  useEffect(() => {
+    if (recruiterVisualState !== "speaking") {
+      setVisibleRecruiterLine(latestRecruiterLine);
+      return;
+    }
+
+    let index = 0;
+    setVisibleRecruiterLine("");
+    const timer = window.setInterval(() => {
+      index += Math.max(2, Math.ceil(latestRecruiterLine.length / 36));
+      setVisibleRecruiterLine(latestRecruiterLine.slice(0, index));
+      if (index >= latestRecruiterLine.length) window.clearInterval(timer);
+    }, 70);
+
+    return () => window.clearInterval(timer);
+  }, [latestRecruiterLine, recruiterVisualState]);
+
+  const liveStatusLabel =
+    recruiterVisualState === "speaking"
+      ? "Recruiter speaking"
+      : recruiterVisualState === "listening"
+        ? "Listening closely"
+        : recruiterVisualState === "thinking"
+          ? "Analyzing response..."
+          : isCinematicLive
+            ? "Live recruiter room"
+            : "Ready to begin";
+
+  const recruiterCue =
+    recruiterState === "pressuring"
+      ? "This is getting stronger. Keep the proof specific."
+      : recruiterState === "recovering_trust"
+        ? "Good recovery signal. Keep the story concrete."
+        : recruiterState === "losing_confidence"
+          ? "Recruiter needs clearer evidence."
+          : "Answer like this is a real final-round conversation.";
 
   const progressStep = Math.min(12, Math.max(1, answeredQuestionCount + 1));
-  const progressPercent = Math.min(100, Math.max(12, progressStep * 8.3));
-  const confidence = Math.min(92, Math.max(34, recruiterTrust + 12));
-  const clarity = Math.min(88, Math.max(32, recruiterTrust + 8));
+  const pressureLevel =
+    recruiterState === "pressuring" || recruiterTrust < 55
+      ? "Medium"
+      : recruiterTrust > 76
+        ? "Low"
+        : "Medium";
+  const confidenceLabel =
+    recruiterTrust > 78
+      ? "Strong"
+      : recruiterTrust < 55
+        ? "Doubtful"
+        : "Recovering";
+  const overallGrade =
+    recruiterTrust >= 82
+      ? "A-"
+      : recruiterTrust >= 70
+        ? "B+"
+        : recruiterTrust >= 58
+          ? "B"
+          : "C+";
+  const clarity = Math.min(92, Math.max(42, recruiterTrust - 4));
 
-  const pulseLines = [
-    recruiterTrust < 42 ? "Waiting for proof" : "Listening for impact",
-    recruiterState === "pressuring" ? "Pressure rising" : "Controlled pace",
-    recruiterState === "recovering_trust"
-      ? "Recovery signal possible"
-      : stateLabel,
-    confidence > 70 ? "Answer confidence: Strong" : "Answer confidence: Medium",
-  ];
+  const displayTranscript =
+    transcript.length > 0
+      ? transcript.slice(-8)
+      : [
+          {
+            role: "recruiter" as const,
+            text: latestRecruiterLine,
+            time: "00:08",
+          },
+        ];
+
+  const micLabel = isLive
+    ? isListening
+      ? "Listening to your answer"
+      : isSpeaking
+        ? "Recruiter speaking"
+        : isCinematicLive
+          ? "Speak naturally when ready"
+          : "Tap mic to answer"
+    : isCinematicLive
+      ? "Start cinematic live room"
+      : "Tap mic to start interview";
 
   return (
-    <div className="relative h-full min-h-screen w-full overflow-hidden bg-[#020617] pb-[160px] text-white">
+    <div
+      className={cn(
+        "relative h-screen w-full overflow-hidden bg-[#020617] text-white",
+        isCinematicLive && "wz-cinematic-mode",
+        recruiterVisualState === "speaking" && "wz-speaking",
+        recruiterVisualState === "listening" && "wz-listening",
+        recruiterVisualState === "thinking" && "wz-thinking",
+      )}
+    >
       <style>{`
-        @keyframes workzoBreath { 0%, 100% { transform: translate(-50%, 0) scale(1); } 50% { transform: translate(-50%, -3px) scale(1.01); } }
-        @keyframes workzoBlink { 0%, 91%, 100% { opacity: 1; filter: brightness(1.08) contrast(1.08); } 93% { opacity: .90; filter: brightness(.88) contrast(1.02); } 94.5% { opacity: 1; filter: brightness(1.08) contrast(1.08); } }
-        @keyframes workzoWave { 0%,100% { transform: scaleY(.58); opacity: .50; } 50% { transform: scaleY(1.16); opacity: 1; } }
-        @keyframes workzoRing { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
-        @keyframes workzoCaption { 0%,100% { opacity:.52; transform: translateY(0); } 50% { opacity:.82; transform: translateY(-1px); } }
-        @media (max-height: 900px) {
-          .wz-stage { top: 88px !important; }
-          .wz-status { top: 382px !important; }
-          .wz-wave { top: 426px !important; }
-          .wz-caption { top: 462px !important; }
-          .wz-question { top: 500px !important; height: 142px !important; padding: 21px 34px !important; }
-          .wz-question-title { font-size: 25px !important; }
+        @keyframes wzAvatarBreathe {
+          0%, 100% { transform: scale(1.035) translateY(0) rotate(-0.18deg); filter: brightness(1.06) contrast(1.06) saturate(1.06); }
+          42% { transform: scale(1.068) translateY(-7px) rotate(0.18deg); filter: brightness(1.18) contrast(1.11) saturate(1.14); }
+          72% { transform: scale(1.048) translateY(-3px) rotate(0deg); filter: brightness(1.11) contrast(1.08) saturate(1.10); }
         }
-        @media (max-height: 820px) {
-          .wz-stage { top: 80px !important; height: 232px !important; }
-          .wz-status { top: 348px !important; }
-          .wz-wave { top: 388px !important; }
-          .wz-caption { top: 424px !important; }
-          .wz-question { top: 458px !important; width: 730px !important; height: 130px !important; padding: 18px 30px !important; }
-          .wz-question-title { font-size: 23px !important; }
-          .wz-main-mic { height: 88px !important; width: 88px !important; }
-          .wz-mic-label { bottom: 2px !important; font-size: 12px !important; }
+        @keyframes wzAvatarSpeak {
+          0%, 100% { transform: scale(1.055) translateY(0) rotate(-0.12deg); filter: brightness(1.20) contrast(1.13) saturate(1.18); }
+          38% { transform: scale(1.092) translateY(-8px) rotate(0.16deg); filter: brightness(1.40) contrast(1.20) saturate(1.30); }
+          70% { transform: scale(1.070) translateY(-3px) rotate(0deg); filter: brightness(1.28) contrast(1.16) saturate(1.22); }
         }
-        @media (max-width: 1535px) {
-          .wz-side { display: none !important; }
-          .wz-question { max-width: calc(100vw - 48px) !important; }
+        @keyframes wzAvatarListen {
+          0%, 100% { transform: scale(1.038) translateY(0) rotate(-0.10deg); filter: brightness(1.06) contrast(1.07); }
+          50% { transform: scale(1.070) translateY(-6px) rotate(0.14deg); filter: brightness(1.16) contrast(1.11); }
         }
-        @media (max-width: 820px) {
-          .wz-mode-toggle { top: 14px !important; width: calc(100vw - 28px) !important; height: 48px !important; font-size: 12px !important; }
-          .wz-mode-toggle button { height: 38px !important; width: 50% !important; padding-left: 8px !important; padding-right: 8px !important; }
-          .wz-stage { top: 70px !important; width: 108vw !important; height: 220px !important; transform: translateX(-50%) scale(.70) !important; transform-origin: top center !important; }
-          .wz-status { top: 258px !important; width: calc(100vw - 28px) !important; justify-content: center !important; text-align: center !important; font-size: 13px !important; line-height: 1.35 !important; }
-          .wz-wave { top: 300px !important; width: 144px !important; gap: 7px !important; }
-          .wz-caption { top: 332px !important; width: calc(100vw - 30px) !important; font-size: 12px !important; opacity: .58 !important; }
-          .wz-question { top: 370px !important; width: calc(100vw - 28px) !important; max-width: calc(100vw - 28px) !important; height: auto !important; min-height: 138px !important; padding: 18px !important; border-radius: 22px !important; }
-          .wz-question-title { white-space: normal !important; font-size: 21px !important; line-height: 1.12 !important; display: -webkit-box !important; -webkit-line-clamp: 3 !important; -webkit-box-orient: vertical !important; overflow: hidden !important; }
-          .wz-question-meta { display: none !important; }
-          .wz-main-mic { height: 92px !important; width: 92px !important; }
-          .wz-main-mic > span { height: 72px !important; width: 72px !important; }
-          .wz-mic-label { bottom: 18px !important; width: calc(100vw - 40px) !important; font-size: 12px !important; }
-          .wz-utility-dock { right: 14px !important; bottom: 18px !important; transform: scale(.92); transform-origin: bottom right; }
+        @keyframes wzFrameAlive {
+          0%, 100% { transform: translateY(0) scale(1); box-shadow: 0 0 70px rgba(37,99,235,.22); }
+          50% { transform: translateY(-2px) scale(1.006); box-shadow: 0 0 105px rgba(34,211,238,.30); }
         }
-        @media (max-width: 420px) {
-          .wz-stage { top: 66px !important; transform: translateX(-50%) scale(.64) !important; }
-          .wz-status { top: 240px !important; }
-          .wz-wave { top: 282px !important; }
-          .wz-caption { top: 313px !important; }
-          .wz-question { top: 348px !important; min-height: 132px !important; }
-          .wz-question-title { font-size: 20px !important; }
+        @keyframes wzFrameSpeak {
+          0%, 100% { transform: translateY(0) scale(1.004); box-shadow: 0 0 110px rgba(34,211,238,.36); }
+          48% { transform: translateY(-2px) scale(1.014); box-shadow: 0 0 155px rgba(34,211,238,.56); }
+        }
+        @keyframes wzFrameListen {
+          0%, 100% { transform: translateY(0) scale(1); box-shadow: 0 0 95px rgba(16,185,129,.22); }
+          50% { transform: translateY(-1px) scale(1.005); box-shadow: 0 0 120px rgba(16,185,129,.34); }
+        }
+        @keyframes wzBlinkMask {
+          0%, 86%, 100% { opacity: 0; transform: translateX(-50%) scaleY(.12); }
+          88% { opacity: .34; transform: translateX(-50%) scaleY(1); }
+          89.5% { opacity: 0; transform: translateX(-50%) scaleY(.12); }
+          95% { opacity: .22; transform: translateX(-50%) scaleY(.7); }
+          96% { opacity: 0; transform: translateX(-50%) scaleY(.12); }
+        }
+        @keyframes wzMouthGlow {
+          0%, 100% { opacity: .14; transform: translate(-50%, -50%) scaleX(.72) scaleY(.75); }
+          45% { opacity: .88; transform: translate(-50%, -50%) scaleX(1.38) scaleY(1.12); }
+        }
+        @keyframes wzRoomPulse {
+          0%, 100% { opacity: .28; transform: scale(.96); }
+          50% { opacity: .78; transform: scale(1.05); }
+        }
+        @keyframes wzHaloSpin {
+          from { transform: translate(-50%, -50%) rotate(0deg); }
+          to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        @keyframes wzHaloPulse {
+          0%, 100% { opacity: .28; transform: translate(-50%, -50%) scale(.94) rotate(-3deg); }
+          50% { opacity: .86; transform: translate(-50%, -50%) scale(1.08) rotate(3deg); }
+        }
+        @keyframes wzWaveLow {
+          0%, 100% { transform: scaleY(.40); opacity: .42; }
+          45% { transform: scaleY(1.05); opacity: .82; }
+        }
+        @keyframes wzWaveSpeak {
+          0%, 100% { transform: scaleY(.70); opacity: .68; box-shadow: 0 0 10px rgba(59,130,246,.34); }
+          42% { transform: scaleY(1.85); opacity: 1; box-shadow: 0 0 24px rgba(34,211,238,.58); }
+          72% { transform: scaleY(1.10); opacity: .92; }
+        }
+        @keyframes wzWaveListen {
+          0%, 100% { transform: scaleY(.55); opacity: .55; }
+          50% { transform: scaleY(1.45); opacity: .98; }
+        }
+        @keyframes wzParticleFloat {
+          0% { transform: translate3d(0, 12px, 0) scale(.8); opacity: .08; }
+          45% { opacity: .55; }
+          100% { transform: translate3d(24px, -34px, 0) scale(1.22); opacity: .12; }
+        }
+        @keyframes wzScanLine {
+          0% { transform: translateY(-120%) rotate(8deg); opacity: 0; }
+          22% { opacity: .30; }
+          55% { opacity: .62; }
+          100% { transform: translateY(135%) rotate(8deg); opacity: 0; }
+        }
+
+        @keyframes wzFaceFocus {
+          0%, 100% { opacity: .10; transform: translate(-50%, -50%) scale(.92); }
+          50% { opacity: .24; transform: translate(-50%, -50%) scale(1.04); }
+        }
+        @keyframes wzShoulderLife {
+          0%, 100% { opacity: .10; transform: translate(-50%, 0) scaleX(.92); }
+          50% { opacity: .26; transform: translate(-50%, -3px) scaleX(1.06); }
+        }
+
+        @keyframes wzAliveLightSweep {
+          0% { transform: translateX(-145%) rotate(12deg); opacity: 0; }
+          24% { opacity: .18; }
+          55% { opacity: .36; }
+          100% { transform: translateX(145%) rotate(12deg); opacity: 0; }
+        }
+        @keyframes wzSubtleNod {
+          0%, 100% { transform: translateY(0) scaleY(1); opacity: .09; }
+          50% { transform: translateY(-4px) scaleY(1.06); opacity: .20; }
+        }
+        @keyframes wzSpeakingAura {
+          0%, 100% { opacity: .22; transform: scale(.96); }
+          50% { opacity: .62; transform: scale(1.06); }
+        }
+        @keyframes wzTypingCursor { 0%, 48% { opacity: 1; } 49%, 100% { opacity: .12; } }
+        @keyframes wzTranscriptGlow {
+          0%, 100% { opacity: .80; filter: drop-shadow(0 0 0 rgba(34,211,238,0)); }
+          50% { opacity: 1; filter: drop-shadow(0 0 10px rgba(34,211,238,.22)); }
+        }
+        @keyframes wzTrustLine {
+          0%, 100% { transform: translateY(0); opacity: .75; }
+          50% { transform: translateY(-4px); opacity: 1; }
+        }
+        @keyframes wzMicGlow {
+          0%, 100% { box-shadow: 0 0 34px rgba(59,130,246,.35), inset 0 1px 0 rgba(255,255,255,.18); }
+          50% { box-shadow: 0 0 78px rgba(139,92,246,.72), inset 0 1px 0 rgba(255,255,255,.28); }
+        }
+        .wz-avatar-frame { animation-name: wzFrameAlive; animation-duration: 5.2s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; transform-origin: center center; }
+        .wz-avatar-frame-speaking { animation-name: wzFrameSpeak; animation-duration: 1.5s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; transform-origin: center center; }
+        .wz-avatar-frame-listening { animation-name: wzFrameListen; animation-duration: 2.8s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; transform-origin: center center; }
+        .wz-avatar-img { animation-name: wzAvatarBreathe; animation-duration: 5.8s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; transform-origin: center center; }
+        .wz-avatar-img-speaking { animation-name: wzAvatarSpeak; animation-duration: 1.9s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; transform-origin: center center; }
+        .wz-avatar-img-listening { animation-name: wzAvatarListen; animation-duration: 3.2s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; transform-origin: center center; }
+        .wz-halo-spin { animation-name: wzHaloSpin; animation-duration: 16s; animation-timing-function: linear; animation-iteration-count: infinite; }
+        .wz-halo-pulse { animation-name: wzHaloPulse; animation-duration: 4.2s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+        .wz-room-pulse { animation-name: wzRoomPulse; animation-duration: 3.4s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+        .wz-wave-bar { animation-name: wzWaveLow; animation-duration: 1.8s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; transform-origin: bottom; }
+        .wz-speaking .wz-wave-bar { animation-name: wzWaveSpeak; animation-duration: .82s; }
+        .wz-listening .wz-wave-bar { animation-name: wzWaveListen; animation-duration: 1.08s; }
+        .wz-wave-bar:nth-child(2) { animation-delay: .08s; }
+        .wz-wave-bar:nth-child(3) { animation-delay: .16s; }
+        .wz-wave-bar:nth-child(4) { animation-delay: .24s; }
+        .wz-wave-bar:nth-child(5) { animation-delay: .32s; }
+        .wz-wave-bar:nth-child(6) { animation-delay: .40s; }
+        .wz-wave-bar:nth-child(7) { animation-delay: .48s; }
+        .wz-wave-bar:nth-child(8) { animation-delay: .56s; }
+        .wz-wave-bar:nth-child(9) { animation-delay: .64s; }
+        .wz-blink-mask { animation-name: wzBlinkMask; animation-duration: 5.8s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+        .wz-mouth-glow { animation-name: wzMouthGlow; animation-duration: .72s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+        .wz-transcript-live { animation-name: wzTranscriptGlow; animation-duration: 1.6s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+        .wz-face-focus { animation-name: wzFaceFocus; animation-duration: 4.4s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+        .wz-shoulder-life { animation-name: wzShoulderLife; animation-duration: 5.2s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+        .wz-speaking-aura { animation-name: wzSpeakingAura; animation-duration: 1.35s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+
+        .wz-particle { animation-name: wzParticleFloat; animation-duration: 7s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+        .wz-particle:nth-child(2) { animation-delay: 1.2s; }
+        .wz-particle:nth-child(3) { animation-delay: 2.4s; }
+        .wz-particle:nth-child(4) { animation-delay: 3.6s; }
+        .wz-scan-line { animation-name: wzScanLine; animation-duration: 5.5s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+        .wz-trust-line { animation-name: wzTrustLine; animation-duration: 2.8s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+        .wz-mic-live { animation-name: wzMicGlow; animation-duration: 2.2s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+
+        .wz-thinking .wz-avatar-img { filter: brightness(.72) contrast(1.06) saturate(.92) !important; }
+        .wz-thinking .wz-wave-bar { animation-name: wzWaveLow; animation-duration: 2.8s; opacity: .32; }
+        .wz-speaking .wz-avatar-shell, .wz-speaking .wz-avatar-frame { box-shadow: 0 0 155px rgba(34,211,238,.50), inset 0 0 70px rgba(34,211,238,.10); }
+        .wz-listening .wz-avatar-shell, .wz-listening .wz-avatar-frame { box-shadow: 0 0 110px rgba(16,185,129,.26), inset 0 0 44px rgba(16,185,129,.08); }
+
+        /* PH performance mode: keep the cinematic feel, but remove expensive continuous blur/particle animations. */
+        .wz-room-pulse,
+        .wz-halo-spin,
+        .wz-halo-pulse,
+        .wz-particle,
+        .wz-scan-line,
+        .wz-face-focus,
+        .wz-shoulder-life,
+        .wz-speaking-aura,
+        .wz-blink-mask,
+        .wz-mouth-glow {
+          animation-name: none !important;
+        }
+        .wz-particle,
+        .wz-scan-line,
+        .wz-blink-mask {
+          display: none !important;
+        }
+        .wz-avatar-frame,
+        .wz-avatar-frame-speaking,
+        .wz-avatar-frame-listening,
+        .wz-avatar-img,
+        .wz-avatar-img-speaking,
+        .wz-avatar-img-listening {
+          animation-duration: 7.5s !important;
+          will-change: transform;
+        }
+        .wz-wave-bar { animation-duration: 1.45s !important; }
+        .wz-speaking .wz-wave-bar { animation-duration: 1.05s !important; }
+        .wz-listening .wz-wave-bar { animation-duration: 1.35s !important; }
+        .wz-mic-live { animation-duration: 3.2s !important; }
+
+        .wz-side-panel::-webkit-scrollbar, .wz-transcript-scroll::-webkit-scrollbar { width: 6px; }
+        .wz-side-panel::-webkit-scrollbar-thumb, .wz-transcript-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,.28); border-radius: 999px; }
+        @media (max-height: 820px) { .wz-avatar-shell { height: min(42vh, 380px) !important; min-height: 300px !important; } }
+
+        @media (max-width: 1180px) {
+          .wz-room-grid { grid-template-columns: 1fr !important; height: auto !important; }
+          body { overflow: auto; }
+          .wz-side-panel { display: none !important; }
+        }
+        @media (max-width: 760px) {
+          .wz-topbar { flex-wrap: wrap; gap: 12px; }
+          .wz-recruiter-stage { min-height: 420px; }
+          .wz-avatar-shell { height: 315px !important; }
+          .wz-bottom-controls { position: static !important; margin-top: 18px; transform: none !important; }
         }
       `}</style>
 
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_31%,rgba(37,99,235,0.22),transparent_31%),linear-gradient(180deg,rgba(2,6,23,0.02),rgba(2,6,23,0.96))]" />
-      <div className="pointer-events-none absolute inset-0 opacity-[0.13] [background-image:linear-gradient(90deg,transparent_0%,rgba(148,163,184,.12)_48%,transparent_100%),radial-gradient(circle_at_30%_38%,rgba(15,23,42,.8),transparent_24%),radial-gradient(circle_at_70%_40%,rgba(30,64,175,.20),transparent_30%)]" />
-      <div className="pointer-events-none absolute left-[23%] top-[29%] h-[124px] w-[210px] rounded-[34px] border border-white/[0.025] bg-white/[0.012] blur-[1px]" />
-      <div className="pointer-events-none absolute right-[23%] top-[29%] h-[132px] w-[220px] rounded-[34px] border border-cyan-200/[0.025] bg-cyan-200/[0.012] blur-[1px]" />
-      <div className="pointer-events-none absolute inset-0 opacity-[0.04] [background-image:radial-gradient(circle_at_center,white_0.65px,transparent_0.8px)] [background-size:4px_4px]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_42%_8%,rgba(56,189,248,0.18),transparent_34%),radial-gradient(circle_at_80%_40%,rgba(124,58,237,0.16),transparent_30%),linear-gradient(180deg,rgba(2,6,23,0.2),#020617_85%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(148,163,184,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.12)_1px,transparent_1px)] [background-size:22px_22px]" />
 
-      <div className="wz-mode-toggle absolute left-1/2 top-6 z-30 flex h-[58px] w-[410px] -translate-x-1/2 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.045] p-1 text-[14px] font-black tracking-[0.02em] text-slate-400 shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur-[20px]">
-        <button
-          type="button"
-          onClick={() => onSelectMode("standard")}
-          className={cn(
-            "flex h-[46px] w-[190px] items-center justify-center rounded-full px-6 py-2.5 transition",
-            selectedMode === "standard"
-              ? "bg-blue-500/28 text-white shadow-[0_0_30px_rgba(59,130,246,0.18)]"
-              : "hover:text-white",
-          )}
-        >
-          Standard Interview
-        </button>
-        <button
-          type="button"
-          onClick={() => onSelectMode("video")}
-          className={cn(
-            "flex h-[46px] w-[190px] items-center justify-center rounded-full px-6 py-2.5 transition",
-            selectedMode === "video"
-              ? "bg-violet-500/22 text-white shadow-[0_0_30px_rgba(139,92,246,0.18)]"
-              : "hover:text-white",
-          )}
-        >
-          Live Interview
-        </button>
-      </div>
+      <div className="relative z-10 h-screen overflow-hidden px-6 pb-3 pt-3">
+        <div className="wz-topbar mb-2 flex h-[50px] items-center justify-between">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-5 py-3 text-sm font-bold text-slate-200 backdrop-blur-xl hover:bg-white/10"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </Link>
 
-      <aside className="wz-side pointer-events-none absolute left-9 top-[94px] z-20 w-[270px] space-y-[12px]">
-        <section className="h-[168px] rounded-[24px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(15,23,42,0.90),rgba(7,12,25,0.80))] p-5 text-left shadow-[0_10px_40px_rgba(0,0,0,0.20)] backdrop-blur-2xl">
-          <p className="text-sm font-semibold text-slate-300">
-            Interview Progress
-          </p>
-          <div className="mt-4 flex items-center gap-4">
-            <div
-              className="grid h-[92px] w-[92px] place-items-center rounded-full"
-              style={{
-                background: `conic-gradient(rgb(56 189 248) ${progressPercent}%, rgba(148,163,184,.10) ${progressPercent}% 100%)`,
-              }}
+          <div className="absolute left-1/2 top-5 flex -translate-x-1/2 rounded-full border border-cyan-300/15 bg-slate-900/80 p-1 shadow-[0_0_44px_rgba(34,211,238,0.18)] backdrop-blur-xl">
+            <div className="rounded-full bg-gradient-to-r from-blue-600/80 to-violet-600/80 px-9 py-2.5 text-sm font-black text-white shadow-lg">
+              Cinematic Live Recruiter Room
+            </div>
+          </div>
+
+          <div className="ml-auto flex items-center gap-3">
+            <button className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-slate-300">
+              <Settings className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={onEndInterview}
+              className="inline-flex items-center gap-3 rounded-full border border-red-400/20 bg-red-500/10 px-5 py-3 text-sm font-black text-red-200 hover:bg-red-500/20"
             >
-              <div className="grid h-[70px] w-[70px] place-items-center rounded-full bg-[#07111f]">
+              <PhoneOff className="h-4 w-4" />
+              End Interview
+            </button>
+          </div>
+        </div>
+
+        <div className="wz-room-grid grid h-[calc(100vh-72px)] min-h-0 grid-cols-[minmax(680px,1.52fr)_minmax(430px,0.9fr)_235px] gap-3">
+          <main className="flex h-full min-h-0 flex-col gap-3">
+            <section
+              className={cn(
+                "wz-recruiter-stage relative flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] border bg-slate-950/70 shadow-[0_22px_90px_rgba(2,6,23,0.55)] backdrop-blur-xl",
+                isCinematicLive ? "border-cyan-400/20" : "border-white/10",
+              )}
+            >
+              <div className="absolute left-7 top-7 z-30 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-500/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-emerald-200">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.8)]" />
+                Live
+              </div>
+              <div className="absolute right-7 top-7 z-30 rounded-full border border-white/10 bg-slate-950/70 px-5 py-2 text-xs font-black uppercase tracking-[0.24em] text-cyan-100 shadow-[0_0_26px_rgba(34,211,238,0.12)]">
+                {liveStatusLabel}
+              </div>
+
+              {isCinematicLive && (
+                <>
+                  <div className="wz-room-pulse pointer-events-none absolute left-1/2 top-[34%] h-[520px] w-[760px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-500/10 blur-3xl" />
+                  <div className="wz-halo-spin pointer-events-none absolute left-1/2 top-[33%] h-[500px] w-[760px] rounded-[50%] border border-cyan-300/18" />
+                  <div className="wz-halo-pulse pointer-events-none absolute left-1/2 top-[33%] h-[440px] w-[700px] rounded-[50%] border border-blue-400/20" />
+                  <div className="wz-particle pointer-events-none absolute left-[22%] top-[18%] h-2 w-2 rounded-full bg-cyan-200/40 blur-[1px]" />
+                  <div className="wz-particle pointer-events-none absolute left-[72%] top-[20%] h-2 w-2 rounded-full bg-violet-200/35 blur-[1px]" />
+                  <div className="wz-particle pointer-events-none absolute left-[82%] top-[56%] h-2 w-2 rounded-full bg-cyan-200/30 blur-[1px]" />
+                  <div className="wz-particle pointer-events-none absolute left-[38%] top-[62%] h-1.5 w-1.5 rounded-full bg-blue-200/35 blur-[1px]" />
+                </>
+              )}
+
+              <div
+                className={cn(
+                  "wz-avatar-shell relative mx-auto mt-9 h-[min(45vh,430px)] min-h-[320px] w-[calc(100%-44px)] max-w-[980px] overflow-hidden rounded-[30px] border bg-black shadow-[0_0_38px_rgba(37,99,235,0.16)] transition-all duration-700",
+                  isCinematicLive &&
+                    "wz-avatar-frame border-cyan-300/20 shadow-[0_0_54px_rgba(34,211,238,0.16)]",
+                  recruiterVisualState === "speaking" &&
+                    "wz-avatar-frame-speaking shadow-[0_0_74px_rgba(34,211,238,0.24)]",
+                  recruiterVisualState === "listening" &&
+                    "wz-avatar-frame-listening border-emerald-300/25 shadow-[0_0_60px_rgba(16,185,129,0.18)]",
+                )}
+              >
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,transparent_0%,rgba(2,6,23,0.04)_32%,rgba(2,6,23,0.80)_100%)]" />
+                <div className="absolute inset-0 overflow-hidden">
+                  {!recruiterVideoFailed && (
+                    <video
+                      className={cn(
+                        "absolute inset-0 h-full w-full object-cover object-center transition-all duration-700 will-change-transform",
+                        isCinematicLive && "wz-avatar-img",
+                        recruiterVisualState === "speaking" &&
+                          "wz-avatar-img-speaking",
+                        recruiterVisualState === "listening" &&
+                          "wz-avatar-img-listening",
+                      )}
+                      src={recruiterVideoSrc}
+                      poster={recruiterPosterSrc}
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      preload="metadata"
+                      onError={() => setRecruiterVideoFailed(true)}
+                    />
+                  )}
+                  <Image
+                    src={recruiterPosterSrc}
+                    alt={`${recruiterName} recruiter`}
+                    fill
+                    priority
+                    sizes="(max-width: 900px) 100vw, 55vw"
+                    className={cn(
+                      "object-cover object-center transition-all duration-700 will-change-transform",
+                      !recruiterVideoFailed && isCinematicLive
+                        ? "opacity-0"
+                        : "opacity-100",
+                      isCinematicLive && "wz-avatar-img",
+                      recruiterVisualState === "speaking" &&
+                        "wz-avatar-img-speaking",
+                      recruiterVisualState === "listening" &&
+                        "wz-avatar-img-listening",
+                    )}
+                  />
+                </div>
+
+                {isCinematicLive && (
+                  <>
+                    <div
+                      className={cn(
+                        "wz-speaking-aura pointer-events-none absolute inset-0 rounded-[30px] bg-[radial-gradient(circle_at_50%_35%,rgba(34,211,238,0.20),transparent_34%)]",
+                        recruiterVisualState === "speaking"
+                          ? "opacity-100"
+                          : "opacity-40",
+                      )}
+                    />
+                    <div className="wz-face-focus pointer-events-none absolute left-1/2 top-[28%] h-24 w-56 rounded-full bg-cyan-200/20 blur-2xl" />
+                    <div className="wz-shoulder-life pointer-events-none absolute bottom-[19%] left-1/2 h-16 w-[55%] rounded-full bg-blue-400/16 blur-2xl" />
+                    <div
+                      className="pointer-events-none absolute left-1/2 top-[47%] h-40 w-[48%] -translate-x-1/2 rounded-full bg-cyan-300/10 blur-3xl"
+                      style={{
+                        animationName: "wzSubtleNod",
+                        animationDuration: "4.2s",
+                        animationTimingFunction: "ease-in-out",
+                        animationIterationCount: "infinite",
+                      }}
+                    />
+                    <div
+                      className="pointer-events-none absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-transparent via-cyan-200/18 to-transparent blur-xl"
+                      style={{
+                        animationName: "wzAliveLightSweep",
+                        animationDuration:
+                          recruiterVisualState === "speaking" ? "2.4s" : "5.8s",
+                        animationTimingFunction: "ease-in-out",
+                        animationIterationCount: "infinite",
+                      }}
+                    />
+                    <div className="wz-scan-line pointer-events-none absolute -left-10 top-0 h-[160%] w-24 bg-gradient-to-b from-transparent via-cyan-200/18 to-transparent blur-xl" />
+                    <div className="wz-blink-mask pointer-events-none absolute left-1/2 top-[28%] h-4 w-36 rounded-full bg-slate-950/55 blur-sm" />
+                    <div
+                      className={cn(
+                        "pointer-events-none absolute left-1/2 top-[48%] h-12 w-28 rounded-full bg-cyan-300/0 blur-xl",
+                        recruiterVisualState === "speaking" &&
+                          "wz-mouth-glow bg-cyan-200/40",
+                      )}
+                    />
+                    <div
+                      className={cn(
+                        "pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_34%,rgba(34,211,238,0.12),transparent_22%),linear-gradient(180deg,transparent_42%,rgba(2,6,23,0.90)_100%)] transition-opacity duration-500",
+                        recruiterVisualState === "speaking"
+                          ? "opacity-100"
+                          : "opacity-70",
+                      )}
+                    />
+                  </>
+                )}
+
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent p-6 pt-24">
+                  <div className="flex items-end justify-between gap-5">
+                    <div>
+                      <div className="mb-3 h-12 w-1 rounded-full bg-gradient-to-b from-violet-400 to-cyan-300" />
+                      <h2 className="text-2xl font-black tracking-tight">
+                        {recruiterName}
+                      </h2>
+                      <p className="mt-1 text-sm text-slate-300">
+                        {recruiterRole}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        12+ years of hiring experience
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-slate-950/70 px-5 py-4 text-right backdrop-blur-xl">
+                      <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
+                        State
+                      </p>
+                      <p className="mt-1 text-sm font-bold text-white">
+                        {liveStatusLabel}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className={cn(
+                    "absolute bottom-6 left-1/2 h-[44px] w-[82%] -translate-x-1/2 overflow-hidden rounded-full opacity-95",
+                    recruiterVisualState === "speaking" && "opacity-100",
+                  )}
+                >
+                  <div className="absolute inset-x-0 bottom-3 flex items-end justify-center gap-[4px]">
+                    {waveform.slice(0, 12).map((height, index) => (
+                      <span
+                        key={`stage-wave-${index}`}
+                        className={cn(
+                          "wz-wave-bar block w-[4px] rounded-full bg-gradient-to-t from-blue-500 via-cyan-200 to-violet-400",
+                          recruiterVisualState === "speaking" &&
+                            "shadow-[0_0_12px_rgba(34,211,238,0.45)]",
+                        )}
+                        style={{
+                          height: `${Math.max(8, height - (index % 3) * 4)}px`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className={cn(
+                  "mt-2 text-center",
+                  recruiterVisualState === "speaking" && "text-cyan-100",
+                )}
+              >
+                <p className="inline-flex items-center gap-2 rounded-full bg-slate-950/45 px-5 py-2 text-sm font-bold text-slate-300">
+                  <Clock3 className="h-4 w-4 text-cyan-300" />
+                  {isLive
+                    ? recruiterVisualState === "speaking"
+                      ? "Recruiter is speaking"
+                      : recruiterVisualState === "thinking"
+                        ? "Recruiter is thinking"
+                        : recruiterVisualState === "listening"
+                          ? "Listening to your answer"
+                          : "Your turn — answer naturally"
+                    : isCinematicLive
+                      ? "Cinematic recruiter room is live"
+                      : "Ready for interview"}
+                </p>
+              </div>
+
+              <div className="mx-auto mt-2 w-[82%] max-w-[820px] rounded-full border border-white/5 bg-slate-950/45 px-5 py-2 text-center text-xs text-slate-400">
+                <span
+                  className={cn(
+                    recruiterVisualState === "speaking" &&
+                      "wz-transcript-live text-cyan-100",
+                  )}
+                >
+                  {recruiterVisualState === "thinking"
+                    ? "Analyzing response..."
+                    : visibleRecruiterLine}
+                </span>
+                {recruiterVisualState === "speaking" && (
+                  <span className="ml-1 inline-block animate-pulse text-cyan-300">
+                    |
+                  </span>
+                )}
+              </div>
+
+              <div className="mx-auto mt-2 flex w-[82%] max-w-[760px] items-center justify-center gap-4 rounded-3xl border border-white/10 bg-slate-950/55 px-4 py-2 shadow-[0_14px_45px_rgba(2,6,23,.35)] backdrop-blur-xl">
+                <button
+                  type="button"
+                  onClick={onToggleSpeaker}
+                  className="hidden h-10 min-w-[118px] items-center justify-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-4 text-xs font-bold text-slate-300 backdrop-blur-xl md:inline-flex"
+                >
+                  {speakerOn ? (
+                    <Volume2 className="h-4 w-4" />
+                  ) : (
+                    <VolumeX className="h-4 w-4" />
+                  )}
+                  {speakerOn ? "Audio On" : "Audio Off"}
+                </button>
                 <div className="text-center">
-                  <p className="text-2xl font-black text-white">
-                    {progressStep}
+                  <button
+                    type="button"
+                    onClick={onMicClick}
+                    className={cn(
+                      "wz-mic-live grid h-[54px] w-[54px] place-items-center rounded-full border text-white transition hover:scale-[1.03]",
+                      isListening
+                        ? "border-emerald-300/50 bg-emerald-500/20"
+                        : "border-blue-200/30 bg-gradient-to-br from-blue-500 to-violet-600",
+                    )}
+                    aria-label={
+                      isLive ? "Continue listening" : "Start interview"
+                    }
+                  >
+                    {isLive && isListening ? (
+                      <MicOff className="h-6 w-6" />
+                    ) : (
+                      <Mic className="h-6 w-6" />
+                    )}
+                  </button>
+                  <p className="mt-1 text-[11px] font-medium text-slate-400">
+                    {micLabel}
                   </p>
-                  <p className="text-[11px] text-slate-300">/ 12 Questions</p>
+                </div>
+                <button className="hidden h-10 min-w-[118px] items-center justify-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-4 text-xs font-bold text-slate-300 backdrop-blur-xl md:inline-flex">
+                  <VolumeX className="h-4 w-4 text-red-300" />
+                  Camera Off
+                </button>
+              </div>
+
+              <div className="mt-2 grid grid-cols-4 gap-0 border-t border-white/[0.06] bg-slate-950/34 px-5 py-2">
+                <div className="border-r border-white/[0.06] px-4">
+                  <p className="text-xs text-slate-400">🔥 Pressure Level</p>
+                  <p className="mt-1 text-xl font-black text-amber-300">
+                    {pressureLevel}
+                  </p>
+                  <div className="mt-2 h-1.5 rounded-full bg-slate-800">
+                    <div className="h-full w-[64%] rounded-full bg-amber-400" />
+                  </div>
+                </div>
+                <div className="border-r border-white/[0.06] px-4">
+                  <p className="text-xs text-slate-400">🛡 Trust Score</p>
+                  <p className="mt-1 text-xl font-black text-emerald-300">
+                    {recruiterTrust}%
+                  </p>
+                  <div className="mt-2 h-1.5 rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-emerald-400"
+                      style={{ width: `${recruiterTrust}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="border-r border-white/[0.06] px-4">
+                  <p className="text-xs text-slate-400">〽 Trust trend</p>
+                  <p className="mt-1 text-base font-black text-blue-300">
+                    {confidenceLabel}
+                  </p>
+                  <div className="wz-trust-line mt-2 h-6 rounded-xl bg-gradient-to-r from-blue-500/20 via-violet-500/25 to-cyan-400/20" />
+                </div>
+                <div className="px-4">
+                  <p className="text-xs text-slate-400">Overall Performance</p>
+                  <p className="mt-2 text-2xl font-black text-white">
+                    {overallGrade}
+                  </p>
+                  <p className="text-xs text-slate-400">Good progress</p>
+                </div>
+              </div>
+            </section>
+          </main>
+
+          <section className="flex h-full min-h-0 flex-col rounded-[28px] border border-white/10 bg-slate-950/70 shadow-[0_22px_90px_rgba(2,6,23,0.45)] backdrop-blur-xl">
+            <div className="flex border-b border-white/10 px-7 pt-4">
+              <button className="border-b-2 border-violet-400 px-4 pb-3 text-sm font-black text-violet-200">
+                Live Transcript
+              </button>
+              <button className="px-4 pb-3 text-sm font-semibold text-slate-400">
+                Interview Notes
+              </button>
+              <button className="px-4 pb-3 text-sm font-semibold text-slate-400">
+                Recruiter Memory
+              </button>
+            </div>
+            <div className="wz-transcript-scroll min-h-0 flex-1 space-y-0 overflow-y-auto px-6 py-4">
+              {displayTranscript.map((item, index) => {
+                const isRecruiter = item.role === "recruiter";
+                return (
+                  <div
+                    key={`${item.time}-${index}`}
+                    className="border-b border-white/[0.07] py-5 last:border-b-0"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div
+                        className={cn(
+                          "grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full",
+                          isRecruiter ? "bg-slate-800" : "bg-violet-600",
+                        )}
+                      >
+                        {isRecruiter ? (
+                          <Image
+                            src={recruiterImagePath(recruiterName, recruiterId)}
+                            alt="recruiter"
+                            width={42}
+                            height={42}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-sm font-black">You</span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <p className="font-semibold text-slate-200">
+                            {isRecruiter
+                              ? `${recruiterName} (Recruiter)`
+                              : "You"}
+                          </p>
+                          <span className="text-xs text-slate-500">
+                            {item.time}
+                          </span>
+                        </div>
+                        <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-200">
+                          {item.text}
+                        </p>
+                        {index === displayTranscript.length - 1 &&
+                          recruiterVisualState === "thinking" &&
+                          isRecruiter && (
+                            <p className="mt-3 text-sm text-slate-400">
+                              Thinking...{" "}
+                              <span className="text-violet-300">•••</span>
+                            </p>
+                          )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <aside className="wz-side-panel h-full min-h-0 space-y-3 overflow-y-auto pr-1 pb-2">
+            <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 backdrop-blur-xl">
+              <p className="text-xs font-black uppercase tracking-[0.30em] text-slate-400">
+                Recruiter Guide
+              </p>
+              <div className="mt-6 space-y-5 text-sm leading-6">
+                <div>
+                  <p className="font-black text-white">Current pressure</p>
+                  <p className="mt-1 text-slate-400">{recruiterCue}</p>
+                </div>
+                <div>
+                  <p className="font-black text-white">Memory callback</p>
+                  <p className="mt-1 text-slate-400">
+                    Recruiter is building first impression.
+                  </p>
+                </div>
+                <div>
+                  <p className="font-black text-white">Mode</p>
+                  <p className="mt-1 text-slate-400">
+                    {isCinematicLive
+                      ? "Pseudo-live cinematic recruiter room."
+                      : "Stable manual interview flow."}
+                  </p>
                 </div>
               </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-xs text-slate-500">Stage</p>
-              <p className="mt-1 text-sm font-semibold text-white">
-                Core Experience
+            <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 backdrop-blur-xl">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">
+                Your Stats
               </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="h-[184px] rounded-[24px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(15,23,42,0.90),rgba(7,12,25,0.80))] p-5 text-left shadow-[0_10px_40px_rgba(0,0,0,0.20)] backdrop-blur-2xl">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-300">
-              Recruiter Intelligence
-            </p>
-            <span className="text-xs text-cyan-300">Live</span>
-          </div>
-          <div className="mt-3 space-y-2.5 text-[13px] text-slate-300">
-            {pulseLines.map((line) => (
-              <div
-                key={line}
-                className="flex items-center justify-between gap-3"
-              >
-                <span>{line}</span>
-                <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+              <div className="mt-5 space-y-4 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Time</span>
+                  <span className="font-bold">{formatElapsed(elapsed)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Hiring Signal</span>
+                  <span className="font-black text-emerald-300">
+                    {recruiterTrust}%
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Clarity Score</span>
+                  <span className="font-black text-amber-200">{clarity}%</span>
+                </div>
               </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="h-[116px] overflow-hidden rounded-[24px] border border-amber-300/10 bg-[linear-gradient(180deg,rgba(30,23,10,0.82),rgba(7,12,25,0.78))] p-5 text-left shadow-[0_10px_40px_rgba(0,0,0,0.20)] backdrop-blur-2xl">
-          <p className="text-sm font-black text-amber-200">Pro Tip</p>
-          <p className="mt-2 text-[13px] leading-5 text-slate-300">
-            Give situation, personal action, measurable result.
-          </p>
-        </section>
-      </aside>
-
-      <aside className="wz-side pointer-events-none absolute right-9 top-[94px] z-20 w-[300px] space-y-[12px]">
-        <section className="h-[226px] rounded-[24px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(15,23,42,0.90),rgba(7,12,25,0.80))] p-5 text-left shadow-[0_10px_40px_rgba(0,0,0,0.20)] backdrop-blur-2xl">
-          <p className="text-[12px] font-black uppercase tracking-[0.18em] text-slate-400">
-            Recruiter Guide
-          </p>
-          <div className="mt-4 space-y-3.5 text-[13px]">
-            <div>
-              <p className="font-bold text-white">Current pressure</p>
-              <p className="mt-1 text-slate-400">{compactHint}</p>
             </div>
-            <div>
-              <p className="font-bold text-white">Memory callback</p>
-              <p className="mt-1 text-slate-400">
-                {transcript.length > 4
-                  ? "Recruiter will compare this answer with earlier patterns."
-                  : "Recruiter is building first impression."}
+            <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 backdrop-blur-xl">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">
+                Recruiter
+              </p>
+              <h3 className="mt-5 text-xl font-black">
+                {recruiterName} <span className="text-emerald-300">•</span>
+              </h3>
+              <p className="mt-1 text-sm text-slate-400">{recruiterRole}</p>
+              <p className="mt-4 inline-flex rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-200">
+                Recruiter engaged
               </p>
             </div>
-            <div>
-              <p className="font-bold text-white">Mode</p>
-              <p className="mt-1 text-slate-400">
-                {selectedMode === "video"
-                  ? "Live video layer is experimental."
-                  : "Stable interview flow for launch."}
+            <div className="rounded-3xl border border-cyan-300/10 bg-slate-950/70 p-5 backdrop-blur-xl">
+              <p className="font-black text-amber-200">💡 Quick Tips</p>
+              <p className="mt-4 text-sm leading-6 text-slate-300">
+                Give situation, personal action, measurable results.
               </p>
             </div>
-          </div>
-        </section>
-
-        <section className="h-[146px] rounded-[24px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(15,23,42,0.90),rgba(7,12,25,0.80))] p-5 text-left shadow-[0_10px_40px_rgba(0,0,0,0.20)] backdrop-blur-2xl">
-          <p className="text-sm font-semibold text-slate-300">Your Stats</p>
-          <div className="mt-4 space-y-3 text-[13px] text-slate-300">
-            <div className="flex items-center justify-between">
-              <span>Time</span>
-              <span className="text-white">{formatElapsed(elapsed)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Hiring Signal</span>
-              <span className="font-black text-emerald-300">{confidence}%</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Clarity Score</span>
-              <span className="font-black text-amber-200">{clarity}%</span>
-            </div>
-          </div>
-        </section>
-
-        <section className="h-[128px] overflow-hidden rounded-[24px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(15,23,42,0.90),rgba(7,12,25,0.80))] p-5 text-left shadow-[0_10px_40px_rgba(0,0,0,0.20)] backdrop-blur-2xl">
-          <p className="text-sm font-semibold text-slate-300">Recruiter</p>
-          <p className="mt-3 font-semibold text-white">
-            {recruiterName} · {recruiterRole}
-          </p>
-          <p className="mt-2 text-sm leading-5 text-slate-400">{stateLabel}</p>
-        </section>
-      </aside>
-
-      <div
-        className="wz-stage absolute left-1/2 top-[94px] z-10 h-[250px] w-[520px] overflow-hidden rounded-[64px]"
-        style={{ animation: "workzoBreath 5.8s ease-in-out infinite" }}
-      >
-        <div className="absolute left-1/2 top-1/2 h-[222px] w-[455px] -translate-x-1/2 -translate-y-1/2 rounded-[50%] bg-blue-500/[0.08] blur-[22px]" />
-        <div className="absolute left-1/2 top-1/2 h-[244px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border border-blue-200/18" />
-        <div
-          className="absolute left-1/2 top-1/2 h-[236px] w-[480px] rounded-[50%] border-t-[4px] border-r-[4px] border-t-cyan-300/95 border-r-blue-500/70 border-b-transparent border-l-transparent shadow-[0_0_34px_rgba(34,211,238,0.24)]"
-          style={{ animation: "workzoRing 34s linear infinite" }}
-        />
-        <div
-          className="absolute left-1/2 top-1/2 h-[210px] w-[440px] rounded-[50%] border-b-[4px] border-l-[4px] border-b-blue-500/85 border-l-cyan-300/85 border-r-transparent border-t-transparent shadow-[0_0_30px_rgba(59,130,246,0.18)]"
-          style={{ animation: "workzoRing 42s linear infinite reverse" }}
-        />
-        <div className="absolute left-1/2 top-1/2 z-10 h-[220px] w-[420px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[999px] border border-blue-200/25 bg-slate-950 shadow-[0_0_68px_rgba(37,99,235,0.34)]">
-          <img
-            src={recruiterImagePath(recruiterName, recruiterId)}
-            alt={`${recruiterName} AI recruiter`}
-            className={cn(
-              "h-full w-full object-cover object-center brightness-110 contrast-110 transition duration-700",
-              isLive ? "scale-[1.035]" : "scale-[1.01]",
-              isSpeaking && "scale-[1.045] saturate-110",
-              recruiterState === "pressuring" && "scale-[1.045] saturate-110",
-              recruiterState === "losing_confidence" &&
-                "scale-[1.015] saturate-[.90]",
-            )}
-            style={{ animation: "workzoBlink 7.8s ease-in-out infinite" }}
-          />
+          </aside>
         </div>
-      </div>
-
-      <div className="wz-status absolute left-1/2 top-[394px] z-10 flex -translate-x-1/2 items-center gap-2 text-[16px] font-semibold text-slate-300">
-        <Clock3 className="h-4 w-4 text-sky-400" />
-        <span>{status || stateLabel}</span>
-      </div>
-
-      <div
-        className="wz-wave absolute left-1/2 top-[440px] z-10 flex h-[28px] w-[170px] -translate-x-1/2 items-end justify-center gap-[9px]"
-        aria-hidden="true"
-      >
-        {waveform.map((height, index) => (
-          <span
-            key={index}
-            className={cn(
-              "w-[7px] rounded-full bg-gradient-to-t shadow-[0_0_16px_rgba(56,189,248,0.52)]",
-              isListening
-                ? "from-emerald-500 via-cyan-300 to-blue-400"
-                : "from-blue-500 via-cyan-300 to-violet-400",
-            )}
-            style={{
-              height: Math.max(8, height * (isLive ? 0.74 : 0.52)),
-              animation: `workzoWave ${0.82 + index * 0.07}s ease-in-out infinite`,
-              animationDelay: `${index * 0.055}s`,
-            }}
-          />
-        ))}
-      </div>
-
-      <div
-        className="wz-caption absolute left-1/2 top-[480px] z-10 min-h-[22px] w-[540px] -translate-x-1/2 rounded-full border border-white/[0.03] bg-white/[0.014] px-4 py-1 text-center text-[13px] font-medium text-slate-400/65 opacity-[0.54] shadow-[0_10px_28px_rgba(0,0,0,0.16)] backdrop-blur-[12px]"
-        style={{ animation: "workzoCaption 4.8s ease-in-out infinite" }}
-      >
-        {latestCaption.length > 92
-          ? `${latestCaption.slice(0, 92)}...`
-          : latestCaption}
-      </div>
-
-      <section className="wz-question absolute left-1/2 top-[492px] z-10 h-[138px] w-[760px] max-w-[760px] -translate-x-1/2 rounded-[26px] border border-white/[0.055] bg-[#07111f]/82 px-[32px] py-[20px] text-left shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-        <p className="text-[12px] font-bold uppercase tracking-[0.18em] text-cyan-300/85">
-          Current Question
-        </p>
-        <h1 className="wz-question-title mt-3 max-w-[690px] line-clamp-2 text-[24px] font-bold leading-[1.08] tracking-[-0.03em] text-white">
-          {question}
-        </h1>
-        <div className="wz-question-meta mt-[12px] flex items-center gap-4 overflow-hidden whitespace-nowrap text-[12.5px] font-medium text-slate-400">
-          <span className="inline-flex items-center gap-2">
-            <Clock3 className="h-4 w-4" />
-            Recruiter expects measurable impact
-          </span>
-          <span className="h-5 w-px bg-white/10" />
-          <span className="inline-flex items-center gap-2">
-            <Sparkles className="h-4 w-4" />
-            Keep answer under 90 seconds
-          </span>
-          <span className="h-5 w-px bg-white/10" />
-          <span className="inline-flex items-center gap-2 text-cyan-200">
-            <Mic className="h-4 w-4" />
-            {isListening ? "Listening now" : "Speak confidently"}
-          </span>
-        </div>
-      </section>
-
-      <div className="absolute bottom-[8px] left-1/2 z-40 -translate-x-1/2">
-        <button
-          type="button"
-          onClick={onMicClick}
-          className={cn(
-            "wz-main-mic grid h-[108px] w-[108px] place-items-center rounded-full border text-white shadow-[0_0_60px_rgba(59,130,246,0.35)] transition hover:scale-[1.03]",
-            isLive
-              ? "border-emerald-300/35 bg-emerald-500/15"
-              : "border-cyan-200/25 bg-blue-500/20",
-          )}
-          aria-label={isLive ? "Continue listening" : "Start interview"}
-        >
-          <span className="grid h-[84px] w-[84px] place-items-center rounded-full bg-gradient-to-br from-blue-500 to-violet-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]">
-            {isLive && isListening ? (
-              <MicOff className="h-9 w-9" />
-            ) : (
-              <Mic className="h-9 w-9" />
-            )}
-          </span>
-        </button>
-      </div>
-
-      <p className="wz-mic-label pointer-events-none absolute bottom-[0px] left-1/2 z-40 -translate-x-1/2 text-center text-xs font-medium text-slate-400">
-        {isLive
-          ? isListening
-            ? "Listening to your answer"
-            : isSpeaking
-              ? "Recruiter speaking"
-              : "Tap mic when you are ready to answer"
-          : "Tap mic to start interview"}
-      </p>
-
-      <div className="wz-utility-dock absolute bottom-6 right-7 z-40 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onToggleSpeaker}
-          className="grid h-11 w-11 place-items-center rounded-full border border-white/[0.08] bg-white/[0.045] text-slate-300 backdrop-blur-xl hover:bg-white/10"
-          aria-label="Toggle speaker"
-        >
-          {speakerOn ? (
-            <Volume2 className="h-5 w-5" />
-          ) : (
-            <VolumeX className="h-5 w-5" />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={onEndInterview}
-          className="grid h-11 w-11 place-items-center rounded-full border border-red-300/15 bg-red-500/10 text-red-200 backdrop-blur-xl hover:bg-red-500/20"
-          aria-label="End interview"
-        >
-          <PhoneOff className="h-5 w-5" />
-        </button>
       </div>
     </div>
   );
@@ -1491,13 +1978,15 @@ export default function InterviewPage() {
   const [activeSetup, setActiveSetup] = useState<WorkZoInterviewSetup>(() =>
     normalizeSetup(null),
   );
-  const [mode, setMode] = useState<InterviewMode>("standard");
+  const [mode, setMode] = useState<InterviewMode>("video");
   const [isLive, setIsLive] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakerOn, setSpeakerOn] = useState(true);
   const [elapsed, setElapsed] = useState(0);
-  const [voiceStatus, setVoiceStatus] = useState("Ready for interview");
+  const [voiceStatus, setVoiceStatus] = useState(
+    "Cinematic recruiter room is live",
+  );
   const [question, setQuestion] = useState(fallbackQuestions[0]);
   const [answeredQuestionCount, setAnsweredQuestionCount] = useState(0);
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
@@ -1510,7 +1999,10 @@ export default function InterviewPage() {
 
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const isSpeakingRef = useRef(false);
+  const lockedVoiceSignatureRef = useRef<string | null>(null);
+  const lockedVoiceRecruiterRef = useRef<RecruiterId | null>(null);
   const isLiveRef = useRef(false);
+  const modeRef = useRef<InterviewMode>(mode);
   const questionRef = useRef(question);
   const transcriptRef = useRef<TranscriptItem[]>([]);
   const memoryRef = useRef<RecruiterMemory>(recruiterMemory);
@@ -1524,26 +2016,8 @@ export default function InterviewPage() {
     "greeting",
   );
   const handleCandidateAnswerRef = useRef<(answer: string) => void>(() => {});
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-
-    // Warm browser voices before the first recruiter sentence.
-    // This prevents Chrome/Edge from using a random default voice on the first attempt.
-    const warmVoices = () => {
-      window.speechSynthesis.getVoices();
-    };
-
-    warmVoices();
-    window.speechSynthesis.addEventListener("voiceschanged", warmVoices);
-
-    const warmTimer = window.setTimeout(warmVoices, 900);
-
-    return () => {
-      window.clearTimeout(warmTimer);
-      window.speechSynthesis.removeEventListener("voiceschanged", warmVoices);
-    };
-  }, []);
+  const manualListenRequestedRef = useRef(false);
+  const autoCinematicStartedRef = useRef(false);
 
   const recruiterProfile = useMemo(
     () => getRecruiterVoiceProfile(activeSetup.recruiterPersonality),
@@ -1555,6 +2029,85 @@ export default function InterviewPage() {
   const company = getCompany(activeSetup);
   const market = activeSetup.targetMarket || "Global";
   const candidateName = getCandidateName(activeSetup);
+
+  const getLockedBrowserVoice = useCallback(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return null;
+
+    const runtimeVoice = recruiterRuntimeVoice(recruiterId);
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return null;
+
+    if (lockedVoiceRecruiterRef.current !== recruiterId) {
+      lockedVoiceRecruiterRef.current = recruiterId;
+      lockedVoiceSignatureRef.current = null;
+    }
+
+    const lockedSignature = lockedVoiceSignatureRef.current;
+    if (lockedSignature) {
+      const locked =
+        voices.find(
+          (voice) => browserVoiceSignature(voice) === lockedSignature,
+        ) ||
+        voices.find((voice) => lockedSignature.startsWith(`${voice.name}|||`));
+
+      if (locked && voiceMatchesRuntimeGender(locked, runtimeVoice)) {
+        return locked;
+      }
+
+      lockedVoiceSignatureRef.current = null;
+    }
+
+    let selected = selectBrowserVoice(recruiterId);
+
+    if (selected && !voiceMatchesRuntimeGender(selected, runtimeVoice)) {
+      const englishVoices = voices.filter((voice) =>
+        voice.lang?.toLowerCase().startsWith("en"),
+      );
+      const pool = englishVoices.length ? englishVoices : voices;
+      selected =
+        runtimeVoice.gender === "female"
+          ? pool.find(isLikelyFemaleVoice) ||
+            voices.find(isLikelyFemaleVoice) ||
+            pool.find((voice) => !isLikelyMaleVoice(voice)) ||
+            null
+          : pool.find(isLikelyMaleVoice) ||
+            voices.find(isLikelyMaleVoice) ||
+            null;
+    }
+
+    if (selected) {
+      lockedVoiceSignatureRef.current = browserVoiceSignature(selected);
+      lockedVoiceRecruiterRef.current = recruiterId;
+    }
+
+    return selected;
+  }, [recruiterId]);
+
+  useEffect(() => {
+    lockedVoiceSignatureRef.current = null;
+    lockedVoiceRecruiterRef.current = recruiterId;
+  }, [recruiterId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+
+    // Warm browser voices before the first recruiter sentence.
+    // This prevents Chrome/Edge from using a random default voice on the first attempt.
+    const warmVoices = () => {
+      window.speechSynthesis.getVoices();
+      getLockedBrowserVoice();
+    };
+
+    warmVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", warmVoices);
+
+    const warmTimer = window.setTimeout(warmVoices, 900);
+
+    return () => {
+      window.clearTimeout(warmTimer);
+      window.speechSynthesis.removeEventListener("voiceschanged", warmVoices);
+    };
+  }, [getLockedBrowserVoice]);
 
   useEffect(() => {
     clearExpiredInterviewState();
@@ -1580,7 +2133,8 @@ export default function InterviewPage() {
     return () => {
       isLiveRef.current = false;
       if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
-      if (finalizationTimerRef.current) window.clearTimeout(finalizationTimerRef.current);
+      if (finalizationTimerRef.current)
+        window.clearTimeout(finalizationTimerRef.current);
       try {
         recognitionRef.current?.abort?.();
         recognitionRef.current?.stop();
@@ -1596,6 +2150,10 @@ export default function InterviewPage() {
     }, 1000);
     return () => window.clearInterval(timer);
   }, [isLive]);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   useEffect(() => {
     questionRef.current = question;
@@ -1640,7 +2198,8 @@ export default function InterviewPage() {
       } catch {}
 
       if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
-      if (finalizationTimerRef.current) window.clearTimeout(finalizationTimerRef.current);
+      if (finalizationTimerRef.current)
+        window.clearTimeout(finalizationTimerRef.current);
       pendingAnswerRef.current = "";
 
       window.speechSynthesis.cancel();
@@ -1659,14 +2218,49 @@ export default function InterviewPage() {
         if (finishTimer) window.clearTimeout(finishTimer);
         isSpeakingRef.current = false;
         setIsSpeaking(false);
-        setVoiceStatus("Listening to your answer");
+        setIsListening(false);
+        setVoiceStatus("Your turn — tap mic when you are ready");
         afterSpeak?.();
       };
 
       const speakNow = (allowVoiceWait = false) => {
         const utterance = new SpeechSynthesisUtterance(text);
         const runtimeVoice = recruiterRuntimeVoice(recruiterId);
-        const voice = selectBrowserVoice(recruiterId);
+        const voice = getLockedBrowserVoice();
+
+        // For female recruiters, avoid a browser-default male fallback mid-session.
+        // If no clearly female browser voice is available yet, keep the recruiter
+        // in a short visual "speaking/preparing" state instead of jumping straight
+        // to listening with a random male/default voice.
+        if (!voice && runtimeVoice.gender === "female" && !isMobileBrowser) {
+          setVoiceStatus("Preparing recruiter voice...");
+          isSpeakingRef.current = true;
+          setIsSpeaking(true);
+          setIsListening(false);
+          window.setTimeout(() => {
+            const retryVoice = getLockedBrowserVoice();
+            if (retryVoice && !didFinish) {
+              const retry = new SpeechSynthesisUtterance(text);
+              retry.voice = retryVoice;
+              retry.pitch = runtimeVoice.pitch;
+              retry.rate = runtimeVoice.rate;
+              retry.volume = 1;
+              retry.onstart = () => {
+                isSpeakingRef.current = true;
+                setIsSpeaking(true);
+                setIsListening(false);
+                setVoiceStatus("Recruiter speaking...");
+              };
+              retry.onend = finishSpeech;
+              retry.onerror = finishSpeech;
+              window.speechSynthesis.cancel();
+              window.speechSynthesis.speak(retry);
+              return;
+            }
+            finishSpeech();
+          }, 950);
+          return;
+        }
 
         // On mobile, do not wait for a preferred voice. Waiting can break the
         // user-gesture audio chain and make speech silent. Use the best available
@@ -1715,7 +2309,13 @@ export default function InterviewPage() {
           // Do not immediately start listening, otherwise mobile appears silent.
           if (voice && allowVoiceWait) {
             try {
+              const fallbackVoice = getLockedBrowserVoice();
+              if (!fallbackVoice && runtimeVoice.gender === "female") {
+                finishSpeech();
+                return;
+              }
               const fallback = new SpeechSynthesisUtterance(text);
+              if (fallbackVoice) fallback.voice = fallbackVoice;
               fallback.pitch = runtimeVoice.pitch;
               fallback.rate = runtimeVoice.rate;
               fallback.volume = 1;
@@ -1733,29 +2333,43 @@ export default function InterviewPage() {
       };
 
       const voices = window.speechSynthesis.getVoices();
-      const selectedVoice = selectBrowserVoice(recruiterId);
+      const selectedVoice = getLockedBrowserVoice();
 
       if (!isMobileBrowser && (!voices.length || !selectedVoice)) {
         let didSpeak = false;
         const speakOnce = () => {
           if (didSpeak) return;
           didSpeak = true;
-          window.speechSynthesis.removeEventListener("voiceschanged", speakOnce);
+          window.speechSynthesis.removeEventListener(
+            "voiceschanged",
+            speakOnce,
+          );
           speakNow(true);
         };
 
         window.speechSynthesis.addEventListener("voiceschanged", speakOnce);
-        window.setTimeout(speakOnce, 700);
+        window.setTimeout(speakOnce, 1400);
         return;
       }
 
       speakNow(true);
     },
-    [recruiterId, speakerOn],
+    [getLockedBrowserVoice, recruiterId, speakerOn],
   );
 
   const listenForAnswer = useCallback(() => {
     if (!isLiveRef.current || isSpeakingRef.current) return;
+
+    // Standard mode stays intentional: recruiter speaks → user taps mic.
+    // Cinematic Live is pseudo-live: after recruiter speech, listening opens automatically
+    // so the candidate can respond naturally without clicking the mic every turn.
+    const autoListenEnabled = modeRef.current === "video";
+    if (!manualListenRequestedRef.current && !autoListenEnabled) {
+      setIsListening(false);
+      setVoiceStatus("Your turn — tap mic when you are ready");
+      return;
+    }
+    manualListenRequestedRef.current = false;
 
     const Recognition = getRecognitionConstructor();
     if (!Recognition) {
@@ -1771,7 +2385,8 @@ export default function InterviewPage() {
     } catch {}
 
     if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
-    if (finalizationTimerRef.current) window.clearTimeout(finalizationTimerRef.current);
+    if (finalizationTimerRef.current)
+      window.clearTimeout(finalizationTimerRef.current);
     pendingAnswerRef.current = "";
 
     const recognition = new Recognition();
@@ -1802,8 +2417,13 @@ export default function InterviewPage() {
       setIsListening(false);
       const error = event.error || "";
       if (error === "no-speech") {
-        setVoiceStatus("I’m still listening. Try answering again.");
-        window.setTimeout(() => listenForAnswer(), 900);
+        setVoiceStatus(
+          modeRef.current === "video"
+            ? "Still listening — speak naturally"
+            : "I’m still listening. Try answering again.",
+        );
+        if (modeRef.current === "video")
+          window.setTimeout(() => listenForAnswer(), 900);
         return;
       }
       if (error === "not-allowed") {
@@ -1815,7 +2435,11 @@ export default function InterviewPage() {
 
     recognition.onend = () => {
       setIsListening(false);
-      if (isLiveRef.current && !isSpeakingRef.current && !pendingAnswerRef.current) {
+      if (
+        isLiveRef.current &&
+        !isSpeakingRef.current &&
+        !pendingAnswerRef.current
+      ) {
         setVoiceStatus("Waiting for your answer...");
       }
     };
@@ -1909,7 +2533,8 @@ export default function InterviewPage() {
             targetRole: getRole(activeSetup),
             targetMarket: activeSetup.targetMarket || "Global",
             companyStyle: activeSetup.companyStyle || "Global Corporate",
-            recruiterPersonality: activeSetup.recruiterPersonality || recruiterId,
+            recruiterPersonality:
+              activeSetup.recruiterPersonality || recruiterId,
             recruiterTrust: previousTrust,
             recruiterState: recruiterStateRef.current,
           }),
@@ -1975,7 +2600,9 @@ export default function InterviewPage() {
         nextMemory = {
           ...currentMemory,
           recruiterTrust: nextTrust,
-          lastReaction: intelligence?.feedback || "Recruiter handled the conversation without counting it as an answer.",
+          lastReaction:
+            intelligence?.feedback ||
+            "Recruiter handled the conversation without counting it as an answer.",
         };
       }
 
@@ -1986,9 +2613,13 @@ export default function InterviewPage() {
       setVoiceStatus(
         intelligence?.intent === "candidate_question"
           ? "Recruiter is answering briefly..."
-          : intelligence?.intent === "clarification" || intelligence?.intent === "smalltalk" || intelligence?.intent === "greeting"
+          : intelligence?.intent === "clarification" ||
+              intelligence?.intent === "smalltalk" ||
+              intelligence?.intent === "greeting"
             ? "Recruiter is guiding the conversation..."
-            : intelligence?.intent === "possible_exaggeration" || intelligence?.intent === "nonsense" || intelligence?.intent === "contradiction"
+            : intelligence?.intent === "possible_exaggeration" ||
+                intelligence?.intent === "nonsense" ||
+                intelligence?.intent === "contradiction"
               ? "Recruiter is checking realism..."
               : shouldCountAsAnswer
                 ? "Recruiter accepted the answer..."
@@ -1999,7 +2630,9 @@ export default function InterviewPage() {
         450,
         Math.min(
           1800,
-          intelligence?.intent === "possible_exaggeration" || intelligence?.intent === "nonsense" || intelligence?.intent === "contradiction"
+          intelligence?.intent === "possible_exaggeration" ||
+            intelligence?.intent === "nonsense" ||
+            intelligence?.intent === "contradiction"
             ? 1200
             : shouldCountAsAnswer
               ? 900
@@ -2068,15 +2701,16 @@ export default function InterviewPage() {
     const recruiterVoiceId = openAiVoiceIdForRecruiter(
       setup.recruiterPersonality as RecruiterId,
     );
-    const browserVoice = selectBrowserVoice(setup.recruiterPersonality as RecruiterId);
+    const browserVoice = selectBrowserVoice(
+      setup.recruiterPersonality as RecruiterId,
+    );
     try {
       console.info("WorkZo recruiter voice mapping", {
         recruiter: profile.name,
         expectedDashboardVoice: recruiterVoiceId,
         browserVoice: browserVoice?.name || "browser-default",
         mode: "voice",
-        note:
-          "Standard Interview uses browser speech for stability. Vapi dashboard voice changes apply only to Live Interview.",
+        note: "Standard Interview uses browser speech for stability. Vapi dashboard voice changes apply only to Live Interview.",
       });
     } catch {}
     const memory = createInitialRecruiterMemory();
@@ -2104,10 +2738,15 @@ export default function InterviewPage() {
     setRecruiterTrust(memory.recruiterTrust || 58);
     setRecruiterState("interested");
     setQuestion(firstQuestion);
-    setVoiceStatus("Recruiter opening...");
+    setVoiceStatus(
+      modeRef.current === "video"
+        ? "Cinematic recruiter opening..."
+        : "Recruiter opening...",
+    );
     saveRecruiterMemory(memory);
     hasGreetedRef.current = true;
     interviewStepRef.current = "greeting";
+    manualListenRequestedRef.current = false;
     isLiveRef.current = true;
     setIsLive(true);
 
@@ -2139,8 +2778,10 @@ export default function InterviewPage() {
     setIsSpeaking(false);
     setVoiceStatus("Alright. That gives me enough context for now.");
     if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
-    if (finalizationTimerRef.current) window.clearTimeout(finalizationTimerRef.current);
+    if (finalizationTimerRef.current)
+      window.clearTimeout(finalizationTimerRef.current);
     pendingAnswerRef.current = "";
+    manualListenRequestedRef.current = false;
     try {
       recognitionRef.current?.abort?.();
       recognitionRef.current?.stop();
@@ -2198,25 +2839,55 @@ export default function InterviewPage() {
       // During a live session the mic button is only a manual resume.
       // It must never start listening while the recruiter is speaking.
       if (!isSpeaking && !isListening) {
+        manualListenRequestedRef.current = true;
         listenForAnswer();
       }
       return;
     }
     void startStandardInterview();
-  }, [isLive, isListening, isSpeaking, listenForAnswer, startStandardInterview]);
+  }, [
+    isLive,
+    isListening,
+    isSpeaking,
+    listenForAnswer,
+    startStandardInterview,
+  ]);
 
   const handleModeChange = useCallback(
     (nextMode: InterviewMode) => {
       if (isLiveRef.current) stopInterview();
       setMode(nextMode);
+      modeRef.current = nextMode;
       setVoiceStatus(
         nextMode === "video"
-          ? "Live video mode is available for premium testing"
+          ? "Cinematic recruiter room is live"
           : "Ready for interview",
       );
+
+      // Make Cinematic Live feel different from Standard Interview.
+      // Selecting it starts the pseudo-live recruiter room and enables hands-free replies.
+      if (nextMode === "video") {
+        window.setTimeout(() => {
+          if (!isLiveRef.current && modeRef.current === "video") {
+            void startStandardInterview();
+          }
+        }, 350);
+      }
     },
-    [stopInterview],
+    [startStandardInterview, stopInterview],
   );
+
+  useEffect(() => {
+    if (!isHydrated || mode !== "video" || autoCinematicStartedRef.current)
+      return;
+    autoCinematicStartedRef.current = true;
+    const timer = window.setTimeout(() => {
+      if (!isLiveRef.current && modeRef.current === "video") {
+        void startStandardInterview();
+      }
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [isHydrated, mode, startStandardInterview]);
 
   const handleToggleSpeaker = useCallback(() => {
     setSpeakerOn((value) => !value);
@@ -2244,7 +2915,7 @@ export default function InterviewPage() {
   }
 
   return (
-    <main className="relative h-screen w-full overflow-hidden bg-[#020617] p-0 text-white">
+    <main className="relative min-h-screen w-full overflow-x-hidden bg-[#020617] p-0 text-white">
       <Link
         href="/dashboard"
         className="absolute left-7 top-6 z-50 hidden h-[46px] items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.045] px-5 text-sm font-black text-slate-200 backdrop-blur-xl hover:bg-white/10 lg:flex"
@@ -2253,72 +2924,32 @@ export default function InterviewPage() {
         Back to Dashboard
       </Link>
 
-      {mode === "video" ? (
-        <div className="relative h-full min-h-screen overflow-hidden bg-[#020617]">
-          <InterviewRoom
-            recruiterName={recruiterName}
-            recruiterRole={recruiterRole}
-            recruiterId={recruiterId}
-            question="Live Interview is ready. Use Standard Interview for the stable Product Hunt demo."
-            status={voiceStatus}
-            isLive={false}
-            isSpeaking={false}
-            isListening={false}
-            isMuted={false}
-            recruiterState={recruiterState}
-            recruiterTrust={recruiterTrust}
-            selectedMode={mode}
-            onSelectMode={handleModeChange}
-            elapsed={elapsed}
-            transcript={transcript}
-            answeredQuestionCount={answeredQuestionCount}
-            onMicClick={() => handleModeChange("standard")}
-            onEndInterview={stopInterview}
-            speakerOn={speakerOn}
-            onToggleSpeaker={handleToggleSpeaker}
-          />
-          <div className="absolute inset-x-0 bottom-28 z-50 mx-auto max-w-xl rounded-[26px] border border-violet-300/15 bg-violet-500/10 p-5 text-center backdrop-blur-2xl">
-            <Video className="mx-auto h-7 w-7 text-violet-200" />
-            <p className="mt-3 text-lg font-black text-white">
-              Live video mode is ready for Tavus testing.
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              For the Product Hunt demo, start with Standard Interview first,
-              then record Live Interview separately if Tavus is enabled.
-            </p>
-            <button
-              type="button"
-              onClick={() => handleModeChange("standard")}
-              className="mt-4 rounded-full bg-white px-5 py-3 text-sm font-black text-slate-950"
-            >
-              Use Standard Interview
-            </button>
-          </div>
-        </div>
-      ) : (
-        <InterviewRoom
-          recruiterName={recruiterName}
-          recruiterRole={recruiterRole}
-          recruiterId={recruiterId}
-          question={question}
-          status={voiceStatus}
-          isLive={isLive}
-          isSpeaking={isSpeaking}
-          isListening={isListening}
-          isMuted={false}
-          recruiterState={recruiterState}
-          recruiterTrust={recruiterTrust}
-          selectedMode={mode}
-          onSelectMode={handleModeChange}
-          elapsed={elapsed}
-          transcript={transcript}
-          answeredQuestionCount={answeredQuestionCount}
-          onMicClick={handleMicClick}
-          onEndInterview={stopInterview}
-          speakerOn={speakerOn}
-          onToggleSpeaker={handleToggleSpeaker}
-        />
-      )}
+      <InterviewRoom
+        recruiterName={recruiterName}
+        recruiterRole={recruiterRole}
+        recruiterId={recruiterId}
+        question={question}
+        status={
+          mode === "video" && !isLive
+            ? "Cinematic recruiter room is live"
+            : voiceStatus
+        }
+        isLive={isLive}
+        isSpeaking={isSpeaking}
+        isListening={isListening}
+        isMuted={false}
+        recruiterState={recruiterState}
+        recruiterTrust={recruiterTrust}
+        selectedMode={mode}
+        onSelectMode={handleModeChange}
+        elapsed={elapsed}
+        transcript={transcript}
+        answeredQuestionCount={answeredQuestionCount}
+        onMicClick={handleMicClick}
+        onEndInterview={stopInterview}
+        speakerOn={speakerOn}
+        onToggleSpeaker={handleToggleSpeaker}
+      />
     </main>
   );
 }
