@@ -241,22 +241,14 @@ async function unlockMobileAudioForSpeech() {
   } catch {}
 
   try {
+    // iOS Safari must be unlocked from the SAME tap gesture.
+    // Do not speak/cancel a SpeechSynthesis primer here: the delayed cancel can
+    // accidentally cancel the real recruiter sentence that starts immediately
+    // after this unlock function resolves. This was the reason mobile looked
+    // like it started but the recruiter stayed silent.
     window.speechSynthesis?.cancel?.();
     window.speechSynthesis?.resume?.();
     window.speechSynthesis?.getVoices?.();
-
-    // Prime SpeechSynthesis directly from the tap chain. Keep it inaudible.
-    const primer = new SpeechSynthesisUtterance(".");
-    primer.volume = 0.01;
-    primer.rate = 1;
-    primer.pitch = 1;
-    window.speechSynthesis.speak(primer);
-    window.setTimeout(() => {
-      try {
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.resume?.();
-      } catch {}
-    }, 70);
   } catch {}
 }
 
@@ -2503,11 +2495,18 @@ export default function InterviewPage() {
 
         window.speechSynthesis.speak(utterance);
         if (isIOSBrowser) {
+          // Safari sometimes pauses speech right after speak(); resume twice,
+          // but never cancel here.
           window.setTimeout(() => {
             try {
               window.speechSynthesis.resume?.();
             } catch {}
-          }, 180);
+          }, 60);
+          window.setTimeout(() => {
+            try {
+              window.speechSynthesis.resume?.();
+            } catch {}
+          }, 220);
         }
       };
 
@@ -2881,8 +2880,7 @@ export default function InterviewPage() {
       mobileAudioUnlockedRef.current = true;
       setHasUnlockedMobileAudio(true);
       setNeedsMobileAudioStart(false);
-      // Give iOS Safari one short beat after the user gesture unlock before speaking.
-      await new Promise((resolve) => window.setTimeout(resolve, 80));
+      // Keep the first recruiter speech close to the tap gesture on iOS Safari.
     }
 
     const setup = saveLatestInterviewSetup(
@@ -3032,11 +3030,15 @@ export default function InterviewPage() {
 
   const handleMicClick = useCallback(() => {
     if (isMobileBrowserRuntime() && !mobileAudioUnlockedRef.current) {
+      setVoiceStatus("Starting recruiter audio...");
+      setNeedsMobileAudioStart(false);
       void unlockMobileAudioForSpeech().then(() => {
         mobileAudioUnlockedRef.current = true;
         setHasUnlockedMobileAudio(true);
         setNeedsMobileAudioStart(false);
         if (!isLiveRef.current) {
+          // Start from the same user action chain. On iOS this keeps speech
+          // audible; mic listening begins only after recruiter speech ends.
           void startStandardInterview();
         } else if (!isSpeakingRef.current && !isListening) {
           manualListenRequestedRef.current = true;
