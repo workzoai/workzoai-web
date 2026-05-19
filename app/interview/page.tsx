@@ -189,23 +189,45 @@ function timeLabel() {
   });
 }
 
-function isMobileSafariLike() {
+
+function isMobileBrowserRuntime() {
   if (typeof navigator === "undefined") return false;
-  return /iphone|ipad|ipod|android/i.test(navigator.userAgent || "");
+  return /iphone|ipad|ipod|android|mobile/i.test(navigator.userAgent || "");
 }
 
-function primeMobileSpeechAudio() {
-  if (typeof window === "undefined" || !window.speechSynthesis) return;
+function isIOSBrowserRuntime() {
+  if (typeof navigator === "undefined") return false;
+  return /iphone|ipad|ipod/i.test(navigator.userAgent || "");
+}
+
+async function unlockMobileAudioForSpeech() {
+  if (typeof window === "undefined") return;
+
   try {
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.resume?.();
-    const unlock = new SpeechSynthesisUtterance(" ");
-    unlock.volume = 0.01;
-    unlock.rate = 1;
-    unlock.pitch = 1;
-    window.speechSynthesis.speak(unlock);
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.resume?.();
+    const AudioContextConstructor =
+      window.AudioContext ||
+      (window as Window & { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+
+    if (AudioContextConstructor) {
+      const audioContext = new AudioContextConstructor();
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      gain.gain.value = 0.00001;
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+      oscillator.start(0);
+      oscillator.stop(audioContext.currentTime + 0.03);
+      window.setTimeout(() => void audioContext.close().catch(() => {}), 120);
+    }
+  } catch {}
+
+  try {
+    window.speechSynthesis?.resume?.();
+    window.speechSynthesis?.getVoices?.();
   } catch {}
 }
 
@@ -1161,6 +1183,8 @@ function InterviewRoom({
   onEndInterview,
   speakerOn,
   onToggleSpeaker,
+  needsMobileAudioStart,
+  hasUnlockedMobileAudio,
 }: {
   recruiterName: string;
   recruiterRole: string;
@@ -1182,6 +1206,8 @@ function InterviewRoom({
   onEndInterview: () => void;
   speakerOn: boolean;
   onToggleSpeaker: () => void;
+  needsMobileAudioStart: boolean;
+  hasUnlockedMobileAudio: boolean;
 }) {
   const isCinematicLive = true;
   const [recruiterVideoFailed, setRecruiterVideoFailed] = useState(false);
@@ -1239,7 +1265,9 @@ function InterviewRoom({
   }, [latestRecruiterLine, recruiterVisualState]);
 
   const liveStatusLabel =
-    recruiterVisualState === "speaking"
+    needsMobileAudioStart
+      ? "Tap to start audio"
+      : recruiterVisualState === "speaking"
       ? "Recruiter speaking"
       : recruiterVisualState === "listening"
         ? "Listening closely"
@@ -1292,8 +1320,10 @@ function InterviewRoom({
           },
         ];
 
-  const micLabel = isLive
-    ? isListening
+  const micLabel = needsMobileAudioStart
+    ? "Tap once to enable recruiter audio"
+    : isLive
+      ? isListening
       ? "Listening to your answer"
       : isSpeaking
         ? "Recruiter speaking"
@@ -1307,7 +1337,7 @@ function InterviewRoom({
   return (
     <div
       className={cn(
-        "relative min-h-screen w-full overflow-x-hidden overflow-y-auto bg-[#020617] text-white",
+        "wz-mobile-root relative h-screen w-full overflow-hidden bg-[#020617] text-white",
         isCinematicLive && "wz-cinematic-mode",
         recruiterVisualState === "speaking" && "wz-speaking",
         recruiterVisualState === "listening" && "wz-listening",
@@ -1507,183 +1537,39 @@ function InterviewRoom({
           .wz-side-panel { display: none !important; }
         }
         @media (max-width: 760px) {
-          .wz-topbar { flex-wrap: wrap; gap: 12px; }
-          .wz-recruiter-stage { min-height: 420px; }
-          .wz-avatar-shell { height: 315px !important; }
-          .wz-bottom-controls { position: static !important; margin-top: 18px; transform: none !important; }
+          .wz-mobile-root { height: auto !important; min-height: 100dvh !important; overflow-y: auto !important; }
+          .wz-mobile-page { height: auto !important; min-height: 100dvh !important; overflow: visible !important; padding: 14px 12px 24px !important; }
+          .wz-topbar { height: auto !important; margin-bottom: 12px !important; align-items: center !important; gap: 8px !important; }
+          .wz-topbar a { padding: 10px 14px !important; font-size: 13px !important; }
+          .wz-topbar .wz-room-title { position: static !important; transform: none !important; order: 2; width: 100%; justify-content: center; margin-top: 8px; }
+          .wz-topbar .wz-room-title > div { width: 100%; text-align: center; padding-left: 16px !important; padding-right: 16px !important; }
+          .wz-topbar .wz-end-actions { margin-left: auto !important; }
+          .wz-topbar .wz-end-actions button:first-child { display: none !important; }
+          .wz-room-grid { grid-template-columns: 1fr !important; height: auto !important; min-height: 0 !important; gap: 12px !important; }
+          .wz-recruiter-stage { min-height: 0 !important; height: auto !important; overflow: visible !important; padding-bottom: 0 !important; border-radius: 24px !important; }
+          .wz-avatar-shell { width: calc(100% - 20px) !important; height: clamp(370px, 58vh, 520px) !important; min-height: 370px !important; margin-top: 54px !important; border-radius: 24px !important; }
+          .wz-avatar-shell video, .wz-avatar-shell img { object-position: center top !important; }
+          .wz-avatar-shell .wz-name-block { left: 22px !important; bottom: 24px !important; }
+          .wz-avatar-shell .wz-state-card { right: 18px !important; bottom: 24px !important; max-width: 142px !important; padding: 14px !important; }
+          .wz-live-badge { left: 24px !important; top: 20px !important; }
+          .wz-live-status-badge { right: 20px !important; top: 20px !important; max-width: calc(100% - 150px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .wz-status-line { margin-top: 18px !important; font-size: 15px !important; }
+          .wz-subtitle-pill { width: calc(100% - 36px) !important; margin-left: auto !important; margin-right: auto !important; }
+          .wz-bottom-controls { position: static !important; width: calc(100% - 24px) !important; margin: 14px auto 0 !important; transform: none !important; padding: 12px !important; gap: 12px !important; }
+          .wz-bottom-controls button { min-width: 0 !important; }
+          .wz-bottom-controls .wz-mic-wrap { order: -1; width: 100%; }
+          .wz-bottom-controls .wz-mic-button { height: 72px !important; width: 72px !important; }
+          .wz-metrics-row { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; padding: 14px !important; gap: 10px !important; }
+          .wz-metrics-row > div { border-right: 0 !important; border-radius: 18px; background: rgba(15,23,42,.42); padding: 12px !important; }
+          .wz-transcript-panel { display: none !important; }
+          .wz-side-panel { display: none !important; }
         }
-
-        @media (max-width: 900px) {
-          .wz-topbar {
-            height: auto !important;
-            display: grid !important;
-            grid-template-columns: 1fr auto;
-            gap: 10px !important;
-            align-items: center !important;
-            margin-bottom: 10px !important;
-          }
-          .wz-topbar > a {
-            padding: 10px 14px !important;
-            font-size: 13px !important;
-            max-width: 118px !important;
-            overflow: hidden !important;
-            white-space: nowrap !important;
-          }
-          .wz-topbar > div:nth-child(2) {
-            position: static !important;
-            transform: none !important;
-            grid-column: 1 / -1 !important;
-            grid-row: 2 !important;
-            justify-self: center !important;
-            order: 3 !important;
-            max-width: calc(100vw - 44px) !important;
-          }
-          .wz-topbar > div:nth-child(2) > div {
-            padding: 9px 18px !important;
-            font-size: 12px !important;
-            text-align: center !important;
-            line-height: 1.25 !important;
-          }
-          .wz-topbar > div:last-child {
-            gap: 8px !important;
-          }
-          .wz-topbar > div:last-child button:first-child {
-            display: none !important;
-          }
-          .wz-topbar > div:last-child button:last-child {
-            padding: 10px 13px !important;
-            font-size: 12px !important;
-          }
-          .wz-room-grid {
-            display: flex !important;
-            flex-direction: column !important;
-            height: auto !important;
-            min-height: 0 !important;
-            grid-template-columns: none !important;
-            gap: 12px !important;
-            padding-bottom: calc(env(safe-area-inset-bottom) + 18px) !important;
-          }
-          .wz-recruiter-stage {
-            height: auto !important;
-            min-height: 0 !important;
-            overflow: visible !important;
-            border-radius: 24px !important;
-          }
-          .wz-avatar-shell {
-            width: calc(100% - 22px) !important;
-            height: 330px !important;
-            min-height: 300px !important;
-            max-height: 42vh !important;
-            margin-top: 46px !important;
-            border-radius: 24px !important;
-          }
-          .wz-avatar-shell video,
-          .wz-avatar-shell img {
-            object-position: center 34% !important;
-          }
-          .wz-avatar-shell .absolute.bottom-0 {
-            padding: 18px !important;
-            padding-top: 90px !important;
-          }
-          .wz-avatar-shell h2 {
-            font-size: 24px !important;
-          }
-          .wz-avatar-shell .absolute.right-7,
-          .wz-avatar-shell .absolute.left-7 {
-            top: 12px !important;
-          }
-          .wz-recruiter-stage > .absolute.left-7.top-7 {
-            left: 18px !important;
-            top: 18px !important;
-            padding: 8px 12px !important;
-            font-size: 10px !important;
-          }
-          .wz-recruiter-stage > .absolute.right-7.top-7 {
-            right: 12px !important;
-            top: 18px !important;
-            padding: 8px 12px !important;
-            font-size: 10px !important;
-            max-width: 58vw !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            white-space: nowrap !important;
-          }
-          .wz-recruiter-stage > div:nth-last-child(2) {
-            margin-top: 10px !important;
-            padding-left: 14px !important;
-            padding-right: 14px !important;
-          }
-          .wz-recruiter-stage > div:nth-last-child(2) > div:last-child {
-            min-height: 78px !important;
-          }
-          .wz-mic-live {
-            height: 58px !important;
-            width: 58px !important;
-          }
-          .wz-recruiter-stage > div:last-child {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 0 !important;
-            padding: 12px 14px !important;
-          }
-          .wz-recruiter-stage > div:last-child > div {
-            padding: 10px 12px !important;
-            border-right: 0 !important;
-            border-bottom: 1px solid rgba(255,255,255,.06) !important;
-          }
-          .wz-recruiter-stage > div:last-child p:nth-child(2) {
-            font-size: 18px !important;
-          }
-          .wz-room-grid > section {
-            min-height: 280px !important;
-            max-height: 420px !important;
-          }
-          .wz-room-grid > section .wz-transcript-scroll {
-            max-height: 330px !important;
-          }
-          .wz-side-panel {
-            display: grid !important;
-            grid-template-columns: 1fr !important;
-            max-height: none !important;
-            overflow: visible !important;
-            padding-right: 0 !important;
-          }
-          .wz-side-panel > div:first-child,
-          .wz-side-panel > div:nth-child(4) {
-            display: none !important;
-          }
-        }
-        @media (max-width: 520px) {
-          .wz-avatar-shell {
-            height: 300px !important;
-            min-height: 288px !important;
-            max-height: 40vh !important;
-          }
-          .wz-avatar-shell .rounded-2xl {
-            padding: 12px 14px !important;
-          }
-          .wz-avatar-shell .rounded-2xl p:first-child {
-            font-size: 10px !important;
-          }
-          .wz-avatar-shell .rounded-2xl p:last-child {
-            font-size: 13px !important;
-          }
-          .wz-recruiter-stage > div:nth-last-child(2) > p:first-child {
-            font-size: 14px !important;
-          }
-          .wz-recruiter-stage > div:nth-last-child(2) > div:last-child {
-            min-height: 72px !important;
-          }
-          .wz-room-grid > section:nth-of-type(1) {
-            max-height: 360px !important;
-          }
-        }
-
       `}</style>
 
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_42%_8%,rgba(56,189,248,0.18),transparent_34%),radial-gradient(circle_at_80%_40%,rgba(124,58,237,0.16),transparent_30%),linear-gradient(180deg,rgba(2,6,23,0.2),#020617_85%)]" />
       <div className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(148,163,184,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.12)_1px,transparent_1px)] [background-size:22px_22px]" />
 
-      <div className="relative z-10 min-h-screen overflow-x-hidden px-6 pb-4 pt-3">
+      <div className="wz-mobile-page relative z-10 h-screen overflow-hidden px-6 pb-3 pt-3">
         <div className="wz-topbar mb-2 flex h-[50px] items-center justify-between">
           <Link
             href="/dashboard"
@@ -1693,13 +1579,13 @@ function InterviewRoom({
             Back to Dashboard
           </Link>
 
-          <div className="absolute left-1/2 top-5 flex -translate-x-1/2 rounded-full border border-cyan-300/15 bg-slate-900/80 p-1 shadow-[0_0_44px_rgba(34,211,238,0.18)] backdrop-blur-xl">
+          <div className="wz-room-title absolute left-1/2 top-5 flex -translate-x-1/2 rounded-full border border-cyan-300/15 bg-slate-900/80 p-1 shadow-[0_0_44px_rgba(34,211,238,0.18)] backdrop-blur-xl">
             <div className="rounded-full bg-gradient-to-r from-blue-600/80 to-violet-600/80 px-9 py-2.5 text-sm font-black text-white shadow-lg">
               Cinematic Live Recruiter Room
             </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="wz-end-actions ml-auto flex items-center gap-3">
             <button className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-slate-300">
               <Settings className="h-5 w-5" />
             </button>
@@ -1722,11 +1608,11 @@ function InterviewRoom({
                 isCinematicLive ? "border-cyan-400/20" : "border-white/10",
               )}
             >
-              <div className="absolute left-7 top-7 z-30 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-500/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-emerald-200">
+              <div className="wz-live-badge absolute left-7 top-7 z-30 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-500/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-emerald-200">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.8)]" />
                 Live
               </div>
-              <div className="absolute right-7 top-7 z-30 rounded-full border border-white/10 bg-slate-950/70 px-5 py-2 text-xs font-black uppercase tracking-[0.24em] text-cyan-100 shadow-[0_0_26px_rgba(34,211,238,0.12)]">
+              <div className="wz-live-status-badge absolute right-7 top-7 z-30 rounded-full border border-white/10 bg-slate-950/70 px-5 py-2 text-xs font-black uppercase tracking-[0.24em] text-cyan-100 shadow-[0_0_26px_rgba(34,211,238,0.12)]">
                 {liveStatusLabel}
               </div>
 
@@ -1948,7 +1834,7 @@ function InterviewRoom({
                   )}
                   {speakerOn ? "Audio On" : "Audio Off"}
                 </button>
-                <div className="text-center">
+                <div className="wz-mic-wrap text-center">
                   <button
                     type="button"
                     onClick={onMicClick}
@@ -1978,7 +1864,7 @@ function InterviewRoom({
                 </button>
               </div>
 
-              <div className="mt-2 grid grid-cols-4 gap-0 border-t border-white/[0.06] bg-slate-950/34 px-5 py-2">
+              <div className="wz-metrics-row mt-2 grid grid-cols-4 gap-0 border-t border-white/[0.06] bg-slate-950/34 px-5 py-2">
                 <div className="border-r border-white/[0.06] px-4">
                   <p className="text-xs text-slate-400">🔥 Pressure Level</p>
                   <p className="mt-1 text-xl font-black text-amber-300">
@@ -2018,7 +1904,7 @@ function InterviewRoom({
             </section>
           </main>
 
-          <section className="flex h-full min-h-0 flex-col rounded-[28px] border border-white/10 bg-slate-950/70 shadow-[0_22px_90px_rgba(2,6,23,0.45)] backdrop-blur-xl">
+          <section className="wz-transcript-panel flex h-full min-h-0 flex-col rounded-[28px] border border-white/10 bg-slate-950/70 shadow-[0_22px_90px_rgba(2,6,23,0.45)] backdrop-blur-xl">
             <div className="flex border-b border-white/10 px-7 pt-4">
               <button className="border-b-2 border-violet-400 px-4 pb-3 text-sm font-black text-violet-200">
                 Live Transcript
@@ -2169,7 +2055,8 @@ export default function InterviewPage() {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakerOn, setSpeakerOn] = useState(true);
-  const [mobileAudioUnlocked, setMobileAudioUnlocked] = useState(false);
+  const [needsMobileAudioStart, setNeedsMobileAudioStart] = useState(false);
+  const [hasUnlockedMobileAudio, setHasUnlockedMobileAudio] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [voiceStatus, setVoiceStatus] = useState(
     "Cinematic recruiter room is live",
@@ -2190,7 +2077,6 @@ export default function InterviewPage() {
   const lockedVoiceRecruiterRef = useRef<RecruiterId | null>(null);
   const isLiveRef = useRef(false);
   const modeRef = useRef<InterviewMode>(mode);
-  const mobileAudioUnlockedRef = useRef(false);
   const questionRef = useRef(question);
   const transcriptRef = useRef<TranscriptItem[]>([]);
   const memoryRef = useRef<RecruiterMemory>(recruiterMemory);
@@ -2206,6 +2092,7 @@ export default function InterviewPage() {
   const handleCandidateAnswerRef = useRef<(answer: string) => void>(() => {});
   const manualListenRequestedRef = useRef(false);
   const autoCinematicStartedRef = useRef(false);
+  const mobileAudioUnlockedRef = useRef(false);
 
   const recruiterProfile = useMemo(
     () => getRecruiterVoiceProfile(activeSetup.recruiterPersonality),
@@ -2309,6 +2196,10 @@ export default function InterviewPage() {
     setRecruiterTrust(savedMemory.recruiterTrust || 58);
 
     setIsHydrated(true);
+    const mobileRuntime = isMobileBrowserRuntime();
+    setNeedsMobileAudioStart(mobileRuntime);
+    setHasUnlockedMobileAudio(!mobileRuntime);
+    mobileAudioUnlockedRef.current = !mobileRuntime;
 
     trackWorkZoEvent({
       event: "interview_room_viewed",
@@ -2342,10 +2233,6 @@ export default function InterviewPage() {
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
-
-  useEffect(() => {
-    mobileAudioUnlockedRef.current = mobileAudioUnlocked;
-  }, [mobileAudioUnlocked]);
 
   useEffect(() => {
     questionRef.current = question;
@@ -2395,14 +2282,10 @@ export default function InterviewPage() {
       pendingAnswerRef.current = "";
 
       window.speechSynthesis.cancel();
-      try {
-        window.speechSynthesis.resume?.();
-      } catch {}
       setIsListening(false);
 
-      const isMobileBrowser = /iphone|ipad|ipod|android/i.test(
-        navigator.userAgent || "",
-      );
+      const isMobileBrowser = isMobileBrowserRuntime();
+      const isIOSBrowser = isIOSBrowserRuntime();
 
       let didFinish = false;
       let finishTimer: number | null = null;
@@ -2419,6 +2302,9 @@ export default function InterviewPage() {
       };
 
       const speakNow = (allowVoiceWait = false) => {
+        try {
+          window.speechSynthesis.resume?.();
+        } catch {}
         const utterance = new SpeechSynthesisUtterance(text);
         const runtimeVoice = recruiterRuntimeVoice(recruiterId);
         const voice = getLockedBrowserVoice();
@@ -2524,46 +2410,14 @@ export default function InterviewPage() {
           finishSpeech();
         };
 
-        const resumePulse = window.setInterval(() => {
-          try {
-            if (!didFinish) window.speechSynthesis.resume?.();
-          } catch {}
-        }, 650);
-
-        const originalFinish = finishSpeech;
-        const stopResumePulse = () => {
-          window.clearInterval(resumePulse);
-          originalFinish();
-        };
-        utterance.onend = stopResumePulse;
-        utterance.onerror = () => {
-          window.clearInterval(resumePulse);
-          // If a selected voice fails, retry once with the browser default.
-          // Do not immediately start listening, otherwise mobile appears silent.
-          if (voice && allowVoiceWait) {
-            try {
-              const fallbackVoice = getLockedBrowserVoice();
-              if (!fallbackVoice && runtimeVoice.gender === "female" && !isMobileBrowser) {
-                originalFinish();
-                return;
-              }
-              const fallback = new SpeechSynthesisUtterance(text);
-              if (fallbackVoice) fallback.voice = fallbackVoice;
-              fallback.pitch = runtimeVoice.pitch;
-              fallback.rate = runtimeVoice.rate;
-              fallback.volume = 1;
-              fallback.onend = originalFinish;
-              fallback.onerror = originalFinish;
-              window.speechSynthesis.cancel();
-              window.speechSynthesis.resume?.();
-              window.speechSynthesis.speak(fallback);
-              return;
-            } catch {}
-          }
-          originalFinish();
-        };
-
         window.speechSynthesis.speak(utterance);
+        if (isIOSBrowser) {
+          window.setTimeout(() => {
+            try {
+              window.speechSynthesis.resume?.();
+            } catch {}
+          }, 180);
+        }
       };
 
       const voices = window.speechSynthesis.getVoices();
@@ -2597,7 +2451,7 @@ export default function InterviewPage() {
     // Standard mode stays intentional: recruiter speaks → user taps mic.
     // Cinematic Live is pseudo-live: after recruiter speech, listening opens automatically
     // so the candidate can respond naturally without clicking the mic every turn.
-    const autoListenEnabled = modeRef.current === "video";
+    const autoListenEnabled = modeRef.current === "video" && mobileAudioUnlockedRef.current;
     if (!manualListenRequestedRef.current && !autoListenEnabled) {
       setIsListening(false);
       setVoiceStatus("Your turn — tap mic when you are ready");
@@ -2656,7 +2510,7 @@ export default function InterviewPage() {
             ? "Still listening — speak naturally"
             : "I’m still listening. Try answering again.",
         );
-        if (modeRef.current === "video")
+        if (modeRef.current === "video" && !isMobileBrowserRuntime())
           window.setTimeout(() => listenForAnswer(), 900);
         return;
       }
@@ -2923,6 +2777,15 @@ export default function InterviewPage() {
   }, [handleCandidateAnswer]);
 
   const startStandardInterview = useCallback(async () => {
+    if (isMobileBrowserRuntime() && !mobileAudioUnlockedRef.current) {
+      await unlockMobileAudioForSpeech();
+      mobileAudioUnlockedRef.current = true;
+      setHasUnlockedMobileAudio(true);
+      setNeedsMobileAudioStart(false);
+      // Give iOS Safari one short beat after the user gesture unlock before speaking.
+      await new Promise((resolve) => window.setTimeout(resolve, 80));
+    }
+
     const setup = saveLatestInterviewSetup(
       normalizeSetup(readLatestInterviewSetup()),
     );
@@ -3069,10 +2932,19 @@ export default function InterviewPage() {
   ]);
 
   const handleMicClick = useCallback(() => {
-    if (isMobileSafariLike() && !mobileAudioUnlockedRef.current) {
-      primeMobileSpeechAudio();
-      mobileAudioUnlockedRef.current = true;
-      setMobileAudioUnlocked(true);
+    if (isMobileBrowserRuntime() && !mobileAudioUnlockedRef.current) {
+      void unlockMobileAudioForSpeech().then(() => {
+        mobileAudioUnlockedRef.current = true;
+        setHasUnlockedMobileAudio(true);
+        setNeedsMobileAudioStart(false);
+        if (!isLiveRef.current) {
+          void startStandardInterview();
+        } else if (!isSpeakingRef.current && !isListening) {
+          manualListenRequestedRef.current = true;
+          listenForAnswer();
+        }
+      });
+      return;
     }
 
     if (isLive) {
@@ -3120,21 +2992,17 @@ export default function InterviewPage() {
   useEffect(() => {
     if (!isHydrated || mode !== "video" || autoCinematicStartedRef.current)
       return;
-
-    // Desktop can auto-start. Mobile Safari/Chrome requires a user gesture
-    // for audible speech; auto-start makes the recruiter appear to speak
-    // silently, then jumps to listening. On mobile we wait for the first tap.
-    if (isMobileSafariLike() && !mobileAudioUnlockedRef.current) {
-      setVoiceStatus("Tap mic once to start with audio");
-      return;
-    }
-
     autoCinematicStartedRef.current = true;
     const timer = window.setTimeout(() => {
+      if (isMobileBrowserRuntime()) {
+        setVoiceStatus("Tap mic to start recruiter audio");
+        setNeedsMobileAudioStart(true);
+        return;
+      }
       if (!isLiveRef.current && modeRef.current === "video") {
         void startStandardInterview();
       }
-    }, 450);
+    }, 650);
     return () => window.clearTimeout(timer);
   }, [isHydrated, mode, startStandardInterview]);
 
