@@ -2173,6 +2173,17 @@ export default function InterviewPage() {
   const manualListenRequestedRef = useRef(false);
   const autoCinematicStartedRef = useRef(false);
   const mobileAudioUnlockedRef = useRef(false);
+  const mobileTtsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const mobileTtsObjectUrlRef = useRef<string | null>(null);
+
+  const cleanupMobileTtsUrl = useCallback(() => {
+    if (mobileTtsObjectUrlRef.current) {
+      try {
+        URL.revokeObjectURL(mobileTtsObjectUrlRef.current);
+      } catch {}
+      mobileTtsObjectUrlRef.current = null;
+    }
+  }, []);
 
   const recruiterProfile = useMemo(
     () => getRecruiterVoiceProfile(activeSetup.recruiterPersonality),
@@ -2299,8 +2310,12 @@ export default function InterviewPage() {
         recognitionRef.current?.stop();
       } catch {}
       window.speechSynthesis?.cancel();
+      try {
+        mobileTtsAudioRef.current?.pause();
+      } catch {}
+      cleanupMobileTtsUrl();
     };
-  }, []);
+  }, [cleanupMobileTtsUrl]);
 
   useEffect(() => {
     if (!isLive) return;
@@ -2338,6 +2353,89 @@ export default function InterviewPage() {
     setTranscript((items) => [...items, item].slice(-40));
   }, []);
 
+
+  const playRecruiterMobileTts = useCallback(
+    async (text: string, afterSpeak?: () => void) => {
+      if (typeof window === "undefined" || !speakerOn) {
+        afterSpeak?.();
+        return;
+      }
+
+      try {
+        recognitionRef.current?.abort?.();
+        recognitionRef.current?.stop();
+      } catch {}
+
+      if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
+      if (finalizationTimerRef.current)
+        window.clearTimeout(finalizationTimerRef.current);
+      pendingAnswerRef.current = "";
+      setIsListening(false);
+      isSpeakingRef.current = true;
+      setIsSpeaking(true);
+      setVoiceStatus("Recruiter speaking...");
+
+      let didFinish = false;
+      let finishTimer: number | null = null;
+
+      const finish = () => {
+        if (didFinish) return;
+        didFinish = true;
+        if (finishTimer) window.clearTimeout(finishTimer);
+        try {
+          mobileTtsAudioRef.current?.pause();
+        } catch {}
+        cleanupMobileTtsUrl();
+        isSpeakingRef.current = false;
+        setIsSpeaking(false);
+        setIsListening(false);
+        setVoiceStatus("Your turn — answer naturally");
+        afterSpeak?.();
+      };
+
+      try {
+        cleanupMobileTtsUrl();
+        const response = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text,
+            voice: openAiVoiceIdForRecruiter(recruiterId),
+          }),
+        });
+
+        if (!response.ok) throw new Error("TTS request failed");
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        mobileTtsObjectUrlRef.current = objectUrl;
+
+        const audio = mobileTtsAudioRef.current || new Audio();
+        mobileTtsAudioRef.current = audio;
+        audio.preload = "auto";
+        (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
+        audio.muted = false;
+        audio.volume = 1;
+        audio.src = objectUrl;
+        audio.onended = finish;
+        audio.onerror = finish;
+
+        finishTimer = window.setTimeout(
+          finish,
+          Math.min(26000, Math.max(6500, text.split(/\s+/).length * 430)),
+        );
+
+        await audio.play();
+      } catch (error) {
+        // Keep the flow moving even if iOS blocks audio or the TTS endpoint fails.
+        // The transcript still shows the recruiter line and the mic opens after a short pause.
+        console.warn("WorkZo mobile TTS failed", error);
+        finishTimer = window.setTimeout(finish, 900);
+      }
+    },
+    [cleanupMobileTtsUrl, recruiterId, speakerOn],
+  );
+
   const speakRecruiter = useCallback(
     (text: string, afterSpeak?: () => void) => {
       if (
@@ -2346,6 +2444,13 @@ export default function InterviewPage() {
         !speakerOn
       ) {
         afterSpeak?.();
+        return;
+      }
+
+      // On iOS/mobile, browser SpeechSynthesis is unreliable and often goes silent
+      // after mic permission. Use server TTS + HTMLAudioElement instead.
+      if (isMobileBrowserRuntime()) {
+        void playRecruiterMobileTts(text, afterSpeak);
         return;
       }
 
@@ -2532,7 +2637,7 @@ export default function InterviewPage() {
 
       speakNow(true);
     },
-    [getLockedBrowserVoice, recruiterId, speakerOn],
+    [getLockedBrowserVoice, playRecruiterMobileTts, recruiterId, speakerOn],
   );
 
   const listenForAnswer = useCallback(() => {
@@ -2876,10 +2981,10 @@ export default function InterviewPage() {
 
   const startStandardInterview = useCallback(async () => {
     if (isMobileBrowserRuntime() && !mobileAudioUnlockedRef.current) {
-      await unlockMobileAudioForSpeech();
       mobileAudioUnlockedRef.current = true;
       setHasUnlockedMobileAudio(true);
       setNeedsMobileAudioStart(false);
+      void unlockMobileAudioForSpeech();
       // Keep the first recruiter speech close to the tap gesture on iOS Safari.
     }
 
