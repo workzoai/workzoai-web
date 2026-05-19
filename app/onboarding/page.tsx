@@ -268,6 +268,59 @@ export default function OnboardingPage() {
 
   const currentStepLabel = steps.find((item) => item.id === step)?.label || "Setup";
 
+
+  function buildDraftSetup(): SetupState {
+    const cvText = (manualCv || setup.cvText || "").trim();
+    const jdText = jobDescription.trim();
+
+    return {
+      ...setup,
+      cvText,
+      jobDescription: jdText,
+      targetRole: role || setup.targetRole || "General Role",
+      targetMarket: market,
+      country: market,
+      companyStyle,
+      recruiterStyle: companyStyle,
+      recruiterPersonality: normalizeRecruiterKey(recruiter),
+      language: setup.language || "English",
+      source: setup.source || "mobile-fast-onboarding",
+      setupVersion: 4,
+      setupId: setup.setupId || `setup_${Date.now()}`,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function enrichSetupInBackground(draft: SetupState) {
+    const cvText = (draft.cvText || "").trim();
+    const jdText = (draft.jobDescription || "").trim();
+
+    if (!cvText && !jdText) return;
+
+    window.setTimeout(() => {
+      void buildAndSaveInterviewSetup({
+        cvText,
+        jobDescription: jdText,
+        targetRole: draft.targetRole || "General Role",
+        targetMarket: (draft.targetMarket as Market) || market,
+        companyStyle: (draft.companyStyle as CompanyStyle) || companyStyle,
+        recruiterPersonality: normalizeRecruiterKey(draft.recruiterPersonality),
+        language: draft.language || setup.language || "English",
+      })
+        .then((nextSetup) => saveSetupToStore(nextSetup as SetupState, store))
+        .catch(() => {
+          // Keep the fast local setup. The interview can still start immediately.
+        });
+    }, 40);
+  }
+
+  function persistFast(nextStep?: number) {
+    const draft = buildDraftSetup();
+    saveSetupToStore(draft, store);
+    if (nextStep) setStep(nextStep);
+    enrichSetupInBackground(draft);
+  }
+
   useEffect(() => {
     trackWorkZoLaunchEvent({
       event: "onboarding_viewed",
@@ -405,21 +458,21 @@ export default function OnboardingPage() {
     }
   }
 
-  async function next() {
-    await persist(Math.min(5, step + 1));
+  function next() {
+    persistFast(Math.min(5, step + 1));
   }
 
   function back() {
     setStep(Math.max(1, step - 1));
   }
 
-  async function startInterview() {
-    await persist();
+  function startInterview() {
+    persistFast();
     router.push("/interview");
   }
 
   return (
-    <main className="wz-mobile-no-animation wz-mobile-bottom-safe min-h-screen overflow-x-hidden bg-[#020712] text-white">
+    <main className="wz-mobile-no-animation wz-mobile-bottom-safe min-h-screen overflow-x-hidden overflow-y-auto bg-[#020712] pb-[calc(env(safe-area-inset-bottom)+120px)] text-white">
       <style jsx global>{`
         @keyframes wzPulseBar {
           0%, 100% { transform: scaleY(0.72); opacity: 0.72; }
@@ -463,7 +516,7 @@ export default function OnboardingPage() {
         <div className="absolute bottom-[-260px] left-1/2 h-[560px] w-[560px] -translate-x-1/2 rounded-full bg-indigo-600/12 blur-[130px]" />
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-3 sm:px-5 lg:h-screen lg:overflow-hidden">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+8rem)] pt-3 sm:px-5 lg:h-screen lg:overflow-hidden lg:pb-3">
         <header className="flex min-h-[60px] shrink-0 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 sm:px-5 shadow-[0_18px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
           <Link href="/" className="flex items-center gap-3 text-slate-200 transition hover:text-white">
             <ArrowLeft className="h-5 w-5" />
@@ -478,7 +531,7 @@ export default function OnboardingPage() {
               return (
                 <div key={item.id} className="flex items-center gap-3">
                   <button
-                    onClick={() => void persist(item.id)}
+                    onClick={() => persistFast(item.id)}
                     className={cn(
                       "flex h-10 w-10 items-center justify-center rounded-full border text-sm font-black transition",
                       complete && "border-emerald-400/35 bg-emerald-400/12 text-emerald-200",
@@ -508,7 +561,7 @@ export default function OnboardingPage() {
 
         <section className="grid flex-1 gap-4 overflow-visible py-3 lg:min-h-0 lg:overflow-hidden lg:grid-cols-[1fr_0.82fr]">
           <div className="flex flex-col overflow-visible rounded-[22px] border border-white/10 bg-white/[0.045] shadow-[0_22px_80px_rgba(0,0,0,0.30)] backdrop-blur-2xl lg:min-h-0 lg:overflow-hidden lg:rounded-[26px]">
-            <div className="flex-1 overflow-visible p-4 lg:min-h-0 lg:overflow-y-auto lg:p-5">
+            <div className="flex-1 overflow-visible p-4 pb-28 lg:min-h-0 lg:overflow-y-auto lg:p-5">
               {step === 1 && (
                 <div className="flex min-h-[520px] flex-col lg:h-full lg:min-h-0">
                   <div className="flex items-center gap-4">
@@ -784,7 +837,7 @@ export default function OnboardingPage() {
 
               {step < 5 ? (
                 <button
-                  onClick={() => void next()}
+                  onClick={next}
                   className="inline-flex h-10 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-5 text-sm font-black text-white shadow-[0_10px_28px_rgba(37,99,235,0.26)] transition hover:scale-[1.02] lg:h-11 lg:px-6"
                 >
                   Continue
@@ -792,7 +845,7 @@ export default function OnboardingPage() {
                 </button>
               ) : (
                 <button
-                  onClick={() => router.push("/dashboard")}
+                  onClick={() => { persistFast(); router.push("/dashboard"); }}
                   className="inline-flex h-10 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-5 text-sm font-black text-white shadow-[0_10px_28px_rgba(37,99,235,0.26)] transition hover:scale-[1.02] lg:h-11 lg:px-6"
                 >
                   Go to Dashboard

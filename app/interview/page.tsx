@@ -214,20 +214,49 @@ async function unlockMobileAudioForSpeech() {
       if (audioContext.state === "suspended") {
         await audioContext.resume();
       }
+
       const oscillator = audioContext.createOscillator();
       const gain = audioContext.createGain();
       gain.gain.value = 0.00001;
       oscillator.connect(gain);
       gain.connect(audioContext.destination);
       oscillator.start(0);
-      oscillator.stop(audioContext.currentTime + 0.03);
-      window.setTimeout(() => void audioContext.close().catch(() => {}), 120);
+      oscillator.stop(audioContext.currentTime + 0.035);
+      window.setTimeout(() => void audioContext.close().catch(() => {}), 160);
     }
   } catch {}
 
   try {
+    // iOS Safari needs a real user-gesture media unlock. This tiny silent wav
+    // prevents the first real recruiter line from being swallowed.
+    const silentAudio = new Audio(
+      "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQQAAAAAAA==",
+    );
+    silentAudio.muted = false;
+    silentAudio.volume = 0.001;
+    await silentAudio.play();
+    silentAudio.pause();
+    silentAudio.removeAttribute("src");
+    silentAudio.load();
+  } catch {}
+
+  try {
+    window.speechSynthesis?.cancel?.();
     window.speechSynthesis?.resume?.();
     window.speechSynthesis?.getVoices?.();
+
+    // Prime SpeechSynthesis directly from the tap chain. Keep it inaudible.
+    const primer = new SpeechSynthesisUtterance(".");
+    primer.volume = 0.01;
+    primer.rate = 1;
+    primer.pitch = 1;
+    window.speechSynthesis.speak(primer);
+    window.setTimeout(() => {
+      try {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.resume?.();
+      } catch {}
+    }, 70);
   } catch {}
 }
 
@@ -343,13 +372,69 @@ function recruiterVideoPathForState(
   return `/recruiters/${folder}/idle.mp4`;
 }
 
-function getCandidateName(setup: WorkZoInterviewSetup) {
+
+function cleanPossibleCandidateName(value: unknown) {
+  if (typeof value !== "string") return "";
+  const cleaned = value
+    .replace(/candidate name:?/i, "")
+    .replace(/name:?/i, "")
+    .replace(/[^a-zA-ZÀ-ž .'-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return "";
+  if (/candidate|resume|curriculum|profile|email|phone|linkedin|github|address/i.test(cleaned)) {
+    return "";
+  }
+
+  const words = cleaned.split(" ").filter(Boolean);
+  if (words.length < 1 || words.length > 4) return "";
+  if (words.some((word) => word.length < 2 || word.length > 24)) return "";
+
+  return words
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function inferCandidateNameFromSetup(setup: WorkZoInterviewSetup) {
   const profile = setup.recruiterMemoryProfile;
   if (profile && typeof profile === "object" && "candidateName" in profile) {
     const value = (profile as { candidateName?: unknown }).candidateName;
-    if (typeof value === "string" && value.trim()) return value.trim();
+    const cleaned = cleanPossibleCandidateName(value);
+    if (cleaned) return cleaned;
   }
-  return "Candidate";
+
+  const cvLines = (setup.cvText || "")
+    .split(/\n|\r/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 8);
+
+  for (const line of cvLines) {
+    const cleaned = cleanPossibleCandidateName(line);
+    if (cleaned) return cleaned;
+  }
+
+  if (typeof window !== "undefined") {
+    const keys = [
+      "workzo-candidate-name",
+      "candidateName",
+      "workzo_user_name",
+    ];
+
+    for (const key of keys) {
+      try {
+        const cleaned = cleanPossibleCandidateName(window.localStorage.getItem(key));
+        if (cleaned) return cleaned;
+      } catch {}
+    }
+  }
+
+  return "";
+}
+
+function getCandidateName(setup: WorkZoInterviewSetup) {
+  return inferCandidateNameFromSetup(setup) || "there";
 }
 
 function getRole(setup: WorkZoInterviewSetup) {
@@ -1242,7 +1327,7 @@ function InterviewRoom({
       .slice()
       .reverse()
       .find((item) => item.role === "recruiter")?.text ||
-    "Hi Haritha, nice to meet you. How are you today?";
+    "Hi, nice to meet you. How are you today?";
 
   const [visibleRecruiterLine, setVisibleRecruiterLine] =
     useState(latestRecruiterLine);
@@ -1537,35 +1622,37 @@ function InterviewRoom({
           .wz-side-panel { display: none !important; }
         }
         @media (max-width: 760px) {
-          .wz-mobile-root { height: auto !important; min-height: 100dvh !important; overflow-y: auto !important; }
-          .wz-mobile-page { height: auto !important; min-height: 100dvh !important; overflow: visible !important; padding: 14px 12px 24px !important; }
-          .wz-topbar { height: auto !important; margin-bottom: 12px !important; align-items: center !important; gap: 8px !important; }
-          .wz-topbar a { padding: 10px 14px !important; font-size: 13px !important; }
-          .wz-topbar .wz-room-title { position: static !important; transform: none !important; order: 2; width: 100%; justify-content: center; margin-top: 8px; }
-          .wz-topbar .wz-room-title > div { width: 100%; text-align: center; padding-left: 16px !important; padding-right: 16px !important; }
-          .wz-topbar .wz-end-actions { margin-left: auto !important; }
+          .wz-mobile-root { height: auto !important; min-height: 100dvh !important; overflow-y: auto !important; overflow-x: hidden !important; }
+          .wz-mobile-page { height: auto !important; min-height: 100dvh !important; overflow: visible !important; padding: 12px 12px calc(env(safe-area-inset-bottom) + 34px) !important; }
+          .wz-topbar { height: auto !important; min-height: 118px !important; margin-bottom: 10px !important; align-items: center !important; gap: 8px !important; flex-wrap: wrap !important; }
+          .wz-topbar a { max-width: 46% !important; padding: 10px 14px !important; font-size: 13px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+          .wz-topbar .wz-room-title { position: static !important; transform: none !important; order: 3 !important; width: 100% !important; justify-content: center !important; margin-top: 4px !important; }
+          .wz-topbar .wz-room-title > div { width: min(100%, 360px) !important; border-radius: 999px !important; text-align: center !important; padding: 10px 18px !important; font-size: 14px !important; line-height: 1.25 !important; }
+          .wz-topbar .wz-end-actions { margin-left: auto !important; gap: 8px !important; }
           .wz-topbar .wz-end-actions button:first-child { display: none !important; }
+          .wz-topbar .wz-end-actions button:last-child { padding: 10px 14px !important; font-size: 13px !important; }
           .wz-room-grid { grid-template-columns: 1fr !important; height: auto !important; min-height: 0 !important; gap: 12px !important; }
-          .wz-recruiter-stage { min-height: 0 !important; height: auto !important; overflow: visible !important; padding-bottom: 0 !important; border-radius: 24px !important; }
-          .wz-avatar-shell { width: calc(100% - 18px) !important; height: clamp(300px, 46vh, 430px) !important; min-height: 300px !important; margin-top: 18px !important; border-radius: 22px !important; }
+          .wz-recruiter-stage { min-height: 0 !important; height: auto !important; overflow: visible !important; padding-bottom: 12px !important; border-radius: 24px !important; }
+          .wz-avatar-shell { width: calc(100% - 16px) !important; height: clamp(305px, 50vh, 430px) !important; min-height: 305px !important; margin-top: 18px !important; border-radius: 22px !important; }
           .wz-avatar-shell video, .wz-avatar-shell img { object-position: center top !important; }
-          .wz-avatar-shell .wz-name-block { left: 18px !important; bottom: 18px !important; max-width: 58% !important; }
-          .wz-avatar-shell .wz-state-card { right: 14px !important; bottom: 16px !important; max-width: 132px !important; padding: 11px !important; }
-          .wz-live-badge { left: 24px !important; top: 20px !important; }
-          .wz-live-status-badge { right: 20px !important; top: 20px !important; max-width: calc(100% - 150px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .wz-status-line { margin-top: 18px !important; font-size: 15px !important; }
-          .wz-subtitle-pill { width: calc(100% - 36px) !important; margin-left: auto !important; margin-right: auto !important; }
-          .wz-bottom-controls { position: sticky !important; bottom: 10px !important; width: calc(100% - 20px) !important; margin: 12px auto 0 !important; transform: none !important; padding: 10px !important; gap: 10px !important; z-index: 40 !important; }
+          .wz-avatar-shell .wz-name-block { left: 18px !important; bottom: 18px !important; max-width: 56% !important; }
+          .wz-avatar-shell .wz-name-block h2 { font-size: 30px !important; }
+          .wz-avatar-shell .wz-state-card { right: 12px !important; bottom: 18px !important; max-width: 126px !important; padding: 10px !important; }
+          .wz-avatar-shell .wz-state-card p:last-child { font-size: 13px !important; line-height: 1.25 !important; }
+          .wz-live-badge { left: 22px !important; top: 18px !important; padding: 8px 12px !important; }
+          .wz-live-status-badge { right: 18px !important; top: 18px !important; max-width: calc(100% - 142px) !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; padding: 8px 12px !important; }
+          .wz-status-line { margin-top: 14px !important; font-size: 14px !important; }
+          .wz-subtitle-pill { width: calc(100% - 28px) !important; margin: 8px auto 0 !important; }
+          .wz-bottom-controls { position: relative !important; bottom: auto !important; width: calc(100% - 24px) !important; margin: 10px auto 0 !important; transform: none !important; padding: 12px !important; gap: 10px !important; z-index: 20 !important; }
           .wz-bottom-controls button { min-width: 0 !important; }
-          .wz-bottom-controls .wz-mic-wrap { order: -1; width: 100%; }
-          .wz-bottom-controls .wz-mic-button { height: 66px !important; width: 66px !important; }
+          .wz-bottom-controls .wz-mic-wrap { order: -1 !important; width: 100% !important; }
+          .wz-bottom-controls .wz-mic-wrap button { height: 68px !important; width: 68px !important; margin-left: auto !important; margin-right: auto !important; }
           .wz-metrics-row { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; padding: 10px !important; gap: 8px !important; }
-          .wz-metrics-row > div { border-right: 0 !important; border-radius: 18px; background: rgba(15,23,42,.42); padding: 12px !important; }
-          .wz-transcript-panel { display: none !important; }
+          .wz-metrics-row > div { border-right: 0 !important; border-radius: 18px !important; background: rgba(15,23,42,.42) !important; padding: 12px !important; }
+          .wz-transcript-panel { display: block !important; min-height: 340px !important; max-height: none !important; }
           .wz-side-panel { display: none !important; }
-
           .wz-status-line { min-height: 20px !important; }
-          .wz-subtitle-pill { max-height: 74px !important; overflow-y: auto !important; }
+          .wz-subtitle-pill { max-height: 76px !important; overflow-y: auto !important; }
           .wz-mobile-page * { -webkit-tap-highlight-color: transparent; }
         }
       `}</style>
@@ -1738,7 +1825,7 @@ function InterviewRoom({
 
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent p-6 pt-24">
                   <div className="flex items-end justify-between gap-5">
-                    <div>
+                    <div className="wz-name-block">
                       <div className="mb-3 h-12 w-1 rounded-full bg-gradient-to-b from-violet-400 to-cyan-300" />
                       <h2 className="text-2xl font-black tracking-tight">
                         {recruiterName}
@@ -1750,7 +1837,7 @@ function InterviewRoom({
                         12+ years of hiring experience
                       </p>
                     </div>
-                    <div className="rounded-2xl border border-white/10 bg-slate-950/70 px-5 py-4 text-right backdrop-blur-xl">
+                    <div className="wz-state-card rounded-2xl border border-white/10 bg-slate-950/70 px-5 py-4 text-right backdrop-blur-xl">
                       <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
                         State
                       </p>
@@ -1825,7 +1912,7 @@ function InterviewRoom({
                 )}
               </div>
 
-              <div className="mx-auto mt-2 flex w-[82%] max-w-[760px] items-center justify-center gap-4 rounded-3xl border border-white/10 bg-slate-950/55 px-4 py-2 shadow-[0_14px_45px_rgba(2,6,23,.35)] backdrop-blur-xl">
+              <div className="wz-bottom-controls mx-auto mt-2 flex w-[82%] max-w-[760px] items-center justify-center gap-4 rounded-3xl border border-white/10 bg-slate-950/55 px-4 py-2 shadow-[0_14px_45px_rgba(2,6,23,.35)] backdrop-blur-xl">
                 <button
                   type="button"
                   onClick={onToggleSpeaker}

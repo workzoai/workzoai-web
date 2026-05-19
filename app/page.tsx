@@ -37,7 +37,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#020617] text-white">
+    <main className="relative min-h-screen overflow-x-hidden overflow-y-auto bg-[#020617] pb-[calc(env(safe-area-inset-bottom)+96px)] text-white">
       <Image
         src="/hero-room-v2.png"
         alt="Cinematic AI interview room"
@@ -103,7 +103,7 @@ export default function LandingPage() {
           </div>
         </header>
 
-        <section className="relative h-[calc(100vh-118px)] overflow-hidden py-8">
+        <section className="relative min-h-[calc(100dvh-118px)] overflow-visible py-8 pb-[calc(env(safe-area-inset-bottom)+120px)] lg:h-[calc(100vh-118px)] lg:overflow-hidden lg:pb-0">
           <div className="max-w-[650px] pt-0">
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-white/[0.05] px-4 py-2 text-sm font-black backdrop-blur-xl">
               ✨ AI interviewer that feels real
