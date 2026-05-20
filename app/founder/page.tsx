@@ -2,127 +2,134 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type FounderSummary = {
-  totalEvents?: number;
-  uniqueSessions?: number;
-  uploads?: number;
-  interviewsStarted?: number;
-  answersSubmitted?: number;
-  completedInterviews?: number;
-  resultsViewed?: number;
-  completionRate?: number;
-  answerRate?: number;
-  resultRate?: number;
-  voiceStarts?: number;
-  voiceFailures?: number;
-  voiceFailureRate?: number;
-  mobileShare?: number;
-  recruiters?: Record<string, number>;
-  devices?: Record<string, number>;
-  trafficSources?: Record<string, number>;
-  dropoffFunnel?: Array<{ stage: string; count: number }>;
-  sessionReplay?: Array<{ sessionId?: string; events?: number; first?: string; last?: string; device?: string; recruiter?: string; completed?: boolean }>;
-  topWeakness?: string;
-  insight?: string;
-  storage?: { backend?: string; supabaseConfigured?: boolean; supabaseTable?: string; note?: string };
+type AnalyticsEvent = {
+  id?: number | string;
+  session_id?: string;
+  sessionId?: string;
+  event?: string;
+  path?: string;
+  source?: string;
+  device?: string;
+  recruiter?: string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at?: string;
+  timestamp?: string | number;
+};
+
+type Funnel = {
+  landingViewed: number;
+  onboardingStarted: number;
+  cvUploaded: number;
+  interviewStarted: number;
+  interviewCompleted: number;
+  resultsViewed: number;
+};
+
+type Summary = {
+  totalEvents: number;
+  uniqueSessions: number;
+  interviewStarts: number;
+  interviewCompleted: number;
+  completionRate: number;
+  mobileUsers: number;
+  desktopUsers: number;
+  tabletUsers: number;
+  unknownDeviceUsers: number;
+  recruiterCounts: Record<string, number>;
+  recentErrors: AnalyticsEvent[];
+  dropOffSignals: Record<string, number>;
+  funnel: Funnel;
 };
 
 type ApiResponse = {
   success?: boolean;
-  summary?: FounderSummary;
-  stats?: {
-    totalEvents?: number;
-    interviewStarts?: number;
-    interviewCompleted?: number;
-    completionRate?: number;
-    mobileUsers?: number;
-    desktopUsers?: number;
-    recruiterCounts?: Record<string, number>;
-  };
-  events?: any[];
-  recentEvents?: any[];
+  summary?: Partial<Summary>;
+  stats?: Partial<Summary>;
+  recentEvents?: AnalyticsEvent[];
+  events?: AnalyticsEvent[];
+  error?: unknown;
 };
 
-const emptySummary: FounderSummary = {
+const EMPTY_FUNNEL: Funnel = {
+  landingViewed: 0,
+  onboardingStarted: 0,
+  cvUploaded: 0,
+  interviewStarted: 0,
+  interviewCompleted: 0,
+  resultsViewed: 0,
+};
+
+const EMPTY_SUMMARY: Summary = {
   totalEvents: 0,
   uniqueSessions: 0,
-  uploads: 0,
-  interviewsStarted: 0,
-  answersSubmitted: 0,
-  completedInterviews: 0,
-  resultsViewed: 0,
+  interviewStarts: 0,
+  interviewCompleted: 0,
   completionRate: 0,
-  answerRate: 0,
-  resultRate: 0,
-  voiceStarts: 0,
-  voiceFailures: 0,
-  voiceFailureRate: 0,
-  mobileShare: 0,
-  recruiters: {},
-  devices: {},
-  trafficSources: {},
-  dropoffFunnel: [],
-  sessionReplay: [],
-  topWeakness: "Not enough data yet",
-  insight: "Collecting analytics...",
+  mobileUsers: 0,
+  desktopUsers: 0,
+  tabletUsers: 0,
+  unknownDeviceUsers: 0,
+  recruiterCounts: {},
+  recentErrors: [],
+  dropOffSignals: {},
+  funnel: EMPTY_FUNNEL,
 };
 
-function numberValue(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+function mergeSummary(data: ApiResponse | null): Summary {
+  const source = data?.summary || data?.stats || {};
+
+  return {
+    ...EMPTY_SUMMARY,
+    ...source,
+    recruiterCounts: source.recruiterCounts || {},
+    recentErrors: Array.isArray(source.recentErrors) ? source.recentErrors : [],
+    dropOffSignals: source.dropOffSignals || {},
+    funnel: {
+      ...EMPTY_FUNNEL,
+      ...(source.funnel || {}),
+    },
+  };
 }
 
-function timeLabel(value?: string) {
-  if (!value) return "";
+function formatDate(value?: string | number) {
+  if (!value) return "—";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString();
+}
+
+function safeEventName(value?: string) {
+  return value || "unknown_event";
 }
 
 export default function FounderDashboard() {
-  const [summary, setSummary] = useState<FounderSummary>(emptySummary);
-  const [events, setEvents] = useState<any[]>([]);
+  const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY);
+  const [recentEvents, setRecentEvents] = useState<AnalyticsEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   async function loadAnalytics() {
-    setLoading(true);
-    setError(null);
-
     try {
-      const res = await fetch("/api/analytics", { cache: "no-store" });
-      const data: ApiResponse = await res.json();
+      setLoading(true);
+      setError(null);
 
-      if (!res.ok) {
-        throw new Error(typeof (data as any)?.error === "string" ? (data as any).error : "Analytics request failed");
-      }
-
-      const fallbackSummary: FounderSummary = {
-        totalEvents: data.stats?.totalEvents ?? 0,
-        interviewsStarted: data.stats?.interviewStarts ?? 0,
-        completedInterviews: data.stats?.interviewCompleted ?? 0,
-        completionRate: data.stats?.completionRate ?? 0,
-        devices: {
-          mobile: data.stats?.mobileUsers ?? 0,
-          desktop: data.stats?.desktopUsers ?? 0,
-        },
-        recruiters: data.stats?.recruiterCounts ?? {},
-      };
-
-      setSummary({
-        ...emptySummary,
-        ...fallbackSummary,
-        ...(data.summary ?? {}),
-        recruiters: data.summary?.recruiters ?? fallbackSummary.recruiters ?? {},
-        devices: data.summary?.devices ?? fallbackSummary.devices ?? {},
-        trafficSources: data.summary?.trafficSources ?? {},
-        dropoffFunnel: Array.isArray(data.summary?.dropoffFunnel) ? data.summary?.dropoffFunnel : [],
-        sessionReplay: Array.isArray(data.summary?.sessionReplay) ? data.summary?.sessionReplay : [],
+      const res = await fetch("/api/analytics", {
+        method: "GET",
+        cache: "no-store",
       });
 
-      setEvents(Array.isArray(data.events) ? data.events.slice(0, 60) : Array.isArray(data.recentEvents) ? data.recentEvents : []);
+      const json: ApiResponse = await res.json();
+
+      if (!res.ok || json.success === false) {
+        throw new Error("Analytics API returned an error");
+      }
+
+      setSummary(mergeSummary(json));
+      setRecentEvents(Array.isArray(json.recentEvents) ? json.recentEvents : Array.isArray(json.events) ? json.events : []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load analytics");
-      setSummary(emptySummary);
-      setEvents([]);
+      setSummary(EMPTY_SUMMARY);
+      setRecentEvents([]);
+      setError(err instanceof Error ? err.message : "Unable to load analytics");
     } finally {
       setLoading(false);
     }
@@ -132,122 +139,152 @@ export default function FounderDashboard() {
     loadAnalytics();
   }, []);
 
-  const recruiterRows = useMemo(() => Object.entries(summary.recruiters ?? {}).sort((a, b) => b[1] - a[1]), [summary.recruiters]);
-  const deviceRows = useMemo(() => Object.entries(summary.devices ?? {}).sort((a, b) => b[1] - a[1]), [summary.devices]);
+  const recruiterRows = useMemo(() => {
+    return Object.entries(summary.recruiterCounts).sort((a, b) => b[1] - a[1]);
+  }, [summary.recruiterCounts]);
+
+  const dropOffRows = useMemo(() => {
+    return Object.entries(summary.dropOffSignals).sort((a, b) => b[1] - a[1]);
+  }, [summary.dropOffSignals]);
 
   return (
-    <main className="min-h-screen bg-[#050816] px-4 py-6 text-white sm:px-8">
+    <main className="min-h-screen bg-[#050713] px-4 py-6 text-white sm:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-6 flex flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl sm:flex-row sm:items-center sm:justify-between">
+        <header className="mb-8 flex flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-blue-950/30 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">Founder analytics</p>
-            <h1 className="mt-2 text-3xl font-black sm:text-5xl">WorkZo AI Dashboard</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-300">Live Supabase-ready analytics for launch traffic, interviews, devices, drop-offs, and recruiter usage.</p>
+            <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">Founder Analytics</p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight md:text-5xl">WorkZo AI Dashboard</h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-400 md:text-base">
+              Real launch analytics from Supabase: interviews, completion, devices, recruiters, errors, and recent activity.
+            </p>
           </div>
-          <button onClick={loadAnalytics} className="rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-bold text-white hover:bg-white/15">
+
+          <button
+            onClick={loadAnalytics}
+            className="rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-bold text-white hover:bg-white/15"
+          >
             Refresh
           </button>
-        </div>
+        </header>
 
-        {error && <div className="mb-6 rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-100">{error}</div>}
+        {error ? (
+          <div className="mb-6 rounded-3xl border border-red-500/30 bg-red-500/10 p-5 text-red-100">
+            <p className="font-bold">Analytics could not load.</p>
+            <p className="mt-1 text-sm text-red-200/80">{error}</p>
+          </div>
+        ) : null}
 
         {loading ? (
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-slate-300">Loading analytics...</div>
         ) : (
           <>
-            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Metric title="Total events" value={numberValue(summary.totalEvents)} />
-              <Metric title="Unique sessions" value={numberValue(summary.uniqueSessions)} />
-              <Metric title="Interview starts" value={numberValue(summary.interviewsStarted)} />
-              <Metric title="Completed" value={numberValue(summary.completedInterviews)} />
-              <Metric title="Completion rate" value={`${numberValue(summary.completionRate)}%`} />
-              <Metric title="Answer rate" value={`${numberValue(summary.answerRate)}%`} />
-              <Metric title="Mobile share" value={`${numberValue(summary.mobileShare)}%`} />
-              <Metric title="Voice failures" value={numberValue(summary.voiceFailures)} />
+            <section className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+              <StatCard label="Total Events" value={summary.totalEvents} />
+              <StatCard label="Unique Sessions" value={summary.uniqueSessions} />
+              <StatCard label="Interview Starts" value={summary.interviewStarts} />
+              <StatCard label="Completed" value={summary.interviewCompleted} />
+              <StatCard label="Completion Rate" value={`${summary.completionRate}%`} accent />
+              <StatCard label="Mobile Events" value={summary.mobileUsers} />
             </section>
 
-            <section className="mt-6 grid gap-6 lg:grid-cols-3">
-              <Panel title="Drop-off funnel" className="lg:col-span-2">
+            <section className="mb-6 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+              <Panel title="Launch Funnel" subtitle="Track where users move through the product.">
                 <div className="space-y-3">
-                  {(summary.dropoffFunnel ?? []).length === 0 ? (
-                    <Empty text="No funnel data yet." />
-                  ) : (
-                    (summary.dropoffFunnel ?? []).map((stage) => (
-                      <div key={stage.stage} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-4">
-                          <span className="font-bold text-slate-200">{stage.stage}</span>
-                          <span className="text-2xl font-black text-cyan-200">{stage.count}</span>
-                        </div>
-                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-                          <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-500" style={{ width: `${Math.min(100, Math.max(4, stage.count * 12))}%` }} />
-                        </div>
-                      </div>
-                    ))
-                  )}
+                  <FunnelRow label="Landing viewed" value={summary.funnel.landingViewed} max={summary.totalEvents} />
+                  <FunnelRow label="Onboarding started" value={summary.funnel.onboardingStarted} max={summary.totalEvents} />
+                  <FunnelRow label="CV uploaded" value={summary.funnel.cvUploaded} max={summary.totalEvents} />
+                  <FunnelRow label="Interview started" value={summary.funnel.interviewStarted} max={summary.totalEvents} />
+                  <FunnelRow label="Interview completed" value={summary.funnel.interviewCompleted} max={summary.totalEvents} />
+                  <FunnelRow label="Results viewed" value={summary.funnel.resultsViewed} max={summary.totalEvents} />
                 </div>
               </Panel>
 
-              <Panel title="Launch insight">
-                <p className="text-lg font-bold text-white">{summary.insight}</p>
-                <p className="mt-4 text-sm text-slate-400">Top weakness: {summary.topWeakness}</p>
-                <p className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-xs text-emerald-100">
-                  Storage: {summary.storage?.backend ?? "analytics route"}
-                </p>
-              </Panel>
-            </section>
-
-            <section className="mt-6 grid gap-6 lg:grid-cols-2">
-              <Panel title="Recruiter popularity">
-                {recruiterRows.length === 0 ? <Empty text="No recruiter data yet." /> : <Rows rows={recruiterRows} />}
-              </Panel>
-              <Panel title="Device mix">
-                {deviceRows.length === 0 ? <Empty text="No device data yet." /> : <Rows rows={deviceRows} />}
-              </Panel>
-            </section>
-
-            <section className="mt-6 grid gap-6 lg:grid-cols-2">
-              <Panel title="Session replay summary">
-                <div className="max-h-[460px] space-y-3 overflow-y-auto pr-1">
-                  {(summary.sessionReplay ?? []).length === 0 ? (
-                    <Empty text="No session replay summary yet." />
-                  ) : (
-                    (summary.sessionReplay ?? []).slice(0, 25).map((session, index) => (
-                      <div key={`${session.sessionId}-${index}`} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="truncate text-sm font-bold text-slate-100">{session.sessionId ?? "unknown session"}</span>
-                          <span className={`rounded-full px-3 py-1 text-xs font-bold ${session.completed ? "bg-emerald-500/15 text-emerald-200" : "bg-yellow-500/15 text-yellow-200"}`}>
-                            {session.completed ? "Completed" : "In progress / dropped"}
-                          </span>
-                        </div>
-                        <div className="mt-2 text-xs text-slate-400">
-                          {session.events ?? 0} events · {session.device ?? "unknown device"} · {session.recruiter ?? "no recruiter"}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">Last: {timeLabel(session.last)}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </Panel>
-
-              <Panel title="Recent events">
-                <div className="max-h-[460px] space-y-3 overflow-y-auto pr-1">
-                  {events.length === 0 ? (
-                    <Empty text="No events yet." />
-                  ) : (
-                    events.map((event, index) => (
-                      <div key={`${event.id ?? index}-${event.event}`} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="font-bold text-slate-100">{event.event ?? "unknown_event"}</span>
-                          <span className="text-xs text-slate-500">{event.device ?? ""}</span>
-                        </div>
-                        <div className="mt-1 text-sm text-slate-400">{event.path ?? "/"}</div>
-                        <div className="mt-1 text-xs text-slate-500">{timeLabel(event.created_at ?? event.timestamp)}</div>
-                      </div>
-                    ))
-                  )}
+              <Panel title="Device Split" subtitle="Mobile polish decisions should come from this.">
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniCard label="Desktop" value={summary.desktopUsers} />
+                  <MiniCard label="Mobile" value={summary.mobileUsers} />
+                  <MiniCard label="Tablet" value={summary.tabletUsers} />
+                  <MiniCard label="Unknown" value={summary.unknownDeviceUsers} />
                 </div>
               </Panel>
             </section>
+
+            <section className="mb-6 grid gap-4 lg:grid-cols-2">
+              <Panel title="Recruiter Popularity" subtitle="Which recruiter users interact with most.">
+                {recruiterRows.length === 0 ? (
+                  <EmptyText>No recruiter data yet.</EmptyText>
+                ) : (
+                  <div className="space-y-3">
+                    {recruiterRows.map(([name, count]) => (
+                      <div key={name} className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 p-4">
+                        <span className="font-bold">{name}</span>
+                        <span className="rounded-full bg-emerald-400/10 px-3 py-1 text-sm font-black text-emerald-300">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Panel>
+
+              <Panel title="Errors & Drop-off Signals" subtitle="Watch this during Product Hunt traffic.">
+                <div className="space-y-4">
+                  <div>
+                    <p className="mb-2 text-sm font-black uppercase tracking-[0.18em] text-slate-400">Recent errors</p>
+                    {summary.recentErrors.length === 0 ? (
+                      <EmptyText>No recent errors tracked.</EmptyText>
+                    ) : (
+                      <div className="space-y-2">
+                        {summary.recentErrors.slice(0, 5).map((event, index) => (
+                          <EventLine key={`${event.id || index}-error`} event={event} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-sm font-black uppercase tracking-[0.18em] text-slate-400">Drop-offs</p>
+                    {dropOffRows.length === 0 ? (
+                      <EmptyText>No drop-off signals yet.</EmptyText>
+                    ) : (
+                      <div className="space-y-2">
+                        {dropOffRows.map(([name, count]) => (
+                          <div key={name} className="flex justify-between rounded-xl bg-white/[0.04] px-4 py-3 text-sm">
+                            <span>{name}</span>
+                            <span className="font-bold text-amber-300">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Panel>
+            </section>
+
+            <Panel title="Recent Events" subtitle="Latest Supabase analytics rows.">
+              {recentEvents.length === 0 ? (
+                <EmptyText>No events yet.</EmptyText>
+              ) : (
+                <div className="overflow-hidden rounded-2xl border border-white/10">
+                  <div className="hidden grid-cols-[1.3fr_1fr_1fr_1fr_1.2fr] gap-3 bg-white/[0.06] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-slate-400 md:grid">
+                    <span>Event</span>
+                    <span>Path</span>
+                    <span>Device</span>
+                    <span>Recruiter</span>
+                    <span>Time</span>
+                  </div>
+                  <div className="divide-y divide-white/10">
+                    {recentEvents.slice(0, 30).map((event, index) => (
+                      <div key={`${event.id || index}-event`} className="grid gap-2 px-4 py-4 text-sm md:grid-cols-[1.3fr_1fr_1fr_1fr_1.2fr] md:gap-3">
+                        <span className="font-bold text-white">{safeEventName(event.event)}</span>
+                        <span className="text-slate-400">{event.path || "/"}</span>
+                        <span className="text-slate-400">{event.device || "unknown"}</span>
+                        <span className="text-slate-400">{event.recruiter || "—"}</span>
+                        <span className="text-slate-500">{formatDate(event.created_at || event.timestamp)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Panel>
           </>
         )}
       </div>
@@ -255,37 +292,61 @@ export default function FounderDashboard() {
   );
 }
 
-function Metric({ title, value }: { title: string; value: string | number }) {
+function StatCard({ label, value, accent = false }: { label: string; value: string | number; accent?: boolean }) {
   return (
-    <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-5 shadow-xl">
-      <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">{title}</p>
-      <p className="mt-3 text-3xl font-black text-white">{value}</p>
+    <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-xl shadow-black/20">
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className={accent ? "mt-2 text-3xl font-black text-emerald-300" : "mt-2 text-3xl font-black text-white"}>{value}</p>
     </div>
   );
 }
 
-function Panel({ title, children, className = "" }: { title: string; children: React.ReactNode; className?: string }) {
+function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div className={`rounded-[1.75rem] border border-white/10 bg-white/[0.035] p-5 shadow-xl ${className}`}>
-      <h2 className="mb-4 text-xl font-black text-white">{title}</h2>
+    <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-xl shadow-black/20">
+      <div className="mb-5">
+        <h2 className="text-xl font-black text-white">{title}</h2>
+        {subtitle ? <p className="mt-1 text-sm text-slate-400">{subtitle}</p> : null}
+      </div>
       {children}
-    </div>
+    </section>
   );
 }
 
-function Rows({ rows }: { rows: Array<[string, number]> }) {
+function MiniCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="space-y-3">
-      {rows.map(([name, count]) => (
-        <div key={name} className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 p-4">
-          <span className="font-bold capitalize text-slate-200">{name}</span>
-          <span className="text-xl font-black text-cyan-200">{count}</span>
-        </div>
-      ))}
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <p className="text-sm text-slate-400">{label}</p>
+      <p className="mt-1 text-2xl font-black">{value}</p>
     </div>
   );
 }
 
-function Empty({ text }: { text: string }) {
-  return <p className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400">{text}</p>;
+function FunnelRow({ label, value, max }: { label: string; value: number; max: number }) {
+  const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-sm">
+        <span className="text-slate-300">{label}</span>
+        <span className="font-bold text-white">{value}</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-500" style={{ width: `${percent}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function EventLine({ event }: { event: AnalyticsEvent }) {
+  return (
+    <div className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-100">
+      <p className="font-bold">{safeEventName(event.event)}</p>
+      <p className="text-red-200/70">{event.path || "/"} · {formatDate(event.created_at || event.timestamp)}</p>
+    </div>
+  );
+}
+
+function EmptyText({ children }: { children: React.ReactNode }) {
+  return <p className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-slate-500">{children}</p>;
 }
