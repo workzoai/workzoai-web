@@ -135,6 +135,12 @@ type UnifiedRecruiterApiResponse = {
     engagement?: number;
     confidenceInCandidate?: number;
   };
+  cinematicRealism?: {
+    pauseBeforeSpeakingMs?: number;
+    naturalTransition?: string;
+    shouldUseSilence?: boolean;
+  };
+  conversationStage?: string;
 };
 
 const recruiterAliasMap: Record<string, RecruiterId> = {
@@ -2967,21 +2973,29 @@ export default function InterviewPage() {
                 intelligence?.intent === "contradiction"
               ? "Recruiter is checking realism..."
               : shouldCountAsAnswer
-                ? "Recruiter accepted the answer..."
+                ? intelligence?.conversationStage === "background" || intelligence?.conversationStage === "role_fit"
+                  ? "Recruiter is building the conversation..."
+                  : "Recruiter accepted the answer..."
                 : "Recruiter is staying on this question...",
       );
 
+      const apiPause =
+        typeof intelligence?.cinematicRealism?.pauseBeforeSpeakingMs === "number"
+          ? intelligence.cinematicRealism.pauseBeforeSpeakingMs
+          : null;
+
       const thinkingDelay = Math.max(
-        320,
+        420,
         Math.min(
-          1250,
-          intelligence?.intent === "possible_exaggeration" ||
+          1850,
+          apiPause ??
+            (intelligence?.intent === "possible_exaggeration" ||
             intelligence?.intent === "nonsense" ||
             intelligence?.intent === "contradiction"
-            ? 950
-            : shouldCountAsAnswer
-              ? 620
-              : 420,
+              ? 1050
+              : shouldCountAsAnswer
+                ? 780
+                : 520),
         ),
       );
 

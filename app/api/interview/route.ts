@@ -92,6 +92,7 @@ export async function POST(request: Request) {
       humanImperfection: decision.humanImperfection || null,
       socialSignals: decision.socialSignals || null,
       cinematicRealism: decision.cinematicRealism || null,
+      conversationStage: decision.conversationStage || null,
       interruption: {
         shouldInterrupt:
           decision.intent === "nonsense" ||

@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     }
 
     const speech = await client.audio.speech.create({
-      model: "tts-1",
+      model: process.env.OPENAI_TTS_MODEL || "tts-1",
       voice: voice as "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer",
       input: text.slice(0, 1200),
       response_format: "mp3",

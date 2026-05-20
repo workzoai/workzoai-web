@@ -153,6 +153,16 @@ export type UnifiedRecruiterDecision = {
     shouldSoften: boolean;
     shouldNarrowCandidate: boolean;
   };
+  conversationStage?:
+    | "audio_check"
+    | "rapport"
+    | "background"
+    | "role_fit"
+    | "behavioral"
+    | "skill_gap"
+    | "strengths"
+    | "weakness"
+    | "closing";
 };
 
 export type UnifiedRecruiterInput = {
@@ -727,7 +737,11 @@ function inferIntentHeuristically(answer: string): CandidateIntent {
     if (words.length <= 8) return "greeting";
   }
 
-  if (/\b(how are you|can you hear me|are you there|hello\?|hi\?|can you see me)\b/i.test(lower)) {
+  if (/\b(can'?t hear|cannot hear|can not hear|no audio|audio is not working|voice is not audible|i can hear you|can you hear me|are you there|can you see me)\b/i.test(lower)) {
+    return "smalltalk";
+  }
+
+  if (/\b(how are you|hello\?|hi\?)\b/i.test(lower)) {
     return "smalltalk";
   }
 
@@ -755,7 +769,7 @@ function inferIntentHeuristically(answer: string): CandidateIntent {
     return "possible_exaggeration";
   }
 
-  if (/\b(nervous|anxious|fine|good|okay|ok|ready|can hear you|doing well)\b/i.test(lower) && words.length <= 16) return "smalltalk";
+  if (/\b(nervous|anxious|fine|good|okay|ok|ready|can hear you|doing well)\b/i.test(lower) && words.length <= 16 && !/\b(worked|experience|customer|support|role|skill|project|company|technical|success)\b/i.test(lower)) return "smalltalk";
 
   if (words.length < 12) return "partial_answer";
 
@@ -789,6 +803,10 @@ function isCandidateRapportReply(answer: string) {
 
 function buildRapportReply(answer: string, targetRole: string) {
   const lower = cleanText(answer).toLowerCase();
+
+  if (/\b(can'?t hear|cannot hear|can not hear|no audio|voice is not audible)\b/i.test(lower)) {
+    return `Thanks for telling me. I can hear you on my side, and I’ll keep everything visible in the transcript too. Once you’re ready, let’s start with your background and how it connects to ${targetRole}.`;
+  }
 
   if (/\b(nervous|anxious)\b/i.test(lower)) {
     return `That’s completely normal. Most people feel a bit nervous at the start, so let’s ease into it. Tell me a little about yourself and how your recent experience connects to ${targetRole}.`;
@@ -892,6 +910,99 @@ function buildHumanProgressionQuestion(input: UnifiedRecruiterInput, cvRead: Can
 
 function shouldAcceptPartialOutcome(answer: string, input: UnifiedRecruiterInput) {
   return wasLastRecruiterAskingForImpact(input.transcript) && hasAnyOutcome(answer);
+}
+
+function detectQuestionKind(question: string): UnifiedRecruiterDecision["conversationStage"] {
+  const q = cleanText(question).toLowerCase();
+  if (/can you hear|how are you|nice to meet|hello|hi/.test(q)) return "audio_check";
+  if (/tell me.*about yourself|background|recent experience|introduce/.test(q)) return "background";
+  if (/why.*(role|position|interested|switch|changing)|why.*customer success|move.*customer/.test(q)) return "role_fit";
+  if (/strength|best at|good at/.test(q)) return "strengths";
+  if (/weakness|development area|challenge/.test(q)) return "weakness";
+  if (/skill|worked with|knowledge of|close that gap|requirement|missing/.test(q)) return "skill_gap";
+  if (/situation|example|time when|handled|difficult|customer|stakeholder|pressure|learn/.test(q)) return "behavioral";
+  return "behavioral";
+}
+
+function detectCandidateSignals(answer: string) {
+  const text = cleanText(answer).toLowerCase();
+  return {
+    hasSupport: /support|technical support|customer support|helpdesk|ticket|issue|resolve|troubleshoot/.test(text),
+    hasCustomer: /customer|client|user|stakeholder|csat|satisfaction|rapport|relationship|returned|asked for me|repeat/.test(text),
+    hasLearning: /learn|quick learner|germany|german|language|adapt|new tool|new product|training/.test(text),
+    hasWeaknessLanguage: /weakness|language|grammar|communication|german|english|improve my/.test(text),
+    hasRoleFit: /customer success|customer service|relationship|retention|onboarding|renewal|support|customer-facing|customer facing/.test(text),
+    hasSpecificExample: /for example|one time|once|situation|when|case|customer|ticket|project|issue/.test(text),
+    hasQualitativeResult: hasQualitativeOutcome(answer),
+    hasQuantResult: hasQuantitativeOutcome(answer),
+    wordCount: text.split(/\s+/).filter(Boolean).length,
+  };
+}
+
+function humanTransition(input: UnifiedRecruiterInput, memory: RecruiterMemoryProfile, answer: string) {
+  const stage = detectQuestionKind(input.currentQuestion || "");
+  const signals = detectCandidateSignals(answer);
+  const targetRole = firstNonEmpty(input.setup?.targetRole, extractRoleFromJobDescription(cleanText(input.setup?.jobDescription)), "this role");
+
+  if (stage === "background" && signals.hasSupport && signals.hasCustomer) {
+    return {
+      accepted: true,
+      stage: "role_fit" as const,
+      replyLead: `That makes sense. Your technical support background gives you direct customer-facing experience, which is relevant for ${targetRole}.`,
+      nextQuestion: `What made you want to move from technical support into ${targetRole}, instead of staying in a purely technical role?`,
+      delta: 3,
+    };
+  }
+
+  if (stage === "role_fit" && (signals.hasCustomer || signals.hasRoleFit || signals.hasSupport)) {
+    return {
+      accepted: true,
+      stage: "behavioral" as const,
+      replyLead: "Okay, I can see the connection now — customer trust and problem-solving are clearly part of your story.",
+      nextQuestion: "Tell me about one difficult customer situation you handled. What was the problem, what did you do, and how did the customer respond?",
+      delta: 3,
+    };
+  }
+
+  if (stage === "weakness" && signals.hasWeaknessLanguage) {
+    return {
+      accepted: true,
+      stage: "skill_gap" as const,
+      replyLead: "That’s a realistic weakness to mention, and I appreciate that you framed it as something you are actively improving.",
+      nextQuestion: `In ${targetRole}, communication is important. How would you make sure language does not affect customer trust or clarity?`,
+      delta: 1,
+    };
+  }
+
+  if (stage === "behavioral" && signals.hasLearning) {
+    return {
+      accepted: true,
+      stage: "behavioral" as const,
+      replyLead: "That is a useful example of adaptation, especially because moving countries and learning a language takes consistency.",
+      nextQuestion: "Now give me a work-related example where you had to learn a product, process, or customer issue quickly.",
+      delta: 2,
+    };
+  }
+
+  if (signals.hasQualitativeResult || signals.hasQuantResult) {
+    const next = buildHumanProgressionQuestion(input, buildEvidenceProfile(cleanText(input.setup?.cvText), cleanText(input.setup?.jobDescription)), memory, answer);
+    return {
+      accepted: true,
+      stage,
+      replyLead: signals.hasQuantResult ? "That gives me a clearer outcome." : "That gives me a qualitative outcome, which is useful.",
+      nextQuestion: next,
+      delta: signals.hasQuantResult ? 4 : 2,
+    };
+  }
+
+  return null;
+}
+
+function shouldAvoidImpactDemand(input: UnifiedRecruiterInput) {
+  const stage = detectQuestionKind(input.currentQuestion || "");
+  // Intro/background answers should be allowed to build the story first.
+  // Do not demand metrics immediately before rapport and role motivation are established.
+  return stage === "background" || stage === "role_fit" || stage === "weakness";
 }
 
 function detectCVConflict(answer: string, profile: CandidateEvidenceProfile) {
@@ -1070,6 +1181,28 @@ function buildFallbackDecision(input: UnifiedRecruiterInput): UnifiedRecruiterDe
     });
   }
 
+  const stageTransition = humanTransition(input, recruiterMemory, answer);
+  if (stageTransition) {
+    return withProfile({
+      intent: "interview_answer",
+      spokenReply: `${stageTransition.replyLead} ${stageTransition.nextQuestion}`,
+      displayQuestion: stageTransition.nextQuestion,
+      shouldAdvanceQuestion: true,
+      shouldCountAsAnswer: true,
+      shouldStayOnCurrentQuestion: false,
+      trustDelta: stageTransition.delta,
+      recruiterState: stageTransition.delta >= 3 ? "engaged" : "interested",
+      feedback: "Accepted the candidate’s answer naturally and moved to the next realistic thread.",
+      conversationStage: stageTransition.stage,
+      psychology: {
+        ...basePsychology,
+        trust: clamp(trust + stageTransition.delta, 12, 92),
+        interest: clamp(basePsychology.interest + 7, 20, 95),
+        engagement: clamp(basePsychology.engagement + 6, 20, 95),
+      },
+    });
+  }
+
   const candidateAttemptedQuestion = answerLikelyAddressesQuestion(answer, currentQuestion);
   const roleEvidence = [
     targetRole,
@@ -1101,7 +1234,7 @@ function buildFallbackDecision(input: UnifiedRecruiterInput): UnifiedRecruiterDe
     });
   }
 
-  if (!hasRoleConnection) {
+  if (!hasRoleConnection && !shouldAvoidImpactDemand(input)) {
     // For customer-success/support roles, customer-facing evidence is already a role link.
     // Do not keep asking the candidate to "make the connection" when they already mentioned customers, support, satisfaction, tickets, or rapport.
     if (hasCustomerSuccessRoleFit(answer, targetRole, input)) {
@@ -1150,7 +1283,7 @@ function buildFallbackDecision(input: UnifiedRecruiterInput): UnifiedRecruiterDe
   }
 
   const impactFollowUp = "Before we move on, give me the result or impact of that work. What changed because of what you did?";
-  const canAcceptAndMove = hasOutcome || acceptedPartialOutcome;
+  const canAcceptAndMove = hasOutcome || acceptedPartialOutcome || shouldAvoidImpactDemand(input);
   const nextQuestion = canAcceptAndMove
     ? buildHumanProgressionQuestion(input, cvRead, recruiterMemory, answer)
     : impactFollowUp;
@@ -1174,7 +1307,9 @@ function buildFallbackDecision(input: UnifiedRecruiterInput): UnifiedRecruiterDe
   return withProfile({
     intent: "interview_answer",
     spokenReply: canAcceptAndMove
-      ? `Okay, that helps. I can see the outcome more clearly. ${nextQuestion}`
+      ? (shouldAvoidImpactDemand(input)
+          ? `Okay, that gives me enough context to continue. ${nextQuestion}`
+          : `Okay, that helps. ${hasQuantitativeOutcome(answer) ? "The impact is clearer now." : "I’ll treat that as a qualitative outcome."} ${nextQuestion}`)
       : `I understand the direction. Give me just one outcome before we move on — even a rough or qualitative one is fine. What changed for the customer, team, or business?`,
     displayQuestion: nextQuestion,
     shouldAdvanceQuestion: canAcceptAndMove,
@@ -1745,6 +1880,12 @@ CONVERSATION STAGE RULES — CRITICAL:
 - At the beginning, treat “I’m good”, “I’m nervous”, “can you hear me”, “thank you”, “no problem” as rapport/small talk, not interview evidence.
 - Do not score, challenge, pressure, or ask for STAR examples during rapport.
 - If the candidate says they are nervous, reassure briefly and ease into “tell me about yourself”.
+- Run the interview like a real human conversation: greeting → background → motivation → strengths/weakness → behavioral examples → role/JD skill gaps.
+- Do not demand metrics during the first background answer. First understand the person and motivation; ask for impact later when the candidate gives a work example.
+- If the candidate gives a qualitative outcome such as customer satisfaction, repeat customers, CSAT, rapport, fewer issues, faster resolution, or positive feedback, accept it and move forward.
+- If the candidate gives a weakness, ask how they manage it in the target role; do not force a generic STAR example immediately.
+- Stay on one thread for 1–2 follow-ups before switching topic; avoid abrupt jumps.
+- Use short human transitions like “That makes sense”, “Okay, I see the connection”, “Let’s go one level deeper”, not diagnostic labels.
 - Only activate deep probing after the candidate has actually answered a real interview question.
 - If the candidate corrects you (“No, I just said I’m doing good”), acknowledge and reset naturally.
 
@@ -2095,6 +2236,30 @@ function applyNaturalConversationGuard(input: UnifiedRecruiterInput, decision: U
       trustDelta: 0,
       recruiterState: "interested",
       feedback: "Rapport handled without scoring.",
+    };
+  }
+
+  const guardedCvRead = decision.cvRead || buildEvidenceProfile(cleanText(input.setup?.cvText), cleanText(input.setup?.jobDescription));
+  const guardedMemory = decision.recruiterMemory || buildRecruiterMemoryProfile(input.transcript, guardedCvRead, input.setup?.recruiterMemoryProfile);
+  const guardedTransition = humanTransition(input, guardedMemory, answer);
+  if (guardedTransition && /give me.*outcome|impact|don.?t yet see|make that link|specific situation/i.test(decision.spokenReply)) {
+    return {
+      ...decision,
+      intent: "interview_answer",
+      spokenReply: `${guardedTransition.replyLead} ${guardedTransition.nextQuestion}`,
+      displayQuestion: guardedTransition.nextQuestion,
+      shouldAdvanceQuestion: true,
+      shouldCountAsAnswer: true,
+      shouldStayOnCurrentQuestion: false,
+      trustDelta: Math.max(decision.trustDelta, guardedTransition.delta),
+      recruiterState: guardedTransition.delta >= 3 ? "engaged" : "interested",
+      feedback: "Guard accepted the candidate answer and prevented an unnatural repeated probe.",
+      conversationStage: guardedTransition.stage,
+      psychology: {
+        ...decision.psychology,
+        trust: clamp(decision.psychology.trust + guardedTransition.delta, 12, 92),
+        interest: clamp(decision.psychology.interest + 5, 20, 95),
+      },
     };
   }
 
