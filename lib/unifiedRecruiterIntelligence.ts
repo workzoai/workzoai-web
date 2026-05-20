@@ -391,7 +391,7 @@ function hasCustomerSuccessRoleFit(answer: string, targetRole: string, input: Un
 }
 
 function buildMemoryAwareCallbackQuestion(input: UnifiedRecruiterInput, cvRead: CandidateEvidenceProfile, targetRole: string) {
-  const recent = recentCandidateText(input, 8).toLowerCase();
+  const recent = `${recentCandidateText(input, 8)} ${cvRead.summary} ${targetRole}`.toLowerCase();
   const askedStrength = hasAskedRecently(input, /strongest professional strength|what.*strength|best at/i);
   const askedWeakness = hasAskedRecently(input, /weakness|development area|challenge/i);
   const askedCustomer = hasAskedRecently(input, /difficult customer|customer situation|unhappy customer|escalation/i);
@@ -721,10 +721,96 @@ function updateMemoryAfterDecision(
     next.roleClaims.length ? `Role memory: ${next.roleClaims.slice(0, 3).join(", ")}` : "Role memory unclear",
     next.companyClaims.length ? `Company memory: ${next.companyClaims.slice(0, 4).join(", ")}` : "No strong company memory",
     next.metricClaims.length ? `Evidence memory: ${next.metricClaims.slice(0, 3).join(", ")}` : "Few measurable claims remembered",
+    next.roleFitSignals.length ? `Sticky candidate signals: ${next.roleFitSignals.slice(0, 4).join(", ")}` : "No sticky candidate signals yet",
     next.openDoubts.length ? `Open doubts: ${next.openDoubts.slice(0, 2).join(" | ")}` : "No major open doubts",
   ].join(". ");
 
   return { memory: next, events };
+}
+
+
+function recruiterDisplayNameFromSetup(setup?: UnifiedRecruiterInput["setup"]) {
+  const raw = cleanText(setup?.recruiterPersonality).toLowerCase();
+  if (raw.includes("sarah") || raw.includes("friendly_hr") || raw.includes("friendly")) return "Sarah";
+  if (raw.includes("priya") || raw.includes("startup_recruiter") || raw.includes("startup")) return "Priya";
+  if (raw.includes("markus") || raw.includes("german_corporate") || raw.includes("corporate")) return "Markus";
+  if (raw.includes("daniel") || raw.includes("analytical_hiring_manager") || raw.includes("analytical")) return "Daniel";
+  return "Sarah";
+}
+
+function detectCandidateMultiIntent(answer: string) {
+  const lower = cleanText(answer).toLowerCase();
+  const wordCount = lower.split(/\s+/).filter(Boolean).length;
+  const asksName = /\b(your name|who are you|what'?s your name|what is your name|let me know your name|may i know your name)\b/i.test(lower);
+  const asksHowAreYou = /\b(how are you|how are you doing|and you\??|what about you)\b/i.test(lower);
+  const audioCheck = /\b(can you hear me|can hear you|i can hear you|can'?t hear|cannot hear|can not hear|no audio|voice is not audible|are you there)\b/i.test(lower);
+  const saysGood = /\b(i'?m|i am|doing|feel|feeling)?\s*(good|fine|okay|ok|great|well|ready)\b/i.test(lower);
+  const saysNervous = /\b(nervous|anxious|bit nervous|little nervous|excited)\b/i.test(lower);
+  const thanks = /\b(thank you|thanks|appreciate)\b/i.test(lower);
+  const hasWorkEvidence = /\b(worked|experience|technical support|customer|client|ticket|project|handled|resolved|managed|led|built|improved|role|support engineer|customer success)\b/i.test(lower);
+  const isMostlySocial = (asksName || asksHowAreYou || audioCheck || saysGood || saysNervous || thanks) && (wordCount <= 28 || !hasWorkEvidence);
+  return { asksName, asksHowAreYou, audioCheck, saysGood, saysNervous, thanks, hasWorkEvidence, isMostlySocial };
+}
+
+function buildMultiIntentRapportReply(input: UnifiedRecruiterInput, targetRole: string) {
+  const answer = cleanText(input.answer);
+  const multi = detectCandidateMultiIntent(answer);
+  const recruiterName = recruiterDisplayNameFromSetup(input.setup);
+  const parts: string[] = [];
+
+  if (multi.asksName) {
+    parts.push(`Of course — I’m ${recruiterName}, your recruiter for this interview.`);
+  }
+
+  if (multi.asksHowAreYou) {
+    parts.push("I’m doing well, thank you for asking.");
+  }
+
+  if (multi.audioCheck) {
+    if (/can'?t hear|cannot hear|can not hear|no audio|voice is not audible/i.test(answer)) {
+      parts.push("Thanks for telling me. I’ll keep the transcript visible as well, and we can continue once the audio is clear on your side.");
+    } else {
+      parts.push("Yes, I can hear you clearly.");
+    }
+  }
+
+  if (multi.saysNervous) {
+    parts.push("That’s completely normal at the start of an interview, so let’s ease into it.");
+  } else if (multi.saysGood || multi.thanks) {
+    parts.push("Good to hear.");
+  }
+
+  const uniqueParts = unique(parts, 4);
+  const prefix = uniqueParts.length ? `${uniqueParts.join(" ")} ` : "Great. ";
+  return `${prefix}To start, tell me a little about your background and what makes you interested in ${targetRole}.`;
+}
+
+function isMostlyMultiIntentRapport(answer: string) {
+  return detectCandidateMultiIntent(answer).isMostlySocial;
+}
+
+function extractStickyMemorySignals(answer: string) {
+  const text = cleanText(answer).toLowerCase();
+  const signals: string[] = [];
+  if (/\btechnical support|support engineer|customer support|ticket|troubleshoot|resolved issues?\b/i.test(text)) {
+    signals.push("Technical support background");
+  }
+  if (/\bcustomer|client|customer-facing|customer facing|rapport|relationship|satisfaction|csat|repeat customer|customers came back|asked for me\b/i.test(text)) {
+    signals.push("Customer-facing experience and satisfaction focus");
+  }
+  if (/\bcustomer success|success manager|retention|onboarding|renewal|account health|relationship management\b/i.test(text)) {
+    signals.push("Motivation toward Customer Success responsibilities");
+  }
+  if (/\b(language|grammar|english|german|communication)\b.*\b(weakness|improve|develop|better|challenge)|\bweakness\b.*\b(language|grammar|english|german|communication)\b/i.test(text)) {
+    signals.push("Language/communication development area");
+  }
+  if (/\bgermany|moved to germany|learned german|learn the language|quick learner|learn quickly|adapted\b/i.test(text)) {
+    signals.push("Adaptability and quick learning after moving/learning language");
+  }
+  if (/\b(fix|resolve|resolved|as soon as possible|faster|quickly|reduced|improved)\b.*\b(issue|customer|ticket|problem)\b/i.test(text)) {
+    signals.push("Fast issue-resolution mindset");
+  }
+  return unique(signals, 8);
 }
 
 function inferIntentHeuristically(answer: string): CandidateIntent {
@@ -801,8 +887,12 @@ function isCandidateRapportReply(answer: string) {
   return false;
 }
 
-function buildRapportReply(answer: string, targetRole: string) {
+function buildRapportReply(answer: string, targetRole: string, input?: UnifiedRecruiterInput) {
   const lower = cleanText(answer).toLowerCase();
+
+  if (input && isMostlyMultiIntentRapport(answer)) {
+    return buildMultiIntentRapportReply(input, targetRole);
+  }
 
   if (/\b(can'?t hear|cannot hear|can not hear|no audio|voice is not audible)\b/i.test(lower)) {
     return `Thanks for telling me. I can hear you on my side, and I’ll keep everything visible in the transcript too. Once you’re ready, let’s start with your background and how it connects to ${targetRole}.`;
@@ -1075,7 +1165,7 @@ function buildFallbackDecision(input: UnifiedRecruiterInput): UnifiedRecruiterDe
   if (isIntroRapportQuestion(currentQuestion) && isCandidateRapportReply(answer)) {
     return withProfile({
       intent: "smalltalk",
-      spokenReply: buildRapportReply(answer, targetRole),
+      spokenReply: buildRapportReply(answer, targetRole, input),
       displayQuestion: introQuestion,
       shouldAdvanceQuestion: false,
       shouldCountAsAnswer: false,
@@ -1090,7 +1180,7 @@ function buildFallbackDecision(input: UnifiedRecruiterInput): UnifiedRecruiterDe
   if (intent === "greeting" || intent === "smalltalk") {
     return withProfile({
       intent,
-      spokenReply: `I’m doing well, thanks for asking. Let’s keep this like a normal interview. To start, tell me a little about your background and what makes you interested in ${targetRole}.`,
+      spokenReply: buildMultiIntentRapportReply(input, targetRole),
       displayQuestion: introQuestion,
       shouldAdvanceQuestion: false,
       shouldCountAsAnswer: false,
@@ -1118,9 +1208,12 @@ function buildFallbackDecision(input: UnifiedRecruiterInput): UnifiedRecruiterDe
   }
 
   if (intent === "candidate_question") {
+    const multi = detectCandidateMultiIntent(answer);
     return withProfile({
       intent,
-      spokenReply: `Yes — I can handle that. I’ll keep side explanations brief so this still feels like an interview. Let’s come back to your answer: ${currentQuestion}`,
+      spokenReply: multi.asksName || multi.asksHowAreYou
+        ? buildMultiIntentRapportReply(input, targetRole)
+        : `Yes — I can handle that. I’ll keep side explanations brief so this still feels like an interview. Let’s come back to your answer: ${currentQuestion}`,
       displayQuestion: currentQuestion,
       shouldAdvanceQuestion: false,
       shouldCountAsAnswer: false,
@@ -1897,6 +1990,17 @@ FOLLOW-UP SATISFACTION RULES — CRITICAL:
 - Do not get stuck demanding metrics. Prefer: “That gives me a qualitative outcome. Do you have any rough numbers?” only once, then move on.
 - A real recruiter balances pressure with momentum. Probe once, then progress.
 
+MULTI-INTENT HANDLING — CRITICAL:
+- If the candidate says multiple social things in one turn, answer all natural parts briefly before continuing. Example: “I’m good, how are you, what’s your name?” → “I’m Sarah, your recruiter today. I’m doing well, thanks for asking. Let’s begin…”
+- If the candidate asks your name, always answer it using your recruiter persona name.
+- If the candidate asks whether you can hear them, answer the audio check first, then continue.
+- Do not ignore social questions just because the interview has started.
+
+VOICE AND PACING RULES — CRITICAL:
+- Write spoken replies for natural TTS: short sentences, clear punctuation, and natural pauses.
+- Avoid long dense paragraphs. Prefer 1–3 human recruiter sentences.
+- Use a short acknowledgement before the next question when useful: “That makes sense.” “Okay, I see the connection.” “Let me ask this a different way.”
+
 REAL-LIFE INTERVIEW FLOW RULES — CRITICAL:
 - Let the candidate introduce themselves naturally before deep probing.
 - Ask natural interview questions: why this role, why changing positions, strengths, weaknesses/development area, difficult customer situation, missing JD skill, ownership, and result.
@@ -2234,12 +2338,34 @@ function applyNaturalConversationGuard(input: UnifiedRecruiterInput, decision: U
   const answer = cleanText(input.answer);
   const targetRole = firstNonEmpty(input.setup?.targetRole, extractRoleFromJobDescription(cleanText(input.setup?.jobDescription)), "this role");
 
+  // Multi-intent social turns such as "I'm good, how are you, what's your name?"
+  // must be answered naturally before the interview continues. Do not score or pressure them.
+  if (isMostlyMultiIntentRapport(answer)) {
+    return {
+      ...decision,
+      intent: "smalltalk",
+      spokenReply: buildMultiIntentRapportReply(input, targetRole),
+      displayQuestion: `Tell me a little about yourself and connect your recent experience to ${targetRole}.`,
+      shouldAdvanceQuestion: false,
+      shouldCountAsAnswer: false,
+      shouldStayOnCurrentQuestion: true,
+      trustDelta: 0,
+      recruiterState: "interested",
+      feedback: "Handled multi-intent rapport turn without scoring or pressure.",
+      psychology: {
+        ...decision.psychology,
+        patience: clamp(decision.psychology.patience + 3, 20, 95),
+        engagement: clamp(decision.psychology.engagement + 2, 20, 95),
+      },
+    };
+  }
+
   // Never let the model score or pressure basic rapport.
   if (isIntroRapportQuestion(input.currentQuestion || "") && isCandidateRapportReply(answer)) {
     return {
       ...decision,
       intent: "smalltalk",
-      spokenReply: buildRapportReply(answer, targetRole),
+      spokenReply: buildRapportReply(answer, targetRole, input),
       displayQuestion: `Tell me a little about yourself and connect your recent experience to ${targetRole}.`,
       shouldAdvanceQuestion: false,
       shouldCountAsAnswer: false,

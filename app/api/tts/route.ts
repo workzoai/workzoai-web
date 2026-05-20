@@ -17,8 +17,13 @@ const allowedVoices = new Set([
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { text?: string; voice?: string };
-    const text = typeof body.text === "string" ? body.text.trim() : "";
+    const body = (await request.json()) as { text?: string; voice?: string; mode?: string };
+    const text = typeof body.text === "string"
+      ? body.text
+          .replace(/\s+/g, " ")
+          .replace(/(um+|uh+|erm)/gi, "")
+          .trim()
+      : "";
     const requestedVoice =
       typeof body.voice === "string" ? body.voice.trim().toLowerCase() : "";
     const voice = allowedVoices.has(requestedVoice)
@@ -37,9 +42,9 @@ export async function POST(request: Request) {
     }
 
     const speech = await client.audio.speech.create({
-      model: process.env.OPENAI_TTS_MODEL || "tts-1",
+      model: process.env.OPENAI_TTS_MODEL || "tts-1-hd",
       voice: voice as "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer",
-      input: text.slice(0, 1200),
+      input: text.slice(0, 900),
       response_format: "mp3",
     });
 
