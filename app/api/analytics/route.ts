@@ -6,6 +6,12 @@ export const runtime = "nodejs";
 
 type AnalyticsRow = {
   id?: number | string;
+  host?: string | null;
+  origin?: string | null;
+  isLocal?: boolean | null;
+  is_local?: boolean | null;
+  environment?: string | null;
+  deployment?: string | null;
   session_id?: string | null;
   sessionId?: string | null;
   event?: string | null;
@@ -24,6 +30,12 @@ type AnalyticsRow = {
 
 type AnalyticsPayload = {
   sessionId?: string;
+  host?: string;
+  origin?: string;
+  isLocal?: boolean;
+  is_local?: boolean;
+  environment?: string;
+  deployment?: string;
   session_id?: string;
   event?: string;
   path?: string;
@@ -75,6 +87,60 @@ function getSupabaseClient() {
   });
 }
 
+function getHostnameFromUrl(value?: string | null) {
+  if (!value) return "";
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return String(value).replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
+  }
+}
+
+function isBlockedAnalyticsHost(hostname?: string | null) {
+  const host = String(hostname || "").toLowerCase().trim();
+  if (!host) return false;
+
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "0.0.0.0" ||
+    host.startsWith("192.168.") ||
+    host.startsWith("10.") ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+    host.endsWith(".local") ||
+    host.endsWith(".test") ||
+    host.endsWith(".localhost") ||
+    host.includes("vercel.app")
+  );
+}
+
+function isInternalAnalyticsPayload(value: Partial<AnalyticsPayload | AnalyticsRow>) {
+  const metadata = ((value as AnalyticsPayload).metadata || (value as AnalyticsPayload).details || {}) as Record<string, unknown>;
+  const host =
+    (value as AnalyticsPayload).host ||
+    getHostnameFromUrl((value as AnalyticsPayload).origin) ||
+    getHostnameFromUrl(metadata.host as string | undefined) ||
+    getHostnameFromUrl(metadata.origin as string | undefined);
+
+  const environment = String((value as AnalyticsPayload).environment || metadata.environment || "").toLowerCase();
+  const deployment = String((value as AnalyticsPayload).deployment || metadata.deployment || "").toLowerCase();
+  const isLocal = Boolean(
+    (value as AnalyticsPayload).isLocal ||
+      (value as AnalyticsPayload).is_local ||
+      metadata.isLocal ||
+      metadata.is_local
+  );
+
+  return (
+    isLocal ||
+    isBlockedAnalyticsHost(host) ||
+    environment === "development" ||
+    environment === "test" ||
+    deployment === "preview" ||
+    deployment === "development"
+  );
+}
+
 function normalizeDevice(value?: string | null) {
   const text = String(value || "").toLowerCase();
   if (text.includes("tablet") || text.includes("ipad")) return "tablet";
@@ -95,6 +161,9 @@ function normalizeDevice(value?: string | null) {
 function normalizeEvent(row: AnalyticsRow): AnalyticsRow {
   return {
     ...row,
+    host: row.host || getHostnameFromUrl(row.origin) || null,
+    origin: row.origin || null,
+    isLocal: Boolean(row.isLocal || row.is_local),
     session_id: row.session_id || row.sessionId || "unknown-session",
     event: row.event || "unknown_event",
     path: row.path || "/",
@@ -115,7 +184,8 @@ function increment(map: Record<string, number>, key?: string | null) {
 }
 
 function buildSummary(rows: AnalyticsRow[]): FounderSummary {
-  const normalized = rows.map(normalizeEvent);
+  const productionRows = rows.filter((row) => !isInternalAnalyticsPayload(row));
+  const normalized = productionRows.map(normalizeEvent);
   const eventCounts: Record<string, number> = {};
   const recruiterCounts: Record<string, number> = {};
   const sessions = new Set<string>();
@@ -226,7 +296,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as AnalyticsPayload;
-    const metadata = body.metadata || body.details || {};
+    const metadata = { ...(body.metadata || body.details || {}) };
+
+    if (isInternalAnalyticsPayload(body)) {
+      return NextResponse.json({ success: true, skipped: true, reason: "internal_or_preview_traffic" });
+    }
 
     const payload = {
       session_id: body.session_id || body.sessionId || crypto.randomUUID(),
@@ -238,7 +312,14 @@ export async function POST(req: NextRequest) {
       mode: body.mode || null,
       role: body.role || null,
       market: body.market || null,
-      metadata,
+      metadata: {
+        ...metadata,
+        host: body.host || null,
+        origin: body.origin || null,
+        isLocal: Boolean(body.isLocal || body.is_local),
+        environment: body.environment || process.env.NODE_ENV || null,
+        deployment: body.deployment || process.env.VERCEL_ENV || null,
+      },
       created_at: new Date().toISOString(),
     };
 
@@ -300,14 +381,15 @@ export async function GET() {
     }
 
     const rows = Array.isArray(data) ? (data as AnalyticsRow[]) : [];
-    const summary = buildSummary(rows);
+    const productionRows = rows.filter((row) => !isInternalAnalyticsPayload(row));
+    const summary = buildSummary(productionRows);
 
     return NextResponse.json({
       success: true,
       summary,
       stats: summary,
-      recentEvents: rows.slice(0, 50).map(normalizeEvent),
-      events: rows.map(normalizeEvent),
+      recentEvents: productionRows.slice(0, 50).map(normalizeEvent),
+      events: productionRows.map(normalizeEvent),
       generatedAt: new Date().toISOString(),
     });
   } catch (error) {

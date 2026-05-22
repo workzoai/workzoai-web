@@ -40,15 +40,28 @@ function safeNow() {
   return new Date().toISOString();
 }
 
-function isLocalHost() {
-  if (typeof window === "undefined") return true;
+function isBlockedAnalyticsHost(hostname: string) {
+  const host = hostname.toLowerCase().trim();
   return (
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1" ||
-    window.location.hostname.startsWith("192.168.") ||
-    window.location.hostname.startsWith("10.") ||
-    window.location.hostname.endsWith(".local")
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "0.0.0.0" ||
+    host.startsWith("192.168.") ||
+    host.startsWith("10.") ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+    host.endsWith(".local") ||
+    host.endsWith(".test") ||
+    host.endsWith(".localhost") ||
+    host.includes("vercel.app")
   );
+}
+
+function shouldSkipProductionAnalytics() {
+  if (typeof window === "undefined") return true;
+  if (process.env.NODE_ENV !== "production") return true;
+  if (process.env.NEXT_PUBLIC_WORKZO_DISABLE_ANALYTICS === "true") return true;
+  if (isBlockedAnalyticsHost(window.location.hostname)) return true;
+  return false;
 }
 
 function trafficSource() {
@@ -83,6 +96,7 @@ function getSessionId() {
 
 function sendToFounderApi(item: Record<string, unknown>) {
   if (typeof window === "undefined") return;
+  if (shouldSkipProductionAnalytics()) return;
   try {
     const serialized = JSON.stringify(item);
     if (navigator.sendBeacon) {
@@ -104,6 +118,8 @@ function sendToFounderApi(item: Record<string, unknown>) {
 export function trackWorkZoLaunchEvent(payload: WorkZoAnalyticsPayload) {
   if (typeof window === "undefined") return;
 
+  const isInternal = shouldSkipProductionAnalytics();
+
   const item = {
     ...payload,
     sessionId: getSessionId(),
@@ -111,6 +127,11 @@ export function trackWorkZoLaunchEvent(payload: WorkZoAnalyticsPayload) {
     path: window.location.pathname,
     referrer: document.referrer,
     source: trafficSource(),
+    host: window.location.hostname,
+    origin: window.location.origin,
+    isLocal: isInternal,
+    environment: process.env.NODE_ENV,
+    deployment: process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.VERCEL_ENV || null,
     userAgent: navigator.userAgent,
   };
 

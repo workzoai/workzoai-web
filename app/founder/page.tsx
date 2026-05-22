@@ -148,7 +148,7 @@ export default function FounderDashboard() {
             <p className="text-xs font-black uppercase tracking-[0.45em] text-cyan-300">Founder Analytics</p>
             <h1 className="mt-4 text-4xl font-black tracking-tight md:text-6xl">WorkZo AI Dashboard</h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-blue-100/80 md:text-lg">
-              Real launch analytics from Supabase: interviews, completion, devices, recruiters, errors, and recent activity.
+              Production-only analytics from Supabase: interviews, completion, unique device sessions, recruiters, errors, and recent activity. Localhost and preview traffic are filtered out.
             </p>
           </div>
           <button
