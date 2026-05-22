@@ -215,6 +215,73 @@ function cleanText(value: unknown) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
 
+
+
+// Phase 1.5 semantic recovery for noisy speech-to-text.
+// This is intentionally conservative: it only adds recovered context when nearby
+// words already show a customer-support/router/Wi-Fi situation. It does not
+// rewrite the user's answer for display; it gives the recruiter brain a cleaner
+// analysis input so a valid spoken example is not rejected as vague.
+function recoverNoisySpokenTranscript(textRaw: string) {
+  let text = cleanText(textRaw);
+  if (!text) return text;
+
+  const lower = text.toLowerCase();
+  const hasRouterContext = /\b(router|routers|wi[-\s]?fi|wifi|internet|firmware|affirmware|ip address|computer|connect|technical|device|network)\b/i.test(lower);
+  const hasCustomerContext = /\b(customer|client|user|consumer|b2b|b2c|old|older|scared|non[-\s]?technical|no experience)\b/i.test(lower);
+
+  // Common browser/STT corruptions for the user's Linksys/Belkin router examples.
+  if (hasRouterContext || hasCustomerContext) {
+    text = text
+      .replace(/\blinkedin fraud\b/gi, "Linksys router")
+      .replace(/\blinked in fraud\b/gi, "Linksys router")
+      .replace(/\blengths and links are\b/gi, "Linksys")
+      .replace(/\blinks are\b/gi, "Linksys")
+      .replace(/\blink says\b/gi, "Linksys")
+      .replace(/\blinksys products?\b/gi, "Linksys products")
+      .replace(/\blang balcon\b/gi, "Belkin")
+      .replace(/\blang belcon\b/gi, "Belkin")
+      .replace(/\bbalcon\b/gi, "Belkin")
+      .replace(/\bbelcan\b/gi, "Belkin")
+      .replace(/\baffirmware\b/gi, "firmware")
+      .replace(/\ba firmware\b/gi, "firmware")
+      .replace(/\bwrap with (her|him|them|the customer)\b/gi, "rapport with $1")
+      .replace(/\bgood wrap\b/gi, "good rapport")
+      .replace(/\bbuild a wrap\b/gi, "build rapport")
+      .replace(/\bp2b\b/gi, "B2B")
+      .replace(/\bb two b\b/gi, "B2B")
+      .replace(/\bb to b\b/gi, "B2B")
+      .replace(/\bb2 c\b/gi, "B2C")
+      .replace(/\bb two c\b/gi, "B2C")
+      .replace(/\bb to c\b/gi, "B2C");
+  }
+
+  const recoveredLower = text.toLowerCase();
+  const nowHasRouterExample = /\b(linksys|belkin|router|firmware|ip address|wi[-\s]?fi|wifi)\b/i.test(recoveredLower);
+  const hasHumanSupportStory = /\b(old|older|scared|non[-\s]?technical|no experience|step[-\s]?by[-\s]?step|guided|explained|satisfied|happy|resolved|fixed)\b/i.test(recoveredLower);
+
+  if (nowHasRouterExample && hasHumanSupportStory && !/\bconcrete customer-support example\b/i.test(recoveredLower)) {
+    text += " Concrete customer-support example: non-technical customer, router/Wi-Fi issue, firmware or IP-address check, step-by-step guidance, issue resolved or customer satisfied.";
+  }
+
+  return cleanText(text);
+}
+
+function recoverUnifiedRecruiterInput(input: UnifiedRecruiterInput): UnifiedRecruiterInput {
+  const recoveredAnswer = recoverNoisySpokenTranscript(input.answer);
+  if (recoveredAnswer === cleanText(input.answer)) return input;
+
+  return {
+    ...input,
+    answer: recoveredAnswer,
+    transcript: (input.transcript || []).map((item, index, arr) => {
+      if (item.role !== "candidate") return item;
+      const isLastCandidate = arr.slice(index + 1).every((next) => next.role !== "candidate");
+      return isLastCandidate ? { ...item, text: recoveredAnswer } : item;
+    }),
+  };
+}
+
 function compact(value: string, max = 180) {
   const text = cleanText(value);
   return text.length > max ? `${text.slice(0, max - 1).trim()}…` : text;
@@ -1539,7 +1606,7 @@ function buildRapportReply(
     return `Fair enough — thanks for clarifying. I won’t treat that as an interview answer. Let’s start properly: tell me a little about yourself and how your background connects to ${targetRole}.`;
   }
 
-  return `Good to hear. Let’s start naturally: tell me a little about yourself and how your recent experience connects to ${targetRole}.`;
+  return buildNaturalSocialReply(answer, targetRole);
 }
 
 function answerLikelyAddressesQuestion(
@@ -1608,6 +1675,279 @@ function getRecentRecruiterLines(input: UnifiedRecruiterInput, take = 6) {
 function getLastRecruiterLine(input: UnifiedRecruiterInput) {
   return getRecentRecruiterLines(input, 1)[0] || "";
 }
+
+function tinyHashForVariation(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function pickNaturalRecruiterLead(
+  input: UnifiedRecruiterInput,
+  options: string[],
+  fallback = "Okay.",
+) {
+  const recent = getRecentRecruiterLines(input, 8).join(" ").toLowerCase();
+  const cleanOptions = options
+    .map((option) => cleanText(option))
+    .filter(Boolean)
+    .filter((option) => {
+      const lower = option.toLowerCase();
+      return !recent.includes(lower) && !lower.includes("that gives me");
+    });
+  const pool = cleanOptions.length > 0 ? cleanOptions : [fallback];
+  const seed = `${cleanText(input.answer)}|${recent}|${pool.length}`;
+  return pool[tinyHashForVariation(seed) % pool.length] || fallback;
+}
+
+
+function isKnowledgeCheckTangent(answer: string) {
+  const text = cleanText(answer).toLowerCase();
+  return /\b(do you know|you know about|have you heard of|are you familiar with)\b/.test(text) &&
+    /\b(b2b|b2c|business to business|business-to-business|business to consumer|business-to-consumer|crm|saas|customer success|support|ticket|sla|nps|csat)\b/.test(text);
+}
+
+function buildKnowledgeCheckRedirect(input: UnifiedRecruiterInput, answer: string) {
+  const text = cleanText(answer).toLowerCase();
+  const currentQuestion = cleanText(input.currentQuestion) || "Tell me about yourself.";
+
+  if (/\bb2b\b|\bb2c\b|business to business|business-to-business|business to consumer|business-to-consumer/.test(text)) {
+    return {
+      spokenReply:
+        "Yes, I do. Don't explain B2B or B2C to me — use it in your example. Give me one customer situation, what the problem was, what you personally did, and what happened after that.",
+      displayQuestion:
+        "Give me one B2B or B2C customer example: the problem, your action, and the outcome.",
+    };
+  }
+
+  return {
+    spokenReply:
+      `Yes, I understand the term. Keep going with the example. ${currentQuestion}`,
+    displayQuestion: currentQuestion,
+  };
+}
+
+
+function isSocialGreetingOnly(answer: string) {
+  const text = cleanText(answer).toLowerCase();
+  const words = text.split(/\s+/).filter(Boolean);
+  if (!text) return false;
+
+  const hasGreeting = /\b(hi|hello|hey|good morning|good afternoon|good evening|thank you|thanks|thanks for inviting|thanks for the opportunity|how are you|how are you doing|i am good|i'm good|i am fine|i'm fine|doing well|all good)\b/i.test(text);
+  const hasInterviewContent = /\b(experience|worked|role|customer|support|success|manager|project|handled|technical|company|skill|background|interested|because|fit)\b/i.test(text);
+
+  return hasGreeting && !hasInterviewContent && words.length <= 24;
+}
+
+function stripBadSocialLead(replyRaw: string) {
+  return cleanText(replyRaw)
+    .replace(/^\s*(i see|okay,? i see|okay|understood|right)\.\s*(?=i(?:'|’)m doing well|i am doing well|doing well|thank you for asking|thanks for asking)/i, "")
+    .replace(/^\s*(i see|okay,? i see)\.\s*/i, "")
+    .replace(/\bGood to hear\.\s*Good to hear\.\s*/gi, "Good to hear. ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function buildNaturalSocialReply(answer: string, targetRole: string) {
+  const text = cleanText(answer).toLowerCase();
+  const askedHowAreYou = /\bhow are you|how are you doing\b/i.test(text);
+  const thanked = /\b(thank you|thanks|thanks for inviting|opportunity)\b/i.test(text);
+  const saysGood = /\b(i am good|i'm good|i am fine|i'm fine|doing well|all good|good)\b/i.test(text);
+
+  let prefix = "";
+  if (askedHowAreYou && thanked) {
+    prefix = "I’m doing well, thank you — and you’re welcome.";
+  } else if (askedHowAreYou) {
+    prefix = "I’m doing well, thank you for asking.";
+  } else if (thanked) {
+    prefix = "You’re welcome.";
+  } else if (saysGood) {
+    prefix = "Good to hear.";
+  } else {
+    prefix = "Great.";
+  }
+
+  return `${prefix} Let’s start with your background and what makes you interested in ${targetRole}.`;
+}
+
+function isDocumentationOrProcessAnswer(answer: string) {
+  const text = recoverNoisySpokenTranscript(answer).toLowerCase();
+  const words = text.split(/\s+/).filter(Boolean);
+  const hasDoc = /\b(document|documents|documented|documentation|notes|case notes|call notes|ticket|tickets|crm|system|log|logged|record|records|article|knowledge base|kb|shared|handover|next technician|next agent|next person|same customer returns|previous steps|steps tried)\b/i.test(text);
+  const hasAction = /\b(i document|we document|i write|we write|i update|we update|i log|we log|i add|we add|open the document|open the ticket|see what happened|what steps|steps i tried|after every call)\b/i.test(text);
+  return words.length >= 10 && (hasDoc || hasAction);
+}
+
+function wasAskingForDocumentationOrPrevention(input: UnifiedRecruiterInput) {
+  const recent = getRecentRecruiterLines(input, 6).join(" ").toLowerCase();
+  const current = cleanText(input.currentQuestion).toLowerCase();
+  const context = `${recent} ${current}`;
+  return /\b(document|share that learning|same issue is easier|prevent the same issue|prevent it happening again|after the fix|same problem from coming back|knowledge base|easier for the next customer|next customer|longer-term customer-success relationship)\b/i.test(context);
+}
+
+function buildDocumentationProgressionReply(input: UnifiedRecruiterInput, targetRole: string) {
+  const lead = pickNaturalRecruiterLead(input, [
+    "Good — that is more operational.",
+    "That is the right process thinking.",
+    "Okay, that helps.",
+    "Good, that covers the internal handover.",
+  ], "Good, that covers the process side.");
+
+  const role = cleanText(targetRole).toLowerCase();
+  if (/customer success|success manager|account manager|client success|customer/.test(role)) {
+    return {
+      spokenReply: `${lead} Now let’s move beyond support. How would you proactively reduce repeat tickets before the customer has to contact you again?`,
+      displayQuestion: "How would you proactively reduce repeat tickets before the customer has to contact you again?",
+    };
+  }
+
+  return {
+    spokenReply: `${lead} Now take it one step further. How would you use that learning to improve the process for the next customer or teammate?`,
+    displayQuestion: "How would you use that learning to improve the process for the next customer or teammate?",
+  };
+}
+
+function naturalizeRecruiterReply(input: UnifiedRecruiterInput, replyRaw: string) {
+  let reply = stripBadSocialLead(replyRaw);
+  if (!reply) return reply;
+
+  const targetRole = firstNonEmpty(
+    input.setup?.targetRole,
+    extractRoleFromJobDescription(cleanText(input.setup?.jobDescription)),
+    "this role",
+  );
+
+  if (isSocialGreetingOnly(input.answer)) {
+    return buildNaturalSocialReply(input.answer, targetRole);
+  }
+
+  const recent = getRecentRecruiterLines(input, 8).join(" ").toLowerCase();
+  const repeatedDirection =
+    /okay,?\s*i understand the direction\.?\s*/i.test(reply) ||
+    /you(?:'|’)re saying your customer-facing support experience is what attracts you to/i.test(reply);
+
+  if (repeatedDirection) {
+    const lead = pickNaturalRecruiterLead(input, [
+      "Right.",
+      "Okay.",
+      "Support experience helps — but Customer Success is different.",
+      "That transition makes sense.",
+      "I get the bridge from support to customer success.",
+    ], "Right.");
+
+    reply = reply
+      .replace(/okay,?\s*i understand the direction\.?\s*/gi, "")
+      .replace(/you(?:'|’)re saying your customer-facing support experience is what attracts you to [^.]+\.\s*/gi, "")
+      .replace(/your customer-facing support experience is a relevant bridge into [^.]+\.\s*/gi, "")
+      .trim();
+
+    reply = `${lead} ${reply}`.trim();
+  }
+
+  // Avoid repeating the same opening scaffold across consecutive recruiter turns.
+  if (recent.includes("okay, i understand the direction") && /^okay,?\s*i understand/i.test(reply)) {
+    reply = reply.replace(/^okay,?\s*i understand[^.]*\.\s*/i, "Right. ");
+  }
+
+  // Keep Daniel-style pacing tighter: avoid two full explanatory sentences before a question.
+  reply = reply
+    .replace(/Good to hear\.\s*To start,/i, "Good. To start,")
+    .replace(/That gives me a practical view of your customer-handling style\.\s*/gi, "")
+    .replace(/That gives me a clearer picture of how you handle customers\.\s*/gi, "")
+    .replace(/I’m following you, but\s*/i, "I’m following, but ")
+    .replace(/Support experience helps — but Customer Success is different\.\s*Your support background is useful, but Customer Success is more proactive\./gi, "Support is reactive; Customer Success is more proactive.")
+    .replace(/Support is reactive; Customer Success is more proactive\.\s*Tell me about a customer issue you handled, then explain what you would do after the fix to prevent the same problem from coming back\./gi, "Give me one customer issue you handled, then tell me what you would do after the fix to prevent it happening again.")
+    .replace(/Your support background is useful, but Customer Success is more proactive\.\s*Tell me about a customer issue you handled, then explain what you would do after the fix to prevent the same problem from coming back\./gi, "Give me one customer issue you handled, then tell me what you would do after the fix to prevent it happening again.")
+    .replace(/Okay, I see the direction\.\s*/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  if (
+    recent.includes("support is reactive") &&
+    /^support is reactive; customer success is more proactive\./i.test(reply)
+  ) {
+    reply = reply.replace(/^support is reactive; customer success is more proactive\.\s*/i, "");
+  }
+
+  if (
+    recent.includes("support experience helps") &&
+    /^support experience helps\s*[—-]\s*but customer success is different\.\s*/i.test(reply)
+  ) {
+    reply = reply.replace(/^support experience helps\s*[—-]\s*but customer success is different\.\s*/i, "");
+  }
+
+  return stripBadSocialLead(reply);
+}
+
+function buildCustomerHandlingLead(input: UnifiedRecruiterInput, answer: string) {
+  const signals = detectOperationalCustomerSignals(answer);
+
+  if (signals.empathy && !signals.stepByStep) {
+    return pickNaturalRecruiterLead(input, [
+      "Okay, the empathy part is clear.",
+      "Good — you are thinking about the customer's stress.",
+      "I can see you focused on calming the customer first.",
+      "That part makes sense.",
+    ]);
+  }
+
+  if (signals.stepByStep || signals.technicalTranslation) {
+    return pickNaturalRecruiterLead(input, [
+      "Good, now we are getting into the practical part.",
+      "Okay, that is more concrete.",
+      "I can follow the steps now.",
+      "That sounds closer to a real support situation.",
+    ]);
+  }
+
+  if (signals.relationship) {
+    return pickNaturalRecruiterLead(input, [
+      "The relationship angle is relevant here.",
+      "Good — trust is important for this role.",
+      "That is the right direction for customer success.",
+      "Okay, the rapport point is useful.",
+    ]);
+  }
+
+  return pickNaturalRecruiterLead(input, [
+    "Okay.",
+    "I understand.",
+    "That is clearer.",
+    "Good, let’s go one level deeper.",
+    "I can work with that.",
+  ]);
+}
+
+function buildOutcomeLead(input: UnifiedRecruiterInput, hasQuantResult: boolean) {
+  if (hasQuantResult) {
+    return pickNaturalRecruiterLead(input, [
+      "Good, that gives me an actual result.",
+      "Okay, the outcome is clearer now.",
+      "That is stronger because you gave me impact.",
+      "Good — now I have something measurable to judge.",
+    ]);
+  }
+
+  return pickNaturalRecruiterLead(input, [
+    "Okay, that is a useful outcome.",
+    "That helps, although I would still like numbers if you have them.",
+    "I understand the result qualitatively.",
+    "That is useful context.",
+  ]);
+}
+
+function buildProgressionLead(input: UnifiedRecruiterInput) {
+  return pickNaturalRecruiterLead(input, [
+    "Okay, let’s move this forward.",
+    "Let’s go one level deeper.",
+    "I want to test this from another angle.",
+    "Good, I’m going to shift the question slightly.",
+    "Alright, let’s make this more specific.",
+  ]);
+}
+
 
 function wasLastRecruiterAskingForDecision(input: UnifiedRecruiterInput) {
   const text =
@@ -1898,7 +2238,7 @@ function isOpeningQuestionRepeatAfterRelevantAnswer(input: UnifiedRecruiterInput
 function buildShortAnswerAcceptanceReply(input: UnifiedRecruiterInput, answer: string, targetRole: string) {
   const nextQuestion = buildCustomerSuccessDepthQuestion(input, answer, targetRole);
   return {
-    spokenReply: `Okay, I understand the direction. You’re saying your customer-facing support experience is what attracts you to ${targetRole}. ${nextQuestion}`,
+    spokenReply: naturalizeRecruiterReply(input, `Support experience helps — but Customer Success is different. ${nextQuestion}`),
     displayQuestion: nextQuestion,
   };
 }
@@ -1961,7 +2301,7 @@ function buildOperationalCustomerFollowUp(
   }
 
   if (signals.ownership && signals.substantial) {
-    return `That gives me a clearer picture of how you handle customers. What would you improve if you had to handle the same situation again today?`;
+    return `What would you improve if you had to handle the same situation again today?`;
   }
 
   return `Let’s make this more practical. In that moment, what was the first thing you did to reduce the customer’s frustration?`;
@@ -1978,6 +2318,71 @@ function isCustomerOperationalAnswer(answer: string) {
       signals.relationship ||
       signals.b2bOrB2c)
   );
+}
+
+
+function isSpokenConcreteCustomerExample(answer: string) {
+  const text = recoverNoisySpokenTranscript(answer).toLowerCase();
+  const words = text.split(/\s+/).filter(Boolean);
+
+  const hasCustomerContext = /\b(customer|client|user|b2b|b2c|consumer|business customer|end user|old|older|non[- ]?technical)\b/.test(text);
+  const hasSpecificSituation = /\b(once|one time|i handled|i worked|there was|she|he|they|router|routers|linksys|belkin|firmware|ip address|computer|internet|wi[- ]?fi|wifi|technical issue|issue|problem)\b/.test(text);
+  const hasPersonalAction = /\b(i understood|i took|i asked|i gave|i explained|i guided|i fixed|i helped|i built|i walked|step[- ]?by[- ]?step|slowly|calm|rapport|wrap|rapple|instruction|instructions)\b/.test(text);
+  const hasOutcome = /\b(fixed|resolved|solved|happy|satisfied|worked|issue was resolved|customer was happy|she was happy|he was happy|they were happy)\b/.test(text);
+  const hasRecoveredRouterStory = /\b(linksys|belkin|router|firmware|ip address|wi[- ]?fi|wifi)\b/.test(text) && /\b(step[- ]?by[- ]?step|guided|instruction|instructions|satisfied|scared|old|older|computer)\b/.test(text);
+
+  return (
+    words.length >= 22 &&
+    (hasRecoveredRouterStory || (hasCustomerContext && hasSpecificSituation && hasPersonalAction)) &&
+    (hasOutcome || hasRecoveredRouterStory || /step[- ]?by[- ]?step|guided|explained|calm|instructions?/.test(text))
+  );
+}
+
+function wasAskingForConcreteCustomerExample(input: UnifiedRecruiterInput) {
+  const recent = getRecentRecruiterLines(input, 5).join(" ").toLowerCase();
+  const current = cleanText(input.currentQuestion).toLowerCase();
+  const context = `${recent} ${current}`;
+
+  return /customer issue|customer situation|specific situation|concrete customer example|problem.*personally did|after the fix|prevent.*coming back|longer[- ]term customer|customer-success relationship/.test(context);
+}
+
+function buildAcceptedSpokenCustomerExampleReply(
+  input: UnifiedRecruiterInput,
+  answer: string,
+  targetRole: string,
+) {
+  const text = recoverNoisySpokenTranscript(answer).toLowerCase();
+  const isCustomerSuccess = /customer success|success manager|account manager|retention|renewal/.test(
+    cleanText(targetRole).toLowerCase(),
+  );
+  const lead = pickNaturalRecruiterLead(input, [
+    "Good, that is a real example.",
+    "Okay, now I have a concrete situation.",
+    "That example helps.",
+    "Right, now we are talking about an actual customer case.",
+  ], "Good, that is concrete.");
+
+  if (/happy|satisfied|resolved|fixed|solved/.test(text) && isCustomerSuccess) {
+    return {
+      spokenReply: `${lead} In support, resolving the issue is the end. In Customer Success, it is usually the start. After that router issue was fixed, what would you do next to keep that customer successful long term?`,
+      displayQuestion:
+        "After the issue was fixed, what would you do next to build a longer-term customer-success relationship?",
+    };
+  }
+
+  if (/step[- ]?by[- ]?step|explained|guided|computer|ip address|firmware|technical/.test(text)) {
+    return {
+      spokenReply: `${lead} You translated something technical for a non-technical customer. How would you document or share that learning so the same issue is easier for the next customer?`,
+      displayQuestion:
+        "How would you prevent the same issue or make it easier for the next customer?",
+    };
+  }
+
+  return {
+    spokenReply: `${lead} What was the outcome, and what would you do differently if you handled the same customer today?`,
+    displayQuestion:
+      "What was the outcome, and what would you improve if you handled the same customer today?",
+  };
 }
 
 function humanTransition(
@@ -2003,7 +2408,7 @@ function humanTransition(
       accepted: true,
       stage: wantsCustomerSuccess ? ("behavioral" as const) : ("role_fit" as const),
       replyLead: wantsCustomerSuccess
-        ? `Okay, I understand the direction. Your customer-facing support experience is a relevant bridge into ${targetRole}.`
+        ? `Support experience helps — but Customer Success is different.`
         : `That makes sense. Your technical support background gives you direct customer-facing experience, which is relevant for ${targetRole}.`,
       nextQuestion: wantsCustomerSuccess
         ? buildCustomerSuccessDepthQuestion(input, answer, targetRole)
@@ -2057,8 +2462,7 @@ function humanTransition(
     return {
       accepted: true,
       stage: "behavioral" as const,
-      replyLead:
-        "That gives me a more practical view of how you handle customers.",
+      replyLead: buildCustomerHandlingLead(input, answer),
       nextQuestion: buildOperationalCustomerFollowUp(input, answer, targetRole),
       delta: 3,
     };
@@ -2077,9 +2481,7 @@ function humanTransition(
     return {
       accepted: true,
       stage,
-      replyLead: signals.hasQuantResult
-        ? "That gives me a clearer outcome."
-        : "That gives me a qualitative outcome, which is useful.",
+      replyLead: buildOutcomeLead(input, signals.hasQuantResult),
       nextQuestion: next,
       delta: signals.hasQuantResult ? 4 : 2,
     };
@@ -2229,6 +2631,25 @@ function buildFallbackDecision(
     };
   };
 
+  if (isSocialGreetingOnly(answer)) {
+    return withProfile({
+      intent: "smalltalk",
+      spokenReply: buildNaturalSocialReply(answer, targetRole),
+      displayQuestion: introQuestion,
+      shouldAdvanceQuestion: false,
+      shouldCountAsAnswer: false,
+      shouldStayOnCurrentQuestion: true,
+      trustDelta: 0,
+      recruiterState: "interested",
+      feedback: "Handled social greeting naturally without analytical filler.",
+      psychology: {
+        ...basePsychology,
+        patience: clamp(basePsychology.patience + 4, 20, 95),
+        engagement: clamp(basePsychology.engagement + 2, 20, 95),
+      },
+    });
+  }
+
   if (
     isIntroRapportQuestion(currentQuestion) &&
     isCandidateRapportReply(answer)
@@ -2284,20 +2705,24 @@ function buildFallbackDecision(
 
   if (intent === "candidate_question") {
     const multi = detectCandidateMultiIntent(answer);
+    const tangentRedirect = isKnowledgeCheckTangent(answer)
+      ? buildKnowledgeCheckRedirect(input, answer)
+      : null;
     return withProfile({
       intent,
-      spokenReply:
-        multi.asksName || multi.asksHowAreYou
+      spokenReply: tangentRedirect
+        ? tangentRedirect.spokenReply
+        : multi.asksName || multi.asksHowAreYou
           ? buildMultiIntentRapportReply(input, targetRole)
-          : `Yes — I can handle that. I’ll keep side explanations brief so this still feels like an interview. Let’s come back to your answer: ${currentQuestion}`,
-      displayQuestion: currentQuestion,
+          : `Yes. Keep the side explanation brief so this still feels like an interview. Come back to the example: ${currentQuestion}`,
+      displayQuestion: tangentRedirect?.displayQuestion || currentQuestion,
       shouldAdvanceQuestion: false,
       shouldCountAsAnswer: false,
       shouldStayOnCurrentQuestion: true,
       trustDelta: 0,
       recruiterState: "interested",
       feedback:
-        "Answered candidate question briefly and returned to interview.",
+        "Answered candidate question briefly and redirected back to the interview thread.",
       psychology: basePsychology,
     });
   }
@@ -2563,7 +2988,7 @@ function buildFallbackDecision(
       ? shouldAvoidImpactDemand(input)
         ? `Okay, that gives me enough context to continue. ${nextQuestion}`
         : `Okay, that helps. ${hasQuantitativeOutcome(answer) ? "The impact is clearer now." : "I’ll treat that as a qualitative outcome."} ${nextQuestion}`
-      : `I understand the direction. Give me just one outcome before we move on — even a rough or qualitative one is fine. What changed for the customer, team, or business?`,
+      : `Right. Give me one outcome before we move on — even a rough or qualitative one is fine. What changed for the customer, team, or business?`,
     displayQuestion: nextQuestion,
     shouldAdvanceQuestion: canAcceptAndMove,
     shouldCountAsAnswer: canAcceptAndMove,
@@ -3666,6 +4091,7 @@ Return JSON only with this exact shape:
 function normalizeDecision(
   raw: Partial<UnifiedRecruiterDecision>,
   fallback: UnifiedRecruiterDecision,
+  input: UnifiedRecruiterInput,
 ): UnifiedRecruiterDecision {
   const intentValues: CandidateIntent[] = [
     "greeting",
@@ -3722,9 +4148,10 @@ function normalizeDecision(
     "candidate_question",
     "interruption",
   ].includes(fallback.intent);
-  const spokenReply = forceFallbackConversation
+  const baseSpokenReply = forceFallbackConversation
     ? fallback.spokenReply
     : cleanText(raw.spokenReply) || fallback.spokenReply;
+  const spokenReply = naturalizeRecruiterReply(input, baseSpokenReply);
   const displayQuestion = forceFallbackConversation
     ? fallback.displayQuestion
     : cleanText(raw.displayQuestion) || fallback.displayQuestion;
@@ -4183,6 +4610,33 @@ function applyNaturalConversationGuard(
     "this role",
   );
 
+
+  // Voice realism guard: if speech-to-text is messy but clearly contains a real
+  // customer-support story, accept it and move forward instead of replaying the
+  // same earlier probe.
+  if (isSpokenConcreteCustomerExample(answer) && wasAskingForConcreteCustomerExample(input)) {
+    const next = buildAcceptedSpokenCustomerExampleReply(input, answer, targetRole);
+    return {
+      ...decision,
+      intent: "interview_answer",
+      spokenReply: naturalizeRecruiterReply(input, next.spokenReply),
+      displayQuestion: next.displayQuestion,
+      shouldAdvanceQuestion: true,
+      shouldCountAsAnswer: true,
+      shouldStayOnCurrentQuestion: false,
+      trustDelta: Math.max(decision.trustDelta, 4),
+      recruiterState: decision.recruiterState === "skeptical" ? "interested" : "engaged",
+      feedback: "Accepted a noisy but concrete spoken customer example and progressed.",
+      psychology: {
+        ...decision.psychology,
+        trust: clamp(decision.psychology.trust + 4, 12, 92),
+        interest: clamp(decision.psychology.interest + 6, 20, 95),
+        engagement: clamp(decision.psychology.engagement + 5, 20, 95),
+        skepticism: clamp(decision.psychology.skepticism - 4, 5, 95),
+      },
+    };
+  }
+
   // Multi-intent social turns such as "I'm good, how are you, what's your name?"
   // must be answered naturally before the interview continues. Do not score or pressure them.
   if (isMostlyMultiIntentRapport(answer)) {
@@ -4453,7 +4907,7 @@ function applyNaturalConversationGuard(
     return {
       ...decision,
       intent: "interview_answer",
-      spokenReply: `I see the connection: your support background gave you direct customer-facing experience. ${nextQuestion}`,
+      spokenReply: naturalizeRecruiterReply(input, `I see the connection: your support background gave you direct customer-facing experience. ${nextQuestion}`),
       displayQuestion: nextQuestion,
       shouldAdvanceQuestion: true,
       shouldCountAsAnswer: true,
@@ -4465,6 +4919,61 @@ function applyNaturalConversationGuard(
     };
   }
 
+  // v82: Spoken-English tolerance. If the candidate gives a messy but concrete customer example,
+  // accept it and progress. Do not replay the earlier "tell me about a customer issue" probe.
+  if (isSpokenConcreteCustomerExample(answer) && wasAskingForConcreteCustomerExample(input)) {
+    const next = buildAcceptedSpokenCustomerExampleReply(input, answer, targetRole);
+    return {
+      ...decision,
+      intent: "interview_answer",
+      spokenReply: naturalizeRecruiterReply(input, next.spokenReply),
+      displayQuestion: next.displayQuestion,
+      shouldAdvanceQuestion: true,
+      shouldCountAsAnswer: true,
+      shouldStayOnCurrentQuestion: false,
+      trustDelta: Math.max(decision.trustDelta, 4),
+      recruiterState: decision.recruiterState === "skeptical" ? "interested" : "engaged",
+      feedback:
+        "Accepted a messy but concrete spoken customer example and progressed instead of repeating the same prompt.",
+      conversationStage: "behavioral",
+      psychology: {
+        ...decision.psychology,
+        trust: clamp(decision.psychology.trust + 4, 12, 92),
+        interest: clamp(decision.psychology.interest + 6, 20, 95),
+        engagement: clamp(decision.psychology.engagement + 5, 20, 95),
+        skepticism: clamp(decision.psychology.skepticism - 4, 5, 95),
+      },
+    };
+  }
+
+  // v83: Topic trajectory memory. If the recruiter asked about documentation/prevention
+  // and the candidate answered with documentation/ticket/process details, move forward.
+  // Do not fall back to the earlier generic customer-example prompt.
+  if (isDocumentationOrProcessAnswer(answer) && wasAskingForDocumentationOrPrevention(input)) {
+    const next = buildDocumentationProgressionReply(input, targetRole);
+    return {
+      ...decision,
+      intent: "interview_answer",
+      spokenReply: naturalizeRecruiterReply(input, next.spokenReply),
+      displayQuestion: next.displayQuestion,
+      shouldAdvanceQuestion: true,
+      shouldCountAsAnswer: true,
+      shouldStayOnCurrentQuestion: false,
+      trustDelta: Math.max(decision.trustDelta, 3),
+      recruiterState: decision.recruiterState === "skeptical" ? "interested" : "engaged",
+      feedback:
+        "Accepted documentation/process answer and progressed the customer-success trajectory instead of resetting.",
+      conversationStage: "behavioral",
+      psychology: {
+        ...decision.psychology,
+        trust: clamp(decision.psychology.trust + 3, 12, 92),
+        interest: clamp(decision.psychology.interest + 5, 20, 95),
+        engagement: clamp(decision.psychology.engagement + 4, 20, 95),
+        skepticism: clamp(decision.psychology.skepticism - 3, 5, 95),
+      },
+    };
+  }
+
   // If the candidate gave a practical customer-handling answer, use a sharper operational probe
   // instead of a generic customer question. This improves Customer Success realism.
   if (isCustomerOperationalAnswer(answer) && /customer|client|support|success|unhappy|frustrated|issue/i.test(decision.spokenReply)) {
@@ -4472,7 +4981,7 @@ function applyNaturalConversationGuard(
     return {
       ...decision,
       intent: "interview_answer",
-      spokenReply: `That gives me a practical view of your customer-handling style. ${nextQuestion}`,
+      spokenReply: naturalizeRecruiterReply(input, `${buildCustomerHandlingLead(input, answer)} ${nextQuestion}`),
       displayQuestion: nextQuestion,
       shouldAdvanceQuestion: true,
       shouldCountAsAnswer: true,
@@ -4510,23 +5019,27 @@ function applyNaturalConversationGuard(
         input.setup?.recruiterMemoryProfile,
       );
     const nextQuestion =
-      wasLastRecruiterAskingForDecision(input) &&
-      answeredDecisionFollowUp(answer)
-        ? buildDecisionFollowupResolution(input, answer, targetRole)
-        : sameFollowupIntentRepeated(
-              input,
-              /hardest decision|difficult decision|trade[- ]?off|decision you made/i,
-              2,
-            )
+      isDocumentationOrProcessAnswer(answer) && wasAskingForDocumentationOrPrevention(input)
+        ? buildDocumentationProgressionReply(input, targetRole).displayQuestion
+        : wasLastRecruiterAskingForDecision(input) &&
+          answeredDecisionFollowUp(answer)
           ? buildDecisionFollowupResolution(input, answer, targetRole)
-          : buildMemoryAwareCallbackQuestion(input, cvRead, targetRole);
+          : sameFollowupIntentRepeated(
+                input,
+                /hardest decision|difficult decision|trade[- ]?off|decision you made/i,
+                2,
+              )
+            ? buildDecisionFollowupResolution(input, answer, targetRole)
+            : buildMemoryAwareCallbackQuestion(input, cvRead, targetRole);
     return {
       ...decision,
       spokenReply:
-        wasLastRecruiterAskingForDecision(input) &&
-        answeredDecisionFollowUp(answer)
-          ? nextQuestion
-          : `Okay, let’s move this forward. ${nextQuestion}`,
+        isDocumentationOrProcessAnswer(answer) && wasAskingForDocumentationOrPrevention(input)
+          ? buildDocumentationProgressionReply(input, targetRole).spokenReply
+          : wasLastRecruiterAskingForDecision(input) &&
+            answeredDecisionFollowUp(answer)
+            ? nextQuestion
+            : `${buildProgressionLead(input)} ${nextQuestion}`,
       displayQuestion: nextQuestion,
       shouldAdvanceQuestion: true,
       shouldCountAsAnswer: true,
@@ -4769,6 +5282,7 @@ function applyPhase15TrustPressure(
 export async function decideUnifiedRecruiterResponse(
   input: UnifiedRecruiterInput,
 ): Promise<UnifiedRecruiterDecision> {
+  input = recoverUnifiedRecruiterInput(input);
   const fallback = buildFallbackDecision(input);
 
   // Phase 1.5 v73: handle multi-intent rapport BEFORE the LLM or fallback analysis.
@@ -4947,7 +5461,7 @@ export async function decideUnifiedRecruiterResponse(
 
     const raw = completion.choices[0]?.message?.content || "{}";
     const parsed = JSON.parse(raw) as Partial<UnifiedRecruiterDecision>;
-    const normalized = normalizeDecision(parsed, fallback);
+    const normalized = normalizeDecision(parsed, fallback, input);
     const updated = updateMemoryAfterDecision(
       cleanText(input.answer),
       normalized,

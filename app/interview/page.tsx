@@ -155,6 +155,14 @@ type UnifiedRecruiterApiResponse = {
   };
   conversationStage?: string;
   pressure?: { level?: number; label?: string; reason?: string; behaviorShift?: string };
+  recruiterMemory?: {
+    summary?: string;
+    weakMoments?: string[];
+    strongMoments?: string[];
+    openDoubts?: string[];
+    roleFitSignals?: string[];
+  } | null;
+  memoryEvents?: unknown[];
   recruiterMemoryInsight?: { callbackLine?: string; openDoubt?: string; strongestMoment?: string; weakestMoment?: string; recallMode?: string };
   honestFeedback?: { headline?: string; recruiterRead?: string; risk?: string; nextFix?: string };
   livePressureSimulation?: { pressureMode?: string; pacingCue?: string; warmthCue?: string; silenceCue?: string; nextFollowUpStyle?: string; interruptionRisk?: string };
@@ -210,6 +218,50 @@ function timeLabel() {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+
+function normalizeTurnText(value: string) {
+  return value
+    .replace(/\s+/g, " ")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .trim()
+    .toLowerCase();
+}
+
+function buildTurnSignature(question: string, answer: string) {
+  const normalizedQuestion = normalizeTurnText(question).slice(0, 160);
+  const normalizedAnswer = normalizeTurnText(answer).slice(0, 260);
+  return `${normalizedQuestion}::${normalizedAnswer}`;
+}
+
+function isDuplicateCandidateTurn(
+  previousSignature: string | null,
+  nextSignature: string,
+  previousAt: number,
+  windowMs = 18000,
+) {
+  return Boolean(
+    previousSignature &&
+      previousSignature === nextSignature &&
+      Date.now() - previousAt < windowMs,
+  );
+}
+
+function isProbablySameRecruiterPrompt(reply: string, currentQuestion: string) {
+  const a = normalizeTurnText(reply);
+  const b = normalizeTurnText(currentQuestion);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return true;
+
+  const aWords = new Set(a.split(/\s+/).filter((word) => word.length > 3));
+  const bWords = b.split(/\s+/).filter((word) => word.length > 3);
+  if (!aWords.size || !bWords.length) return false;
+
+  const overlap = bWords.filter((word) => aWords.has(word)).length;
+  return overlap / Math.max(1, bWords.length) > 0.72;
 }
 
 function isIntroRapportQuestionText(question: string) {
@@ -830,13 +882,13 @@ function buildConversationalRecruiterSpeech({
   // for the result page. Live speech should sound curious, not corrective.
   const gentleStatePrefix =
     state === "recovering_trust"
-      ? "That gives me a better sense of your experience. "
+      ? "Good, that is clearer. "
       : state === "engaged" || state === "interested"
-        ? "Okay, thanks. "
+        ? "Okay. "
         : state === "skeptical" ||
             state === "pressuring" ||
             state === "losing_confidence"
-          ? "I understand. Let’s look at it a little more closely. "
+          ? "Let’s be more specific. "
           : "";
 
   const spokenQuestion = softenRecruiterSpeech(question);
@@ -2447,6 +2499,12 @@ export default function InterviewPage() {
     "greeting",
   );
   const handleCandidateAnswerRef = useRef<(answer: string) => void>(() => {});
+  const isProcessingAnswerRef = useRef(false);
+  const answerProcessingUnlockTimerRef = useRef<number | null>(null);
+  const pendingRecruiterReplyTimerRef = useRef<number | null>(null);
+  const lastProcessedAnswerSignatureRef = useRef<string | null>(null);
+  const lastProcessedAnswerAtRef = useRef(0);
+  const listenSessionIdRef = useRef(0);
   const manualListenRequestedRef = useRef(false);
   const autoCinematicStartedRef = useRef(false);
   const mobileAudioUnlockedRef = useRef(false);
@@ -2589,6 +2647,10 @@ export default function InterviewPage() {
       if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
       if (finalizationTimerRef.current)
         window.clearTimeout(finalizationTimerRef.current);
+      if (answerProcessingUnlockTimerRef.current)
+        window.clearTimeout(answerProcessingUnlockTimerRef.current);
+      if (pendingRecruiterReplyTimerRef.current)
+        window.clearTimeout(pendingRecruiterReplyTimerRef.current);
       try {
         recognitionRef.current?.abort?.();
         recognitionRef.current?.stop();
@@ -2978,6 +3040,9 @@ export default function InterviewPage() {
       window.clearTimeout(finalizationTimerRef.current);
     pendingAnswerRef.current = "";
 
+    const listenSessionId = listenSessionIdRef.current + 1;
+    listenSessionIdRef.current = listenSessionId;
+
     const recognition = new Recognition();
     recognition.continuous = true;
     recognition.interimResults = true;
@@ -2986,7 +3051,14 @@ export default function InterviewPage() {
       : "en-US";
 
     recognition.onstart = () => {
-      if (isSpeakingRef.current) {
+      if (listenSessionIdRef.current !== listenSessionId) {
+        try {
+          recognition.abort?.();
+          recognition.stop();
+        } catch {}
+        return;
+      }
+      if (isSpeakingRef.current || isProcessingAnswerRef.current) {
         try {
           recognition.abort?.();
           recognition.stop();
@@ -2997,7 +3069,8 @@ export default function InterviewPage() {
       setVoiceStatus("Listening to your answer");
       if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = window.setTimeout(() => {
-        if (!isLiveRef.current || isSpeakingRef.current) return;
+        if (listenSessionIdRef.current !== listenSessionId) return;
+        if (!isLiveRef.current || isSpeakingRef.current || isProcessingAnswerRef.current) return;
         setVoiceStatus("Take your time — answer naturally");
       }, 9000);
     };
@@ -3012,7 +3085,11 @@ export default function InterviewPage() {
             : "I’m still listening. Try answering again.",
         );
         if (modeRef.current === "video" && !isMobileBrowserRuntime())
-          window.setTimeout(() => listenForAnswer(), 900);
+          window.setTimeout(() => {
+            if (listenSessionIdRef.current === listenSessionId && !isProcessingAnswerRef.current) {
+              listenForAnswer();
+            }
+          }, 900);
         return;
       }
       if (error === "not-allowed") {
@@ -3025,8 +3102,10 @@ export default function InterviewPage() {
     recognition.onend = () => {
       setIsListening(false);
       if (
+        listenSessionIdRef.current === listenSessionId &&
         isLiveRef.current &&
         !isSpeakingRef.current &&
+        !isProcessingAnswerRef.current &&
         !pendingAnswerRef.current
       ) {
         setVoiceStatus("Waiting for your answer...");
@@ -3034,7 +3113,8 @@ export default function InterviewPage() {
     };
 
     recognition.onresult = (event: BrowserSpeechRecognitionEvent) => {
-      if (isSpeakingRef.current) return;
+      if (listenSessionIdRef.current !== listenSessionId) return;
+      if (isSpeakingRef.current || isProcessingAnswerRef.current) return;
 
       let transcriptText = "";
       for (
@@ -3056,6 +3136,8 @@ export default function InterviewPage() {
       }
 
       finalizationTimerRef.current = window.setTimeout(() => {
+        if (listenSessionIdRef.current !== listenSessionId) return;
+        if (isProcessingAnswerRef.current || isSpeakingRef.current) return;
         const finalAnswer = pendingAnswerRef.current.trim();
         const wordCount = finalAnswer.split(/\s+/).filter(Boolean).length;
 
@@ -3078,7 +3160,8 @@ export default function InterviewPage() {
 
     // Start recognition only after recruiter speech has fully ended.
     window.setTimeout(() => {
-      if (!isLiveRef.current || isSpeakingRef.current) return;
+      if (listenSessionIdRef.current !== listenSessionId) return;
+      if (!isLiveRef.current || isSpeakingRef.current || isProcessingAnswerRef.current) return;
       try {
         recognition.start();
       } catch {
@@ -3091,13 +3174,13 @@ export default function InterviewPage() {
     async (answer: string) => {
       if (!isLiveRef.current) return;
 
-      const candidateItem: TranscriptItem = {
-        role: "candidate",
-        text: answer,
-        time: timeLabel(),
-      };
+      const cleanAnswer = answer.replace(/\s+/g, " ").trim();
+      const wordCount = cleanAnswer.split(/\s+/).filter(Boolean).length;
 
-      addTranscript(candidateItem);
+      if (!cleanAnswer || wordCount < 5) {
+        setVoiceStatus("Continue your answer naturally");
+        return;
+      }
 
       const latestRecruiterQuestion = [...transcriptRef.current]
         .reverse()
@@ -3107,12 +3190,57 @@ export default function InterviewPage() {
             /\?|tell me|walk me|describe|why|what|how|give me|can you/i.test(item.text || ""),
         )?.text;
 
-      // v74: use the latest recruiter spoken line as the active question.
-      // This prevents stale state from resetting the interview back to the intro
-      // after the candidate has already answered a role-fit or follow-up question.
+      // v75: use the latest recruiter spoken line as the active question and
+      // lock each candidate turn to that question. This prevents partial speech
+      // results or duplicate browser recognition events from re-processing the
+      // same answer and causing the recruiter to repeat the intro question.
       const currentQuestion =
         latestRecruiterQuestion?.replace(/\s+/g, " ").trim() ||
         questionRef.current;
+      const turnSignature = buildTurnSignature(currentQuestion, cleanAnswer);
+
+      if (
+        isProcessingAnswerRef.current ||
+        isDuplicateCandidateTurn(
+          lastProcessedAnswerSignatureRef.current,
+          turnSignature,
+          lastProcessedAnswerAtRef.current,
+        )
+      ) {
+        setVoiceStatus("Recruiter is already processing your answer...");
+        return;
+      }
+
+      isProcessingAnswerRef.current = true;
+      lastProcessedAnswerSignatureRef.current = turnSignature;
+      lastProcessedAnswerAtRef.current = Date.now();
+      listenSessionIdRef.current += 1;
+
+      if (answerProcessingUnlockTimerRef.current) {
+        window.clearTimeout(answerProcessingUnlockTimerRef.current);
+      }
+      answerProcessingUnlockTimerRef.current = window.setTimeout(() => {
+        isProcessingAnswerRef.current = false;
+      }, 45000);
+
+      try {
+        recognitionRef.current?.abort?.();
+        recognitionRef.current?.stop();
+      } catch {}
+      if (finalizationTimerRef.current) window.clearTimeout(finalizationTimerRef.current);
+      if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
+      if (pendingRecruiterReplyTimerRef.current) window.clearTimeout(pendingRecruiterReplyTimerRef.current);
+      pendingAnswerRef.current = "";
+      setIsListening(false);
+
+      const candidateItem: TranscriptItem = {
+        role: "candidate",
+        text: cleanAnswer,
+        time: timeLabel(),
+      };
+
+      addTranscript(candidateItem);
+
       const currentTranscript = [...transcriptRef.current, candidateItem];
       const previousTrust = trustRef.current;
       const currentMemory = memoryRef.current;
@@ -3124,10 +3252,10 @@ export default function InterviewPage() {
       // v73 safety guard: answer audio checks / name questions locally before any
       // analysis can misread them as interview evidence. This protects the live flow
       // even if the API/LLM returns an over-eager interview follow-up.
-      if (isEarlyMultiIntentRapport(answer)) {
+      if (isEarlyMultiIntentRapport(cleanAnswer)) {
         const targetRole = getRole(activeSetup);
         intelligence = {
-          question: buildEarlyMultiIntentRapportReply(answer, recruiterProfile.name, targetRole),
+          question: buildEarlyMultiIntentRapportReply(cleanAnswer, recruiterProfile.name, targetRole),
           displayQuestion: `Tell me a little about yourself and connect your recent experience to ${targetRole}.`,
           feedback: "Handled rapport/audio/name turn without scoring.",
           intent: "smalltalk",
@@ -3144,7 +3272,7 @@ export default function InterviewPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            answer,
+            answer: cleanAnswer,
             currentQuestion,
             transcript: currentTranscript,
             setup: activeSetup,
@@ -3168,14 +3296,14 @@ export default function InterviewPage() {
       }
 
       const fallbackAnalysis = analyzeAnswer(
-        answer,
+        cleanAnswer,
         currentMemory,
         previousTrust,
         recruiterId,
         currentQuestion,
       );
 
-      const spokenReply =
+      let spokenReply =
         intelligence?.question?.replace(/\s+/g, " ").trim() ||
         buildConversationalRecruiterSpeech({
           recruiterId,
@@ -3187,7 +3315,7 @@ export default function InterviewPage() {
           trust: previousTrust,
         });
 
-      const displayQuestion =
+      let displayQuestion =
         intelligence?.displayQuestion?.replace(/\s+/g, " ").trim() ||
         fallbackAnalysis.followUp;
 
@@ -3207,10 +3335,76 @@ export default function InterviewPage() {
       const nextTrust = Math.max(12, Math.min(92, previousTrust + trustDelta));
       const nextState = intelligence?.recruiterState || fallbackAnalysis.state;
 
+      if (
+        shouldCountAsAnswer &&
+        isProbablySameRecruiterPrompt(spokenReply, currentQuestion)
+      ) {
+        const repairedFollowUp = fallbackAnalysis.followUp || fallbackQuestions[answeredQuestionCount % fallbackQuestions.length];
+        spokenReply = `${fallbackAnalysis.bridge} ${repairedFollowUp}`.replace(/\s+/g, " ").trim();
+        displayQuestion = repairedFollowUp;
+      }
+
       let nextMemory = currentMemory;
-      if (shouldCountAsAnswer) {
+
+      if (intelligence?.recruiterMemory) {
+        const apiMemory = intelligence.recruiterMemory;
+
+        nextMemory = {
+          ...currentMemory,
+          recruiterTrust: nextTrust,
+          lastReaction:
+            intelligence.feedback ||
+            apiMemory.summary ||
+            currentMemory.lastReaction ||
+            "Recruiter updated memory.",
+
+          rememberedWeaknesses: Array.from(
+            new Set([
+              ...(apiMemory.weakMoments || []),
+              ...(apiMemory.openDoubts || []),
+              ...(currentMemory.rememberedWeaknesses || []),
+            ]),
+          ).slice(0, 5),
+
+          rememberedStrengths: Array.from(
+            new Set([
+              ...(apiMemory.strongMoments || []),
+              ...(apiMemory.roleFitSignals || []),
+              ...(currentMemory.rememberedStrengths || []),
+            ]),
+          ).slice(0, 5),
+
+          weakMetrics:
+            currentMemory.weakMetrics +
+            ((apiMemory.weakMoments || []).some((item) =>
+              /metric|number|impact|measurable/i.test(item),
+            )
+              ? 1
+              : 0),
+
+          ownershipIssues:
+            currentMemory.ownershipIssues +
+            ((apiMemory.weakMoments || []).some((item) =>
+              /ownership|personally|contribution/i.test(item),
+            )
+              ? 1
+              : 0),
+
+          vagueAnswers:
+            currentMemory.vagueAnswers +
+            ((apiMemory.weakMoments || []).some((item) =>
+              /vague|generic|unclear|broad/i.test(item),
+            )
+              ? 1
+              : 0),
+
+          strongRecoveries:
+            currentMemory.strongRecoveries +
+            ((apiMemory.strongMoments || []).length > 0 ? 1 : 0),
+        };
+      } else if (shouldCountAsAnswer) {
         try {
-          const signals = updateRecruiterMemory(currentMemory, answer);
+          const signals = updateRecruiterMemory(currentMemory, cleanAnswer);
           nextMemory = {
             ...signals.memory,
             recruiterTrust: nextTrust,
@@ -3223,7 +3417,6 @@ export default function InterviewPage() {
             lastReaction: intelligence?.feedback || fallbackAnalysis.caption,
           };
         }
-        setAnsweredQuestionCount((count) => Math.min(12, count + 1));
       } else {
         nextMemory = {
           ...currentMemory,
@@ -3232,6 +3425,10 @@ export default function InterviewPage() {
             intelligence?.feedback ||
             "Recruiter handled the conversation without counting it as an answer.",
         };
+      }
+
+      if (shouldCountAsAnswer) {
+        setAnsweredQuestionCount((count) => Math.min(12, count + 1));
       }
 
       setRecruiterTrust(nextTrust);
@@ -3269,8 +3466,11 @@ export default function InterviewPage() {
         apiPauseMs: apiPause,
       });
 
-      window.setTimeout(() => {
-        if (!isLiveRef.current) return;
+      pendingRecruiterReplyTimerRef.current = window.setTimeout(() => {
+        if (!isLiveRef.current) {
+          isProcessingAnswerRef.current = false;
+          return;
+        }
 
         const recruiterReply: TranscriptItem = {
           role: "recruiter",
@@ -3281,6 +3481,11 @@ export default function InterviewPage() {
         addTranscript(recruiterReply);
         setQuestion(displayQuestion);
         speakRecruiter(spokenReply, () => {
+          if (answerProcessingUnlockTimerRef.current) {
+            window.clearTimeout(answerProcessingUnlockTimerRef.current);
+            answerProcessingUnlockTimerRef.current = null;
+          }
+          isProcessingAnswerRef.current = false;
           window.setTimeout(() => listenForAnswer(), 350);
         });
       }, thinkingDelay);
@@ -3308,6 +3513,7 @@ export default function InterviewPage() {
     [
       activeSetup,
       addTranscript,
+      answeredQuestionCount,
       candidateName,
       listenForAnswer,
       market,
