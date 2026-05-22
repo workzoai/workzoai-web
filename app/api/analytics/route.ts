@@ -43,10 +43,19 @@ type FounderSummary = {
   interviewStarts: number;
   interviewCompleted: number;
   completionRate: number;
+
+  // Event totals by device. Useful for volume, but not user/session counts.
   mobileEvents: number;
   desktopEvents: number;
   tabletEvents: number;
   unknownDeviceEvents: number;
+
+  // Unique sessions by device. Use these for founder decisions about mobile/desktop adoption.
+  mobileSessions: number;
+  desktopSessions: number;
+  tabletSessions: number;
+  unknownDeviceSessions: number;
+
   recruiterCounts: Record<string, number>;
   eventCounts: Record<string, number>;
   errors: AnalyticsRow[];
@@ -110,6 +119,7 @@ function buildSummary(rows: AnalyticsRow[]): FounderSummary {
   const eventCounts: Record<string, number> = {};
   const recruiterCounts: Record<string, number> = {};
   const sessions = new Set<string>();
+  const sessionDevices = new Map<string, "desktop" | "mobile" | "tablet" | "unknown">();
 
   let mobileEvents = 0;
   let desktopEvents = 0;
@@ -121,11 +131,32 @@ function buildSummary(rows: AnalyticsRow[]): FounderSummary {
     if (row.recruiter) increment(recruiterCounts, row.recruiter);
     if (row.session_id) sessions.add(row.session_id);
 
-    const device = normalizeDevice(row.device);
+    const device = normalizeDevice(row.device) as "desktop" | "mobile" | "tablet" | "unknown";
     if (device === "mobile") mobileEvents += 1;
     else if (device === "desktop") desktopEvents += 1;
     else if (device === "tablet") tabletEvents += 1;
     else unknownDeviceEvents += 1;
+
+    const sessionId = row.session_id || "unknown-session";
+    const currentDevice = sessionDevices.get(sessionId);
+
+    // Prefer a real device over unknown for the same session. If a session appears
+    // on multiple device types, keep the first known device to avoid double-counting.
+    if (!currentDevice || currentDevice === "unknown") {
+      sessionDevices.set(sessionId, device);
+    }
+  }
+
+  let mobileSessions = 0;
+  let desktopSessions = 0;
+  let tabletSessions = 0;
+  let unknownDeviceSessions = 0;
+
+  for (const device of sessionDevices.values()) {
+    if (device === "mobile") mobileSessions += 1;
+    else if (device === "desktop") desktopSessions += 1;
+    else if (device === "tablet") tabletSessions += 1;
+    else unknownDeviceSessions += 1;
   }
 
   const interviewStarts =
@@ -160,6 +191,10 @@ function buildSummary(rows: AnalyticsRow[]): FounderSummary {
     desktopEvents,
     tabletEvents,
     unknownDeviceEvents,
+    mobileSessions,
+    desktopSessions,
+    tabletSessions,
+    unknownDeviceSessions,
     recruiterCounts,
     eventCounts,
     errors: errors.slice(0, 25),

@@ -28,6 +28,10 @@ type Summary = {
   desktopEvents: number;
   tabletEvents: number;
   unknownDeviceEvents: number;
+  mobileSessions: number;
+  desktopSessions: number;
+  tabletSessions: number;
+  unknownDeviceSessions: number;
   recruiterCounts: Record<string, number>;
   eventCounts: Record<string, number>;
   errors: AnalyticsEvent[];
@@ -56,6 +60,10 @@ const EMPTY_SUMMARY: Summary = {
   desktopEvents: 0,
   tabletEvents: 0,
   unknownDeviceEvents: 0,
+  mobileSessions: 0,
+  desktopSessions: 0,
+  tabletSessions: 0,
+  unknownDeviceSessions: 0,
   recruiterCounts: {},
   eventCounts: {},
   errors: [],
@@ -166,7 +174,7 @@ export default function FounderDashboard() {
         <StatCard label="Interview Starts" value={summary.interviewStarts} />
         <StatCard label="Completed" value={summary.interviewCompleted} />
         <StatCard label="Completion Rate" value={`${summary.completionRate}%`} highlight />
-        <StatCard label="Mobile Events" value={summary.mobileEvents} />
+        <StatCard label="Mobile Sessions" value={summary.mobileSessions} />
       </section>
 
       <section className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.8fr]">
@@ -179,12 +187,12 @@ export default function FounderDashboard() {
           </div>
         </Panel>
 
-        <Panel title="Device Split" subtitle="Mobile polish decisions should come from this.">
+        <Panel title="Device Split" subtitle="Unique sessions by device. Event volume is shown in small text below each card.">
           <div className="grid grid-cols-2 gap-4">
-            <MiniCard label="Desktop" value={summary.desktopEvents} />
-            <MiniCard label="Mobile" value={summary.mobileEvents} />
-            <MiniCard label="Tablet" value={summary.tabletEvents} />
-            <MiniCard label="Unknown" value={summary.unknownDeviceEvents} />
+            <MiniCard label="Desktop sessions" value={summary.desktopSessions} subvalue={`${summary.desktopEvents} events`} />
+            <MiniCard label="Mobile sessions" value={summary.mobileSessions} subvalue={`${summary.mobileEvents} events`} />
+            <MiniCard label="Tablet sessions" value={summary.tabletSessions} subvalue={`${summary.tabletEvents} events`} />
+            <MiniCard label="Unknown sessions" value={summary.unknownDeviceSessions} subvalue={`${summary.unknownDeviceEvents} events`} />
           </div>
         </Panel>
       </section>
@@ -271,11 +279,12 @@ function ProgressRow({ label, value, max }: { label: string; value: number; max:
   );
 }
 
-function MiniCard({ label, value }: { label: string; value: string | number }) {
+function MiniCard({ label, value, subvalue }: { label: string; value: string | number; subvalue?: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
       <p className="text-sm text-blue-100/80">{label}</p>
       <p className="mt-4 text-3xl font-black">{value}</p>
+      {subvalue && <p className="mt-2 text-xs font-semibold text-blue-100/45">{subvalue}</p>}
     </div>
   );
 }
