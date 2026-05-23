@@ -118,10 +118,15 @@ export function runRecruiterRuntime({
     vague: answerSignals.vague,
   });
 
-  const reactionLines = buildContextAwareReactionLines({
-    baseReactionLines,
+  const reactionLines = buildPressureAwareReactionLines({
+    baseReactionLines: buildContextAwareReactionLines({
+      baseReactionLines,
+      answerSignals,
+      score,
+    }),
+    interruption,
+    memoryLine,
     answerSignals,
-    score,
   });
 
   const mood = determineMood({
@@ -409,6 +414,54 @@ function buildContextAwareReactionLines({
       baseReactionLines[0] || "That is a strong example.",
       baseReactionLines[1] || "Good. That shows ownership.",
       baseReactionLines[2] || "That answer feels credible.",
+    ];
+  }
+
+  return baseReactionLines;
+}
+
+function buildPressureAwareReactionLines({
+  baseReactionLines,
+  interruption,
+  memoryLine,
+  answerSignals,
+}: {
+  baseReactionLines: string[];
+  interruption: InterruptionResult;
+  memoryLine: string | null;
+  answerSignals: ReturnType<typeof analyzeRuntimeAnswer>;
+}) {
+  if (
+    interruption.shouldInterrupt &&
+    interruption.severity === "high" &&
+    memoryLine &&
+    answerSignals.vague
+  ) {
+    return [
+      "Hold on — this is the same vague pattern again.",
+      "I’m not hearing measurable impact yet.",
+      "Give me the exact action and result.",
+    ];
+  }
+
+  if (
+    interruption.shouldInterrupt &&
+    interruption.severity === "high" &&
+    memoryLine &&
+    answerSignals.missingMetrics
+  ) {
+    return [
+      "Hold on — you are avoiding impact again.",
+      "A rough number is better than no evidence.",
+      "What changed because of your work?",
+    ];
+  }
+
+  if (interruption.shouldInterrupt && interruption.severity === "medium") {
+    return [
+      baseReactionLines[0] || "Let me pause you there.",
+      baseReactionLines[1] || "I need the answer to become more concrete.",
+      baseReactionLines[2] || "Give me the action and the result.",
     ];
   }
 
