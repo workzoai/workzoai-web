@@ -98,11 +98,11 @@ export default function LandingPage() {
         className="object-cover object-[72%_50%] opacity-45 wz-hero-slow-zoom sm:opacity-60 lg:opacity-70"
       />
 
-      <div className="absolute inset-0 bg-black/54 sm:bg-black/42" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.18),transparent_32%)] sm:bg-[radial-gradient(circle_at_72%_24%,rgba(34,211,238,0.16),transparent_28%)]" />
+      <div className="absolute inset-0 bg-black/54 sm:bg-black/50" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.18),transparent_32%)] sm:bg-[radial-gradient(circle_at_72%_24%,rgba(34,211,238,0.10),transparent_28%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.88)_0%,rgba(2,6,23,0.45)_36%,rgba(2,6,23,0.96)_100%)] lg:bg-[linear-gradient(90deg,rgba(2,6,23,0.97)_0%,rgba(2,6,23,0.82)_33%,rgba(2,6,23,0.32)_62%,rgba(2,6,23,0.64)_100%)]" />
       <div className="absolute inset-0 hidden bg-[linear-gradient(180deg,rgba(2,6,23,0.38)_0%,rgba(2,6,23,0.12)_45%,rgba(2,6,23,0.92)_100%)] lg:block" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_22%,rgba(56,189,248,0.20),transparent_30%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_22%,rgba(56,189,248,0.13),transparent_30%)]" />
 
       <div className="relative z-10 mx-auto max-w-[1500px] px-4 py-4 sm:px-5 sm:py-5 lg:px-10">
         <header className="flex min-h-[64px] items-center justify-between gap-3 rounded-[24px] border border-white/10 bg-[#050b18]/76 px-4 shadow-[0_22px_80px_rgba(0,0,0,0.35)] backdrop-blur-2xl sm:h-[78px] sm:rounded-[30px] sm:px-5 lg:px-7">
@@ -216,7 +216,7 @@ export default function LandingPage() {
 
           <div className="pointer-events-none relative mx-auto mt-8 block w-full max-w-[430px] rounded-[32px] border border-white/[0.09] bg-[#061225]/72 p-4 shadow-[0_24px_90px_rgba(0,0,0,0.36),inset_0_1px_1px_rgba(255,255,255,0.08)] backdrop-blur-2xl wz-mobile-card-float lg:hidden">
             <div className="absolute -inset-4 rounded-[38px] bg-cyan-400/10 blur-3xl wz-mobile-glow" />
-            <div className="relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-black/24 p-4">
+            <div className="relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-black/20 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <span className="h-3 w-3 rounded-full bg-emerald-300 shadow-[0_0_18px_rgba(52,211,153,0.85)]" />
@@ -251,7 +251,7 @@ export default function LandingPage() {
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
                       {line.role}
                     </p>
-                    <p className="mt-1 text-[13px] leading-5 text-white/88">
+                    <p className="mt-1 text-[13px] leading-5 text-white/82">
                       {line.text}
                     </p>
                   </div>
@@ -289,7 +289,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="pointer-events-none absolute right-6 top-[96px] hidden w-[170px] rotate-[2deg] rounded-[26px] border border-white/[0.08] bg-[rgba(7,12,24,0.62)] p-5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)] backdrop-blur-2xl lg:block">
+          <div className="pointer-events-none absolute right-6 top-[96px] hidden w-[170px] rotate-[2deg] rounded-[26px] border border-white/[0.08] bg-[rgba(7,12,24,0.50)] p-5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)] backdrop-blur-2xl lg:block">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-300">
               Trust Score
             </p>
@@ -306,7 +306,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="pointer-events-none absolute right-8 top-[292px] hidden w-[170px] rounded-[24px] border border-white/[0.08] bg-black/24 p-5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)] backdrop-blur-2xl lg:block">
+          <div className="pointer-events-none absolute right-8 top-[292px] hidden w-[170px] rounded-[24px] border border-white/[0.08] bg-black/20 p-5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)] backdrop-blur-2xl lg:block">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-300">
               Pressure Level
             </p>
@@ -316,7 +316,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="pointer-events-none absolute bottom-[58px] left-[49%] hidden w-[430px] rounded-[28px] border border-white/[0.08] bg-black/28 p-5 shadow-[0_28px_90px_rgba(0,0,0,0.35),inset_0_1px_1px_rgba(255,255,255,0.06)] backdrop-blur-2xl lg:block">
+          <div className="pointer-events-none absolute bottom-[58px] left-[49%] hidden w-[430px] rounded-[28px] border border-white/[0.08] bg-black/28 p-5 shadow-[0_22px_70px_rgba(0,0,0,0.30),inset_0_1px_1px_rgba(255,255,255,0.045)] backdrop-blur-2xl lg:block">
             <div className="mb-5 flex items-center justify-between">
               <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-300">
                 Live Transcript
@@ -327,7 +327,7 @@ export default function LandingPage() {
               </span>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               {transcript.map((line) => (
                 <div key={line.role + line.text} className="flex gap-4">
                   <span
@@ -339,7 +339,7 @@ export default function LandingPage() {
                     <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
                       {line.role}
                     </p>
-                    <p className="mt-1 text-[14px] leading-6 text-white/88">
+                    <p className="mt-1 text-[14px] leading-6 text-white/82">
                       {line.text}
                     </p>
                   </div>
@@ -354,7 +354,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="pointer-events-none absolute bottom-4 left-[49%] hidden h-12 items-center gap-5 rounded-[22px] border border-white/[0.08] bg-black/24 px-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)] backdrop-blur-2xl lg:flex">
+          <div className="pointer-events-none absolute bottom-4 left-[49%] hidden h-12 items-center gap-5 rounded-[22px] border border-white/[0.08] bg-black/20 px-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)] backdrop-blur-2xl lg:flex">
             <span className="flex items-center gap-2 text-sm font-bold text-slate-200">
               <Mic className="h-5 w-5" /> Mic On
             </span>

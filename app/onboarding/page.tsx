@@ -511,12 +511,12 @@ export default function OnboardingPage() {
       `}</style>
 
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute left-[-220px] top-[-180px] h-[520px] w-[520px] rounded-full bg-blue-600/16 blur-[120px] [animation:wzGlow_8s_ease-in-out_infinite]" />
-        <div className="absolute right-[-180px] top-[-160px] h-[560px] w-[560px] rounded-full bg-cyan-400/12 blur-[130px]" />
-        <div className="absolute bottom-[-260px] left-1/2 h-[560px] w-[560px] -translate-x-1/2 rounded-full bg-indigo-600/12 blur-[130px]" />
+        <div className="absolute left-[-220px] top-[-180px] h-[520px] w-[520px] rounded-full bg-blue-600/10 blur-[125px]" />
+        <div className="absolute right-[-180px] top-[-160px] h-[560px] w-[560px] rounded-full bg-cyan-400/08 blur-[135px]" />
+        <div className="absolute bottom-[-260px] left-1/2 h-[560px] w-[560px] -translate-x-1/2 rounded-full bg-indigo-600/08 blur-[135px]" />
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+10rem)] pt-3 sm:px-5 lg:h-screen lg:overflow-hidden lg:pb-3">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+8rem)] pt-3 sm:px-5 lg:pb-8">
         <header className="flex min-h-[60px] shrink-0 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 sm:px-5 shadow-[0_18px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
           <Link href="/" className="flex items-center gap-3 text-slate-200 transition hover:text-white">
             <ArrowLeft className="h-5 w-5" />
@@ -535,7 +535,7 @@ export default function OnboardingPage() {
                     className={cn(
                       "flex h-10 w-10 items-center justify-center rounded-full border text-sm font-black transition",
                       complete && "border-emerald-400/35 bg-emerald-400/12 text-emerald-200",
-                      active && "border-blue-300 bg-blue-500 text-white shadow-[0_0_28px_rgba(59,130,246,0.42)]",
+                      active && "border-blue-300 bg-blue-500 text-white shadow-[0_0_22px_rgba(59,130,246,0.30)]",
                       !complete && !active && "border-white/10 bg-white/8 text-slate-300"
                     )}
                   >
@@ -559,18 +559,18 @@ export default function OnboardingPage() {
 
         <BetaPrivacyNotice compact className="mt-3 hidden lg:block" />
 
-        <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-50 shadow-[0_14px_40px_rgba(0,0,0,0.18)] lg:hidden">
+        <div className="mt-3 rounded-2xl border border-amber-300/15 bg-amber-500/[0.07] px-4 py-3 text-sm leading-6 text-amber-50/90 shadow-[0_14px_40px_rgba(0,0,0,0.16)] lg:hidden">
           <p className="font-black">⚠️ Beta notice</p>
-          <p className="mt-1 text-amber-100/90">
-            WorkZo AI is an early beta. We are actively improving recruiter realism, voice interaction, memory, scoring, and natural interview simulations. Outputs may be imperfect, so use the feedback as practice guidance.
+          <p className="mt-1 text-amber-100/80">
+            WorkZo AI is improving continuously. Use outputs as interview practice guidance and validate important feedback before real applications.
           </p>
         </div>
 
-        <section className="grid flex-1 gap-4 overflow-visible py-3 lg:min-h-0 lg:overflow-hidden lg:grid-cols-[1fr_0.82fr]">
-          <div className="flex flex-col overflow-visible rounded-[22px] border border-white/10 bg-white/[0.045] shadow-[0_22px_80px_rgba(0,0,0,0.30)] backdrop-blur-2xl lg:min-h-0 lg:overflow-hidden lg:rounded-[26px]">
-            <div className="flex-1 overflow-visible p-4 pb-28 lg:min-h-0 lg:overflow-y-auto lg:p-5">
+        <section className="grid flex-1 items-start gap-4 overflow-visible py-3 lg:grid-cols-[1fr_0.68fr]">
+          <div className="flex flex-col overflow-visible rounded-[22px] border border-white/10 bg-white/[0.032] shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-2xl lg:rounded-[26px]">
+            <div className="flex-1 overflow-visible p-4 pb-28 lg:p-5">
               {step === 1 && (
-                <div className="flex min-h-[520px] flex-col lg:h-full lg:min-h-0">
+                <div className="flex min-h-[520px] flex-col">
                   <div className="flex items-center gap-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/18 text-blue-200">
                       <Upload className="h-6 w-6" />
@@ -628,7 +628,7 @@ export default function OnboardingPage() {
               )}
 
               {step === 2 && (
-                <div className="flex min-h-[240px] lg:min-h-[240px] lg:h-[360px] flex-col lg:h-full lg:min-h-0">
+                <div className="flex min-h-[360px] flex-col">
                   <div className="flex items-center gap-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/16 text-cyan-200">
                       <Briefcase className="h-6 w-6" />
@@ -668,97 +668,117 @@ export default function OnboardingPage() {
               )}
 
               {step === 3 && (
-                <div className="flex h-full min-h-0 flex-col overflow-hidden">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/18 text-indigo-200">
+                <div className="flex min-h-[560px] flex-col lg:h-full lg:min-h-0">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-500/14 text-indigo-200">
                       <Globe2 className="h-6 w-6" />
                     </div>
                     <div>
-                      <h1 className="text-3xl font-black tracking-tight">Choose interview style</h1>
-                      <p className="mt-1 text-sm text-slate-400">
-                        Market and company style affect recruiter behavior.
+                      <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300/80">
+                        One decision at a time
+                      </p>
+                      <h1 className="mt-1 text-3xl font-black tracking-tight">Choose interview style</h1>
+                      <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
+                        Pick the market, company style, and recruiter personality. WorkZo will adapt the interview behavior quietly in the background.
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-4">
-                    <p className="text-xs font-black uppercase tracking-[0.28em] text-slate-500">Target market</p>
-                    <div className="mt-3 flex flex-wrap gap-2.5">
-                      {markets.map((item) => (
+                  <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                    <section className="rounded-[26px] border border-white/10 bg-black/18 p-4">
+                      <p className="text-xs font-black uppercase tracking-[0.26em] text-slate-500">Target market</p>
+                      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {markets.map((item) => (
+                          <button
+                            key={item.label}
+                            onClick={() => setMarket(item.label)}
+                            className={cn(
+                              "rounded-2xl border px-3 py-3 text-sm font-black transition active:scale-[0.98]",
+                              market === item.label
+                                ? "border-cyan-300/40 bg-cyan-400/14 text-white shadow-[0_0_24px_rgba(14,165,233,0.16)]"
+                                : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.07]"
+                            )}
+                          >
+                            <span className="mr-2">{item.flag}</span>
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="rounded-[26px] border border-white/10 bg-black/18 p-4">
+                      <p className="text-xs font-black uppercase tracking-[0.26em] text-slate-500">Company style</p>
+                      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
+                        {companyStyles.map((item) => (
+                          <button
+                            key={item}
+                            onClick={() => setCompanyStyle(item)}
+                            className={cn(
+                              "rounded-2xl border px-3 py-3 text-sm font-black transition active:scale-[0.98]",
+                              companyStyle === item
+                                ? "border-violet-300/40 bg-violet-400/14 text-white shadow-[0_0_24px_rgba(139,92,246,0.16)]"
+                                : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.07]"
+                            )}
+                          >
+                            {item}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+
+                  <section className="mt-4 min-h-0 flex-1 rounded-[26px] border border-white/10 bg-black/18 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.26em] text-slate-500">Recruiter personality</p>
+                        <p className="mt-1 text-sm text-slate-400">Choose the interview energy. You can change this later.</p>
+                      </div>
+                      <span className="hidden rounded-full border border-cyan-300/15 bg-cyan-400/8 px-3 py-1.5 text-xs font-black text-cyan-200 sm:inline-flex">
+                        {recruiterLabel(recruiter)}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                      {recruiters.map((item) => (
                         <button
-                          key={item.label}
-                          onClick={() => setMarket(item.label)}
+                          key={item.key}
+                          onClick={() => setRecruiter(item.key)}
                           className={cn(
-                            "rounded-2xl px-4 py-2.5 text-sm font-black transition hover:scale-[1.02]",
-                            market === item.label
-                              ? "bg-gradient-to-r from-blue-500 to-cyan-400 text-white shadow-[0_0_24px_rgba(14,165,233,0.22)]"
-                              : "bg-white/10 text-slate-300 hover:bg-white/14"
+                            "relative rounded-[24px] border p-4 text-left transition active:scale-[0.99]",
+                            recruiter === item.key
+                              ? "border-cyan-300/45 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.14)]"
+                              : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06]"
                           )}
                         >
-                          <span className="mr-2">{item.flag}</span>
-                          {item.label}
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/8 text-lg">
+                              {item.avatar}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <h3 className="text-base font-black leading-5">{item.name}</h3>
+                                {recruiter === item.key && (
+                                  <span className="rounded-full bg-cyan-300/14 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
+                                    Selected
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-0.5 text-xs font-bold text-slate-400">{item.role}</p>
+                              <p className="mt-2 text-sm leading-5 text-slate-300">{item.description}</p>
+                              <p className="mt-3 border-l border-cyan-300/20 pl-3 text-xs italic leading-5 text-slate-400">
+                                “{item.quote}”
+                              </p>
+                            </div>
+                          </div>
                         </button>
                       ))}
                     </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <p className="text-xs font-black uppercase tracking-[0.28em] text-slate-500">Company style</p>
-                    <div className="mt-3 flex flex-wrap gap-2.5">
-                      {companyStyles.map((item) => (
-                        <button
-                          key={item}
-                          onClick={() => setCompanyStyle(item)}
-                          className={cn(
-                            "rounded-2xl px-4 py-2.5 text-sm font-black transition hover:scale-[1.02]",
-                            companyStyle === item
-                              ? "bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white"
-                              : "bg-white/10 text-slate-300 hover:bg-white/14"
-                          )}
-                        >
-                          {item}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid min-h-0 gap-2.5 overflow-y-auto pr-1 sm:grid-cols-2">
-                    {recruiters.map((item) => (
-                      <button
-                        key={item.key}
-                        onClick={() => setRecruiter(item.key)}
-                        className={cn(
-                          "relative min-h-[150px] rounded-[24px] border p-3 text-left transition",
-                          recruiter === item.key
-                            ? "border-cyan-300 bg-gradient-to-br from-blue-500/22 to-indigo-500/12 shadow-[0_0_34px_rgba(34,211,238,0.20)]"
-                            : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]"
-                        )}
-                      >
-                        {recruiter === item.key && (
-                          <span className="absolute right-3 top-3 rounded-full bg-cyan-300/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
-                            Selected
-                          </span>
-                        )}
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="pr-14">
-                            <h3 className="text-[15px] font-black leading-5">{item.name} · {item.role}</h3>
-                            <p className="mt-1 text-xs leading-5 text-slate-400">{item.description}</p>
-                          </div>
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-base">
-                            {item.avatar}
-                          </div>
-                        </div>
-                        <p className="mt-2 rounded-2xl bg-black/20 p-2 text-xs italic leading-5 text-slate-300">
-                          “{item.quote}”
-                        </p>
-                      </button>
-                    ))}
-                  </div>
+                  </section>
                 </div>
               )}
 
               {step === 4 && (
-                <div className="flex min-h-[240px] lg:min-h-[240px] lg:h-[360px] flex-col lg:h-full lg:min-h-0">
+                <div className="flex min-h-[360px] flex-col">
                   <div className="flex items-center gap-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/16 text-emerald-200">
                       <ShieldCheck className="h-6 w-6" />
@@ -862,25 +882,24 @@ export default function OnboardingPage() {
             </div>
           </div>
 
-          <aside className="hidden min-h-0 rounded-[26px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_30px_110px_rgba(0,0,0,0.38)] backdrop-blur-2xl lg:block">
-            <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#050b16] p-4">
+          <aside className="hidden min-h-0 rounded-[26px] border border-white/10 bg-white/[0.032] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl lg:block">
+            <div className="relative flex min-h-[520px] flex-col overflow-visible rounded-[24px] border border-white/10 bg-[#050b16] p-5">
               <div className="pointer-events-none absolute inset-0">
-                <div className="absolute left-1/2 top-28 h-72 w-72 -translate-x-1/2 rounded-full bg-blue-500/18 blur-[80px]" />
-                <div className="absolute bottom-8 right-[-70px] h-56 w-56 rounded-full bg-cyan-400/12 blur-[80px]" />
-                <div className="absolute inset-0 opacity-[0.08] [background:linear-gradient(90deg,rgba(255,255,255,.18)_1px,transparent_1px),linear-gradient(rgba(255,255,255,.16)_1px,transparent_1px)] [background-size:48px_48px]" />
+                <div className="absolute left-1/2 top-24 h-72 w-72 -translate-x-1/2 rounded-full bg-blue-500/12 blur-[90px]" />
+                <div className="absolute bottom-[-90px] right-[-80px] h-64 w-64 rounded-full bg-cyan-400/10 blur-[90px]" />
               </div>
 
               <div className="relative z-10 flex items-start justify-between gap-4">
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/8 px-3 py-1.5 text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/18 bg-cyan-400/8 px-3 py-1.5 text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
                     <Wand2 className="h-3.5 w-3.5" />
-                    AI setup engine
+                    Guided setup
                   </div>
-                  <h2 className="mt-2 text-xl font-black tracking-tight">
-                    Recruiter setup is being prepared
+                  <h2 className="mt-4 text-2xl font-black tracking-tight">
+                    Build a realistic interview in 5 calm steps.
                   </h2>
-                  <p className="wz-mobile-compact-subtitle mt-1.5 max-w-md text-sm leading-6 text-slate-400">
-                    WorkZo turns your CV, role, market, and recruiter style into one realistic interview setup.
+                  <p className="mt-3 max-w-md text-sm leading-6 text-slate-400">
+                    Add only what you know. WorkZo saves the setup quickly and enriches the recruiter context in the background.
                   </p>
                 </div>
 
@@ -889,119 +908,70 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
-              <div className="relative z-10 mt-3 rounded-3xl border border-white/10 bg-slate-950/55 p-3 shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
-                <div className="pointer-events-none absolute inset-x-4 top-0 h-16 rounded-full bg-cyan-300/10 blur-2xl" />
-
-                <div className="relative overflow-hidden rounded-2xl border border-cyan-300/15 bg-black/24 p-3">
-                  <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-cyan-300/12 to-transparent [animation:wzScan_3.6s_ease-in-out_infinite]" />
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_35px_rgba(14,165,233,0.35)]">
-                        <Radar className="h-6 w-6 text-white" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">Live analysis</p>
-                        <p className="mt-1 text-lg font-black">{visualReadiness}% ready</p>
-                        <p className="mt-1 text-xs text-cyan-100/70">Recruiter memory calibrated for realistic follow-ups.</p>
-                      </div>
+              <div className="relative z-10 mt-6 rounded-[26px] border border-white/10 bg-black/22 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/14 text-blue-200">
+                      <Radar className="h-6 w-6" />
                     </div>
-
-                    <div className="flex items-center gap-1.5">
-                      {[0, 1, 2].map((item) => (
-                        <span
-                          key={item}
-                          className="h-2.5 w-2.5 rounded-full bg-emerald-300"
-                          style={{
-                            animation: "wzDotPulse 1.4s ease-in-out infinite",
-                            animationDelay: `${item * 0.18}s`,
-                          }}
-                        />
-                      ))}
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">Readiness</p>
+                      <p className="mt-1 text-2xl font-black">{visualReadiness}%</p>
                     </div>
                   </div>
-
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-300 to-emerald-300"
-                      style={{ width: `${readiness}%` }}
-                    />
-                  </div>
-
-                  <div className="mt-2 flex h-7 items-end gap-1 overflow-hidden">
-                    {waveform.map((height, index) => (
-                      <span
-                        key={index}
-                        className="w-1.5 shrink-0 origin-bottom rounded-full bg-gradient-to-t from-blue-500 to-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.34)]"
-                        style={{
-                          height,
-                          animation: `wzPulseBar ${1.15 + (index % 5) * 0.1}s ease-in-out infinite`,
-                          animationDelay: `${index * 0.04}s`,
-                        }}
-                      />
-                    ))}
-                  </div>
+                  <span className="rounded-full border border-emerald-300/15 bg-emerald-400/8 px-3 py-1.5 text-xs font-black text-emerald-200">
+                    Auto-saved
+                  </span>
                 </div>
 
-                <div className="mt-2.5 grid gap-1.5">
-                  {analysisSignals.map((signal, index) => {
-                    const active =
-                      index === 0 ||
-                      readiness >= 50 ||
-                      (readiness >= 25 && index < 3) ||
-                      (readiness >= 75 && index < 5);
-
-                    return (
-                      <div
-                        key={signal}
-                        className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span
-                            className={cn(
-                              "h-2.5 w-2.5 rounded-full",
-                              active ? "bg-emerald-300 shadow-[0_0_14px_rgba(52,211,153,.45)]" : "bg-slate-600"
-                            )}
-                          />
-                          <span className={cn("text-sm font-bold", active ? "text-white" : "text-slate-500")}>
-                            {signal}
-                          </span>
-                        </div>
-                        {active ? (
-                          <Check className="h-4 w-4 text-emerald-300" />
-                        ) : (
-                          <span className="text-xs font-bold text-slate-600">waiting</span>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-300 to-emerald-300 transition-all duration-500"
+                    style={{ width: `${readiness}%` }}
+                  />
                 </div>
               </div>
 
-              <div className="relative z-10 mt-2.5 grid gap-1.5 sm:grid-cols-2">
-                {(
-                  [
-                    { label: "Current step", value: currentStepLabel, Icon: Sparkles },
-                    { label: "Recruiter", value: recruiterLabel(recruiter), Icon: UserRound },
-                    { label: "Privacy", value: "CV text stays in this setup.", Icon: Lock },
-                  ] satisfies PreviewCard[]
-                ).map(({ label, value, Icon }) => (
-                  <div
-                    key={label}
-                    className={cn(
-                      "flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.045] px-3.5 py-2",
-                      label === "Privacy" && "sm:col-span-2 bg-emerald-400/8"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/14 text-blue-200">
-                        <Icon className="h-4 w-4" />
+              <div className="relative z-10 mt-4 grid gap-2">
+                {analysisSignals.slice(0, 4).map((signal, index) => {
+                  const active = index === 0 || readiness >= 50 || (readiness >= 25 && index < 3) || (readiness >= 75 && index < 4);
+
+                  return (
+                    <div
+                      key={signal}
+                      className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={cn(
+                            "h-2.5 w-2.5 rounded-full",
+                            active ? "bg-emerald-300 shadow-[0_0_14px_rgba(52,211,153,.42)]" : "bg-slate-600"
+                          )}
+                        />
+                        <span className={cn("text-sm font-bold", active ? "text-white" : "text-slate-500")}>
+                          {signal}
+                        </span>
                       </div>
-                      <div>
-                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">{label}</p>
-                        <p className="mt-0.5 text-sm font-bold text-white">{value}</p>
-                      </div>
+                      {active ? <Check className="h-4 w-4 text-emerald-300" /> : <span className="text-xs font-bold text-slate-600">waiting</span>}
                     </div>
-                    <Check className="h-4 w-4 text-emerald-300" />
+                  );
+                })}
+              </div>
+
+              <div className="relative z-10 mt-auto grid gap-2 pt-4">
+                {([
+                  { label: "Current step", value: currentStepLabel, Icon: Sparkles },
+                  { label: "Recruiter", value: recruiterLabel(recruiter), Icon: UserRound },
+                  { label: "Privacy", value: "Your setup stays private.", Icon: Lock },
+                ] satisfies PreviewCard[]).map(({ label, value, Icon }) => (
+                  <div key={label} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/12 text-blue-200">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">{label}</p>
+                      <p className="mt-0.5 truncate text-sm font-bold text-white">{value}</p>
+                    </div>
                   </div>
                 ))}
               </div>
