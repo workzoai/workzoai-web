@@ -74,14 +74,14 @@ function runRuntimeTests() {
       },
     },
     {
-      label: "Repeated vague answer with previous memory",
+      label: "Repeated vague answer under high pressure",
       expectedDecisionHint:
-        "Recruiter should call back the repeated weakness instead of treating it like a fresh answer.",
+        "Recruiter should interrupt because the candidate is repeating the same vague pattern under high pressure.",
       input: {
         answer:
           "I worked on many different things and helped with customer problems. I am good at handling people and I always try my best.",
         score: 44,
-        pressureLevel: 64,
+        pressureLevel: 82,
         memory: repeatedWeaknessMemory,
         turnIndex: 3,
       },

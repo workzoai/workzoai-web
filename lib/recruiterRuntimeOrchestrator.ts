@@ -95,12 +95,20 @@ export function runRecruiterRuntime({
   const safeAnswer = normalizeAnswer(answer);
   const answerSignals = analyzeRuntimeAnswer(safeAnswer);
 
-  const interruption = evaluateInterruption(safeAnswer, pressureLevel);
+  const baseInterruption = evaluateInterruption(safeAnswer, pressureLevel);
   const updatedMemory = updateEmotionalMemory(memory, safeAnswer);
   const memoryLine = buildRuntimeMemoryLine({
     previousMemory: memory,
     updatedMemory,
     answerSignals,
+    turnIndex,
+  });
+
+  const interruption = buildMemoryEscalatedInterruption({
+    baseInterruption,
+    previousMemory: memory,
+    answerSignals,
+    pressureLevel,
     turnIndex,
   });
 
@@ -262,6 +270,69 @@ function detectConcreteTechnicalExample(answer: string) {
   return productOrTechContext && stepContext && userContext;
 }
 
+
+function hasPreviousWeakness(
+  memory: EmotionalMemoryState,
+  signal: "vague_answer" | "missing_metrics" | "weak_clarity",
+) {
+  const repeatedWeaknesses = new Set(memory.repeatedWeaknesses || []);
+  const memorySignals = new Set((memory.memories || []).map((item) => item.signal));
+
+  return repeatedWeaknesses.has(signal) || memorySignals.has(signal);
+}
+
+function buildMemoryEscalatedInterruption({
+  baseInterruption,
+  previousMemory,
+  answerSignals,
+  pressureLevel,
+  turnIndex,
+}: {
+  baseInterruption: InterruptionResult;
+  previousMemory: EmotionalMemoryState;
+  answerSignals: ReturnType<typeof analyzeRuntimeAnswer>;
+  pressureLevel: number;
+  turnIndex: number;
+}): InterruptionResult {
+  if (baseInterruption.shouldInterrupt) return baseInterruption;
+  if (turnIndex < 2 || pressureLevel < 70) return baseInterruption;
+
+  const repeatedVague =
+    answerSignals.vague && hasPreviousWeakness(previousMemory, "vague_answer");
+  const repeatedMissingMetrics =
+    answerSignals.missingMetrics && hasPreviousWeakness(previousMemory, "missing_metrics");
+  const repeatedWeakClarity =
+    answerSignals.weakClarity && hasPreviousWeakness(previousMemory, "weak_clarity");
+
+  if (repeatedVague) {
+    return {
+      shouldInterrupt: true,
+      severity: pressureLevel >= 82 ? "high" : "medium",
+      interruptionMessage:
+        "Let me stop you there. This is the same broad pattern again — give me one specific situation and what you personally did.",
+    };
+  }
+
+  if (repeatedMissingMetrics) {
+    return {
+      shouldInterrupt: true,
+      severity: pressureLevel >= 82 ? "high" : "medium",
+      interruptionMessage:
+        "Hold on. You are avoiding impact again. What changed because of your work? A rough number is fine.",
+    };
+  }
+
+  if (repeatedWeakClarity) {
+    return {
+      shouldInterrupt: true,
+      severity: "medium",
+      interruptionMessage:
+        "Let me pause you there. This is still incomplete — give me the situation, your action, and the result in order.",
+    };
+  }
+
+  return baseInterruption;
+}
 
 function buildRuntimeMemoryLine({
   previousMemory,
