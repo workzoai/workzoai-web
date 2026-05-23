@@ -268,6 +268,36 @@ export default function OnboardingPage() {
 
   const currentStepLabel = steps.find((item) => item.id === step)?.label || "Setup";
 
+  const setupGuideContent: Record<number, { title: string; description: string; summary: string }> = {
+    1: {
+      title: "WorkZo is understanding your experience.",
+      description: "Add your CV first. The recruiter will use your real background instead of asking generic practice questions.",
+      summary: `Your CV context is being prepared for ${recruiterLabel(recruiter)}.`,
+    },
+    2: {
+      title: "Interview questions are adapting to your role.",
+      description: "Add a target role or job description so WorkZo can ask sharper, role-specific follow-ups.",
+      summary: `You are shaping this interview around ${role.trim() || "your target role"}.`,
+    },
+    3: {
+      title: "Recruiter behavior is being calibrated.",
+      description: "Market, company style, and recruiter personality quietly shape the pressure, tone, and expectations.",
+      summary: `You are choosing ${recruiterLabel(recruiter)} with a ${companyStyle.toLowerCase()} interview style.`,
+    },
+    4: {
+      title: "Pressure and follow-up logic are prepared.",
+      description: "Review the setup once. WorkZo will use this context to simulate a more realistic recruiter conversation.",
+      summary: `You are preparing a realistic interview with ${recruiterLabel(recruiter)}.`,
+    },
+    5: {
+      title: "Your interview runtime is ready.",
+      description: "Start when ready. You can still return and edit your setup before practicing again.",
+      summary: `Your interview room is ready with ${recruiterLabel(recruiter)}.`,
+    },
+  };
+
+  const guide = setupGuideContent[step] || setupGuideContent[1];
+
 
   function buildDraftSetup(): SetupState {
     const cvText = (manualCv || setup.cvText || "").trim();
@@ -516,7 +546,7 @@ export default function OnboardingPage() {
         <div className="absolute bottom-[-260px] left-1/2 h-[560px] w-[560px] -translate-x-1/2 rounded-full bg-indigo-600/08 blur-[135px]" />
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+8rem)] pt-3 sm:px-5 lg:pb-8">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+8rem)] pt-3 sm:px-5 xl:pb-8">
         <header className="flex min-h-[60px] shrink-0 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 sm:px-5 shadow-[0_18px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
           <Link href="/" className="flex items-center gap-3 text-slate-200 transition hover:text-white">
             <ArrowLeft className="h-5 w-5" />
@@ -557,18 +587,18 @@ export default function OnboardingPage() {
           </Link>
         </header>
 
-        <BetaPrivacyNotice compact className="mt-3 hidden lg:block" />
+        <BetaPrivacyNotice compact className="mt-3 hidden xl:block" />
 
-        <div className="mt-3 rounded-2xl border border-amber-300/15 bg-amber-500/[0.07] px-4 py-3 text-sm leading-6 text-amber-50/90 shadow-[0_14px_40px_rgba(0,0,0,0.16)] lg:hidden">
+        <div className="mt-3 rounded-2xl border border-amber-300/15 bg-amber-500/[0.07] px-4 py-3 text-sm leading-6 text-amber-50/90 shadow-[0_14px_40px_rgba(0,0,0,0.16)] xl:hidden">
           <p className="font-black">⚠️ Beta notice</p>
           <p className="mt-1 text-amber-100/80">
             WorkZo AI is improving continuously. Use outputs as interview practice guidance and validate important feedback before real applications.
           </p>
         </div>
 
-        <section className="grid flex-1 items-start gap-4 overflow-visible py-3 lg:grid-cols-[1fr_0.68fr]">
-          <div className="flex flex-col overflow-visible rounded-[22px] border border-white/10 bg-white/[0.032] shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-2xl lg:rounded-[26px]">
-            <div className="flex-1 overflow-visible p-4 pb-28 lg:p-5">
+        <section className="grid flex-1 items-start gap-4 overflow-visible py-3 xl:grid-cols-[1fr_0.68fr]">
+          <div className="flex flex-col overflow-visible rounded-[22px] border border-white/10 bg-white/[0.032] shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-2xl xl:rounded-[26px]">
+            <div className="flex-1 overflow-visible p-4 pb-28 xl:p-5">
               {step === 1 && (
                 <div className="flex min-h-[520px] flex-col">
                   <div className="flex items-center gap-4">
@@ -622,7 +652,7 @@ export default function OnboardingPage() {
                     value={manualCv}
                     onChange={(event) => setManualCv(event.target.value)}
                     placeholder="Or paste your CV text here..."
-                    className="mt-3 h-[260px] min-h-[220px] shrink-0 resize-none overflow-y-auto rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,0.10),transparent_34%),#050b16] p-5 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50 lg:h-[300px]"
+                    className="mt-3 h-[260px] min-h-[220px] shrink-0 resize-none overflow-y-auto rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,0.10),transparent_34%),#050b16] p-5 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50 xl:h-[300px]"
                   />
                 </div>
               )}
@@ -668,7 +698,7 @@ export default function OnboardingPage() {
               )}
 
               {step === 3 && (
-                <div className="flex min-h-[560px] flex-col lg:h-full lg:min-h-0">
+                <div className="flex min-h-[560px] flex-col xl:h-full xl:min-h-0">
                   <div className="flex items-start gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-500/14 text-indigo-200">
                       <Globe2 className="h-6 w-6" />
@@ -684,7 +714,7 @@ export default function OnboardingPage() {
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                  <div className="mt-5 grid gap-4 md:grid-cols-2">
                     <section className="rounded-[26px] border border-white/10 bg-black/18 p-4">
                       <p className="text-xs font-black uppercase tracking-[0.26em] text-slate-500">Target market</p>
                       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -708,7 +738,7 @@ export default function OnboardingPage() {
 
                     <section className="rounded-[26px] border border-white/10 bg-black/18 p-4">
                       <p className="text-xs font-black uppercase tracking-[0.26em] text-slate-500">Company style</p>
-                      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
+                      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-2">
                         {companyStyles.map((item) => (
                           <button
                             key={item}
@@ -738,7 +768,7 @@ export default function OnboardingPage() {
                       </span>
                     </div>
 
-                    <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
                       {recruiters.map((item) => (
                         <button
                           key={item.key}
@@ -857,7 +887,7 @@ export default function OnboardingPage() {
               <button
                 onClick={back}
                 disabled={step === 1}
-                className="h-10 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-bold text-slate-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 lg:h-11 lg:px-5"
+                className="h-10 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-bold text-slate-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 xl:h-11 xl:px-5"
               >
                 Back
               </button>
@@ -865,7 +895,7 @@ export default function OnboardingPage() {
               {step < 5 ? (
                 <button
                   onClick={next}
-                  className="inline-flex h-10 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-5 text-sm font-black text-white shadow-[0_10px_28px_rgba(37,99,235,0.26)] transition hover:scale-[1.02] lg:h-11 lg:px-6"
+                  className="inline-flex h-10 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-5 text-sm font-black text-white shadow-[0_10px_28px_rgba(37,99,235,0.26)] transition hover:scale-[1.02] xl:h-11 xl:px-6"
                 >
                   Continue
                   <ChevronRight className="h-4 w-4" />
@@ -873,7 +903,7 @@ export default function OnboardingPage() {
               ) : (
                 <button
                   onClick={() => { persistFast(); router.push("/dashboard"); }}
-                  className="inline-flex h-10 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-5 text-sm font-black text-white shadow-[0_10px_28px_rgba(37,99,235,0.26)] transition hover:scale-[1.02] lg:h-11 lg:px-6"
+                  className="inline-flex h-10 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-5 text-sm font-black text-white shadow-[0_10px_28px_rgba(37,99,235,0.26)] transition hover:scale-[1.02] xl:h-11 xl:px-6"
                 >
                   Go to Dashboard
                   <ChevronRight className="h-4 w-4" />
@@ -882,8 +912,8 @@ export default function OnboardingPage() {
             </div>
           </div>
 
-          <aside className="hidden min-h-0 rounded-[26px] border border-white/10 bg-white/[0.028] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl lg:block">
-            <div className="relative flex min-h-[500px] flex-col overflow-hidden rounded-[24px] border border-white/[0.08] bg-[#050b16] p-5">
+          <aside className="hidden min-h-0 rounded-[26px] border border-white/10 bg-white/[0.028] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl xl:block">
+            <div className="relative flex min-h-[460px] flex-col overflow-hidden rounded-[24px] border border-white/[0.08] bg-[#050b16] p-4">
               <div className="pointer-events-none absolute inset-0">
                 <div className="absolute left-1/2 top-20 h-72 w-72 -translate-x-1/2 rounded-full bg-blue-500/10 blur-[95px]" />
                 <div className="absolute bottom-[-120px] right-[-100px] h-72 w-72 rounded-full bg-cyan-400/8 blur-[95px]" />
@@ -896,10 +926,10 @@ export default function OnboardingPage() {
                     Guided setup
                   </div>
                   <h2 className="mt-4 max-w-sm text-2xl font-black leading-tight tracking-tight">
-                    One calm setup before the interview starts.
+                    {guide.title}
                   </h2>
                   <p className="mt-3 max-w-md text-sm leading-6 text-slate-400">
-                    Add your CV, role, market, and recruiter style. WorkZo saves instantly and prepares context in the background.
+                    {guide.description}
                   </p>
                 </div>
 
@@ -908,7 +938,7 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
-              <div className="relative z-10 mt-6 rounded-[26px] border border-white/[0.08] bg-black/18 p-4">
+              <div className="relative z-10 mt-6 rounded-[26px] border border-white/[0.065] bg-black/16 p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/12 text-blue-200">
@@ -953,8 +983,8 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
-              <div className="relative z-10 mt-4 rounded-[26px] border border-white/[0.08] bg-white/[0.03] p-4">
-                <div className="flex items-center gap-3">
+              <div className="relative z-10 mt-4 rounded-[26px] border border-white/[0.065] bg-white/[0.026] p-4">
+                <div className="flex items-start gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-500/12 text-blue-200">
                     <Sparkles className="h-5 w-5" />
                   </div>
@@ -962,26 +992,18 @@ export default function OnboardingPage() {
                     <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
                       Setup summary
                     </p>
-                    <p className="mt-1 truncate text-sm font-black text-white">
-                      {currentStepLabel} · {recruiterLabel(recruiter)}
+                    <p className="mt-1 text-sm font-black leading-6 text-white">
+                      {guide.summary}
                     </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-2 text-xs font-bold text-slate-300">
-                  <div className="flex items-center justify-between rounded-2xl bg-black/18 px-3 py-2">
-                    <span className="text-slate-500">Current step</span>
-                    <span className="truncate text-white">{currentStepLabel}</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-black/18 px-3 py-2">
-                    <span className="text-slate-500">Recruiter</span>
-                    <span className="truncate text-white">{recruiterLabel(recruiter)}</span>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      Current step: {currentStepLabel}
+                    </p>
                   </div>
                 </div>
               </div>
 
-              <div className="relative z-10 mt-auto pt-4">
-                <div className="flex items-start gap-3 rounded-[22px] border border-emerald-300/10 bg-emerald-400/[0.06] px-4 py-3 text-xs font-bold leading-5 text-emerald-100/90">
+              <div className="relative z-10 mt-auto pt-3">
+                <div className="flex items-start gap-3 rounded-[22px] border border-emerald-300/10 bg-emerald-400/[0.055] px-4 py-3 text-xs font-bold leading-5 text-emerald-100/90">
                   <Lock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-200" />
                   <span>Your setup stays private and can be edited before the interview.</span>
                 </div>

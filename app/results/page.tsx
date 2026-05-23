@@ -25,7 +25,6 @@ import {
 import BetaPrivacyNotice from "@/components/BetaPrivacyNotice";
 import FeedbackCapture from "@/components/FeedbackCapture";
 import { trackWorkZoLaunchEvent } from "@/lib/workzoLaunchAnalytics";
-
 import {
   buildEmotionalResult,
   compareAnswers,
@@ -53,7 +52,7 @@ type TimelineEvent = {
   scoreImpact: number;
 };
 
-type SaaSTimelineEvent = TimelineEvent & {
+type PremiumTimelineEvent = TimelineEvent & {
   mood: string;
   shortLabel: string;
 };
@@ -64,6 +63,10 @@ const recruiterNames: Record<string, string> = {
   startup_recruiter: "Priya",
   german_corporate: "Markus",
 };
+
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
 
 function readResults(): ResultPayload {
   if (typeof window === "undefined") return {};
@@ -81,6 +84,34 @@ function clamp(value: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, value));
 }
 
+function getRecruiterName(value?: string) {
+  if (!value) return "Recruiter";
+  return recruiterNames[value] || "Recruiter";
+}
+
+function hiringSignal(score: number) {
+  if (score >= 85) return "Strong";
+  if (score >= 72) return "Promising";
+  if (score >= 58) return "Needs proof";
+  return "Weak";
+}
+
+function hiringSignalCopy(score: number) {
+  if (score >= 85) {
+    return "The recruiter saw a strong hiring signal. Your next improvement is to keep this clarity and add one sharper quantified result.";
+  }
+
+  if (score >= 72) {
+    return "The recruiter saw potential, but still needs stronger measurable proof, clearer ownership, and tighter role fit.";
+  }
+
+  if (score >= 58) {
+    return "The recruiter did not receive enough proof yet. Your answers need numbers, ownership, and one specific example.";
+  }
+
+  return "The recruiter lost confidence because the answers felt too vague, unmeasured, or disconnected from the role.";
+}
+
 function eventIcon(type: string) {
   if (type === "increase") return TrendingUp;
   if (type === "drop") return TrendingDown;
@@ -91,59 +122,33 @@ function eventIcon(type: string) {
 function eventTone(type: string) {
   if (type === "drop") {
     return {
-      border: "border-red-300/14",
-      bg: "bg-red-500/[0.055]",
+      shell: "border-red-300/14 bg-red-500/[0.055]",
       text: "text-red-200",
-      dot: "bg-red-300",
+      dot: "bg-red-300 shadow-[0_0_18px_rgba(248,113,113,.55)]",
     };
   }
 
   if (type === "increase" || type === "recovery") {
     return {
-      border: "border-emerald-300/14",
-      bg: "bg-emerald-400/[0.055]",
+      shell: "border-emerald-300/14 bg-emerald-400/[0.055]",
       text: "text-emerald-200",
-      dot: "bg-emerald-300",
+      dot: "bg-emerald-300 shadow-[0_0_18px_rgba(52,211,153,.45)]",
     };
   }
 
   return {
-    border: "border-white/10",
-    bg: "bg-white/[0.035]",
-    text: "text-slate-300",
-    dot: "bg-cyan-300",
+    shell: "border-white/[0.07] bg-white/[0.035]",
+    text: "text-cyan-200",
+    dot: "bg-cyan-300 shadow-[0_0_18px_rgba(34,211,238,.42)]",
   };
 }
 
-function hiringSignal(score: number) {
-  if (score >= 85) return "Strong";
-  if (score >= 72) return "Promising";
-  if (score >= 58) return "Needs Proof";
-  return "Weak";
-}
-
-function hiringSignalCopy(score: number) {
-  if (score >= 85) {
-    return "The recruiter saw a strong hiring signal. Keep the same clarity and add one more quantified result.";
-  }
-
-  if (score >= 72) {
-    return "The recruiter saw potential, but still needs stronger measurable proof and sharper ownership.";
-  }
-
-  if (score >= 58) {
-    return "The recruiter did not receive enough proof yet. Add numbers, ownership, and one concrete example.";
-  }
-
-  return "The recruiter lost confidence because the answers were too vague, unmeasured, or not clearly tied to the role.";
-}
-
-function normalizeTimeline(events: TimelineEvent[], trust: number): SaaSTimelineEvent[] {
+function normalizeTimeline(events: TimelineEvent[], trust: number): PremiumTimelineEvent[] {
   const fallback: TimelineEvent[] = [
     {
       label: "Interview opened",
       type: "neutral",
-      reason: "Recruiter started from a neutral trust baseline and listened for role relevance.",
+      reason: "Recruiter started from a neutral baseline and listened for role relevance.",
       scoreImpact: 0,
     },
     {
@@ -151,14 +156,14 @@ function normalizeTimeline(events: TimelineEvent[], trust: number): SaaSTimeline
       type: trust >= 70 ? "increase" : "drop",
       reason:
         trust >= 70
-          ? "Candidate showed some role-relevant background."
-          : "Answer did not provide enough evidence for impact or ownership.",
+          ? "Candidate showed some role-relevant evidence."
+          : "Answer did not provide enough measurable impact or ownership.",
       scoreImpact: trust >= 70 ? 8 : -8,
     },
     {
       label: "Recruiter follow-up expected",
       type: "neutral",
-      reason: "A recruiter would likely ask for measurable outcomes and a specific example.",
+      reason: "A real recruiter would now test metrics, ownership, and one concrete example.",
       scoreImpact: 0,
     },
   ];
@@ -166,18 +171,18 @@ function normalizeTimeline(events: TimelineEvent[], trust: number): SaaSTimeline
   const source = events.length ? events : fallback;
 
   const labelCycle = {
-    drop: ["Trust dropped", "Recruiter became skeptical", "Proof gap detected", "Confidence weakened"],
-    increase: ["Trust increased", "Recruiter engaged", "Strong signal found", "Credibility improved"],
+    drop: ["Trust dropped", "Proof gap detected", "Recruiter became skeptical", "Confidence weakened"],
+    increase: ["Trust increased", "Strong signal found", "Recruiter engaged", "Credibility improved"],
     recovery: ["Trust recovered", "Answer improved", "Recovery moment", "Signal restored"],
-    neutral: ["Recruiter evaluated", "Follow-up risk", "Evidence check", "Question pressure"],
-  };
+    neutral: ["Recruiter evaluated", "Evidence check", "Follow-up risk", "Pressure moment"],
+  } as const;
 
   const moodCycle = {
     drop: ["Skeptical", "Concerned", "Pressuring"],
-    increase: ["Engaged", "Interested", "Confident"],
+    increase: ["Interested", "Engaged", "Confident"],
     recovery: ["Recovering", "Re-engaged", "Stabilized"],
-    neutral: ["Neutral", "Evaluating", "Watching"],
-  };
+    neutral: ["Evaluating", "Watching", "Neutral"],
+  } as const;
 
   return source.slice(0, 6).map((event, index) => {
     const type = event.type || "neutral";
@@ -192,28 +197,31 @@ function normalizeTimeline(events: TimelineEvent[], trust: number): SaaSTimeline
   });
 }
 
-function buildTrustPoints(events: SaaSTimelineEvent[], startingTrust: number) {
-  let score = clamp(Math.max(44, startingTrust - 18));
+function buildTrustPoints(events: PremiumTimelineEvent[], finalTrust: number) {
+  let score = clamp(Math.max(44, finalTrust - 18));
   const points = [{ label: "Start", score }];
 
   events.forEach((event, index) => {
     score = clamp(score + event.scoreImpact);
-    points.push({
-      label: `Q${index + 1}`,
-      score,
-    });
+    points.push({ label: `Q${index + 1}`, score });
   });
 
-  points.push({
-    label: "Final",
-    score: startingTrust,
-  });
-
+  points.push({ label: "Final", score: finalTrust });
   return points;
 }
 
+function buildAtmosphere(score: number, pressure?: number) {
+  return [
+    { label: "Pressure", value: `${clamp(pressure ?? 42)}/100` },
+    { label: "Strictness", value: score >= 75 ? "Balanced" : "High" },
+    { label: "Follow-ups", value: score >= 78 ? "Medium" : "High" },
+    { label: "Recovery", value: score >= 72 ? "Recoverable" : "Needs practice" },
+  ];
+}
+
 function buildMemoryItems(emotional: ReturnType<typeof buildEmotionalResult>) {
-  const weaknessReason = emotional.weakestAnswer.reason || emotional.weakestMoment || "missing measurable impact";
+  const weaknessReason =
+    emotional.weakestAnswer.reason || emotional.weakestMoment || "missing measurable impact";
 
   return [
     {
@@ -250,41 +258,17 @@ function buildImprovementItems(emotional: ReturnType<typeof buildEmotionalResult
   return base.slice(0, 4);
 }
 
-function buildAtmosphere(score: number, pressure?: number) {
-  const strictness = score >= 75 ? "Balanced" : "High";
-  const followUp = score >= 78 ? "Medium" : "High";
-  const recovery = score >= 72 ? "Recoverable" : "Needs practice";
-
-  return [
-    { label: "Pressure", value: `${clamp(pressure ?? 42)}/100` },
-    { label: "Strictness", value: strictness },
-    { label: "Follow-ups", value: followUp },
-    { label: "Recovery", value: recovery },
-  ];
-}
-
-function getRecruiterName(value?: string) {
-  if (!value) return "Recruiter";
-  return recruiterNames[value] || "Recruiter";
-}
-
 function MiniTrustGraph({ points }: { points: { label: string; score: number }[] }) {
-  const width = 520;
-  const height = 170;
-  const padding = 22;
-  const max = 100;
-  const min = 0;
+  const width = 540;
+  const height = 180;
+  const padding = 24;
 
   const coords = points.map((point, index) => {
     const x =
       points.length === 1
         ? width / 2
         : padding + (index / (points.length - 1)) * (width - padding * 2);
-    const y =
-      height -
-      padding -
-      ((point.score - min) / (max - min)) * (height - padding * 2);
-
+    const y = height - padding - (point.score / 100) * (height - padding * 2);
     return { ...point, x, y };
   });
 
@@ -297,23 +281,23 @@ function MiniTrustGraph({ points }: { points: { label: string; score: number }[]
   } L ${coords[0]?.x || padding} ${height - padding} Z`;
 
   return (
-    <div className="rounded-[26px] border border-white/10 bg-slate-950/42 p-4">
-      <div className="flex items-center justify-between">
+    <section className="rounded-[30px] border border-white/[0.07] bg-white/[0.04] p-4 shadow-[0_18px_65px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
-            Recruiter trust over interview
+          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300/85">
+            Trust timeline
           </p>
-          <p className="mt-1 text-sm text-slate-400">
-            Emotional movement from first answer to final hiring signal.
-          </p>
+          <h2 className="mt-2 text-xl font-black tracking-[-0.03em]">
+            Where recruiter trust changed
+          </h2>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-sm font-black">
-          {points[points.length - 1]?.score ?? 0}/100
+        <div className="w-fit rounded-2xl border border-white/[0.07] bg-white/[0.045] px-4 py-2 text-sm font-black">
+          Final {points[points.length - 1]?.score ?? 0}/100
         </div>
       </div>
 
-      <div className="mt-3 overflow-hidden rounded-3xl border border-white/10 bg-black/18">
-        <svg viewBox={`0 0 ${width} ${height}`} className="h-[190px] w-full">
+      <div className="mt-3 overflow-hidden rounded-[24px] border border-white/[0.06] bg-black/18">
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-[160px] w-full">
           {[25, 50, 75].map((line) => {
             const y = height - padding - (line / 100) * (height - padding * 2);
             return (
@@ -329,11 +313,11 @@ function MiniTrustGraph({ points }: { points: { label: string; score: number }[]
             );
           })}
 
-          <path d={fillPath} fill="url(#trustFill)" opacity="0.7" />
+          <path d={fillPath} fill="url(#trustFillPremium)" opacity="0.7" />
           <path
             d={path}
             fill="none"
-            stroke="url(#trustLine)"
+            stroke="url(#trustLinePremium)"
             strokeWidth="5"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -342,25 +326,25 @@ function MiniTrustGraph({ points }: { points: { label: string; score: number }[]
           {coords.map((point) => (
             <g key={`${point.label}-${point.x}`}>
               <circle cx={point.x} cy={point.y} r="6" fill="#7dd3fc" />
-              <circle cx={point.x} cy={point.y} r="11" fill="rgba(125,211,252,0.13)" />
+              <circle cx={point.x} cy={point.y} r="12" fill="rgba(125,211,252,0.14)" />
             </g>
           ))}
 
           <defs>
-            <linearGradient id="trustLine" x1="0" x2="1">
-              <stop offset="0%" stopColor="#38bdf8" />
-              <stop offset="55%" stopColor="#3b82f6" />
+            <linearGradient id="trustLinePremium" x1="0" x2="1">
+              <stop offset="0%" stopColor="#22d3ee" />
+              <stop offset="52%" stopColor="#3b82f6" />
               <stop offset="100%" stopColor="#8b5cf6" />
             </linearGradient>
-            <linearGradient id="trustFill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="rgba(59,130,246,0.45)" />
+            <linearGradient id="trustFillPremium" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="rgba(59,130,246,0.42)" />
               <stop offset="100%" stopColor="rgba(59,130,246,0)" />
             </linearGradient>
           </defs>
         </svg>
       </div>
 
-      <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-7">
+      <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-7">
         {points.map((point) => (
           <div key={point.label} className="rounded-2xl bg-white/[0.035] px-3 py-2">
             <p className="text-[11px] text-slate-500">{point.label}</p>
@@ -368,33 +352,40 @@ function MiniTrustGraph({ points }: { points: { label: string; score: number }[]
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
 export default function ResultsPage() {
-  const result = useMemo(() => readResults(), []);
+  // Keep the first server/client render identical to avoid hydration mismatch.
+  // Browser-only localStorage data is loaded after mount.
+  const [result, setResult] = useState<ResultPayload>({});
+  const [retryAnswer, setRetryAnswer] = useState("");
+
+  useEffect(() => {
+    setResult(readResults());
+  }, []);
+
   const transcript = result.transcript || [];
   const emotional = useMemo(() => buildEmotionalResult(transcript), [transcript]);
-  const [retryAnswer, setRetryAnswer] = useState("");
 
   const trust = clamp(result.recruiterTrust ?? result.overallScore ?? 0);
   const signal = hiringSignal(trust);
+  const targetRole = result.setup?.targetRole || "Target role";
+  const targetMarket = result.setup?.targetMarket || "Global";
+  const recruiterName = getRecruiterName(result.setup?.recruiterPersonality);
+
   const timeline = useMemo(
     () => normalizeTimeline(emotional.trustTimeline || [], trust),
     [emotional.trustTimeline, trust],
   );
   const graphPoints = useMemo(() => buildTrustPoints(timeline, trust), [timeline, trust]);
-  const comparison = retryAnswer.trim()
-    ? compareAnswers(emotional.weakestAnswer.answer, retryAnswer)
-    : null;
-
-  const targetRole = result.setup?.targetRole || "Target role";
-  const targetMarket = result.setup?.targetMarket || "Global";
-  const recruiterName = getRecruiterName(result.setup?.recruiterPersonality);
   const memoryItems = buildMemoryItems(emotional);
   const improvementItems = buildImprovementItems(emotional);
   const atmosphere = buildAtmosphere(trust, result.pressure);
+  const comparison = retryAnswer.trim()
+    ? compareAnswers(emotional.weakestAnswer.answer, retryAnswer)
+    : null;
 
   useEffect(() => {
     trackWorkZoLaunchEvent({
@@ -420,19 +411,19 @@ export default function ResultsPage() {
   }, [comparison, result.setup?.targetMarket, result.setup?.targetRole]);
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.16),transparent_30%),linear-gradient(180deg,#06111f_0%,#050816_100%)] p-4 text-white">
+    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.16),transparent_31%),radial-gradient(circle_at_85%_12%,rgba(34,211,238,0.10),transparent_28%),linear-gradient(180deg,#06111f_0%,#040712_100%)] px-4 py-4 text-white sm:px-5">
       <div className="mx-auto max-w-[1440px]">
-        <header className="flex min-h-[76px] items-center justify-between gap-4 rounded-[24px] border border-white/10 bg-white/[0.045] px-5 shadow-[0_20px_80px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
+        <header className="flex min-h-[72px] items-center justify-between gap-3 rounded-[24px] border border-white/[0.07] bg-white/[0.045] px-4 shadow-[0_18px_70px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:px-5">
           <Link
             href="/dashboard"
-            className="inline-flex items-center gap-3 text-sm font-black text-slate-300 transition hover:text-white"
+            className="inline-flex items-center gap-2 text-sm font-black text-slate-300 transition hover:text-white"
           >
             <ArrowLeft className="h-5 w-5" />
             Dashboard
           </Link>
 
           <div className="hidden text-center md:block">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-200">
               Post-interview intelligence
             </p>
             <p className="mt-1 text-sm text-slate-400">
@@ -442,7 +433,7 @@ export default function ResultsPage() {
 
           <Link
             href="/interview"
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 px-5 text-sm font-black text-white shadow-[0_16px_48px_rgba(59,130,246,0.28)]"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 px-4 text-sm font-black text-white shadow-[0_14px_44px_rgba(59,130,246,0.25)] sm:px-5"
           >
             Practice again
             <ArrowRight className="h-4 w-4" />
@@ -451,34 +442,34 @@ export default function ResultsPage() {
 
         <section className="mt-4 grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
           <section className="space-y-4">
-            <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <section className="rounded-[32px] border border-white/[0.07] bg-white/[0.045] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.30)] backdrop-blur-2xl sm:p-7">
+              <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                 <div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/8 px-3 py-1.5 text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
                     <Flame className="h-4 w-4" />
-                    Recruiter breakdown
+                    Recruiter read
                   </div>
 
-                  <h1 className="mt-5 text-[clamp(34px,4vw,56px)] font-black leading-[0.95] tracking-[-0.06em]">
-                    Hiring signal: {signal}
+                  <h1 className="mt-5 max-w-2xl text-[clamp(42px,5vw,76px)] font-black leading-[0.95] tracking-[-0.06em]">
+                    Hiring signal: <span className="text-cyan-200">{signal}</span>
                   </h1>
-                  <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
+                  <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
                     {hiringSignalCopy(trust)}
                   </p>
                 </div>
 
-                <div className="relative flex h-[150px] w-[150px] shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-950/50 shadow-[0_0_70px_rgba(59,130,246,0.20)]">
+                <div className="relative flex h-[170px] w-[170px] shrink-0 items-center justify-center rounded-full border border-white/[0.07] bg-slate-950/50 shadow-[0_0_70px_rgba(59,130,246,0.18)]">
                   <div
                     className="absolute inset-3 rounded-full"
                     style={{
                       background: `conic-gradient(#38bdf8 ${trust * 3.6}deg, rgba(255,255,255,0.08) 0deg)`,
                     }}
                   />
-                  <div className="relative flex h-[112px] w-[112px] flex-col items-center justify-center rounded-full bg-[#07101f]">
+                  <div className="relative flex h-[126px] w-[126px] flex-col items-center justify-center rounded-full bg-[#07101f]">
                     <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
                       Trust
                     </p>
-                    <p className="text-3xl font-black">{trust}</p>
+                    <p className="text-4xl font-black">{trust}</p>
                     <p className="text-xs text-slate-500">/100</p>
                   </div>
                 </div>
@@ -489,12 +480,12 @@ export default function ResultsPage() {
                 <MetricCard label="Recruiter" value={recruiterName} icon={UserRound} />
                 <MetricCard label="Market" value={targetMarket} icon={Gauge} />
               </div>
-            </div>
+            </section>
 
-            <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.25)] backdrop-blur-2xl">
+            <section className="rounded-[30px] border border-white/[0.07] bg-white/[0.04] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
               <div className="flex items-center gap-3">
                 <Brain className="h-5 w-5 text-cyan-200" />
-                <h2 className="text-2xl font-black">What the recruiter remembers</h2>
+                <h2 className="text-2xl font-black tracking-[-0.03em]">What the recruiter remembers</h2>
               </div>
 
               <div className="mt-4 grid gap-3">
@@ -503,7 +494,7 @@ export default function ResultsPage() {
                   return (
                     <div
                       key={item.label}
-                      className="rounded-3xl border border-white/10 bg-slate-950/42 p-4"
+                      className="rounded-[24px] border border-white/[0.06] bg-slate-950/42 p-4"
                     >
                       <div className="flex items-start gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/[0.06]">
@@ -518,57 +509,50 @@ export default function ResultsPage() {
                   );
                 })}
               </div>
-            </div>
+            </section>
 
-            <div className="rounded-[30px] border border-red-300/18 bg-red-500/[0.055] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
+            <section className="rounded-[30px] border border-red-300/16 bg-red-500/[0.045] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
               <div className="flex items-center gap-3">
                 <ShieldAlert className="h-5 w-5 text-red-200" />
-                <h2 className="text-2xl font-black">Weakest answer detected</h2>
+                <h2 className="text-2xl font-black tracking-[-0.03em]">Weakest answer detected</h2>
               </div>
 
-              <div className="mt-4 rounded-3xl border border-white/10 bg-black/18 p-4">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                  Question
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  {emotional.weakestAnswer.question || "No weak question captured."}
-                </p>
+              <div className="mt-4 grid gap-3">
+                <EvidenceBlock
+                  label="Question"
+                  value={emotional.weakestAnswer.question || "No weak question captured."}
+                />
+                <EvidenceBlock
+                  label="Old answer"
+                  value={emotional.weakestAnswer.answer || "No candidate answer captured yet."}
+                />
               </div>
 
-              <div className="mt-3 rounded-3xl border border-white/10 bg-black/18 p-4">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                  Old answer
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  {emotional.weakestAnswer.answer || "No candidate answer captured yet."}
-                </p>
-              </div>
-
-              <p className="mt-3 text-sm leading-6 text-red-100/90">
-                Why confidence dropped: {emotional.weakestAnswer.reason || emotional.weakestMoment}
+              <p className="mt-4 rounded-3xl border border-red-200/10 bg-black/16 p-4 text-sm leading-6 text-red-100/90">
+                Confidence dropped because: {emotional.weakestAnswer.reason || emotional.weakestMoment}
               </p>
-            </div>
+            </section>
 
-            <BetaPrivacyNotice className="hidden lg:block" />
+            <BetaPrivacyNotice className="hidden xl:block" />
           </section>
 
           <section className="space-y-4">
             <MiniTrustGraph points={graphPoints} />
 
-            <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
-              <div className="flex items-center justify-between gap-4">
+            <section className="rounded-[30px] border border-white/[0.07] bg-white/[0.04] p-4 shadow-[0_24px_90px_rgba(0,0,0,0.26)] backdrop-blur-2xl">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-2xl font-black">Recruiter trust timeline</h2>
-                  <p className="mt-1 text-sm text-slate-400">
-                    Not just scores — this shows where the recruiter changed their mind.
+                  <h2 className="text-2xl font-black tracking-[-0.03em]">Recruiter trust moments</h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-400">
+                    Not just a score — these are the moments where the recruiter became more convinced or more doubtful.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-black text-slate-300">
+                <div className="w-fit rounded-2xl border border-white/[0.07] bg-white/[0.045] px-3 py-2 text-xs font-black text-slate-300">
                   {timeline.length} moments
                 </div>
               </div>
 
-              <div className="mt-5 space-y-3">
+              <div className="mt-4 space-y-2.5">
                 {timeline.map((event, index) => {
                   const Icon = eventIcon(event.type);
                   const tone = eventTone(event.type);
@@ -576,7 +560,7 @@ export default function ResultsPage() {
                   return (
                     <div
                       key={`${event.label}-${index}`}
-                      className={`rounded-3xl border ${tone.border} ${tone.bg} p-4 transition hover:bg-white/[0.06]`}
+                      className={`rounded-[24px] border ${tone.shell} p-3.5 transition hover:bg-white/[0.06]`}
                     >
                       <div className="flex gap-4">
                         <div className="relative">
@@ -589,7 +573,7 @@ export default function ResultsPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="font-black">{event.shortLabel}</p>
-                            <span className={`rounded-full border ${tone.border} px-2 py-0.5 text-[11px] font-black ${tone.text}`}>
+                            <span className={`rounded-full border border-white/[0.08] px-2 py-0.5 text-[11px] font-black ${tone.text}`}>
                               {event.mood}
                             </span>
                           </div>
@@ -604,20 +588,20 @@ export default function ResultsPage() {
                   );
                 })}
               </div>
-            </div>
+            </section>
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-[30px] border border-emerald-300/20 bg-emerald-400/[0.07] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
+            <div className="grid gap-4 xl:grid-cols-2">
+              <section className="rounded-[30px] border border-emerald-300/18 bg-emerald-400/[0.055] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
                 <div className="flex items-center gap-3">
                   <Lightbulb className="h-5 w-5 text-emerald-200" />
-                  <h2 className="text-xl font-black">What would make you hirable</h2>
+                  <h2 className="text-xl font-black tracking-[-0.02em]">What would make you hirable</h2>
                 </div>
 
                 <div className="mt-4 space-y-3">
                   {improvementItems.map((item, index) => (
                     <div
                       key={`${item}-${index}`}
-                      className="flex gap-3 rounded-2xl border border-white/10 bg-black/18 p-3 text-sm leading-6 text-slate-300"
+                      className="flex gap-3 rounded-2xl border border-white/[0.07] bg-black/16 p-3 text-sm leading-6 text-slate-300"
                     >
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-400/12 text-xs font-black text-emerald-200">
                         {index + 1}
@@ -626,34 +610,34 @@ export default function ResultsPage() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </section>
 
-              <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
+              <section className="rounded-[30px] border border-white/[0.07] bg-white/[0.04] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
                 <div className="flex items-center gap-3">
                   <BarChart3 className="h-5 w-5 text-blue-200" />
-                  <h2 className="text-xl font-black">Interview atmosphere</h2>
+                  <h2 className="text-xl font-black tracking-[-0.02em]">Interview atmosphere</h2>
                 </div>
 
                 <div className="mt-4 grid gap-3">
                   {atmosphere.map((item) => (
                     <div
                       key={item.label}
-                      className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/18 p-3"
+                      className="flex items-center justify-between rounded-2xl border border-white/[0.07] bg-black/16 p-3"
                     >
                       <p className="text-sm text-slate-400">{item.label}</p>
                       <p className="text-sm font-black">{item.value}</p>
                     </div>
                   ))}
                 </div>
-              </div>
+              </section>
             </div>
 
-            <section className="rounded-[30px] border border-cyan-300/20 bg-cyan-400/[0.07] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
+            <section className="rounded-[30px] border border-cyan-300/18 bg-cyan-400/[0.055] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <RefreshCcw className="h-5 w-5 text-cyan-200" />
                   <div>
-                    <h2 className="text-2xl font-black">Retry weakest answer</h2>
+                    <h2 className="text-2xl font-black tracking-[-0.03em]">Retry weakest answer</h2>
                     <p className="mt-1 text-sm text-slate-400">
                       Rewrite once. See whether recruiter trust improves.
                     </p>
@@ -661,7 +645,7 @@ export default function ResultsPage() {
                 </div>
 
                 {comparison && (
-                  <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-200">
+                  <div className="w-fit rounded-2xl border border-emerald-300/18 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-200">
                     {comparison.trustDelta > 0 ? "+" : ""}
                     {comparison.trustDelta} trust
                   </div>
@@ -672,16 +656,15 @@ export default function ResultsPage() {
                 value={retryAnswer}
                 onChange={(event) => setRetryAnswer(event.target.value)}
                 placeholder="Rewrite your answer here using STAR, metrics, and ownership..."
-                className="mt-4 h-36 w-full resize-none rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
+                className="mt-4 h-28 w-full resize-none rounded-3xl border border-white/[0.07] bg-slate-950/56 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
               />
 
               {comparison && (
-                <div className="mt-4 grid gap-3 lg:grid-cols-[0.9fr_1.1fr]">
-                  <div className="rounded-3xl border border-white/10 bg-black/18 p-4">
+                <div className="mt-4 grid gap-3 xl:grid-cols-[0.9fr_1.1fr]">
+                  <div className="rounded-3xl border border-white/[0.07] bg-black/16 p-4">
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
                       Score movement
                     </p>
-
                     <div className="mt-4 grid grid-cols-3 gap-3">
                       <ScoreBox label="Old" value={comparison.oldScore} />
                       <ScoreBox label="New" value={comparison.newScore} />
@@ -692,13 +675,11 @@ export default function ResultsPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-3xl border border-white/10 bg-black/18 p-4">
+                  <div className="rounded-3xl border border-white/[0.07] bg-black/16 p-4">
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-200">
                       Recruiter reaction
                     </p>
-                    <p className="mt-3 text-sm leading-6 text-slate-300">
-                      {comparison.message}
-                    </p>
+                    <p className="mt-3 text-sm leading-6 text-slate-300">{comparison.message}</p>
                   </div>
                 </div>
               )}
@@ -706,20 +687,19 @@ export default function ResultsPage() {
           </section>
         </section>
 
-        <section className="mt-4 grid gap-4 lg:grid-cols-[1fr_0.85fr]">
+        <section className="mt-4 grid gap-4 xl:grid-cols-[1fr_0.85fr]">
           <FeedbackCapture source="results" />
-          <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 backdrop-blur-2xl">
+          <div className="rounded-[30px] border border-white/[0.07] bg-white/[0.04] p-4 shadow-[0_18px_70px_rgba(0,0,0,0.20)] backdrop-blur-2xl">
             <div className="flex items-center gap-3">
               <MessageSquareText className="h-5 w-5 text-violet-200" />
-              <h2 className="text-xl font-black">Product Hunt demo moment</h2>
+              <h2 className="text-xl font-black tracking-[-0.02em]">The demo-worthy loop</h2>
             </div>
             <p className="mt-3 text-sm leading-6 text-slate-400">
-              Your best demo flow: weak answer → trust drops → retry answer → trust recovery.
-              This page now makes that story visible.
+              Weak answer → recruiter trust drops → retry answer → trust recovery. This is the emotional feedback loop that makes WorkZo feel different.
             </p>
             <Link
               href="/copilot"
-              className="mt-4 inline-flex h-11 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-black text-white hover:bg-white/10"
+              className="mt-4 inline-flex h-11 items-center gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.055] px-4 text-sm font-black text-white hover:bg-white/10"
             >
               Open Work-O-Bot
               <Zap className="h-4 w-4" />
@@ -741,12 +721,21 @@ function MetricCard({
   icon: typeof Target;
 }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-4">
+    <div className="rounded-[24px] border border-white/[0.07] bg-slate-950/45 p-4">
       <Icon className="h-5 w-5 text-blue-200" />
       <p className="mt-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
         {label}
       </p>
       <p className="mt-2 line-clamp-2 text-sm font-black leading-6">{value}</p>
+    </div>
+  );
+}
+
+function EvidenceBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-3xl border border-white/[0.07] bg-black/16 p-4">
+      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-300">{value}</p>
     </div>
   );
 }
