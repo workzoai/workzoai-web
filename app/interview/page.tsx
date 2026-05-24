@@ -642,6 +642,60 @@ function buildHumanPauseMs(analysis: AnswerAnalysis) {
   return 1050;
 }
 
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getRecruiterThinkingStatus({
+  recruiterName,
+  state,
+  elapsedMs = 0,
+}: {
+  recruiterName: string;
+  state: RecruiterState;
+  elapsedMs?: number;
+}) {
+  const firstName = getFirstName(recruiterName) || "Recruiter";
+
+  if (elapsedMs > 2600) return `${firstName} is preparing the next follow-up...`;
+  if (elapsedMs > 1200) return `${firstName} is checking your answer against the role...`;
+
+  if (state === "pressuring" || state === "skeptical" || state === "losing_confidence") {
+    return `${firstName} is deciding whether to challenge that answer...`;
+  }
+
+  if (state === "recovering_trust") {
+    return `${firstName} is noticing your recovery...`;
+  }
+
+  return `${firstName} is thinking...`;
+}
+
+function buildNaturalRecruiterDelay({
+  baseDelay,
+  mode,
+  state,
+  processingElapsedMs,
+}: {
+  baseDelay: number;
+  mode: InterviewMode;
+  state: RecruiterState;
+  processingElapsedMs: number;
+}) {
+  const apiWasSlow = processingElapsedMs > 1800;
+  const isPressureState =
+    state === "pressuring" || state === "skeptical" || state === "losing_confidence";
+
+  if (apiWasSlow) {
+    return clampNumber(baseDelay, 280, mode === "video" ? 560 : 680);
+  }
+
+  const minDelay = isPressureState ? 680 : mode === "video" ? 480 : 620;
+  const maxDelay = isPressureState ? 1050 : mode === "video" ? 900 : 1150;
+
+  return clampNumber(baseDelay, minDelay, maxDelay);
+}
+
 function softenRecruiterSpeech(text: string) {
   return text
     .replace(/\bCurrent Question\b/gi, "")
@@ -2596,73 +2650,6 @@ export default function InterviewPage() {
   const [voiceProvider, setVoiceProvider] = useState<"vapi" | "tts-fallback">("tts-fallback");
 
   useEffect(() => {
-    if (typeof navigator === "undefined") return;
-
-    const mediaDevices = navigator.mediaDevices;
-    if (!mediaDevices?.enumerateDevices) return;
-
-    const originalEnumerateDevices = mediaDevices.enumerateDevices.bind(mediaDevices);
-    const cacheWindowMs = 12_000;
-    let cachedDevices: MediaDeviceInfo[] | null = null;
-    let cachedAt = 0;
-    let pendingRequest: Promise<MediaDeviceInfo[]> | null = null;
-
-    const guardedEnumerateDevices = async () => {
-      const now = Date.now();
-
-      if (cachedDevices && now - cachedAt < cacheWindowMs) {
-        return cachedDevices;
-      }
-
-      if (pendingRequest) return pendingRequest;
-
-      pendingRequest = originalEnumerateDevices()
-        .then((devices) => {
-          cachedDevices = devices;
-          cachedAt = Date.now();
-          return devices;
-        })
-        .catch((error) => {
-          console.warn("WorkZo device enumeration recovered", error);
-          return cachedDevices || [];
-        })
-        .finally(() => {
-          pendingRequest = null;
-        });
-
-      return pendingRequest;
-    };
-
-    try {
-      Object.defineProperty(mediaDevices, "enumerateDevices", {
-        configurable: true,
-        writable: true,
-        value: guardedEnumerateDevices,
-      });
-    } catch {
-      try {
-        mediaDevices.enumerateDevices = guardedEnumerateDevices;
-      } catch {
-        return;
-      }
-    }
-
-    return () => {
-      try {
-        Object.defineProperty(mediaDevices, "enumerateDevices", {
-          configurable: true,
-          writable: true,
-          value: originalEnumerateDevices,
-        });
-      } catch {
-        try {
-          mediaDevices.enumerateDevices = originalEnumerateDevices;
-        } catch {}
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     const originalConsoleError = console.error;
     const originalConsoleWarn = console.warn;
 
@@ -2683,7 +2670,7 @@ export default function InterviewPage() {
                   }
                 })();
 
-        return /meeting ended due to ejection|meeting has ended|daily-js.*meeting|call ended|room.*not.*found|no-room|krisp processor|krispiniterror|error applying mic processor|audioworkletnode|no execution context available|wasm_or_worker_not_ready|error unloading krisp|enumeratedevices took exceptionally long/i.test(
+        return /meeting ended due to ejection|meeting has ended|daily-js.*meeting|call ended|room.*not.*found|no-room|krisp processor|krispiniterror|error applying mic processor|audioworkletnode|no execution context available|wasm_or_worker_not_ready|error unloading krisp/i.test(
           text,
         );
       });
@@ -3488,8 +3475,47 @@ export default function InterviewPage() {
       const currentTranscript = [...transcriptRef.current, candidateItem];
       const previousTrust = trustRef.current;
       const currentMemory = memoryRef.current;
+      const processingStartedAt = Date.now();
+      const thinkingCueTimers: number[] = [];
+      const clearThinkingCueTimers = () => {
+        while (thinkingCueTimers.length) {
+          const timer = thinkingCueTimers.pop();
+          if (timer) window.clearTimeout(timer);
+        }
+      };
 
-      setVoiceStatus("Recruiter is preparing a reply...");
+      setVoiceStatus(
+        getRecruiterThinkingStatus({
+          recruiterName: recruiterProfile.name,
+          state: recruiterStateRef.current,
+        }),
+      );
+
+      thinkingCueTimers.push(
+        window.setTimeout(() => {
+          if (!isLiveRef.current || !isProcessingAnswerRef.current) return;
+          setVoiceStatus(
+            getRecruiterThinkingStatus({
+              recruiterName: recruiterProfile.name,
+              state: recruiterStateRef.current,
+              elapsedMs: Date.now() - processingStartedAt,
+            }),
+          );
+        }, 900),
+      );
+
+      thinkingCueTimers.push(
+        window.setTimeout(() => {
+          if (!isLiveRef.current || !isProcessingAnswerRef.current) return;
+          setVoiceStatus(
+            getRecruiterThinkingStatus({
+              recruiterName: recruiterProfile.name,
+              state: recruiterStateRef.current,
+              elapsedMs: Date.now() - processingStartedAt,
+            }),
+          );
+        }, 2200),
+      );
 
       let intelligence: UnifiedRecruiterApiResponse | null = null;
 
@@ -3679,22 +3705,13 @@ export default function InterviewPage() {
       setRecruiterState(nextState);
       setRecruiterMemory(nextMemory);
       saveRecruiterMemory(nextMemory);
+      clearThinkingCueTimers();
       setVoiceStatus(
-        intelligence?.intent === "candidate_question"
-          ? "Recruiter is answering briefly..."
-          : intelligence?.intent === "clarification" ||
-              intelligence?.intent === "smalltalk" ||
-              intelligence?.intent === "greeting"
-            ? "Recruiter is guiding the conversation..."
-            : intelligence?.intent === "possible_exaggeration" ||
-                intelligence?.intent === "nonsense" ||
-                intelligence?.intent === "contradiction"
-              ? "Recruiter is checking realism..."
-              : shouldCountAsAnswer
-                ? intelligence?.conversationStage === "background" || intelligence?.conversationStage === "role_fit"
-                  ? "Recruiter is building the conversation..."
-                  : "Recruiter accepted the answer..."
-                : "Recruiter is staying on this question...",
+        getRecruiterThinkingStatus({
+          recruiterName: recruiterProfile.name,
+          state: nextState,
+          elapsedMs: Date.now() - processingStartedAt,
+        }),
       );
 
       const apiPause =
@@ -3710,10 +3727,12 @@ export default function InterviewPage() {
         apiPauseMs: apiPause,
       });
 
-      const thinkingDelay =
-        modeRef.current === "video"
-          ? Math.min(baseThinkingDelay, 420)
-          : Math.min(baseThinkingDelay, 650);
+      const thinkingDelay = buildNaturalRecruiterDelay({
+        baseDelay: baseThinkingDelay,
+        mode: modeRef.current,
+        state: nextState,
+        processingElapsedMs: Date.now() - processingStartedAt,
+      });
 
       pendingRecruiterReplyTimerRef.current = window.setTimeout(() => {
         if (!isLiveRef.current) {
@@ -3727,6 +3746,7 @@ export default function InterviewPage() {
           time: timeLabel(),
         };
 
+        setVoiceStatus(`${getFirstName(recruiterProfile.name) || "Recruiter"} is responding...`);
         addTranscript(recruiterReply);
         setQuestion(displayQuestion);
         speakRecruiter(spokenReply, () => {
