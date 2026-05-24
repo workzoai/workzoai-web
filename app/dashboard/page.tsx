@@ -4,36 +4,31 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
-  BarChart3,
-  Bell,
-  Bookmark,
+  Bot,
   Briefcase,
-  CalendarDays,
-  ChevronDown,
+  CheckCircle2,
   ChevronRight,
-  Clock3,
   FileText,
-  Gift,
   Home,
-  LineChart,
-  Lock,
-  MessageSquare,
-  Plus,
+  MessageSquareText,
+  PenLine,
+  Search,
   Settings,
   Sparkles,
-  Star,
   Target,
-  Users,
+  Wand2,
 } from "lucide-react";
 
-import { readLatestInterviewSetup, type WorkZoInterviewSetup } from "@/lib/workzoInterviewSetup";
+import WorkOBotFloating from "@/components/WorkOBotFloating";
+import {
+  readLatestInterviewSetup,
+  type WorkZoInterviewSetup,
+} from "@/lib/workzoInterviewSetup";
 
 type ResultPayload = {
   overallScore?: number;
   recruiterTrust?: number;
-  pressure?: number;
   transcript?: Array<{ role: string; text: string; time?: string }>;
-  scores?: Record<string, number>;
   memory?: {
     strengths?: string[];
     weaknesses?: string[];
@@ -48,51 +43,55 @@ type DashboardState = {
   results: ResultPayload | null;
 };
 
+type JourneyStep = {
+  label: string;
+  description: string;
+  done: boolean;
+};
+
 const navItems = [
   { label: "Dashboard", icon: Home, active: true, href: "/dashboard" },
-  { label: "Interviews", icon: Sparkles, href: "/interview" },
-  { label: "Practice", icon: Target, href: "/interview" },
-  { label: "CV & Resumes", icon: FileText, href: "/onboarding" },
-  { label: "Job Roles", icon: Briefcase, href: "/onboarding" },
-  { label: "Analytics", icon: BarChart3, href: "/results" },
-  { label: "Feedback", icon: MessageSquare, href: "/results" },
-  { label: "Bookmarks", icon: Bookmark, href: "#" },
-  { label: "Settings", icon: Settings, href: "#" },
+  { label: "Improve CV", icon: FileText, href: "/onboarding" },
+  { label: "Generate Cover Letter", icon: PenLine, href: "/copilot?mode=cover_letter" },
+  { label: "Find Jobs", icon: Search, href: "/copilot?mode=jobs" },
+  { label: "Real Interview AI", icon: Sparkles, href: "/interview" },
+  { label: "Results", icon: Target, href: "/results" },
+  { label: "Settings", icon: Settings, href: "#settings" },
 ];
 
-const skillsFallback = [
-  { label: "Evidence & Metrics", score: 68, width: "68%" },
-  { label: "Role Fit", score: 70, width: "70%" },
-  { label: "Communication", score: 72, width: "72%" },
-  { label: "Answer Structure", score: 64, width: "64%" },
-];
-
-const chartPoints = [
-  [0, 154],
-  [52, 92],
-  [105, 122],
-  [158, 82],
-  [210, 60],
-  [263, 66],
-  [315, 32],
-  [368, 24],
-  [420, 48],
-  [472, 35],
-  [525, 30],
+const quickActions = [
+  {
+    title: "Improve CV",
+    description: "Clean up structure, sharpen bullets, and prepare your CV for the target role.",
+    href: "/onboarding",
+    icon: FileText,
+    accent: "from-blue-500 to-cyan-400",
+  },
+  {
+    title: "Generate Cover Letter",
+    description: "Create a focused, truthful cover letter using your CV and job description.",
+    href: "/copilot?mode=cover_letter",
+    icon: PenLine,
+    accent: "from-violet-500 to-fuchsia-500",
+  },
+  {
+    title: "Find Jobs",
+    description: "Get job search direction, role keywords, and next application targets.",
+    href: "/copilot?mode=jobs",
+    icon: Search,
+    accent: "from-cyan-500 to-emerald-400",
+  },
+  {
+    title: "Real Interview AI",
+    description: "Practice a realistic recruiter call based on your CV, role, and job context.",
+    href: "/interview",
+    icon: Sparkles,
+    accent: "from-blue-500 to-violet-600",
+  },
 ];
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
-}
-
-function safeText(value: unknown, fallback: string) {
-  return typeof value === "string" && value.trim() ? value.trim() : fallback;
-}
-
-function safeNumber(value: unknown, fallback = 0) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback;
-  return Math.max(0, Math.min(100, Math.round(numeric)));
 }
 
 function readJson<T>(key: string): T | null {
@@ -107,123 +106,128 @@ function readJson<T>(key: string): T | null {
   }
 }
 
+function safeText(value: unknown, fallback: string) {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function scoreValue(results: ResultPayload | null) {
+  const value = Number(results?.overallScore || results?.recruiterTrust || 0);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
 function getCandidateName(setup: Partial<WorkZoInterviewSetup>, results: ResultPayload | null) {
-  const profile =
-    setup.recruiterMemoryProfile ||
-    results?.setup?.recruiterMemoryProfile ||
-    null;
+  const profile = setup.recruiterMemoryProfile || results?.setup?.recruiterMemoryProfile || null;
 
   if (profile && typeof profile === "object" && "candidateName" in profile) {
-    const name = (profile as { candidateName?: unknown }).candidateName;
-    if (typeof name === "string" && name.trim()) return name.trim();
+    const value = (profile as { candidateName?: unknown }).candidateName;
+    if (typeof value === "string" && value.trim()) return value.trim().split(/\s+/)[0];
   }
 
-  return "Candidate";
+  return "there";
 }
 
 function getRole(setup: Partial<WorkZoInterviewSetup>, results: ResultPayload | null) {
-  const jobProfile =
-    setup.jobMemoryProfile ||
-    results?.setup?.jobMemoryProfile ||
-    null;
+  const job = setup.jobMemoryProfile || results?.setup?.jobMemoryProfile || null;
 
-  if (jobProfile && typeof jobProfile === "object" && "roleTitle" in jobProfile) {
-    const roleTitle = (jobProfile as { roleTitle?: unknown }).roleTitle;
-    if (typeof roleTitle === "string" && roleTitle.trim()) {
-      return roleTitle.trim();
-    }
+  if (job && typeof job === "object" && "roleTitle" in job) {
+    const value = (job as { roleTitle?: unknown }).roleTitle;
+    if (typeof value === "string" && value.trim()) return value.trim();
   }
 
-  const role = safeText(setup.targetRole || results?.setup?.targetRole, "Target Role");
-
-  return role.length > 24 ? `${role.slice(0, 22)}…` : role;
-}
-
-function getCompany(setup: Partial<WorkZoInterviewSetup>, results: ResultPayload | null) {
-  const jobProfile =
-    setup.jobMemoryProfile ||
-    results?.setup?.jobMemoryProfile ||
-    null;
-
-  if (jobProfile && typeof jobProfile === "object" && "companyName" in jobProfile) {
-    const companyName = (jobProfile as { companyName?: unknown }).companyName;
-    if (typeof companyName === "string" && companyName.trim()) return companyName.trim();
-  }
-
-  return "Your selected job";
+  return safeText(setup.targetRole || results?.setup?.targetRole, "Target role");
 }
 
 function getMarket(setup: Partial<WorkZoInterviewSetup>, results: ResultPayload | null) {
   return safeText(setup.targetMarket || results?.setup?.targetMarket, "Global");
 }
 
-function getScore(results: ResultPayload | null) {
-  const overall = safeNumber(results?.overallScore, 0);
-  const trust = safeNumber(results?.recruiterTrust, 0);
-  if (overall > 0) return overall;
-  if (trust > 0) return trust;
-  return 72;
-}
-
-function getTranscriptCount(results: ResultPayload | null) {
-  return Array.isArray(results?.transcript) ? results.transcript.length : 0;
-}
-
-function getPracticeMinutes(results: ResultPayload | null) {
-  const count = getTranscriptCount(results);
-  if (!count) return "0m";
-  const minutes = Math.max(4, Math.round(count * 1.6));
-  return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`;
-}
-
-function buildSkillRows(results: ResultPayload | null) {
-  const scores = results?.scores || {};
-  const rows = [
-    { label: "Clarity", score: safeNumber(scores.clarity, 0) },
-    { label: "Relevance", score: safeNumber(scores.relevance, 0) },
-    { label: "Evidence & Metrics", score: safeNumber(scores.evidence, 0) },
-    { label: "Answer Structure", score: safeNumber(scores.structure, 0) },
-  ].filter((item) => item.score > 0);
-
-  if (!rows.length) return skillsFallback;
-
-  return rows.map((item) => ({
-    ...item,
-    width: `${item.score}%`,
-  }));
-}
-
-function MetricCard({
-  label,
-  value,
-  suffix,
-  trend,
-  icon: Icon,
+function buildNextAction({
+  hasCv,
+  hasJob,
+  hasResults,
+  score,
 }: {
-  label: string;
-  value: string;
-  suffix?: string;
-  trend: string;
-  icon: typeof Users;
+  hasCv: boolean;
+  hasJob: boolean;
+  hasResults: boolean;
+  score: number;
 }) {
-  return (
-    <div className="h-[104px] rounded-[20px] border border-white/10 bg-white/[0.045] p-4 shadow-[0_14px_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
-      <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-blue-500/12 text-blue-300">
-          <Icon className="h-5 w-5" />
-        </div>
+  if (!hasCv) {
+    return {
+      title: "Add your CV first",
+      description: "WorkZo needs your CV to improve your profile, suggest jobs, and prepare realistic interviews.",
+      cta: "Upload CV",
+      href: "/onboarding",
+    };
+  }
 
-        <div className="min-w-0">
-          <p className="text-[13px] font-semibold leading-5 text-slate-300">{label}</p>
-          <div className="mt-2 flex items-end gap-1">
-            <p className="text-[28px] font-black leading-none tracking-tight text-white">{value}</p>
-            {suffix && <span className="pb-0.5 text-base font-medium text-slate-400">{suffix}</span>}
-          </div>
-          <p className="mt-1.5 text-[12px] font-semibold text-emerald-300">{trend}</p>
-        </div>
-      </div>
-    </div>
-  );
+  if (!hasJob) {
+    return {
+      title: "Add a real job target",
+      description: "Paste a job description so WorkZo can tailor your CV, cover letter, and interview practice.",
+      cta: "Prepare job target",
+      href: "/copilot?mode=jobs",
+    };
+  }
+
+  if (!hasResults) {
+    return {
+      title: "Practice your first real interview",
+      description: "Your setup is ready. Start a recruiter simulation and get emotional feedback after the session.",
+      cta: "Start Real Interview",
+      href: "/interview",
+    };
+  }
+
+  if (score && score < 72) {
+    return {
+      title: "Recover recruiter trust",
+      description: "Your last interview showed weak proof or unclear ownership. Retry the weakest answer before applying.",
+      cta: "Review results",
+      href: "/results",
+    };
+  }
+
+  return {
+    title: "Prepare your application package",
+    description: "Your interview signal is improving. Generate a focused cover letter and apply with a stronger story.",
+    cta: "Generate cover letter",
+    href: "/copilot?mode=cover_letter",
+  };
+}
+
+function buildJourneySteps({
+  hasCv,
+  hasJob,
+  hasResults,
+}: {
+  hasCv: boolean;
+  hasJob: boolean;
+  hasResults: boolean;
+}): JourneyStep[] {
+  return [
+    {
+      label: "CV added",
+      description: hasCv ? "Profile context ready" : "Upload or paste your CV",
+      done: hasCv,
+    },
+    {
+      label: "Job target added",
+      description: hasJob ? "Role context available" : "Add JD or target role",
+      done: hasJob,
+    },
+    {
+      label: "Interview practiced",
+      description: hasResults ? "Latest session saved" : "Run Real Interview AI",
+      done: hasResults,
+    },
+    {
+      label: "Next action ready",
+      description: "Work-O-Bot can guide the next step",
+      done: hasCv || hasJob || hasResults,
+    },
+  ];
 }
 
 export default function DashboardPage() {
@@ -244,105 +248,46 @@ export default function DashboardPage() {
 
   const candidateName = getCandidateName(dashboardState.setup, dashboardState.results);
   const targetRole = getRole(dashboardState.setup, dashboardState.results);
-  const companyName = getCompany(dashboardState.setup, dashboardState.results);
   const market = getMarket(dashboardState.setup, dashboardState.results);
-  const score = getScore(dashboardState.results);
-  const transcriptCount = getTranscriptCount(dashboardState.results);
-  const practiceTime = getPracticeMinutes(dashboardState.results);
-  const skillRows = buildSkillRows(dashboardState.results);
-  const hasSetup = Boolean(dashboardState.setup?.cvText || dashboardState.setup?.jobDescription || dashboardState.results);
-
-  const recentInterviews = useMemo(
-    () => [
-      {
-        role: targetRole,
-        company: companyName,
-        status: dashboardState.results ? "Completed" : hasSetup ? "Ready" : "Setup Needed",
-        score: dashboardState.results ? `${score}/100` : "—",
-        date: dashboardState.results ? "Latest session" : "Not started",
-        avatar: "👤",
-      },
-      {
-        role: "Behavioral Practice",
-        company: market,
-        status: "Suggested",
-        score: "—",
-        date: "Next",
-        avatar: "💬",
-      },
-      {
-        role: "Pressure Round",
-        company: "Recruiter simulation",
-        status: "Suggested",
-        score: "—",
-        date: "Next",
-        avatar: "🔥",
-      },
-      {
-        role: "Evidence Drill",
-        company: "Metrics and ownership",
-        status: "Suggested",
-        score: "—",
-        date: "Next",
-        avatar: "📊",
-      },
-    ],
-    [companyName, dashboardState.results, hasSetup, market, score, targetRole]
+  const score = scoreValue(dashboardState.results);
+  const hasCv = Boolean(dashboardState.setup.cvText);
+  const hasJob = Boolean(dashboardState.setup.jobDescription || targetRole !== "Target role");
+  const hasResults = Boolean(dashboardState.results);
+  const journey = useMemo(
+    () => buildJourneySteps({ hasCv, hasJob, hasResults }),
+    [hasCv, hasJob, hasResults],
+  );
+  const nextAction = useMemo(
+    () => buildNextAction({ hasCv, hasJob, hasResults, score }),
+    [hasCv, hasJob, hasResults, score],
   );
 
-  const metrics = [
-    {
-      label: "Interview Sessions",
-      value: dashboardState.results ? "1" : "0",
-      trend: dashboardState.results ? "Latest session saved" : "Start your first session",
-      icon: Users,
-    },
-    {
-      label: "Average Trust Score",
-      value: String(score),
-      suffix: "/100",
-      trend: dashboardState.results ? "Latest recruiter signal" : "Estimated baseline",
-      icon: Lock,
-    },
-    {
-      label: "Target Role",
-      value: targetRole === "Target Role" ? "—" : "1",
-      trend: targetRole === "Target Role" ? "Role not selected" : targetRole,
-      icon: Briefcase,
-    },
-    {
-      label: "Practice Time",
-      value: practiceTime,
-      trend: transcriptCount ? `${transcriptCount} transcript moments` : "No session yet",
-      icon: Clock3,
-    },
-    {
-      label: "Feedback Items",
-      value: String(
-        (dashboardState.results?.memory?.improvements?.length || 0) +
-          (dashboardState.results?.memory?.weaknesses?.length || 0)
-      ),
-      trend: dashboardState.results ? "From recruiter feedback" : "Ready after interview",
-      icon: MessageSquare,
-    },
-  ];
-
-  const linePath = chartPoints
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${point[0]} ${point[1]}`)
-    .join(" ");
+  const weakness =
+    dashboardState.results?.memory?.weaknesses?.[0] ||
+    dashboardState.results?.memory?.improvements?.[0] ||
+    "Add measurable proof and clearer ownership to your next answer.";
 
   return (
-    <main className="h-screen overflow-hidden bg-[linear-gradient(180deg,#06111f_0%,#050816_100%)] text-white">
-      <div className="flex h-full w-full">
-        <aside className="hidden h-screen w-[250px] shrink-0 flex-col border-r border-white/[0.06] bg-[#061225]/86 px-5 py-6 backdrop-blur-2xl lg:flex">
+    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.16),transparent_34%),linear-gradient(180deg,#06111f_0%,#050816_100%)] text-white">
+      <div className="flex min-h-screen w-full">
+        <aside className="hidden w-[268px] shrink-0 flex-col border-r border-white/[0.07] bg-[#061225]/88 px-5 py-5 shadow-[18px_0_70px_rgba(0,0,0,0.16)] backdrop-blur-2xl lg:flex">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/workzo_icon.png" alt="WorkZo AI" width={40} height={40} className="rounded-xl" />
-            <span className="text-[22px] font-black tracking-tight">
+            <Image src="/workzo_icon.png" alt="WorkZo AI" width={42} height={42} className="rounded-xl" />
+            <span className="text-[24px] font-black tracking-tight">
               WorkZo <span className="text-blue-400">AI</span>
             </span>
           </Link>
 
-          <nav className="mt-7 space-y-1.5">
+          <div className="mt-6 rounded-[22px] border border-cyan-300/14 bg-cyan-400/[0.055] p-4">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
+              Guided workspace
+            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              CV → Jobs → Interview → Results, with Work-O-Bot beside you.
+            </p>
+          </div>
+
+          <nav className="mt-5 space-y-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
 
@@ -351,252 +296,257 @@ export default function DashboardPage() {
                   key={item.label}
                   href={item.href}
                   className={cn(
-                    "flex h-[46px] items-center justify-between rounded-[14px] px-4 text-[15px] font-semibold transition",
+                    "flex min-h-[48px] items-center justify-between rounded-[16px] px-4 text-[14px] font-bold transition",
                     item.active
-                      ? "bg-gradient-to-r from-blue-500 to-violet-600 text-white shadow-[0_14px_36px_rgba(59,130,246,0.28)]"
-                      : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
+                      ? "bg-gradient-to-r from-blue-500 to-violet-600 text-white shadow-[0_14px_36px_rgba(59,130,246,0.26)]"
+                      : "text-slate-300 hover:bg-white/[0.06] hover:text-white",
                   )}
                 >
                   <span className="flex items-center gap-3">
                     <Icon className="h-5 w-5" />
                     {item.label}
                   </span>
-                  <ChevronRight className="h-4 w-4 opacity-70" />
+                  <ChevronRight className="h-4 w-4 opacity-60" />
                 </Link>
               );
             })}
           </nav>
 
-          <div className="mt-auto rounded-[20px] border border-white/10 bg-white/[0.045] p-4">
+          <div className="mt-auto rounded-[22px] border border-white/[0.08] bg-white/[0.045] p-4">
             <div className="flex items-center gap-3">
-              <Star className="h-4 w-4 fill-yellow-300 text-yellow-300" />
-              <p className="text-base font-black">Upgrade to Pro</p>
+              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400">
+                <Bot className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-black">Work-O-Bot</p>
+                <p className="text-xs font-bold text-cyan-200">Floating copilot</p>
+              </div>
             </div>
-            <p className="mt-2 text-xs leading-5 text-slate-300">
-              Unlimited interviews and deeper analytics.
+            <p className="mt-3 text-xs leading-5 text-slate-400">
+              Ask for CV help, cover letters, job search, interview prep, and recruiter messages.
             </p>
-            <button className="mt-3 h-10 w-full rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 text-sm font-black text-white">
-              Upgrade Now
-            </button>
-          </div>
-
-          <div className="mt-6 flex items-center gap-3 border-t border-white/10 pt-5">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-xl">👤</div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-black">{candidateName}</p>
-              <p className="text-xs text-blue-300">{market}</p>
-            </div>
-            <ChevronDown className="h-4 w-4 text-slate-400" />
           </div>
         </aside>
 
-        <section className="min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 lg:px-6">
-          <div className="mx-auto max-w-[1600px]">
-            <header className="mb-4 flex items-start justify-between gap-4">
+        <section className="min-w-0 flex-1 px-4 py-4 sm:px-5 lg:px-7">
+          <div className="mx-auto max-w-[1440px] pb-28">
+            <header className="flex flex-col gap-4 rounded-[28px] border border-white/[0.07] bg-white/[0.045] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl md:flex-row md:items-center md:justify-between md:p-5">
+              <div className="flex items-center gap-3 lg:hidden">
+                <Image src="/workzo_icon.png" alt="WorkZo AI" width={38} height={38} className="rounded-xl" />
+                <span className="text-xl font-black">
+                  WorkZo <span className="text-blue-400">AI</span>
+                </span>
+              </div>
+
               <div>
-                <h1 className="text-[28px] font-black leading-tight tracking-tight lg:text-[34px]">
-                  Welcome back, {candidateName}! 👋
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200/80">
+                  Career workspace
+                </p>
+                <h1 className="mt-2 text-[32px] font-black leading-[1.02] tracking-[-0.04em] md:text-[46px]">
+                  Welcome back, {candidateName}. 👋
                 </h1>
-                <p className="mt-1.5 text-[15px] text-slate-300">
-                  {hasSetup
-                    ? `Your ${targetRole} interview setup is ready.`
-                    : "Upload your CV and start your first realistic interview."}
+                <p className="mt-3 max-w-3xl text-base leading-7 text-slate-300">
+                  {hasCv
+                    ? `You are preparing for ${targetRole} in ${market}. WorkZo will guide your next best step.`
+                    : "Start with your CV so WorkZo can guide your job search, interview practice, and applications."}
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
-                <button className="hidden h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-4 text-sm font-bold text-white md:flex">
-                  <Gift className="h-4 w-4 text-blue-300" />
-                  Invite
-                </button>
-                <button className="relative hidden h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.045] md:flex">
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-violet-500 text-xs font-black">3</span>
-                </button>
-                <Link
-                  href="/onboarding"
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 px-5 text-sm font-black text-white shadow-[0_18px_55px_rgba(59,130,246,0.28)]"
-                >
-                  <Plus className="h-5 w-5" />
-                  New Interview
-                </Link>
-              </div>
+              <Link
+                href="/interview"
+                className="inline-flex h-13 min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 px-6 text-sm font-black text-white shadow-[0_18px_55px_rgba(59,130,246,0.28)]"
+              >
+                <Sparkles className="h-5 w-5" />
+                Start Interview
+              </Link>
             </header>
 
-            <section className="grid gap-[14px] md:grid-cols-2 xl:grid-cols-5">
-              {metrics.map((item) => (
-                <MetricCard key={item.label} {...item} />
-              ))}
-            </section>
-
-            <section className="mt-[16px] grid gap-[16px] xl:grid-cols-[58%_42%]">
-              <div className="h-[350px] rounded-[22px] border border-white/10 bg-white/[0.045] p-4 shadow-[0_18px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-[20px] font-black">Recent Interviews</h2>
-                  <Link href="/results" className="flex h-9 items-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-bold text-white">
-                    View all
-                  </Link>
-                </div>
-
-                <div className="divide-y divide-white/10">
-                  {recentInterviews.map((item) => (
-                    <div key={`${item.role}-${item.company}`} className="grid h-[60px] grid-cols-[1fr_104px_88px_104px_22px] items-center gap-3">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg">{item.avatar}</div>
-                        <div className="min-w-0">
-                          <p className="truncate text-[14px] font-black">{item.role}</p>
-                          <p className="truncate text-[12px] text-slate-400">{item.company}</p>
-                        </div>
-                      </div>
-
-                      <span
-                        className={cn(
-                          "w-fit rounded-xl px-3 py-1 text-xs font-bold",
-                          item.status === "Completed"
-                            ? "bg-emerald-400/10 text-emerald-300"
-                            : item.status === "Ready" || item.status === "Suggested"
-                              ? "bg-blue-400/10 text-blue-300"
-                              : "bg-white/8 text-slate-300"
-                        )}
-                      >
-                        {item.status}
-                      </span>
-
-                      <div>
-                        <p className="text-xs text-slate-400">Trust</p>
-                        <p className={cn("text-sm font-black", item.score === "—" ? "text-slate-400" : "text-emerald-300")}>{item.score}</p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs text-slate-400">Date</p>
-                        <p className="text-[13px] text-slate-200">{item.date}</p>
-                      </div>
-
-                      <ChevronRight className="h-5 w-5 text-slate-400" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="h-[350px] rounded-[22px] border border-white/10 bg-white/[0.045] p-4 shadow-[0_18px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-[20px] font-black">Performance Overview</h2>
-                  <button className="flex h-9 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-bold">
-                    This Month
-                    <ChevronDown className="h-4 w-4" />
-                  </button>
-                </div>
-
-                <div className="relative h-[178px] rounded-2xl">
-                  <svg viewBox="0 0 540 210" className="h-full w-full overflow-visible">
-                    {[0, 1, 2, 3].map((line) => (
-                      <line
-                        key={line}
-                        x1="20"
-                        y1={20 + line * 45}
-                        x2="525"
-                        y2={20 + line * 45}
-                        stroke="rgba(255,255,255,0.08)"
-                      />
-                    ))}
-                    <path d={`${linePath} L 525 185 L 0 185 Z`} fill="url(#chartFill)" opacity="0.72" />
-                    <path d={linePath} fill="none" stroke="url(#chartLine)" strokeWidth="5" strokeLinecap="round" />
-                    <circle cx="525" cy="30" r="6" fill="#7a5cff" />
-                    <defs>
-                      <linearGradient id="chartLine" x1="0" x2="1">
-                        <stop offset="0%" stopColor="#20c8ff" />
-                        <stop offset="100%" stopColor="#7a5cff" />
-                      </linearGradient>
-                      <linearGradient id="chartFill" y1="0" y2="1">
-                        <stop offset="0%" stopColor="#5947ff" stopOpacity="0.55" />
-                        <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.02" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-
-                  <div className="absolute right-3 top-2 rounded-xl bg-violet-500 px-3 py-2 text-sm font-black">
-                    {score}
-                  </div>
-                </div>
-
-                <div className="mt-3 flex h-[70px] items-center justify-between rounded-[18px] border border-white/10 bg-white/[0.04] px-5">
+            <section className="mt-4 grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
+              <div className="rounded-[30px] border border-white/[0.07] bg-[#071225]/82 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <p className="text-[14px] text-slate-200">
-                      {dashboardState.results
-                        ? "Your latest recruiter trust score is saved."
-                        : "Start an interview to unlock real performance data."}
+                    <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200/80">
+                      Recommended next step
                     </p>
-                    <p className="mt-1.5 text-sm text-slate-400">Practice with measurable proof to reach 80+</p>
+                    <h2 className="mt-3 text-3xl font-black tracking-[-0.03em]">
+                      {nextAction.title}
+                    </h2>
+                    <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
+                      {nextAction.description}
+                    </p>
                   </div>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/12 text-emerald-300">
-                    <LineChart className="h-6 w-6" />
+
+                  <Link
+                    href={nextAction.href}
+                    className="inline-flex min-h-[48px] shrink-0 items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-slate-950 px-5 hover:bg-cyan-50"
+                  >
+                    {nextAction.cta}
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                </div>
+
+                <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {journey.map((step, index) => (
+                    <div
+                      key={step.label}
+                      className={cn(
+                        "rounded-[22px] border p-4",
+                        step.done
+                          ? "border-emerald-300/22 bg-emerald-400/[0.075]"
+                          : "border-white/[0.07] bg-white/[0.035]",
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="grid h-9 w-9 place-items-center rounded-2xl bg-white/[0.06] text-sm font-black">
+                          {step.done ? <CheckCircle2 className="h-5 w-5 text-emerald-200" /> : index + 1}
+                        </span>
+                        <span
+                          className={cn(
+                            "rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.12em]",
+                            step.done
+                              ? "bg-emerald-400/12 text-emerald-200"
+                              : "bg-white/[0.06] text-slate-400",
+                          )}
+                        >
+                          {step.done ? "Done" : "Next"}
+                        </span>
+                      </div>
+                      <p className="mt-4 font-black">{step.label}</p>
+                      <p className="mt-1 text-sm leading-5 text-slate-400">{step.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-[30px] border border-cyan-300/14 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_36%),rgba(7,18,37,0.82)] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200/80">
+                      Latest recruiter signal
+                    </p>
+                    <h2 className="mt-3 text-3xl font-black tracking-[-0.03em]">
+                      {hasResults ? `${score || 72}/100 trust` : "No interview yet"}
+                    </h2>
                   </div>
+                  <div className="grid h-16 w-16 place-items-center rounded-[24px] border border-white/[0.08] bg-white/[0.045]">
+                    <Target className="h-7 w-7 text-cyan-200" />
+                  </div>
+                </div>
+
+                <p className="mt-4 text-base leading-7 text-slate-300">
+                  {hasResults
+                    ? weakness
+                    : "After your first interview, this area will show where recruiter trust dropped, recovered, and what to practice next."}
+                </p>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <Link
+                    href="/results"
+                    className="rounded-2xl border border-white/[0.08] bg-white/[0.045] p-4 hover:bg-white/[0.07]"
+                  >
+                    <p className="font-black">View Results</p>
+                    <p className="mt-1 text-sm text-slate-400">Trust timeline and weak moments</p>
+                  </Link>
+                  <Link
+                    href="/copilot?mode=interview"
+                    className="rounded-2xl border border-white/[0.08] bg-white/[0.045] p-4 hover:bg-white/[0.07]"
+                  >
+                    <p className="font-black">Ask Work-O-Bot</p>
+                    <p className="mt-1 text-sm text-slate-400">Recover your weakest answer</p>
+                  </Link>
                 </div>
               </div>
             </section>
 
-            <section className="mt-[16px] grid gap-[16px] xl:grid-cols-[58%_42%]">
-              <div className="h-[190px] rounded-[22px] border border-white/10 bg-white/[0.045] p-4 shadow-[0_18px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="flex items-center gap-3 text-[20px] font-black">
-                    <CalendarDays className="h-5 w-5 text-violet-300" />
-                    Next Practice Plan
-                  </h2>
-                  <Link href="/interview" className="flex h-9 items-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-bold">
-                    Start now
+            <section className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {quickActions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <Link
+                    key={action.title}
+                    href={action.href}
+                    className="group rounded-[28px] border border-white/[0.07] bg-white/[0.045] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.22)] backdrop-blur-2xl transition hover:-translate-y-0.5 hover:bg-white/[0.065]"
+                  >
+                    <div
+                      className={`grid h-13 w-13 place-items-center rounded-[22px] bg-gradient-to-br ${action.accent} shadow-[0_0_34px_rgba(59,130,246,0.22)]`}
+                    >
+                      <Icon className="h-6 w-6" />
+                    </div>
+                    <h3 className="mt-5 text-xl font-black tracking-[-0.02em]">
+                      {action.title}
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      {action.description}
+                    </p>
+                    <div className="mt-5 inline-flex items-center gap-2 text-sm font-black text-cyan-200">
+                      Open
+                      <ChevronRight className="h-4 w-4 transition group-hover:translate-x-1" />
+                    </div>
                   </Link>
+                );
+              })}
+            </section>
+
+            <section className="mt-4 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="rounded-[28px] border border-white/[0.07] bg-white/[0.045] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-500/14 text-blue-200">
+                    <MessageSquareText className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black">Work-O-Bot can help with</h2>
+                    <p className="text-sm text-slate-400">Career help without leaving your flow</p>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="mt-5 grid gap-2 sm:grid-cols-2">
                   {[
-                    { day: "1", title: `${targetRole} recruiter simulation`, note: companyName, time: "12 min" },
-                    { day: "2", title: "Retry weakest answer", note: "Improve evidence and ownership", time: "8 min" },
+                    "Rewrite my CV summary",
+                    "Draft a cover letter",
+                    "Find job titles to search",
+                    "Prepare interview stories",
+                    "Write a recruiter message",
+                    "Explain why my answer was weak",
                   ].map((item) => (
-                    <div key={item.day} className="grid h-[54px] grid-cols-[52px_1fr_80px_112px] items-center gap-4 border-b border-white/10 last:border-0">
-                      <div className="flex h-10 w-10 flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-                        <span className="text-xs font-black text-blue-300">STEP</span>
-                        <span className="text-base font-black">{item.day}</span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-[14px] font-black">{item.title}</p>
-                        <p className="mt-0.5 truncate text-sm text-slate-400">{item.note}</p>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-slate-300">
-                        <Clock3 className="h-4 w-4" />
-                        {item.time}
-                      </div>
-                      <Link href="/interview" className="flex h-9 items-center justify-center rounded-2xl bg-white/[0.06] text-sm font-black text-white hover:bg-white/10">
-                        Start
-                      </Link>
+                    <div key={item} className="rounded-2xl border border-white/[0.07] bg-black/18 px-4 py-3 text-sm font-semibold text-slate-300">
+                      {item}
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="h-[220px] overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] p-4 shadow-[0_18px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-[20px] font-black">Top Skills to Improve</h2>
-                  <Link href="/results" className="flex h-9 items-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-bold">
-                    View
-                  </Link>
+              <div id="settings" className="rounded-[28px] border border-white/[0.07] bg-white/[0.045] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/14 text-violet-200">
+                    <Settings className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black">Workspace settings</h2>
+                    <p className="text-sm text-slate-400">Simple for now. More controls later.</p>
+                  </div>
                 </div>
 
-                <div className="space-y-2.5">
-                  {skillRows.map((skill) => (
-                    <div key={skill.label} className="grid h-7 grid-cols-[132px_1fr_58px] items-center gap-4">
-                      <p className="truncate text-sm font-semibold text-slate-100">{skill.label}</p>
-                      <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                        <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-500" style={{ width: skill.width }} />
-                      </div>
-                      <p className="text-right text-sm text-slate-300">{skill.score}/100</p>
-                    </div>
-                  ))}
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-white/[0.07] bg-black/18 p-4">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Market</p>
+                    <p className="mt-2 font-black">{market}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/[0.07] bg-black/18 p-4">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Role</p>
+                    <p className="mt-2 truncate font-black">{targetRole}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/[0.07] bg-black/18 p-4">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Mode</p>
+                    <p className="mt-2 font-black">Beta</p>
+                  </div>
                 </div>
               </div>
             </section>
           </div>
         </section>
       </div>
+
+      <WorkOBotFloating contextLabel="Ask about CV, jobs, cover letters, interview prep" />
     </main>
   );
 }

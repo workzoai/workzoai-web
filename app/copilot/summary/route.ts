@@ -6,7 +6,10 @@ const openai = new OpenAI({
 });
 
 type CopilotAction =
+  | "career_chat"
+  | "interview_coach"
   | "recruiter_intent"
+  | "expectation"
   | "rewrite"
   | "star"
   | "metrics"
@@ -14,10 +17,19 @@ type CopilotAction =
   | "concise"
   | "followups"
   | "score"
-  | "magic";
+  | "magic"
+  | "cv_improve"
+  | "cover_letter"
+  | "job_fit"
+  | "find_jobs_strategy"
+  | "linkedin_message"
+  | "email_reply"
+  | "salary_negotiation"
+  | "career_plan";
 
 type CopilotRequest = {
   action?: CopilotAction;
+  message?: string;
   question?: string;
   answer?: string;
   cvText?: string;
@@ -28,6 +40,7 @@ type CopilotRequest = {
   recruiterRole?: string;
   recruiterState?: string;
   recruiterMemory?: unknown;
+  conversation?: Array<{ role: "user" | "assistant"; content: string }>;
 };
 
 function cleanText(value: unknown, maxLength: number) {
@@ -35,82 +48,190 @@ function cleanText(value: unknown, maxLength: number) {
   return value.replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
+function cleanMultiline(value: unknown, maxLength: number) {
+  if (typeof value !== "string") return "";
+  return value.replace(/\r\n/g, "\n").replace(/\n{4,}/g, "\n\n").trim().slice(0, maxLength);
+}
+
+function safeJson(value: unknown, maxLength: number) {
+  if (!value) return "No recruiter memory provided.";
+  try {
+    return JSON.stringify(value).slice(0, maxLength);
+  } catch {
+    return "Recruiter memory could not be serialized.";
+  }
+}
+
 function actionInstruction(action: CopilotAction) {
   const instructions: Record<CopilotAction, string> = {
+    career_chat:
+      "Act as a practical career copilot. Answer the user's question using the CV, role, market, and job context when relevant.",
+    interview_coach:
+      "Coach the user for the interview. Diagnose the answer, explain recruiter expectations, and give a better version without inventing facts.",
     recruiter_intent:
-      "Explain what the recruiter is really testing behind the question.",
+      "Explain what the recruiter is really testing behind the question and what a strong answer must prove.",
+    expectation:
+      "Explain the hidden recruiter expectation behind the question and the proof the candidate should show.",
     rewrite:
-      "Rewrite the candidate answer to sound clearer, stronger, and recruiter-ready.",
+      "Rewrite the candidate answer to sound clearer, stronger, more confident, and recruiter-ready without inventing facts.",
     star:
-      "Convert the answer into a concise STAR format without inventing facts.",
+      "Convert the answer into concise STAR format. Preserve facts. Use placeholders for missing facts.",
     metrics:
-      "Find where measurable impact is missing and suggest safe metric placeholders.",
+      "Find where measurable impact is missing and suggest safe metric placeholders such as [add number], [time saved], [tickets reduced], or [customer impact].",
     ownership:
-      "Improve ownership language so the candidate's personal contribution is clearer.",
+      "Improve ownership language so the candidate's personal contribution is clearer and not hidden behind team language.",
     concise:
-      "Shorten the answer while keeping proof, impact, and role relevance.",
+      "Shorten the answer to a strong 45–75 second interview response while keeping proof, ownership, and role relevance.",
     followups:
-      "Predict likely recruiter follow-up questions and how to prepare.",
+      "Predict likely recruiter follow-up questions and give short preparation notes for each.",
     score:
-      "Score the answer using recruiter trust, ownership, impact evidence, clarity, and role fit.",
+      "Score the answer using recruiter trust, ownership, measurable impact, clarity, STAR structure, and role fit.",
     magic:
-      "Do a complete recruiter-aware improvement: diagnose, rewrite, score, and suggest follow-ups.",
+      "Do a complete recruiter-aware improvement: diagnose, rewrite, score, predict follow-ups, and give the next practice step.",
+    cv_improve:
+      "Improve the user's CV positioning for the target role and market. Give concrete bullet rewrite suggestions without inventing experience.",
+    cover_letter:
+      "Draft a concise, role-specific cover letter using only the CV and job description. Use placeholders where facts are missing.",
+    job_fit:
+      "Evaluate job fit honestly. Compare CV evidence with the job description. Show strengths, gaps, and whether the user should apply, tailor, or skip.",
+    find_jobs_strategy:
+      "Create a practical job-search strategy: target titles, keywords, platforms, filters, and search phrases based on the user's CV, role, and market.",
+    linkedin_message:
+      "Write a concise LinkedIn outreach message tailored to the role or company. Keep it natural and not desperate.",
+    email_reply:
+      "Draft or improve a professional email reply for career, recruiter, application, or interview situations.",
+    salary_negotiation:
+      "Help the user prepare a salary negotiation response. Be realistic, polite, and avoid legal/financial certainty.",
+    career_plan:
+      "Create a clear short-term career plan with immediate next steps, skill gaps, portfolio ideas, and application strategy.",
   };
 
-  return instructions[action] || instructions.magic;
+  return instructions[action] || instructions.career_chat;
+}
+
+function outputFormat(action: CopilotAction) {
+  if (action === "cover_letter") {
+    return `
+OUTPUT FORMAT:
+1. Quick fit note
+2. Cover letter draft
+3. What to personalize before sending
+4. One stronger alternative opening
+`.trim();
+  }
+
+  if (action === "job_fit") {
+    return `
+OUTPUT FORMAT:
+1. Fit verdict: Apply / Tailor first / Skip for now
+2. Strong matches
+3. Gaps or risks
+4. CV changes before applying
+5. Interview risks to prepare
+`.trim();
+  }
+
+  if (action === "find_jobs_strategy") {
+    return `
+OUTPUT FORMAT:
+1. Best target job titles
+2. Search keywords
+3. Where to search
+4. Filters to use
+5. 7-day application plan
+`.trim();
+  }
+
+  if (action === "cv_improve") {
+    return `
+OUTPUT FORMAT:
+1. CV positioning diagnosis
+2. Strong bullets to keep
+3. Bullets to rewrite
+4. Missing proof / metrics
+5. Recommended CV headline
+6. Next step
+`.trim();
+  }
+
+  if (action === "career_plan") {
+    return `
+OUTPUT FORMAT:
+1. Current position
+2. Best next role direction
+3. 30-day plan
+4. Skills to strengthen
+5. Portfolio / proof ideas
+6. Next action today
+`.trim();
+  }
+
+  return `
+OUTPUT FORMAT:
+1. Recruiter intent
+2. What is weak or risky
+3. Improved answer or response
+4. Likely follow-up questions
+5. Trust score /100
+6. One next practice step
+`.trim();
 }
 
 export async function POST(request: Request) {
   try {
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "OPENAI_API_KEY is missing.",
-        },
+        { success: false, error: "OPENAI_API_KEY is missing." },
         { status: 500 },
       );
     }
 
     const body = (await request.json()) as CopilotRequest;
 
-    const action = body.action || "magic";
-    const question = cleanText(body.question, 1800);
-    const answer = cleanText(body.answer, 5000);
-    const cvText = cleanText(body.cvText, 7000);
-    const jobDescription = cleanText(body.jobDescription, 5000);
+    const action = body.action || "career_chat";
+    const message = cleanMultiline(body.message, 4000);
+    const question = cleanMultiline(body.question, 2500);
+    const answer = cleanMultiline(body.answer, 6000);
+    const cvText = cleanMultiline(body.cvText, 9000);
+    const jobDescription = cleanMultiline(body.jobDescription, 7000);
     const targetRole = cleanText(body.targetRole, 180) || "target role";
     const targetMarket = cleanText(body.targetMarket, 120) || "Global";
     const recruiterName = cleanText(body.recruiterName, 80) || "Recruiter";
     const recruiterRole = cleanText(body.recruiterRole, 120) || "AI Recruiter";
     const recruiterState = cleanText(body.recruiterState, 120) || "Evaluating";
-    const recruiterMemory = body.recruiterMemory
-      ? JSON.stringify(body.recruiterMemory).slice(0, 2500)
-      : "No recruiter memory provided.";
+    const recruiterMemory = safeJson(body.recruiterMemory, 3500);
+    const conversation = Array.isArray(body.conversation)
+      ? body.conversation
+          .slice(-8)
+          .map((item) => `${item.role.toUpperCase()}: ${cleanMultiline(item.content, 900)}`)
+          .join("\n")
+      : "No prior copilot conversation.";
 
     const systemPrompt = `
-You are Work-O-Bot, a recruiter-aware interview copilot for WorkZo AI.
+You are Work-O-Bot, the premium career copilot inside WorkZo AI.
 
 You are NOT a generic chatbot.
-You help the candidate improve the current interview answer based on:
-- recruiter psychology
-- role fit
-- CV evidence
-- job description
-- measurable impact
-- ownership clarity
-- STAR structure
-- likely recruiter doubts
+You are a recruiter-aware career assistant that helps with:
+- interview answer rescue
+- CV improvement
+- cover letters
+- job-fit decisions
+- job-search strategy
+- recruiter messages and professional replies
+- salary/interview preparation
+- next-step career planning
 
 STRICT TRUTH RULES:
 - Never invent candidate experience.
-- Never invent company names, employers, projects, metrics, tools, education, or achievements.
-- Only use facts clearly present in the candidate answer, CV text, or job description.
-- If a metric is missing, suggest a placeholder like "[add measurable result]" instead of inventing numbers.
-- If CV evidence is unclear, say it is unclear.
-- Keep the answer practical and immediately usable.
+- Never invent company names, employers, projects, metrics, education, tools, or achievements.
+- Only use facts clearly present in the candidate answer, CV text, job description, or user message.
+- If a useful fact is missing, use a clear placeholder like [add measurable result] or [add specific project].
+- If evidence is unclear, say it is unclear.
+- Be direct, practical, and immediately usable.
+- Do not sound motivational-only. Give concrete edits and next steps.
+- Keep the response structured and easy to copy.
 
-RECRUITER CONTEXT:
+RECRUITER / CAREER CONTEXT:
 Recruiter name: ${recruiterName}
 Recruiter role: ${recruiterRole}
 Recruiter state: ${recruiterState}
@@ -120,18 +241,13 @@ Target market: ${targetMarket}
 TASK:
 ${actionInstruction(action)}
 
-OUTPUT FORMAT:
-1. Recruiter intent
-2. What is weak
-3. Improved answer
-4. Likely follow-up questions
-5. Trust score /100
-6. One next practice step
-
-Keep it concise and professional.
+${outputFormat(action)}
 `.trim();
 
     const userPrompt = `
+USER MESSAGE:
+${message || "No separate user message provided."}
+
 RECRUITER QUESTION:
 ${question || "No recruiter question provided."}
 
@@ -146,41 +262,34 @@ ${jobDescription || "No job description provided."}
 
 RECRUITER MEMORY:
 ${recruiterMemory}
+
+RECENT COPILOT CONVERSATION:
+${conversation}
 `.trim();
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
-      temperature: 0.35,
-      max_tokens: 900,
+      temperature: 0.28,
+      max_tokens: 1200,
       messages: [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-        {
-          role: "user",
-          content: userPrompt,
-        },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
     });
 
-    const output =
-      completion.choices[0]?.message?.content ||
-      "Work-O-Bot could not generate a response.";
+    const output = completion.choices[0]?.message?.content || "Work-O-Bot could not generate a response.";
 
     return NextResponse.json({
       success: true,
       output,
       model: "gpt-4o",
+      action,
     });
   } catch (error) {
     console.error("Work-O-Bot API failed:", error);
 
     return NextResponse.json(
-      {
-        success: false,
-        error: "Work-O-Bot could not generate a response.",
-      },
+      { success: false, error: "Work-O-Bot could not generate a response." },
       { status: 500 },
     );
   }

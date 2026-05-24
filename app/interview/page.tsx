@@ -1,5 +1,6 @@
 "use client";
 
+import LiveCopilotPanel from "@/components/interview/LiveCopilotPanel";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -2595,6 +2596,73 @@ export default function InterviewPage() {
   const [voiceProvider, setVoiceProvider] = useState<"vapi" | "tts-fallback">("tts-fallback");
 
   useEffect(() => {
+    if (typeof navigator === "undefined") return;
+
+    const mediaDevices = navigator.mediaDevices;
+    if (!mediaDevices?.enumerateDevices) return;
+
+    const originalEnumerateDevices = mediaDevices.enumerateDevices.bind(mediaDevices);
+    const cacheWindowMs = 12_000;
+    let cachedDevices: MediaDeviceInfo[] | null = null;
+    let cachedAt = 0;
+    let pendingRequest: Promise<MediaDeviceInfo[]> | null = null;
+
+    const guardedEnumerateDevices = async () => {
+      const now = Date.now();
+
+      if (cachedDevices && now - cachedAt < cacheWindowMs) {
+        return cachedDevices;
+      }
+
+      if (pendingRequest) return pendingRequest;
+
+      pendingRequest = originalEnumerateDevices()
+        .then((devices) => {
+          cachedDevices = devices;
+          cachedAt = Date.now();
+          return devices;
+        })
+        .catch((error) => {
+          console.warn("WorkZo device enumeration recovered", error);
+          return cachedDevices || [];
+        })
+        .finally(() => {
+          pendingRequest = null;
+        });
+
+      return pendingRequest;
+    };
+
+    try {
+      Object.defineProperty(mediaDevices, "enumerateDevices", {
+        configurable: true,
+        writable: true,
+        value: guardedEnumerateDevices,
+      });
+    } catch {
+      try {
+        mediaDevices.enumerateDevices = guardedEnumerateDevices;
+      } catch {
+        return;
+      }
+    }
+
+    return () => {
+      try {
+        Object.defineProperty(mediaDevices, "enumerateDevices", {
+          configurable: true,
+          writable: true,
+          value: originalEnumerateDevices,
+        });
+      } catch {
+        try {
+          mediaDevices.enumerateDevices = originalEnumerateDevices;
+        } catch {}
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const originalConsoleError = console.error;
     const originalConsoleWarn = console.warn;
 
@@ -2615,7 +2683,7 @@ export default function InterviewPage() {
                   }
                 })();
 
-        return /meeting ended due to ejection|meeting has ended|daily-js.*meeting|call ended|room.*not.*found|no-room|krisp processor|krispiniterror|error applying mic processor|audioworkletnode|no execution context available|wasm_or_worker_not_ready|error unloading krisp/i.test(
+        return /meeting ended due to ejection|meeting has ended|daily-js.*meeting|call ended|room.*not.*found|no-room|krisp processor|krispiniterror|error applying mic processor|audioworkletnode|no execution context available|wasm_or_worker_not_ready|error unloading krisp|enumeratedevices took exceptionally long/i.test(
           text,
         );
       });
@@ -4332,6 +4400,11 @@ export default function InterviewPage() {
 
   const recruiterName = recruiterProfile.name || "Priya";
   const recruiterRole = recruiterProfile.role || "Startup Recruiter";
+  const latestCandidateAnswer =
+    transcript
+      .slice()
+      .reverse()
+      .find((item) => item.role === "candidate")?.text || "";
 
   if (!isHydrated) {
     return (
@@ -4383,6 +4456,15 @@ export default function InterviewPage() {
         onToggleSpeaker={handleToggleSpeaker}
         needsMobileAudioStart={needsMobileAudioStart}
         hasUnlockedMobileAudio={hasUnlockedMobileAudio}
+      />
+
+      <LiveCopilotPanel
+        question={question}
+        latestAnswer={latestCandidateAnswer}
+        recruiterState={recruiterState}
+        recruiterTrust={recruiterTrust}
+        targetRole={getRole(activeSetup)}
+        recruiterId={activeSetup.recruiterPersonality}
       />
     </main>
   );

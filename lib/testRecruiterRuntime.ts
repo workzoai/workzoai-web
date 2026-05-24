@@ -1,5 +1,11 @@
-import { runRecruiterRuntime, type RecruiterRuntimePersonality } from "./recruiterRuntimeOrchestrator";
-import { initialEmotionalMemory, type EmotionalMemoryState } from "./emotionalMemoryEngine";
+import {
+  runRecruiterRuntime,
+  type RecruiterRuntimePersonality,
+} from "./recruiterRuntimeOrchestrator";
+import {
+  initialEmotionalMemory,
+  type EmotionalMemoryState,
+} from "./emotionalMemoryEngine";
 
 type RecruiterId = RecruiterRuntimePersonality;
 
@@ -20,7 +26,14 @@ function divider() {
 
 function makeMemory(
   overrides: Partial<EmotionalMemoryState> & {
-    memorySignals?: Array<"vague_answer" | "missing_metrics" | "weak_clarity" | "strong_answer" | "neutral_answer" | "too_long">;
+    memorySignals?: Array<
+      | "vague_answer"
+      | "missing_metrics"
+      | "weak_clarity"
+      | "strong_answer"
+      | "neutral_answer"
+      | "too_long"
+    >;
   } = {},
 ): EmotionalMemoryState {
   const memorySignals = overrides.memorySignals ?? [];
@@ -30,10 +43,11 @@ function makeMemory(
     ...overrides,
     repeatedWeaknesses:
       overrides.repeatedWeaknesses ??
-      memorySignals.filter((signal) =>
-        signal === "vague_answer" ||
-        signal === "missing_metrics" ||
-        signal === "weak_clarity",
+      memorySignals.filter(
+        (signal) =>
+          signal === "vague_answer" ||
+          signal === "missing_metrics" ||
+          signal === "weak_clarity",
       ),
     memories:
       overrides.memories ??
@@ -52,6 +66,30 @@ function printScenario(result: ReturnType<typeof runRecruiterRuntime>) {
   console.log("Mood:", result.mood);
   console.log("Pressure:", result.pressureLevel);
   console.log("Trust:", result.trust);
+  console.log("Trust trend:", result.trustTrend);
+  console.log("Patience:", result.patienceLevel);
+  console.log("Patience trend:", result.patienceTrend);
+  console.log("Hesitation:", result.hesitationLevel);
+  console.log("Conversation drift:", result.conversationDrift);
+  console.log("Emotional uncertainty:", result.emotionalUncertainty);
+  console.log("Follow-up momentum:", result.followupMomentum);
+  console.log("Self-correction:", result.shouldSelfCorrect);
+  console.log("Self-correction style:", result.selfCorrectionStyle ?? "none");
+  console.log("Self-correction line:", result.selfCorrectionLine || "none");
+  console.log("Engagement:", result.engagementLevel);
+  console.log("Curiosity:", result.curiosityLevel);
+  console.log("Silent judgment:", result.silentJudgment);
+  console.log("Mental checkout risk:", result.mentalCheckoutRisk);
+  console.log("Engagement trend:", result.engagementTrend);
+  console.log("Internal emotion:", result.internalEmotion);
+  console.log("Visible emotion:", result.visibleEmotion);
+  console.log("Masking strength:", result.maskingStrength);
+  console.log("Professional containment:", result.professionalContainment);
+  console.log("Emotional leakage:", result.emotionalLeakage);
+  console.log("Emotional momentum:", result.emotionalMomentum);
+  console.log("Recovery resistance:", result.recoveryResistance);
+  console.log("Skepticism carryover:", result.skepticismCarryover);
+  console.log("Engagement inertia:", result.engagementInertia);
   console.log("Confidence:", result.confidence);
   console.log("Interest:", result.interest);
   console.log("Should interrupt:", result.interruption.shouldInterrupt);
@@ -116,9 +154,18 @@ function runPersonalityBlock() {
 
     console.log(`\n${recruiter.label}`);
     console.log("Micro reaction:", result.microReaction || "none");
+    console.log("Conversation drift:", result.conversationDrift);
+    console.log("Engagement:", result.engagementLevel);
+    console.log("Silent judgment:", result.silentJudgment);
+    console.log("Visible emotion:", result.visibleEmotion);
+    console.log("Masking strength:", result.maskingStrength);
+    console.log("Emotional momentum:", result.emotionalMomentum);
+    console.log("Engagement inertia:", result.engagementInertia);
     console.log("Suggested line:", result.suggestedLine);
 
-    const lines = Array.isArray(result.reactionLines) ? result.reactionLines : [];
+    const lines = Array.isArray(result.reactionLines)
+      ? result.reactionLines
+      : [];
     if (lines.length) {
       console.log("Reaction lines:");
       lines.forEach((line: string, index: number) => {
@@ -184,7 +231,8 @@ function runRuntimeTest() {
     },
     {
       label: "Strong answer with measurable impact",
-      expected: "Recruiter should be impressed or interested and reduce pressure.",
+      expected:
+        "Recruiter should be impressed or interested and reduce pressure.",
       answer:
         "I created a checklist for a repeated workflow issue. It reduced handling time by around 20% and helped newer teammates solve similar cases faster.",
       score: 88,
@@ -200,6 +248,88 @@ function runRuntimeTest() {
       score: 52,
       pressureLevel: 84,
       turnIndex: 3,
+    },
+    {
+      label: "Conversation drift after rambling unclear answer",
+      expected:
+        "Recruiter should hesitate, lose the thread slightly, and redirect the answer instead of sounding perfectly scripted.",
+      answer:
+        "I worked on several things and then there was one project and also another task and I was involved in different parts with different people and tools and the process was long and I think it helped overall but I am not sure exactly what changed at the end.",
+      score: 44,
+      pressureLevel: 78,
+      turnIndex: 4,
+      memory: makeMemory({
+        trust: 46,
+        confidence: 52,
+        interest: 58,
+        memorySignals: ["vague_answer", "missing_metrics"],
+      }),
+    },
+    {
+      label: "Cognitive self-correction after confused answer",
+      expected:
+        "Recruiter should correct itself mid-thought and reframe the question like a human interviewer.",
+      answer:
+        "I did a lot of work across many tasks and then there were different things happening with different people and different outcomes and it is hard to explain but overall I helped and learned a lot from it.",
+      score: 45,
+      pressureLevel: 78,
+      turnIndex: 4,
+      memory: makeMemory({
+        trust: 38,
+        confidence: 50,
+        interest: 55,
+        memorySignals: ["vague_answer", "missing_metrics"],
+      }),
+    },
+    {
+      label: "Engagement decay and silent judgment",
+      expected:
+        "Recruiter should lose curiosity, show silent judgment, and risk mentally checking out after repeated weak answers.",
+      answer:
+        "I worked on many things and helped in different areas. I do not remember the exact result, and I cannot explain the specific impact, but I was involved in several responsibilities.",
+      score: 32,
+      pressureLevel: 90,
+      turnIndex: 6,
+      memory: makeMemory({
+        trust: 24,
+        confidence: 34,
+        interest: 28,
+        repeatedWeaknesses: ["vague_answer", "missing_metrics", "weak_clarity"],
+        memorySignals: ["vague_answer", "missing_metrics", "weak_clarity"],
+      }),
+    },
+    {
+      label: "Professional masking under silent judgment",
+      expected:
+        "Recruiter should internally disengage but externally stay professionally contained.",
+      answer:
+        "I did many things across projects and helped in many areas, but I cannot explain the exact result, ownership, or numbers because it was all part of the team's work.",
+      score: 28,
+      pressureLevel: 93,
+      turnIndex: 7,
+      memory: makeMemory({
+        trust: 18,
+        confidence: 34,
+        interest: 30,
+        repeatedWeaknesses: ["vague_answer", "missing_metrics", "weak_clarity"],
+      }),
+    },
+    {
+      label: "Patience exhaustion after repeated weak answers",
+      expected:
+        "Recruiter patience should become exhausted when repeated vague patterns continue under very high pressure.",
+      answer:
+        "I handled many different things and worked on various tasks. I do not remember the exact result, but I always tried to help and be responsible.",
+      score: 38,
+      pressureLevel: 94,
+      turnIndex: 5,
+      memory: makeMemory({
+        trust: 28,
+        confidence: 36,
+        interest: 42,
+        repeatedWeaknesses: ["vague_answer", "missing_metrics", "weak_clarity"],
+        memorySignals: ["vague_answer", "missing_metrics", "weak_clarity"],
+      }),
     },
   ];
 

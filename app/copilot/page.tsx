@@ -5,13 +5,20 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BarChart3,
+  Bot,
   Brain,
+  Briefcase,
   CheckCircle2,
+  ClipboardList,
+  Copy,
   FileText,
   Flame,
   Lightbulb,
+  Mail,
   MessageSquareText,
   RefreshCcw,
+  Search,
+  Send,
   ShieldAlert,
   Sparkles,
   Target,
@@ -40,13 +47,48 @@ type SavedSetup = {
   recruiterPersonality?: string;
 };
 
+type CopilotMode =
+  | "career_chat"
+  | "interview_coach"
+  | "cv_improve"
+  | "cover_letter"
+  | "job_fit"
+  | "find_jobs_strategy"
+  | "linkedin_message"
+  | "email_reply"
+  | "career_plan";
+
+type SmartActionId =
+  | WorkobotAction
+  | "magic"
+  | "career_chat"
+  | "interview_coach"
+  | "cv_improve"
+  | "cover_letter"
+  | "job_fit"
+  | "find_jobs_strategy"
+  | "linkedin_message"
+  | "email_reply"
+  | "career_plan";
+
 type SmartAction = {
-  id: WorkobotAction | "magic";
+  id: SmartActionId;
   title: string;
   description: string;
   icon: typeof Sparkles;
   priority: "high" | "medium" | "normal";
 };
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+const emptySetup: SavedSetup = {};
+
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
 
 function readSetup(): SavedSetup {
   if (typeof window === "undefined") return {};
@@ -112,17 +154,23 @@ function buildWeaknessRadar(answer: string) {
     {
       label: "Measurable impact",
       ok: signals.hasMetric,
-      advice: signals.hasMetric ? "Metric signal detected." : "Add numbers, scale, time saved, users, tickets, or impact.",
+      advice: signals.hasMetric
+        ? "Metric signal detected."
+        : "Add scale, time saved, users, tickets, revenue, quality, or customer impact.",
     },
     {
       label: "Ownership",
       ok: signals.hasOwnership,
-      advice: signals.hasOwnership ? "Ownership signal detected." : "Say what YOU personally owned, decided, or delivered.",
+      advice: signals.hasOwnership
+        ? "Ownership signal detected."
+        : "Say what YOU personally owned, decided, fixed, led, or delivered.",
     },
     {
       label: "STAR structure",
       ok: signals.hasSTAR,
-      advice: signals.hasSTAR ? "Structure is visible." : "Add situation, task, action, and result.",
+      advice: signals.hasSTAR
+        ? "Structure is visible."
+        : "Add situation, task, action, and result so the recruiter can follow the story.",
     },
     {
       label: "Concise clarity",
@@ -151,8 +199,84 @@ function buildFollowUps(answer: string, recruiterName: string) {
   return questions.slice(0, 5);
 }
 
-function getSmartActions(answer: string): SmartAction[] {
+function getModeMeta(mode: CopilotMode) {
+  const meta: Record<CopilotMode, { title: string; subtitle: string; icon: typeof Bot }> = {
+    career_chat: {
+      title: "Career copilot",
+      subtitle: "Ask anything about your CV, job search, applications, or interview prep.",
+      icon: Bot,
+    },
+    interview_coach: {
+      title: "Interview coach",
+      subtitle: "Fix answers, decode recruiter intent, and prepare follow-ups.",
+      icon: Brain,
+    },
+    cv_improve: {
+      title: "Improve CV",
+      subtitle: "Make your CV sharper, more ATS-friendly, and role-specific.",
+      icon: FileText,
+    },
+    cover_letter: {
+      title: "Cover letter",
+      subtitle: "Generate a focused cover letter using your CV and job description.",
+      icon: Mail,
+    },
+    job_fit: {
+      title: "Job fit check",
+      subtitle: "Decide whether to apply, tailor first, or skip for now.",
+      icon: Target,
+    },
+    find_jobs_strategy: {
+      title: "Find jobs",
+      subtitle: "Get titles, keywords, platforms, and a 7-day search strategy.",
+      icon: Search,
+    },
+    linkedin_message: {
+      title: "LinkedIn message",
+      subtitle: "Write natural outreach messages to recruiters and hiring managers.",
+      icon: MessageSquareText,
+    },
+    email_reply: {
+      title: "Email reply",
+      subtitle: "Draft professional replies for interviews, recruiters, or applications.",
+      icon: Mail,
+    },
+    career_plan: {
+      title: "Career plan",
+      subtitle: "Build a practical short-term path toward your target role.",
+      icon: ClipboardList,
+    },
+  };
+
+  return meta[mode];
+}
+
+function getSmartActions(answer: string, mode: CopilotMode): SmartAction[] {
   const signals = detectAnswerSignals(answer);
+
+  if (mode === "cv_improve") {
+    return [
+      { id: "cv_improve", title: "Improve CV", description: "Diagnose and rewrite CV positioning for this role.", icon: FileText, priority: "high" },
+      { id: "job_fit", title: "Check role fit", description: "Compare CV evidence with the job requirements.", icon: Target, priority: "medium" },
+      { id: "find_jobs_strategy", title: "Find job strategy", description: "Get job titles, keywords, and search filters.", icon: Search, priority: "normal" },
+    ];
+  }
+
+  if (mode === "cover_letter") {
+    return [
+      { id: "cover_letter", title: "Generate letter", description: "Draft a focused cover letter from CV and JD.", icon: Mail, priority: "high" },
+      { id: "job_fit", title: "Check fit first", description: "Find strengths and gaps before applying.", icon: Target, priority: "medium" },
+      { id: "email_reply", title: "Application email", description: "Create a short professional application email.", icon: MessageSquareText, priority: "normal" },
+    ];
+  }
+
+  if (mode === "job_fit" || mode === "find_jobs_strategy" || mode === "career_plan") {
+    return [
+      { id: "job_fit", title: "Should I apply?", description: "Get an honest apply/tailor/skip verdict.", icon: Target, priority: "high" },
+      { id: "find_jobs_strategy", title: "Find matching jobs", description: "Get search titles, keywords, and filters.", icon: Search, priority: "high" },
+      { id: "career_plan", title: "30-day plan", description: "Create a realistic next-step plan.", icon: ClipboardList, priority: "medium" },
+    ];
+  }
 
   const actions: SmartAction[] = [
     {
@@ -221,15 +345,7 @@ function getSmartActions(answer: string): SmartAction[] {
   return actions.slice(0, 6);
 }
 
-function buildMagicAnswer({
-  question,
-  answer,
-  targetRole,
-}: {
-  question: string;
-  answer: string;
-  targetRole: string;
-}) {
+function buildMagicAnswer({ question, answer, targetRole }: { question: string; answer: string; targetRole: string }) {
   const signals = detectAnswerSignals(answer);
 
   const missing = [
@@ -259,31 +375,52 @@ function buildMagicAnswer({
   ].join("\n");
 }
 
+function modeStarter(mode: CopilotMode, targetRole: string) {
+  const starters: Record<CopilotMode, string> = {
+    career_chat: "What should I improve first in my job search?",
+    interview_coach: "Help me improve this interview answer.",
+    cv_improve: `Improve my CV positioning for ${targetRole || "my target role"}.`,
+    cover_letter: "Generate a cover letter for this job description.",
+    job_fit: "Should I apply to this job based on my CV?",
+    find_jobs_strategy: "Which job titles and keywords should I search for?",
+    linkedin_message: "Write a LinkedIn message to a recruiter.",
+    email_reply: "Help me write a professional reply.",
+    career_plan: "Give me a 30-day plan to get closer to my target role.",
+  };
+
+  return starters[mode];
+}
+
 export default function WorkOBotCopilotPage() {
-  const setup = useMemo(() => readSetup(), []);
-  const [question, setQuestion] = useState(
-    "Tell me about a challenging project you worked on and how you handled it.",
-  );
+  const [setup, setSetup] = useState<SavedSetup>(emptySetup);
+  const [mode, setMode] = useState<CopilotMode>("career_chat");
+  const [question, setQuestion] = useState("Tell me about a challenging project you worked on and how you handled it.");
   const [answer, setAnswer] = useState("");
+  const [message, setMessage] = useState("");
   const [output, setOutput] = useState("");
   const [improvedAnswer, setImprovedAnswer] = useState("");
   const [comparison, setComparison] = useState<ReturnType<typeof compareAnswers> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [conversation, setConversation] = useState<ChatMessage[]>([]);
+
+  useEffect(() => {
+    setSetup(readSetup());
+  }, []);
 
   const targetRole = setup.targetRole || "your target role";
   const cvText = setup.cvText || "";
+  const jobDescription = setup.jobDescription || "";
   const recruiter = getRecruiterProfile(setup.recruiterPersonality);
-  const cvSummary = useMemo(
-    () => buildCvIntelligenceSummary(cvText, targetRole),
-    [cvText, targetRole],
-  );
+  const cvSummary = useMemo(() => buildCvIntelligenceSummary(cvText, targetRole), [cvText, targetRole]);
 
   const signals = useMemo(() => detectAnswerSignals(answer), [answer]);
   const mood = useMemo(() => getMood(answer.trim() ? signals.score : 50), [answer, signals.score]);
   const weaknessRadar = useMemo(() => buildWeaknessRadar(answer), [answer]);
   const followUps = useMemo(() => buildFollowUps(answer, recruiter.name), [answer, recruiter.name]);
-  const smartActions = useMemo(() => getSmartActions(answer), [answer]);
+  const smartActions = useMemo(() => getSmartActions(answer, mode), [answer, mode]);
+  const modeMeta = getModeMeta(mode);
   const MoodIcon = mood.icon;
+  const ModeIcon = modeMeta.icon;
 
   useEffect(() => {
     trackWorkZoLaunchEvent({
@@ -294,42 +431,48 @@ export default function WorkOBotCopilotPage() {
     });
   }, [targetRole, recruiter.name]);
 
-  async function runAction(action: SmartAction["id"]) {
+  async function runAction(action: SmartActionId = mode) {
+    const effectiveMessage = message.trim() || modeStarter(mode, targetRole);
+
     trackWorkZoLaunchEvent({
       event: "copilot_action_used",
       role: targetRole,
       recruiter: recruiter.name,
       mode: "copilot",
-      metadata: { action },
+      metadata: { action, copilotMode: mode },
     });
 
     try {
       setLoading(true);
       setComparison(null);
 
+      const nextConversation: ChatMessage[] = effectiveMessage
+        ? [
+            ...conversation,
+            { role: "user" as const, content: effectiveMessage },
+          ]
+        : conversation;
+
       const response = await fetch("/api/copilot", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action,
+          message: effectiveMessage,
           question,
           answer,
           cvText,
-          jobDescription: setup.jobDescription || "",
+          jobDescription,
           targetRole,
           targetMarket: setup.targetMarket || "Global",
           recruiterName: recruiter.name,
           recruiterRole: recruiter.role,
+          recruiterState: mood.label,
+          conversation: nextConversation,
         }),
       });
 
-      const data = (await response.json()) as {
-        success?: boolean;
-        output?: string;
-        error?: string;
-      };
+      const data = (await response.json()) as { success?: boolean; output?: string; error?: string };
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || "Copilot failed");
@@ -338,14 +481,19 @@ export default function WorkOBotCopilotPage() {
       const aiOutput = data.output || "No recruiter analysis generated.";
       setOutput(aiOutput);
       setImprovedAnswer(aiOutput);
+      setConversation([
+        ...nextConversation,
+        { role: "assistant" as const, content: aiOutput },
+      ].slice(-12));
+      setMessage("");
 
-      if (action === "magic" || action === "rewrite" || action === "star" || action === "concise") {
+      if (["magic", "rewrite", "star", "concise"].includes(action)) {
         setComparison(compareAnswers(answer, aiOutput));
       }
     } catch (error) {
       console.warn("AI copilot failed, using local fallback:", error);
 
-      if (action === "magic") {
+      if (action === "magic" || action === "interview_coach") {
         const result = buildMagicAnswer({ question, answer, targetRole });
         setOutput(result);
         setImprovedAnswer(result);
@@ -353,18 +501,18 @@ export default function WorkOBotCopilotPage() {
         return;
       }
 
-      const result = runWorkobotAction({
-        action,
-        question,
-        answer,
-        cvText,
-        targetRole,
-      });
+      const fallbackAction: WorkobotAction =
+        action === "expectation"
+          ? ("expectation" as WorkobotAction)
+          : (["rewrite", "star", "metrics", "ownership", "concise", "followups", "score"].includes(action)
+              ? (action as WorkobotAction)
+              : ("magic" as WorkobotAction));
 
+      const result = runWorkobotAction({ action: fallbackAction, question, answer, cvText, targetRole });
       setOutput(result);
       setImprovedAnswer(result);
 
-      if (action === "rewrite" || action === "star" || action === "concise") {
+      if (["rewrite", "star", "concise"].includes(action)) {
         setComparison(compareAnswers(answer, result));
       }
     } finally {
@@ -372,13 +520,33 @@ export default function WorkOBotCopilotPage() {
     }
   }
 
+  async function copyOutput() {
+    if (!output || typeof navigator === "undefined") return;
+    try {
+      await navigator.clipboard.writeText(output);
+    } catch {
+      // ignore clipboard failures
+    }
+  }
+
+  const modes: Array<{ id: CopilotMode; label: string; icon: typeof Bot }> = [
+    { id: "career_chat", label: "Career", icon: Bot },
+    { id: "interview_coach", label: "Interview", icon: Brain },
+    { id: "cv_improve", label: "CV", icon: FileText },
+    { id: "cover_letter", label: "Cover letter", icon: Mail },
+    { id: "job_fit", label: "Job fit", icon: Target },
+    { id: "find_jobs_strategy", label: "Find jobs", icon: Search },
+    { id: "linkedin_message", label: "Messages", icon: MessageSquareText },
+    { id: "career_plan", label: "Plan", icon: ClipboardList },
+  ];
+
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.14),transparent_32%),linear-gradient(180deg,#06111f_0%,#050816_100%)] p-4 text-white">
-      <div className="mx-auto max-w-[1500px]">
-        <header className="flex items-center justify-between rounded-[24px] border border-white/10 bg-white/[0.045] px-5 py-4 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
-          <Link href="/interview" className="inline-flex items-center gap-3 text-sm font-black text-slate-300 hover:text-white">
+    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.14),transparent_32%),linear-gradient(180deg,#06111f_0%,#050816_100%)] p-3 text-white sm:p-4">
+      <div className="mx-auto max-w-[1540px]">
+        <header className="flex flex-col gap-4 rounded-[24px] border border-white/10 bg-white/[0.045] px-4 py-4 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur-2xl lg:flex-row lg:items-center lg:justify-between lg:px-5">
+          <Link href="/dashboard" className="inline-flex items-center gap-3 text-sm font-black text-slate-300 hover:text-white">
             <ArrowLeft className="h-5 w-5" />
-            Back to interview
+            Back to dashboard
           </Link>
 
           <div className="flex items-center gap-3">
@@ -387,59 +555,84 @@ export default function WorkOBotCopilotPage() {
             </div>
             <div>
               <p className="text-lg font-black">Work-O-Bot</p>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
-                Recruiter-aware copilot
-              </p>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">Career copilot · not just interview answers</p>
             </div>
           </div>
         </header>
 
-        <section className="mt-4 grid gap-4 lg:grid-cols-[0.72fr_1.12fr_0.88fr]">
-          <aside className="rounded-[26px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
+        <section className="mt-4 grid gap-4 xl:grid-cols-[0.76fr_1.18fr_0.9fr]">
+          <aside className="rounded-[26px] border border-white/10 bg-white/[0.045] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl lg:p-5">
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/8 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
               <FileText className="h-4 w-4" />
-              CV intelligence
+              Career context
             </div>
 
-            <h1 className="mt-4 text-2xl font-black tracking-tight">
-              Your recruiter noticed
-            </h1>
+            <h1 className="mt-4 text-2xl font-black tracking-tight">What Work-O-Bot knows</h1>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               {cvSummary.bullets.map((item) => (
-                <div
-                  key={item}
-                  className="rounded-2xl border border-white/10 bg-black/18 p-3 text-sm leading-6 text-slate-300"
-                >
+                <div key={item} className="rounded-2xl border border-white/10 bg-black/18 p-3 text-sm leading-6 text-slate-300">
                   {item}
                 </div>
               ))}
             </div>
 
             <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-400/8 p-4">
-              <p className="text-sm font-black text-cyan-100">
-                {recruiter.name} · {recruiter.role}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Focus: {recruiter.focus.join(", ")}.
-              </p>
+              <p className="text-sm font-black text-cyan-100">{recruiter.name} · {recruiter.role}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">Focus: {recruiter.focus.join(", ")}.</p>
             </div>
 
             <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-400/8 p-4 text-sm leading-6 text-amber-100">
-              Work-O-Bot is not a generic chatbot. It predicts recruiter doubts and helps you recover trust.
+              Work-O-Bot now helps with CV, jobs, cover letters, messages, and interview recovery — not only answer rewriting.
             </div>
           </aside>
 
-          <section className="rounded-[26px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+          <section className="rounded-[26px] border border-white/10 bg-white/[0.045] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl lg:p-5">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-200">
+                  <ModeIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-2xl font-black tracking-tight">{modeMeta.title}</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-400">{modeMeta.subtitle}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {modes.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setMode(item.id);
+                        setMessage(modeStarter(item.id, targetRole));
+                      }}
+                      className={cn(
+                        "flex h-11 items-center justify-center gap-2 rounded-2xl border px-3 text-xs font-black transition",
+                        mode === item.id
+                          ? "border-cyan-300/35 bg-cyan-400/12 text-cyan-100"
+                          : "border-white/10 bg-white/[0.035] text-slate-300 hover:bg-white/[0.07]",
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_230px] lg:items-start">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
-                  Recruiter question
-                </p>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Ask Work-O-Bot</p>
                 <textarea
-                  value={question}
-                  onChange={(event) => setQuestion(event.target.value)}
-                  className="mt-2 h-24 w-full resize-none rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none focus:border-cyan-300/40"
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  placeholder="Ask about your CV, a job, cover letter, recruiter reply, interview answer, or career plan..."
+                  className="mt-2 h-24 w-full resize-none rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
                 />
               </div>
 
@@ -448,23 +641,32 @@ export default function WorkOBotCopilotPage() {
                   <MoodIcon className="h-5 w-5" />
                   <p className="text-sm font-black">{mood.label}</p>
                 </div>
-                <p className="mt-1 max-w-[220px] text-xs leading-5 opacity-90">{mood.tone}</p>
+                <p className="mt-1 text-xs leading-5 opacity-90">{mood.tone}</p>
               </div>
             </div>
 
-            <div className="mt-4">
-              <label className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
-                Your answer
-              </label>
-              <textarea
-                value={answer}
-                onChange={(event) => {
-                  setAnswer(event.target.value);
-                  setComparison(null);
-                }}
-                placeholder="Paste or type your answer here..."
-                className="mt-2 h-52 w-full resize-none rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
-              />
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <div>
+                <label className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Recruiter question / prompt</label>
+                <textarea
+                  value={question}
+                  onChange={(event) => setQuestion(event.target.value)}
+                  className="mt-2 h-24 w-full resize-none rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none focus:border-cyan-300/40"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Your answer / draft</label>
+                <textarea
+                  value={answer}
+                  onChange={(event) => {
+                    setAnswer(event.target.value);
+                    setComparison(null);
+                  }}
+                  placeholder="Paste an interview answer, CV bullet, cover letter draft, or recruiter message..."
+                  className="mt-2 h-24 w-full resize-none rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
+                />
+              </div>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -479,13 +681,7 @@ export default function WorkOBotCopilotPage() {
                     <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-sm font-black">{item.label}</p>
-                        <span
-                          className={
-                            item.ok
-                              ? "rounded-full bg-emerald-400/12 px-2 py-1 text-xs font-black text-emerald-200"
-                              : "rounded-full bg-red-400/12 px-2 py-1 text-xs font-black text-red-200"
-                          }
-                        >
+                        <span className={item.ok ? "rounded-full bg-emerald-400/12 px-2 py-1 text-xs font-black text-emerald-200" : "rounded-full bg-red-400/12 px-2 py-1 text-xs font-black text-red-200"}>
                           {item.ok ? "OK" : "Weak"}
                         </span>
                       </div>
@@ -498,7 +694,7 @@ export default function WorkOBotCopilotPage() {
               <div className="rounded-3xl border border-white/10 bg-black/18 p-4">
                 <div className="flex items-center gap-2">
                   <Lightbulb className="h-5 w-5 text-cyan-200" />
-                  <h2 className="font-black">Likely follow-ups</h2>
+                  <h2 className="font-black">Likely recruiter follow-ups</h2>
                 </div>
 
                 <div className="mt-3 space-y-2">
@@ -519,11 +715,12 @@ export default function WorkOBotCopilotPage() {
                     key={action.id}
                     type="button"
                     onClick={() => runAction(action.id)}
-                    className={`rounded-2xl border p-4 text-left transition hover:scale-[1.01] ${
+                    className={cn(
+                      "rounded-2xl border p-4 text-left transition hover:scale-[1.01]",
                       action.priority === "high"
                         ? "border-cyan-300/30 bg-cyan-400/8"
-                        : "border-white/10 bg-white/[0.045] hover:border-cyan-300/25 hover:bg-white/[0.07]"
-                    }`}
+                        : "border-white/10 bg-white/[0.045] hover:border-cyan-300/25 hover:bg-white/[0.07]",
+                    )}
                   >
                     <div className="flex items-center gap-3">
                       <Icon className="h-5 w-5 text-cyan-200" />
@@ -534,36 +731,51 @@ export default function WorkOBotCopilotPage() {
                 );
               })}
             </div>
+
+            <button
+              type="button"
+              onClick={() => runAction(mode)}
+              disabled={loading}
+              className="mt-4 flex h-13 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 px-5 py-4 text-sm font-black text-white shadow-[0_14px_34px_rgba(59,130,246,0.25)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Send className="h-5 w-5" />
+              {loading ? "Work-O-Bot is thinking..." : "Ask Work-O-Bot"}
+            </button>
           </section>
 
-          <aside className="rounded-[26px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
+          <aside className="rounded-[26px] border border-white/10 bg-white/[0.045] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl lg:p-5">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-black">Copilot output</h2>
-              <button
-                type="button"
-                onClick={() => {
-                  setOutput("");
-                  setImprovedAnswer("");
-                  setComparison(null);
-                }}
-                className="rounded-xl border border-white/10 bg-white/[0.05] p-2 text-slate-300 hover:text-white"
-              >
-                <RefreshCcw className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={copyOutput} className="rounded-xl border border-white/10 bg-white/[0.05] p-2 text-slate-300 hover:text-white" aria-label="Copy output">
+                  <Copy className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOutput("");
+                    setImprovedAnswer("");
+                    setComparison(null);
+                    setConversation([]);
+                  }}
+                  className="rounded-xl border border-white/10 bg-white/[0.05] p-2 text-slate-300 hover:text-white"
+                  aria-label="Reset output"
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
-            <div className="mt-4 min-h-[360px] max-h-[540px] overflow-y-auto whitespace-pre-line rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-7 text-slate-200">
+            <div className="mt-4 min-h-[360px] max-h-[560px] overflow-y-auto whitespace-pre-line rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-7 text-slate-200">
               {loading ? (
                 <div className="flex h-[260px] items-center justify-center">
                   <div className="text-center">
                     <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
-                    <p className="mt-4 text-sm text-slate-400">
-                      Work-O-Bot is analyzing recruiter intent...
-                    </p>
+                    <p className="mt-4 text-sm text-slate-400">Work-O-Bot is reading your context...</p>
                   </div>
                 </div>
               ) : (
-                output || "Choose an action to get recruiter-aware coaching."
+                output || "Choose a mode or ask a question to get recruiter-aware career help."
               )}
             </div>
 
@@ -585,10 +797,7 @@ export default function WorkOBotCopilotPage() {
                   </div>
                   <div className="rounded-2xl bg-black/18 p-3">
                     <p className="text-xs text-slate-500">Trust</p>
-                    <p className="text-2xl font-black">
-                      {comparison.trustDelta > 0 ? "+" : ""}
-                      {comparison.trustDelta}
-                    </p>
+                    <p className="text-2xl font-black">{comparison.trustDelta > 0 ? "+" : ""}{comparison.trustDelta}</p>
                   </div>
                 </div>
 
@@ -601,12 +810,12 @@ export default function WorkOBotCopilotPage() {
                 type="button"
                 onClick={() => {
                   setAnswer(improvedAnswer);
-                  setOutput("Saved as your new answer. Run another action to improve it further.");
+                  setOutput("Saved as your new draft. Run another action to improve it further.");
                   setComparison(null);
                 }}
                 className="mt-4 h-12 w-full rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 text-sm font-black text-white shadow-[0_14px_34px_rgba(59,130,246,0.25)]"
               >
-                Use improved answer
+                Use improved draft
               </button>
             )}
 
