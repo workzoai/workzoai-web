@@ -478,30 +478,69 @@ function resolveRecruiterPersonality(
   return "startup_recruiter";
 }
 
-function normalizeSetup(
-  input?: Partial<WorkZoInterviewSetup> | null,
-): WorkZoInterviewSetup {
-  const stored = input || readLatestInterviewSetup();
-  const source = stored as Partial<WorkZoInterviewSetup> &
-    Record<string, unknown>;
-  const recruiterPersonality = resolveRecruiterPersonality(source);
-
-  return {
-    cvText: source.cvText || "",
-    jobDescription: source.jobDescription || "",
-    targetRole: source.targetRole || "General Role",
-    targetMarket: source.targetMarket || "Global",
-    companyStyle: source.companyStyle || "Realistic",
-    recruiterPersonality,
-    language: source.language || "English",
-    recruiterMemoryProfile: source.recruiterMemoryProfile || null,
-    jobMemoryProfile: source.jobMemoryProfile || null,
-    source: source.source || "latest-upload",
-    setupVersion: 4,
-    setupId: source.setupId || "",
-    updatedAt: source.updatedAt || "",
+function normalizeSetup(raw: WorkZoInterviewSetup | null): WorkZoInterviewSetup {
+  const setup: WorkZoInterviewSetup = {
+    ...(raw || {}),
+    cvText:
+      raw?.cvText ||
+      raw?.uploadedCvText ||
+      raw?.resumeText ||
+      raw?.candidateCv ||
+      "",
+    uploadedCvText:
+      raw?.uploadedCvText ||
+      raw?.cvText ||
+      raw?.resumeText ||
+      raw?.candidateCv ||
+      "",
+    resumeText:
+      raw?.resumeText ||
+      raw?.cvText ||
+      raw?.uploadedCvText ||
+      raw?.candidateCv ||
+      "",
+    candidateCv:
+      raw?.candidateCv ||
+      raw?.cvText ||
+      raw?.uploadedCvText ||
+      raw?.resumeText ||
+      "",
+    jobDescription: raw?.jobDescription || raw?.jdText || "",
+    jdText: raw?.jdText || raw?.jobDescription || "",
+    targetRole:
+      raw?.targetRole ||
+      raw?.role ||
+      raw?.jobTitle ||
+      raw?.resumeProfile?.basics?.headline ||
+      "General Role",
+    role:
+      raw?.role ||
+      raw?.targetRole ||
+      raw?.jobTitle ||
+      raw?.resumeProfile?.basics?.headline ||
+      "General Role",
+    targetMarket: raw?.targetMarket || raw?.country || "global",
+    country: raw?.country || raw?.targetMarket || "global",
+    recruiterPersonality:
+      raw?.recruiterPersonality ||
+      raw?.recruiter ||
+      "sarah",
+    companyStyle:
+      raw?.companyStyle ||
+      raw?.recruiterStyle ||
+      "global_corporate",
+    recruiterStyle:
+      raw?.recruiterStyle ||
+      raw?.companyStyle ||
+      "global_corporate",
+    language: raw?.language || "English",
+    setupVersion: Number(raw?.setupVersion || raw?.version || 6),
+    updatedAt: raw?.updatedAt || new Date().toISOString(),
   };
+
+  return setup;
 }
+
 
 function recruiterImagePath(name: string, recruiterId?: string) {
   const lower = `${name} ${recruiterId || ""}`.toLowerCase();
@@ -1676,7 +1715,7 @@ function InterviewRoom({
 
   const displayTranscript =
     transcript.length > 0
-      ? transcript.slice(-8)
+      ? transcript.slice(-6)
       : [
           {
             role: "recruiter" as const,
@@ -1698,6 +1737,30 @@ function InterviewRoom({
       : isCinematicLive
         ? "Start cinematic live room"
         : "Tap mic to start interview";
+
+  const runtimeTone = needsMobileAudioStart
+    ? "Needs audio permission"
+    : isSpeaking
+      ? "Recruiter voice active"
+      : isListening
+        ? "Mic listening"
+        : isLive
+          ? "Ready for your answer"
+          : "Ready to start";
+
+  const runtimeToneClass = needsMobileAudioStart
+    ? "border-amber-300/20 bg-amber-500/10 text-amber-100"
+    : isListening
+      ? "border-emerald-300/20 bg-emerald-500/10 text-emerald-100"
+      : isSpeaking
+        ? "border-cyan-300/20 bg-cyan-500/10 text-cyan-100"
+        : "border-white/10 bg-slate-950/45 text-slate-200";
+
+  const runtimeChips = [
+    { label: "Voice", value: needsMobileAudioStart ? "Tap to unlock" : speakerOn ? "Ready" : "Muted" },
+    { label: "Mic", value: isListening ? "Listening" : isSpeaking ? "Paused" : "Ready" },
+    { label: "Mode", value: isCinematicLive ? "Live room" : "Standard" },
+  ];
 
   return (
     <div
@@ -2124,6 +2187,105 @@ function InterviewRoom({
           .wz-topbar .wz-end-actions button:last-child { width: 100% !important; justify-content: center !important; padding: 10px 12px !important; font-size: 13px !important; }
           .wz-avatar-shell { max-width: 100% !important; overflow: hidden !important; }
         }
+
+        /* Launch polish: calmer desktop density, clearer runtime states, and safer mobile scrolling. */
+        .wz-runtime-strip span { backdrop-filter: blur(14px); }
+        .wz-recruiter-stage { contain: layout paint; }
+        .wz-transcript-panel { contain: layout paint; }
+        .wz-transcript-scroll { scrollbar-gutter: stable; }
+
+        @media (min-width: 1181px) {
+          .wz-room-grid {
+            grid-template-columns: minmax(620px, 1.65fr) minmax(390px, .82fr) 220px !important;
+            gap: 12px !important;
+          }
+          .wz-avatar-shell {
+            height: min(44vh, 410px) !important;
+            min-height: 300px !important;
+            margin-top: 24px !important;
+          }
+          .wz-subtitle-pill {
+            border-radius: 22px !important;
+            line-height: 1.45 !important;
+            max-height: 54px !important;
+            overflow: hidden !important;
+          }
+          .wz-bottom-controls {
+            max-width: 680px !important;
+          }
+          .wz-transcript-scroll {
+            padding: 14px 18px !important;
+          }
+          .wz-transcript-scroll > div {
+            padding-top: 14px !important;
+            padding-bottom: 14px !important;
+          }
+          .wz-side-panel > div {
+            padding: 16px !important;
+            border-radius: 22px !important;
+          }
+        }
+
+        @media (max-width: 760px) {
+          .wz-mobile-root { background: #020617 !important; }
+          .wz-mobile-page {
+            padding: max(8px, env(safe-area-inset-top)) 10px calc(env(safe-area-inset-bottom) + 20px) !important;
+          }
+          .wz-topbar {
+            grid-template-columns: 1fr 1fr !important;
+            min-height: 46px !important;
+          }
+          .wz-avatar-shell {
+            height: clamp(238px, 36vh, 320px) !important;
+            min-height: 238px !important;
+            margin-top: 6px !important;
+          }
+          .wz-live-badge, .wz-live-status-badge {
+            top: 10px !important;
+            letter-spacing: .08em !important;
+          }
+          .wz-status-line {
+            max-width: calc(100% - 20px) !important;
+            justify-content: center !important;
+            padding: 8px 12px !important;
+            font-size: 12px !important;
+          }
+          .wz-subtitle-pill {
+            width: calc(100% - 18px) !important;
+            max-height: 58px !important;
+            overflow-y: auto !important;
+            border-radius: 18px !important;
+          }
+          .wz-runtime-strip {
+            width: calc(100% - 18px) !important;
+            gap: 6px !important;
+          }
+          .wz-runtime-strip span {
+            padding: 6px 9px !important;
+            font-size: 10px !important;
+          }
+          .wz-bottom-controls {
+            width: min(94vw, 380px) !important;
+            margin-top: 8px !important;
+          }
+          .wz-metrics-row {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+          .wz-metrics-row > div:nth-child(3),
+          .wz-metrics-row > div:nth-child(4) {
+            display: none !important;
+          }
+          .wz-transcript-panel {
+            min-height: 360px !important;
+            margin-bottom: 8px !important;
+          }
+          .wz-transcript-panel > div:first-child button:nth-child(n+2) {
+            display: none !important;
+          }
+          .wz-transcript-scroll {
+            max-height: 46vh !important;
+          }
+        }
       `}</style>
 
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_42%_8%,rgba(56,189,248,0.18),transparent_34%),radial-gradient(circle_at_80%_40%,rgba(124,58,237,0.16),transparent_30%),linear-gradient(180deg,rgba(2,6,23,0.2),#020617_85%)]" />
@@ -2347,7 +2509,7 @@ function InterviewRoom({
                   recruiterVisualState === "speaking" && "text-cyan-100",
                 )}
               >
-                <p className="inline-flex items-center gap-2 rounded-full bg-slate-950/45 px-5 py-2 text-sm font-bold text-slate-300">
+                <p className="wz-status-line inline-flex items-center gap-2 rounded-full bg-slate-950/45 px-5 py-2 text-sm font-bold text-slate-300">
                   <Clock3 className="h-4 w-4 text-cyan-300" />
                   {isLive
                     ? recruiterVisualState === "speaking"
@@ -2363,7 +2525,7 @@ function InterviewRoom({
                 </p>
               </div>
 
-              <div className="mx-auto mt-2 w-[82%] max-w-[820px] rounded-full border border-white/5 bg-slate-950/45 px-5 py-2 text-center text-xs text-slate-400">
+              <div className="wz-subtitle-pill mx-auto mt-2 w-[82%] max-w-[820px] rounded-full border border-white/5 bg-slate-950/45 px-5 py-2 text-center text-xs text-slate-400">
                 <span
                   className={cn(
                     recruiterVisualState === "speaking" &&
@@ -2379,6 +2541,20 @@ function InterviewRoom({
                     |
                   </span>
                 )}
+              </div>
+
+              <div className="wz-runtime-strip mx-auto mt-2 flex w-[82%] max-w-[820px] flex-wrap items-center justify-center gap-2 text-[11px] font-bold">
+                <span className={cn("rounded-full border px-3 py-1.5", runtimeToneClass)}>
+                  {runtimeTone}
+                </span>
+                {runtimeChips.map((chip) => (
+                  <span
+                    key={`${chip.label}-${chip.value}`}
+                    className="rounded-full border border-white/8 bg-slate-950/35 px-3 py-1.5 text-slate-300"
+                  >
+                    <span className="text-slate-500">{chip.label}:</span> {chip.value}
+                  </span>
+                ))}
               </div>
 
               <div className="wz-bottom-controls mx-auto mt-2 flex w-[82%] max-w-[760px] items-center justify-center gap-4 rounded-3xl border border-white/10 bg-slate-950/55 px-4 py-2 shadow-[0_14px_45px_rgba(2,6,23,.35)] backdrop-blur-xl">
@@ -3905,9 +4081,8 @@ export default function InterviewPage() {
     vapiFallbackActivatedRef.current = false;
 
     try {
-      const setup = saveLatestInterviewSetup(
-        normalizeSetup(readLatestInterviewSetup()),
-      );
+      const setup = normalizeSetup(readLatestInterviewSetup());
+      saveLatestInterviewSetup(setup);
       const profile = getRecruiterVoiceProfile(setup.recruiterPersonality);
       const memory = createInitialRecruiterMemory();
 
@@ -4199,9 +4374,8 @@ export default function InterviewPage() {
       // Keep the first recruiter speech close to the tap gesture on iOS Safari.
     }
 
-    const setup = saveLatestInterviewSetup(
-      normalizeSetup(readLatestInterviewSetup()),
-    );
+    const setup = normalizeSetup(readLatestInterviewSetup());
+    saveLatestInterviewSetup(setup);
     setActiveSetup(setup);
 
     // Do not start microphone before the recruiter speaks.

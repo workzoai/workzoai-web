@@ -5058,24 +5058,41 @@ function deriveAnswerQualitySignals(answerRaw: string) {
   const lower = answer.toLowerCase();
   const wordCount = answer.split(/\s+/).filter(Boolean).length;
   const hasOwnership =
-    /(i|my|personally|owned|handled|managed|led|built|created|resolved|improved|coordinated|supported|analyzed|implemented|decided)/i.test(
+    /\b(i|my|personally|owned|handled|managed|led|built|created|resolved|improved|coordinated|supported|analyzed|implemented|decided|delivered|designed|trained|coached|presented|reported)\b/i.test(
       answer,
     );
   const hasOutcome = hasAnyOutcome(answer) || hasQuantitativeOutcome(answer);
   const hasMetrics =
     hasQuantitativeOutcome(answer) ||
-    /(csat|nps|sla|kpi|retention|renewal|churn|tickets?|users?|customers?|percent|percentage|score|rating|reduced|increased|saved|improved)/i.test(
+    /\b(csat|nps|sla|kpi|retention|renewal|churn|tickets?|users?|customers?|clients?|percent|percentage|score|rating|reduced|increased|saved|improved|faster|slower|resolved|delivered|on time|quality|safety|productivity|revenue|pipeline)\b/i.test(
       lower,
     );
   const vague =
-    /(good|nice|great job|many things|stuff|things|you know|etc|basically|i think|maybe|probably|kind of|sort of)/i.test(
+    /\b(good|nice|great job|many things|stuff|things|you know|etc|basically|i think|maybe|probably|kind of|sort of|various|some tasks|many responsibilities)\b/i.test(
       lower,
     );
   const roleBridge =
-    /(customer|client|stakeholder|support|success|retention|renewal|onboarding|relationship|rapport|satisfaction|technical|problem|issue|communication|language|germany|learn|quick learner)/i.test(
+    /\b(customer|client|stakeholder|support|success|retention|renewal|onboarding|relationship|rapport|satisfaction|technical|problem|issue|communication|language|learn|quick learner|team|process|quality|safety|kpi|operations|manufacturing|warehouse|logistics|sales|lead|pipeline|report|analysis|data|design|engineering)\b/i.test(
       lower,
     );
-  return { wordCount, hasOwnership, hasOutcome, hasMetrics, vague, roleBridge };
+  const hasSituation =
+    /\b(when|while|during|in my role|at |with a customer|with a client|in a project|there was|the problem|the issue|the situation)\b/i.test(
+      lower,
+    );
+  const hasAction =
+    /\b(i checked|i asked|i explained|i guided|i created|i changed|i analyzed|i coordinated|i followed up|i documented|i trained|i escalated|i solved|i fixed|i supported|i worked with)\b/i.test(
+      lower,
+    );
+  return {
+    wordCount,
+    hasOwnership,
+    hasOutcome,
+    hasMetrics,
+    vague,
+    roleBridge,
+    hasSituation,
+    hasAction,
+  };
 }
 
 function derivePersistentMoodLine(
@@ -5095,6 +5112,268 @@ function derivePersistentMoodLine(
     return "Trust is recovering; the recruiter can move into deeper, more strategic follow-ups.";
   }
   return "Pressure remains realistic and balanced.";
+}
+
+function countCandidateTurns(input: UnifiedRecruiterInput) {
+  return (input.transcript || []).filter((item) => item.role === "candidate").length;
+}
+
+function recentRecruiterHas(input: UnifiedRecruiterInput, pattern: RegExp) {
+  return (input.transcript || [])
+    .filter((item) => item.role === "recruiter")
+    .slice(-4)
+    .some((item) => pattern.test(cleanText(item.text)));
+}
+
+function trimToNaturalRecruiterLength(text: string, maxSentences = 3) {
+  const cleaned = cleanText(text)
+    .replace(/\bSTAR\b/gi, "structure")
+    .replace(/\brubric\b/gi, "criteria")
+    .replace(/\bscore\b/gi, "read")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return cleaned;
+
+  const sentences = cleaned
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const limited = sentences.slice(0, maxSentences).join(" ");
+  return compact(limited || cleaned, 420);
+}
+
+function buildSpecificEvidenceProbe(input: UnifiedRecruiterInput, answer: string) {
+  const question = cleanText(input.currentQuestion).toLowerCase();
+  const targetRole = firstNonEmpty(
+    input.setup?.targetRole,
+    extractRoleFromJobDescription(cleanText(input.setup?.jobDescription)),
+    "this role",
+  );
+  const lower = answer.toLowerCase();
+
+  if (/team|lead|managed|supervis|coach|train/.test(lower + " " + question)) {
+    return "What exactly was your responsibility there compared with the rest of the team?";
+  }
+  if (/customer|client|support|escalat|complaint|satisfaction/.test(lower + " " + question)) {
+    return "Give me one real customer situation and what you personally did to recover it.";
+  }
+  if (/data|report|dashboard|excel|sql|analysis|metric|kpi/.test(lower + " " + question)) {
+    return "What decision changed because of that data or report?";
+  }
+  if (/manufacturing|warehouse|logistics|operations|safety|quality|delivery|inventory|material/.test(lower + " " + question)) {
+    return "Take one operational example: what was the issue, what did you do, and what improved?";
+  }
+  if (/sales|lead|prospect|pipeline|crm|revenue|business development/.test(lower + " " + question)) {
+    return "Walk me through one prospect or customer conversation you handled from first contact to next step.";
+  }
+  return `Connect that to ${targetRole} with one specific example. What did you do, and what changed?`;
+}
+
+function buildRecoveryProbe(input: UnifiedRecruiterInput, answer: string) {
+  const lower = answer.toLowerCase();
+  if (/result|impact|improved|reduced|increased|resolved|saved|customer|client|kpi|%|\d+/.test(lower)) {
+    return "What was the hardest part of that situation, and how did you handle it?";
+  }
+  return buildSpecificEvidenceProbe(input, answer);
+}
+
+function applyBehavioralRealismLayer(
+  input: UnifiedRecruiterInput,
+  decision: UnifiedRecruiterDecision,
+): UnifiedRecruiterDecision {
+  const answer = cleanText(input.answer);
+  const quality = deriveAnswerQualitySignals(answer);
+  const candidateTurns = countCandidateTurns(input);
+  const isEarlyInterview = candidateTurns <= 2;
+  const pressure = decision.pressure || deriveLivePressure(decision.psychology, decision.recruiterState, decision.intent);
+  const recentUsedPause = recentRecruiterHas(input, /okay…|hold on|let me pause|wait,|i'm not fully following|i’m not fully following/i);
+
+  let spokenReply = trimToNaturalRecruiterLength(decision.spokenReply, 3);
+  let displayQuestion = cleanText(decision.displayQuestion);
+  let recruiterState = decision.recruiterState;
+  let trustDelta = decision.trustDelta;
+  let psychology = { ...decision.psychology };
+  let livePressureSimulation = decision.livePressureSimulation;
+  let humanImperfection = decision.humanImperfection;
+  let cinematicRealism = decision.cinematicRealism;
+
+  const weakButRelevant =
+    decision.shouldCountAsAnswer &&
+    quality.wordCount >= 14 &&
+    quality.roleBridge &&
+    (!quality.hasOwnership || (!quality.hasOutcome && !quality.hasMetrics));
+  const strongOwnedAnswer =
+    decision.shouldCountAsAnswer &&
+    quality.hasOwnership &&
+    quality.hasOutcome &&
+    (quality.hasMetrics || quality.wordCount >= 32);
+  const ramblingWithoutOutcome =
+    decision.shouldCountAsAnswer &&
+    quality.wordCount > 85 &&
+    !quality.hasOutcome &&
+    !quality.hasMetrics;
+
+  if (isEarlyInterview && decision.shouldCountAsAnswer) {
+    // Early background answers should not be grilled like final-round evidence.
+    psychology = {
+      ...psychology,
+      patience: clamp(psychology.patience + 6, 16, 96),
+      skepticism: clamp(psychology.skepticism - 4, 5, 95),
+    };
+    if (pressure.label === "high" || pressure.label === "intense") {
+      recruiterState = "interested";
+      trustDelta = Math.max(trustDelta, 0);
+    }
+  }
+
+  if (strongOwnedAnswer) {
+    const lead = recentRecruiterHas(input, /that's clearer|that is clearer|i can see the ownership/i)
+      ? "Good."
+      : "Okay, that is clearer.";
+    const probe = buildRecoveryProbe(input, answer);
+    spokenReply = `${lead} I can see the ownership and the outcome there. ${probe}`;
+    displayQuestion = probe;
+    recruiterState = recruiterState === "skeptical" || recruiterState === "pressuring" ? "recovering_trust" : "engaged";
+    trustDelta = Math.max(trustDelta, 4);
+    psychology = {
+      ...psychology,
+      trust: clamp(psychology.trust + 4, 12, 92),
+      interest: clamp(psychology.interest + 6, 10, 95),
+      engagement: clamp(psychology.engagement + 5, 5, 95),
+      skepticism: clamp(psychology.skepticism - 5, 5, 95),
+      confidenceInCandidate: clamp(psychology.confidenceInCandidate + 5, 12, 92),
+    };
+  } else if (weakButRelevant && !isEarlyInterview) {
+    const probe = buildSpecificEvidenceProbe(input, answer);
+    const lead = quality.hasOwnership
+      ? "I see the direction, but I need the result."
+      : "I need to separate the team result from your own role.";
+    spokenReply = `${lead} ${probe}`;
+    displayQuestion = probe;
+    recruiterState = psychology.skepticism > 62 ? "skeptical" : "pressuring";
+    trustDelta = Math.min(trustDelta, -2);
+    psychology = {
+      ...psychology,
+      patience: clamp(psychology.patience - 5, 16, 96),
+      skepticism: clamp(psychology.skepticism + 6, 5, 95),
+    };
+  } else if (ramblingWithoutOutcome) {
+    const probe = buildSpecificEvidenceProbe(input, answer);
+    spokenReply = `Let me pause you there. ${probe}`;
+    displayQuestion = probe;
+    recruiterState = "pressuring";
+    trustDelta = Math.min(trustDelta, -3);
+    psychology = {
+      ...psychology,
+      patience: clamp(psychology.patience - 8, 16, 96),
+      skepticism: clamp(psychology.skepticism + 7, 5, 95),
+    };
+  }
+
+  const updatedPressure = deriveLivePressure(psychology, recruiterState, decision.intent);
+  const shouldUseSilence =
+    !recentUsedPause &&
+    (decision.intent === "contradiction" ||
+      decision.intent === "possible_exaggeration" ||
+      recruiterState === "skeptical" ||
+      updatedPressure.label === "high" ||
+      updatedPressure.label === "intense");
+
+  livePressureSimulation = {
+    ...deriveLivePressureSimulation(psychology, recruiterState, decision.intent, updatedPressure),
+    ...(livePressureSimulation || {}),
+    pressureMode:
+      recruiterState === "recovering_trust"
+        ? "recovery"
+        : recruiterState === "skeptical"
+          ? "focused"
+          : updatedPressure.label === "high" || updatedPressure.label === "intense"
+            ? "tightening"
+            : livePressureSimulation?.pressureMode || "calm",
+    pacingCue: shouldUseSilence
+      ? "Brief pause before the next line; then ask one precise follow-up."
+      : livePressureSimulation?.pacingCue || "Natural pace; keep it conversational.",
+    warmthCue:
+      recruiterState === "recovering_trust"
+        ? "Warmth increases slightly because the candidate recovered credibility."
+        : recruiterState === "skeptical" || recruiterState === "pressuring"
+          ? "Warmth is controlled; the recruiter is still testing evidence."
+          : livePressureSimulation?.warmthCue || "Balanced and conversational.",
+    silenceCue: shouldUseSilence
+      ? "Use a short realistic pause before speaking."
+      : "No forced silence.",
+    interruptionRisk:
+      ramblingWithoutOutcome || updatedPressure.label === "intense"
+        ? "possible"
+        : livePressureSimulation?.interruptionRisk || "rare",
+  };
+
+  humanImperfection = {
+    ...(humanImperfection || deriveHumanImperfection(input, decision, decision.recruiterMemory || buildRecruiterMemoryProfile(input.transcript, decision.cvRead || buildEvidenceProfile(cleanText(input.setup?.cvText), cleanText(input.setup?.jobDescription)), input.setup?.recruiterMemoryProfile))),
+    shouldUse: shouldUseSilence || ramblingWithoutOutcome || Boolean(humanImperfection?.shouldUse),
+    mode: shouldUseSilence
+      ? "brief_pause"
+      : ramblingWithoutOutcome
+        ? "impatient_shortening"
+        : humanImperfection?.mode || "none",
+    naturalLine: shouldUseSilence
+      ? "Okay…"
+      : ramblingWithoutOutcome
+        ? "Let me pause you there."
+        : humanImperfection?.naturalLine || "",
+    cue: shouldUseSilence
+      ? "Recruiter pauses briefly before narrowing the answer."
+      : humanImperfection?.cue || "No visible imperfection needed.",
+  };
+
+  cinematicRealism = {
+    ...(cinematicRealism || deriveCinematicRealism(input, decision, decision.socialSignals || deriveSocialSignals(answer, decision, decision.recruiterMemory || buildRecruiterMemoryProfile(input.transcript, decision.cvRead || buildEvidenceProfile(cleanText(input.setup?.cvText), cleanText(input.setup?.jobDescription)), input.setup?.recruiterMemoryProfile)), updatedPressure)),
+    emotionalBeat:
+      recruiterState === "recovering_trust"
+        ? "recovery"
+        : recruiterState === "skeptical" || recruiterState === "pressuring"
+          ? "tightening"
+          : strongOwnedAnswer
+            ? "curiosity"
+            : cinematicRealism?.emotionalBeat || "neutral",
+    pauseBeforeSpeakingMs: shouldUseSilence
+      ? 850
+      : recruiterState === "recovering_trust"
+        ? 420
+        : Math.min(cinematicRealism?.pauseBeforeSpeakingMs || 520, 650),
+    recruiterMicroBehavior: shouldUseSilence
+      ? "Recruiter pauses briefly, then narrows the answer to one concrete point."
+      : recruiterState === "recovering_trust"
+        ? "Recruiter relaxes slightly and leans into a deeper follow-up."
+        : cinematicRealism?.recruiterMicroBehavior || "Recruiter listens and continues naturally.",
+    naturalTransition: shouldUseSilence
+      ? "Okay…"
+      : recruiterState === "recovering_trust"
+        ? "That is clearer."
+        : cinematicRealism?.naturalTransition || "Okay.",
+    shouldUseSilence,
+    shouldSoften: recruiterState === "recovering_trust" || Boolean(cinematicRealism?.shouldSoften),
+    shouldNarrowCandidate: weakButRelevant || ramblingWithoutOutcome || Boolean(cinematicRealism?.shouldNarrowCandidate),
+  };
+
+  // Keep the actual spoken line human-sized and prevent robotic repetition.
+  spokenReply = trimToNaturalRecruiterLength(spokenReply, 3)
+    .replace(/^(Okay[,.]?\s*){2,}/i, "Okay, ")
+    .replace(/^(Right[,.]?\s*){2,}/i, "Right, ")
+    .trim();
+
+  return {
+    ...decision,
+    spokenReply,
+    displayQuestion: compact(displayQuestion || decision.displayQuestion, 240),
+    recruiterState,
+    trustDelta,
+    psychology,
+    pressure: updatedPressure,
+    livePressureSimulation,
+    humanImperfection,
+    cinematicRealism,
+  };
 }
 
 function applyPhase15TrustPressure(
@@ -5265,7 +5544,7 @@ function applyPhase15TrustPressure(
       : []),
   ]);
 
-  return {
+  return applyBehavioralRealismLayer(input, {
     ...decision,
     trustDelta: persistentDelta,
     recruiterState: nextState,
@@ -5276,7 +5555,7 @@ function applyPhase15TrustPressure(
     honestFeedback,
     memoryEvents,
     feedback: decision.feedback ? `${decision.feedback} ${moodLine}` : moodLine,
-  };
+  });
 }
 
 export async function decideUnifiedRecruiterResponse(
