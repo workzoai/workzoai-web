@@ -1,6 +1,5 @@
 "use client";
 
-import LiveCopilotPanel from "@/components/interview/LiveCopilotPanel";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -123,6 +122,17 @@ type AnswerAnalysis = {
   strength?: string;
 };
 
+type LiveCoachChipTone = "positive" | "warning" | "neutral";
+
+type LiveCoachChip = {
+  id: string;
+  tone: LiveCoachChipTone;
+  icon: string;
+  label: string;
+  detail?: string;
+};
+
+
 type UnifiedRecruiterApiResponse = {
   question?: string;
   displayQuestion?: string;
@@ -149,12 +159,7 @@ type UnifiedRecruiterApiResponse = {
     shouldUseSilence?: boolean;
   };
   conversationStage?: string;
-  pressure?: {
-    level?: number;
-    label?: string;
-    reason?: string;
-    behaviorShift?: string;
-  };
+  pressure?: { level?: number; label?: string; reason?: string; behaviorShift?: string };
   recruiterMemory?: {
     summary?: string;
     weakMoments?: string[];
@@ -163,27 +168,9 @@ type UnifiedRecruiterApiResponse = {
     roleFitSignals?: string[];
   } | null;
   memoryEvents?: unknown[];
-  recruiterMemoryInsight?: {
-    callbackLine?: string;
-    openDoubt?: string;
-    strongestMoment?: string;
-    weakestMoment?: string;
-    recallMode?: string;
-  };
-  honestFeedback?: {
-    headline?: string;
-    recruiterRead?: string;
-    risk?: string;
-    nextFix?: string;
-  };
-  livePressureSimulation?: {
-    pressureMode?: string;
-    pacingCue?: string;
-    warmthCue?: string;
-    silenceCue?: string;
-    nextFollowUpStyle?: string;
-    interruptionRisk?: string;
-  };
+  recruiterMemoryInsight?: { callbackLine?: string; openDoubt?: string; strongestMoment?: string; weakestMoment?: string; recallMode?: string };
+  honestFeedback?: { headline?: string; recruiterRead?: string; risk?: string; nextFix?: string };
+  livePressureSimulation?: { pressureMode?: string; pacingCue?: string; warmthCue?: string; silenceCue?: string; nextFollowUpStyle?: string; interruptionRisk?: string };
 };
 
 const recruiterAliasMap: Record<string, RecruiterId> = {
@@ -238,6 +225,7 @@ function timeLabel() {
   });
 }
 
+
 function normalizeTurnText(value: string) {
   return value
     .replace(/\s+/g, " ")
@@ -261,8 +249,8 @@ function isDuplicateCandidateTurn(
 ) {
   return Boolean(
     previousSignature &&
-    previousSignature === nextSignature &&
-    Date.now() - previousAt < windowMs,
+      previousSignature === nextSignature &&
+      Date.now() - previousAt < windowMs,
   );
 }
 
@@ -283,22 +271,14 @@ function isProbablySameRecruiterPrompt(reply: string, currentQuestion: string) {
 
 function isIntroRapportQuestionText(question: string) {
   const lower = question.replace(/\s+/g, " ").trim().toLowerCase();
-  return /\b(how are you|how are you today|can you hear me|nice to meet you)\b/.test(
-    lower,
-  );
+  return /\b(how are you|how are you today|can you hear me|nice to meet you)\b/.test(lower);
 }
 
 function isRapportSmallTalkText(answer: string) {
   const lower = answer.replace(/\s+/g, " ").trim().toLowerCase();
   const words = lower.split(/\s+/).filter(Boolean);
   if (!lower) return false;
-  if (
-    /\b(nervous|anxious|excited|fine|good|okay|ok|ready|doing well|all good|can hear you|i can hear you|yes i can hear|yeah i can hear)\b/.test(
-      lower,
-    ) &&
-    words.length <= 18
-  )
-    return true;
+  if (/\b(nervous|anxious|excited|fine|good|okay|ok|ready|doing well|all good|can hear you|i can hear you|yes i can hear|yeah i can hear)\b/.test(lower) && words.length <= 18) return true;
   if (/\b(no,?\s*)?i just said\b/.test(lower)) return true;
   return false;
 }
@@ -384,6 +364,7 @@ function createVapiStartTimeout(ms = 14000) {
     }, ms);
   });
 }
+
 
 function isMobileBrowserRuntime() {
   if (typeof navigator === "undefined") return false;
@@ -478,69 +459,124 @@ function resolveRecruiterPersonality(
   return "startup_recruiter";
 }
 
-function normalizeSetup(raw: WorkZoInterviewSetup | null): WorkZoInterviewSetup {
-  const setup: WorkZoInterviewSetup = {
-    ...(raw || {}),
+function normalizeSetup(
+  input?: Partial<WorkZoInterviewSetup> | null,
+): WorkZoInterviewSetup {
+  const stored =
+    input ??
+    (typeof window !== "undefined" ? readLatestInterviewSetup() : null) ??
+    {};
+
+  const source = stored as Partial<WorkZoInterviewSetup> &
+    Record<string, unknown>;
+  const recruiterPersonality = resolveRecruiterPersonality(source);
+
+  return {
     cvText:
-      raw?.cvText ||
-      raw?.uploadedCvText ||
-      raw?.resumeText ||
-      raw?.candidateCv ||
-      "",
+      typeof source.cvText === "string"
+        ? source.cvText
+        : typeof source.uploadedCvText === "string"
+          ? source.uploadedCvText
+          : typeof source.resumeText === "string"
+            ? source.resumeText
+            : typeof source.candidateCv === "string"
+              ? source.candidateCv
+              : "",
     uploadedCvText:
-      raw?.uploadedCvText ||
-      raw?.cvText ||
-      raw?.resumeText ||
-      raw?.candidateCv ||
-      "",
+      typeof source.uploadedCvText === "string"
+        ? source.uploadedCvText
+        : typeof source.cvText === "string"
+          ? source.cvText
+          : "",
     resumeText:
-      raw?.resumeText ||
-      raw?.cvText ||
-      raw?.uploadedCvText ||
-      raw?.candidateCv ||
-      "",
+      typeof source.resumeText === "string"
+        ? source.resumeText
+        : typeof source.cvText === "string"
+          ? source.cvText
+          : "",
     candidateCv:
-      raw?.candidateCv ||
-      raw?.cvText ||
-      raw?.uploadedCvText ||
-      raw?.resumeText ||
-      "",
-    jobDescription: raw?.jobDescription || raw?.jdText || "",
-    jdText: raw?.jdText || raw?.jobDescription || "",
+      typeof source.candidateCv === "string"
+        ? source.candidateCv
+        : typeof source.cvText === "string"
+          ? source.cvText
+          : "",
+    jobDescription:
+      typeof source.jobDescription === "string"
+        ? source.jobDescription
+        : typeof source.jdText === "string"
+          ? source.jdText
+          : "",
+    jdText:
+      typeof source.jdText === "string"
+        ? source.jdText
+        : typeof source.jobDescription === "string"
+          ? source.jobDescription
+          : "",
     targetRole:
-      raw?.targetRole ||
-      raw?.role ||
-      raw?.jobTitle ||
-      raw?.resumeProfile?.basics?.headline ||
-      "General Role",
+      typeof source.targetRole === "string" && source.targetRole.trim()
+        ? source.targetRole
+        : typeof source.role === "string" && source.role.trim()
+          ? source.role
+          : typeof source.jobTitle === "string" && source.jobTitle.trim()
+            ? source.jobTitle
+            : "General Role",
     role:
-      raw?.role ||
-      raw?.targetRole ||
-      raw?.jobTitle ||
-      raw?.resumeProfile?.basics?.headline ||
-      "General Role",
-    targetMarket: raw?.targetMarket || raw?.country || "global",
-    country: raw?.country || raw?.targetMarket || "global",
-    recruiterPersonality:
-      raw?.recruiterPersonality ||
-      raw?.recruiter ||
-      "sarah",
+      typeof source.role === "string" && source.role.trim()
+        ? source.role
+        : typeof source.targetRole === "string" && source.targetRole.trim()
+          ? source.targetRole
+          : "General Role",
+    targetMarket:
+      typeof source.targetMarket === "string" && source.targetMarket.trim()
+        ? source.targetMarket
+        : typeof source.country === "string" && source.country.trim()
+          ? source.country
+          : "Global",
+    country:
+      typeof source.country === "string" && source.country.trim()
+        ? source.country
+        : typeof source.targetMarket === "string" && source.targetMarket.trim()
+          ? source.targetMarket
+          : "Global",
     companyStyle:
-      raw?.companyStyle ||
-      raw?.recruiterStyle ||
-      "global_corporate",
+      typeof source.companyStyle === "string" && source.companyStyle.trim()
+        ? source.companyStyle
+        : typeof source.recruiterStyle === "string" && source.recruiterStyle.trim()
+          ? source.recruiterStyle
+          : "Realistic",
     recruiterStyle:
-      raw?.recruiterStyle ||
-      raw?.companyStyle ||
-      "global_corporate",
-    language: raw?.language || "English",
-    setupVersion: Number(raw?.setupVersion || raw?.version || 6),
-    updatedAt: raw?.updatedAt || new Date().toISOString(),
+      typeof source.recruiterStyle === "string" && source.recruiterStyle.trim()
+        ? source.recruiterStyle
+        : typeof source.companyStyle === "string" && source.companyStyle.trim()
+          ? source.companyStyle
+          : "Realistic",
+    recruiterPersonality,
+    language:
+      typeof source.language === "string" && source.language.trim()
+        ? source.language
+        : "English",
+    recruiterMemoryProfile: source.recruiterMemoryProfile || null,
+    jobMemoryProfile: source.jobMemoryProfile || null,
+    source:
+      typeof source.source === "string" && source.source.trim()
+        ? source.source
+        : "latest-upload",
+    setupVersion:
+      typeof source.setupVersion === "number"
+        ? source.setupVersion
+        : typeof source.version === "number"
+          ? source.version
+          : 4,
+    setupId:
+      typeof source.setupId === "string" && source.setupId.trim()
+        ? source.setupId
+        : "",
+    updatedAt:
+      typeof source.updatedAt === "string" && source.updatedAt.trim()
+        ? source.updatedAt
+        : "",
   };
-
-  return setup;
 }
-
 
 function recruiterImagePath(name: string, recruiterId?: string) {
   const lower = `${name} ${recruiterId || ""}`.toLowerCase();
@@ -595,6 +631,7 @@ function recruiterVideoPathForState(
   return `/recruiters/${folder}/idle.mp4`;
 }
 
+
 function cleanPossibleCandidateName(value: unknown) {
   if (typeof value !== "string") return "";
   const cleaned = value
@@ -605,11 +642,7 @@ function cleanPossibleCandidateName(value: unknown) {
     .trim();
 
   if (!cleaned) return "";
-  if (
-    /candidate|resume|curriculum|profile|email|phone|linkedin|github|address/i.test(
-      cleaned,
-    )
-  ) {
+  if (/candidate|resume|curriculum|profile|email|phone|linkedin|github|address/i.test(cleaned)) {
     return "";
   }
 
@@ -642,13 +675,15 @@ function inferCandidateNameFromSetup(setup: WorkZoInterviewSetup) {
   }
 
   if (typeof window !== "undefined") {
-    const keys = ["workzo-candidate-name", "candidateName", "workzo_user_name"];
+    const keys = [
+      "workzo-candidate-name",
+      "candidateName",
+      "workzo_user_name",
+    ];
 
     for (const key of keys) {
       try {
-        const cleaned = cleanPossibleCandidateName(
-          window.localStorage.getItem(key),
-        );
+        const cleaned = cleanPossibleCandidateName(window.localStorage.getItem(key));
         if (cleaned) return cleaned;
       } catch {}
     }
@@ -709,6 +744,104 @@ function buildHumanPauseMs(analysis: AnswerAnalysis) {
   if (analysis.state === "engaged" || analysis.state === "interested")
     return 650;
   return 1050;
+}
+
+function buildLiveCoachChip({
+  analysis,
+  previousTrust,
+  nextTrust,
+  memory,
+  answer,
+  shouldCountAsAnswer,
+}: {
+  analysis: AnswerAnalysis;
+  previousTrust: number;
+  nextTrust: number;
+  memory: RecruiterMemory;
+  answer: string;
+  shouldCountAsAnswer: boolean;
+}): LiveCoachChip | null {
+  if (!shouldCountAsAnswer) return null;
+
+  const clean = answer.replace(/\s+/g, " ").trim();
+  const words = clean.split(" ").filter(Boolean);
+  const trustMove = nextTrust - previousTrust;
+  const hasOwnership =
+    /\b(i|my|personally|led|owned|handled|resolved|built|created|improved|implemented|analyzed|designed)\b/i.test(clean);
+  const hasMetric =
+    /\d|percent|percentage|hours?|days?|weeks?|months?|customers?|tickets?|users?|reduced|increased|saved|improved|faster|revenue|cost/i.test(clean);
+
+  if (analysis.signal === "recovery" || analysis.state === "recovering_trust" || trustMove >= 8) {
+    return {
+      id: `recovering-${Date.now()}`,
+      tone: "positive",
+      icon: "✓",
+      label: "Trust recovering",
+      detail: "Keep this level of specificity.",
+    };
+  }
+
+  if (analysis.signal === "strong_metrics" || (hasOwnership && hasMetric && words.length >= 20)) {
+    return {
+      id: `strong-${Date.now()}`,
+      tone: "positive",
+      icon: "✓",
+      label: "Strong ownership signal",
+      detail: "You gave action plus evidence.",
+    };
+  }
+
+  if (analysis.signal === "rambling" || words.length > 145) {
+    return {
+      id: `clarity-${Date.now()}`,
+      tone: "warning",
+      icon: "⚠",
+      label: "Recruiter losing clarity",
+      detail: "Shorten to situation, action, result.",
+    };
+  }
+
+  if (analysis.signal === "missing_metrics" || (!hasMetric && words.length >= 18)) {
+    return {
+      id: `metrics-${Date.now()}`,
+      tone: "warning",
+      icon: "⚠",
+      label: "Missing measurable impact",
+      detail: "Add a number, scale, or outcome.",
+    };
+  }
+
+  if (analysis.signal === "unclear_ownership" || !hasOwnership) {
+    return {
+      id: `ownership-${Date.now()}`,
+      tone: "warning",
+      icon: "⚠",
+      label: "Ownership unclear",
+      detail: "Say what you personally did.",
+    };
+  }
+
+  if (analysis.signal === "too_generic" || analysis.signal === "too_short") {
+    return {
+      id: `vague-${Date.now()}`,
+      tone: "warning",
+      icon: "⚠",
+      label: "Too vague",
+      detail: "Give one concrete situation.",
+    };
+  }
+
+  if (nextTrust <= previousTrust - 4 || nextTrust < 46 || memory.vagueAnswers >= 2) {
+    return {
+      id: `trust-${Date.now()}`,
+      tone: "warning",
+      icon: "⚠",
+      label: "Recruiter trust dropping",
+      detail: "Bring proof into the next answer.",
+    };
+  }
+
+  return null;
 }
 
 function softenRecruiterSpeech(text: string) {
@@ -1067,10 +1200,7 @@ function analyzeAnswer(
   const words = clean.split(" ").filter(Boolean);
   const lower = clean.toLowerCase();
 
-  if (
-    isIntroRapportQuestionText(currentQuestion) &&
-    isRapportSmallTalkText(clean)
-  ) {
+  if (isIntroRapportQuestionText(currentQuestion) && isRapportSmallTalkText(clean)) {
     return {
       signal: "good_ownership",
       state: "interested",
@@ -1079,8 +1209,7 @@ function analyzeAnswer(
       bridge: /nervous|anxious/i.test(clean)
         ? "That’s completely normal — let’s ease into it."
         : "Good to hear.",
-      followUp:
-        "Tell me a little about yourself and how your recent experience connects to this role.",
+      followUp: "Tell me a little about yourself and how your recent experience connects to this role.",
     };
   }
 
@@ -1315,6 +1444,95 @@ function buildJobContext(setup: WorkZoInterviewSetup) {
   return source.replace(/\s+/g, " ").slice(0, 4000);
 }
 
+function compactInterviewText(value: unknown, maxChars = 900) {
+  const clean = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+  if (!clean) return "";
+
+  const sentences = clean
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((item) => item.replace(/\s+/g, " ").trim())
+    .filter((item) => item.length > 18);
+
+  const priorityPattern = /\b(role|experience|support|customer|client|project|built|created|managed|led|resolved|improved|reduced|increased|sql|python|excel|tableau|crm|sales|manufacturing|production|quality|safety|logistics|warehouse|lead|team|kpi|dashboard|communication|stakeholder|technical|data|analysis|analyst)\b/i;
+
+  const selected = [
+    ...sentences.filter((item) => priorityPattern.test(item)),
+    ...sentences,
+  ];
+
+  const unique: string[] = [];
+  for (const item of selected) {
+    const normalized = item.toLowerCase();
+    if (unique.some((existing) => existing.toLowerCase() === normalized)) continue;
+    unique.push(item);
+    if (unique.join(" ").length >= maxChars) break;
+  }
+
+  const result = (unique.length ? unique.join(" ") : clean).slice(0, maxChars).trim();
+  return result || clean.slice(0, maxChars).trim();
+}
+
+function buildCompactCandidateProfile(setup: WorkZoInterviewSetup) {
+  const profileText = setup.recruiterMemoryProfile
+    ? compactInterviewText(JSON.stringify(setup.recruiterMemoryProfile), 700)
+    : "";
+  const cvText = compactInterviewText(
+    setup.cvText || setup.uploadedCvText || setup.resumeText || setup.candidateCv || "",
+    900,
+  );
+  return profileText || cvText;
+}
+
+function buildCompactJobProfile(setup: WorkZoInterviewSetup) {
+  const jobProfileText = setup.jobMemoryProfile
+    ? compactInterviewText(JSON.stringify(setup.jobMemoryProfile), 650)
+    : "";
+  const jdText = compactInterviewText(setup.jobDescription || setup.jdText || "", 850);
+  return jobProfileText || jdText;
+}
+
+function buildCompactRecruiterMemory(memory: RecruiterMemory) {
+  const parts = [
+    memory.rememberedWeaknesses?.length
+      ? `Weaknesses: ${memory.rememberedWeaknesses.slice(0, 3).join("; ")}`
+      : "",
+    memory.rememberedStrengths?.length
+      ? `Strengths: ${memory.rememberedStrengths.slice(0, 3).join("; ")}`
+      : "",
+    typeof memory.recruiterTrust === "number" ? `Trust: ${memory.recruiterTrust}` : "",
+    memory.weakMetrics ? `Metric gaps: ${memory.weakMetrics}` : "",
+    memory.ownershipIssues ? `Ownership gaps: ${memory.ownershipIssues}` : "",
+    memory.vagueAnswers ? `Vague answers: ${memory.vagueAnswers}` : "",
+  ].filter(Boolean);
+
+  return parts.join(" | ").slice(0, 700);
+}
+
+function buildCompactTranscript(items: TranscriptItem[], maxTurns = 4) {
+  return items.slice(-maxTurns).map((item) => ({
+    role: item.role,
+    text: compactInterviewText(item.text, 420),
+    time: item.time,
+  }));
+}
+
+function buildCompactInterviewSetup(setup: WorkZoInterviewSetup, recruiterId: RecruiterId) {
+  const candidateProfile = buildCompactCandidateProfile(setup);
+  const jobProfile = buildCompactJobProfile(setup);
+
+  return {
+    cvText: candidateProfile,
+    candidateProfileSummary: candidateProfile,
+    jobDescription: jobProfile,
+    jobProfileSummary: jobProfile,
+    targetRole: getRole(setup),
+    targetMarket: setup.targetMarket || setup.country || "Global",
+    companyStyle: setup.companyStyle || setup.recruiterStyle || "Global Corporate",
+    recruiterPersonality: setup.recruiterPersonality || recruiterId,
+    language: setup.language || "English",
+  };
+}
+
 function hasUsableCv(setup: WorkZoInterviewSetup) {
   return buildCandidateContext(setup).length > 180;
 }
@@ -1372,82 +1590,41 @@ function buildClarificationReply(
   return "Good question. I’ll answer briefly, then we’ll continue the interview. Yes, I’m using the available role and background context to guide this conversation.";
 }
 
+
 function isEarlyMultiIntentRapport(answer: string) {
-  const clean = answer.replace(/\s+/g, " ").trim().toLowerCase();
+  const clean = answer.replace(/\s+/g, " " ).trim().toLowerCase();
   if (!clean) return false;
-  const asksName =
-    /\b(your name|who are you|what'?s your name|what is your name|let me know your name|may i know your name)\b/i.test(
-      clean,
-    );
-  const audioCheck =
-    /\b(can you hear me|i can hear you|can hear you|can'?t hear|cannot hear|can not hear|no audio|voice is not audible|are you there)\b/i.test(
-      clean,
-    );
-  const asksHow =
-    /\b(how are you|how are you doing|what about you|and you)\b/i.test(clean);
-  const saysGood =
-    /\b(good|fine|okay|ok|great|well|ready|nervous|thank you|thanks)\b/i.test(
-      clean,
-    );
-  const hasWorkEvidence =
-    /\b(worked|experience|technical support|customer|client|ticket|project|handled|resolved|managed|led|built|improved|role|support engineer|customer success)\b/i.test(
-      clean,
-    );
+  const asksName = /\b(your name|who are you|what'?s your name|what is your name|let me know your name|may i know your name)\b/i.test(clean);
+  const audioCheck = /\b(can you hear me|i can hear you|can hear you|can'?t hear|cannot hear|can not hear|no audio|voice is not audible|are you there)\b/i.test(clean);
+  const asksHow = /\b(how are you|how are you doing|what about you|and you)\b/i.test(clean);
+  const saysGood = /\b(good|fine|okay|ok|great|well|ready|nervous|thank you|thanks)\b/i.test(clean);
+  const hasWorkEvidence = /\b(worked|experience|technical support|customer|client|ticket|project|handled|resolved|managed|led|built|improved|role|support engineer|customer success)\b/i.test(clean);
   const wordCount = clean.split(/\s+/).filter(Boolean).length;
-  return (
-    (asksName || audioCheck || asksHow || saysGood) &&
-    (wordCount <= 30 || !hasWorkEvidence)
-  );
+  return (asksName || audioCheck || asksHow || saysGood) && (wordCount <= 30 || !hasWorkEvidence);
 }
 
-function buildEarlyMultiIntentRapportReply(
-  answer: string,
-  recruiterName: string,
-  targetRole: string,
-) {
-  const clean = answer.replace(/\s+/g, " ").trim().toLowerCase();
+function buildEarlyMultiIntentRapportReply(answer: string, recruiterName: string, targetRole: string) {
+  const clean = answer.replace(/\s+/g, " " ).trim().toLowerCase();
   const parts: string[] = [];
-  if (
-    /\b(your name|who are you|what'?s your name|what is your name|let me know your name|may i know your name)\b/i.test(
-      clean,
-    )
-  ) {
-    parts.push(
-      `Of course — I’m ${recruiterName}, your recruiter for this interview.`,
-    );
+  if (/\b(your name|who are you|what'?s your name|what is your name|let me know your name|may i know your name)\b/i.test(clean)) {
+    parts.push(`Of course — I’m ${recruiterName}, your recruiter for this interview.`);
   }
-  if (
-    /\b(can you hear me|i can hear you|can hear you|are you there)\b/i.test(
-      clean,
-    )
-  ) {
+  if (/\b(can you hear me|i can hear you|can hear you|are you there)\b/i.test(clean)) {
     parts.push("Yes, I can hear you clearly.");
   }
-  if (
-    /\b(can'?t hear|cannot hear|can not hear|no audio|voice is not audible)\b/i.test(
-      clean,
-    )
-  ) {
-    parts.push(
-      "Thanks for telling me. I’ll keep the transcript visible as well while the audio catches up.",
-    );
+  if (/\b(can'?t hear|cannot hear|can not hear|no audio|voice is not audible)\b/i.test(clean)) {
+    parts.push("Thanks for telling me. I’ll keep the transcript visible as well while the audio catches up.");
   }
-  if (
-    /\b(how are you|how are you doing|what about you|and you)\b/i.test(clean)
-  ) {
+  if (/\b(how are you|how are you doing|what about you|and you)\b/i.test(clean)) {
     parts.push("I’m doing well, thank you for asking.");
   }
   if (/\b(nervous|anxious|excited)\b/i.test(clean)) {
     parts.push("That’s completely normal at the start, so let’s ease into it.");
-  } else if (
-    /\b(good|fine|okay|ok|great|well|ready|thank you|thanks)\b/i.test(clean)
-  ) {
+  } else if (/\b(good|fine|okay|ok|great|well|ready|thank you|thanks)\b/i.test(clean)) {
     parts.push("Good to hear.");
   }
   const unique = Array.from(new Set(parts)).slice(0, 4);
-  return `${unique.join(" ")} To start, tell me a little about your background and what makes you interested in ${targetRole}.`
-    .replace(/\s+/g, " ")
-    .trim();
+  return `${unique.join(" " )} To start, tell me a little about your background and what makes you interested in ${targetRole}.`.replace(/\s+/g, " " ).trim();
 }
 
 function updateMemoryWithAnalysis(
@@ -1590,6 +1767,7 @@ function InterviewRoom({
   onToggleSpeaker,
   needsMobileAudioStart,
   hasUnlockedMobileAudio,
+  coachChip,
 }: {
   recruiterName: string;
   recruiterRole: string;
@@ -1613,6 +1791,7 @@ function InterviewRoom({
   onToggleSpeaker: () => void;
   needsMobileAudioStart: boolean;
   hasUnlockedMobileAudio: boolean;
+  coachChip: LiveCoachChip | null;
 }) {
   const isCinematicLive = true;
   const [recruiterVideoFailed, setRecruiterVideoFailed] = useState(false);
@@ -1669,9 +1848,10 @@ function InterviewRoom({
     return () => window.clearInterval(timer);
   }, [latestRecruiterLine, recruiterVisualState]);
 
-  const liveStatusLabel = needsMobileAudioStart
-    ? "Tap to start audio"
-    : recruiterVisualState === "speaking"
+  const liveStatusLabel =
+    needsMobileAudioStart
+      ? "Tap to start audio"
+      : recruiterVisualState === "speaking"
       ? "Recruiter speaking"
       : recruiterVisualState === "listening"
         ? "Listening closely"
@@ -1715,7 +1895,7 @@ function InterviewRoom({
 
   const displayTranscript =
     transcript.length > 0
-      ? transcript.slice(-6)
+      ? transcript.slice(-8)
       : [
           {
             role: "recruiter" as const,
@@ -1728,39 +1908,15 @@ function InterviewRoom({
     ? "Tap once to enable recruiter audio"
     : isLive
       ? isListening
-        ? "Listening to your answer"
-        : isSpeaking
-          ? "Recruiter speaking"
-          : isCinematicLive
-            ? "Speak naturally when ready"
-            : "Tap mic to answer"
-      : isCinematicLive
-        ? "Start cinematic live room"
-        : "Tap mic to start interview";
-
-  const runtimeTone = needsMobileAudioStart
-    ? "Needs audio permission"
-    : isSpeaking
-      ? "Recruiter voice active"
-      : isListening
-        ? "Mic listening"
-        : isLive
-          ? "Ready for your answer"
-          : "Ready to start";
-
-  const runtimeToneClass = needsMobileAudioStart
-    ? "border-amber-300/20 bg-amber-500/10 text-amber-100"
-    : isListening
-      ? "border-emerald-300/20 bg-emerald-500/10 text-emerald-100"
+      ? "Listening to your answer"
       : isSpeaking
-        ? "border-cyan-300/20 bg-cyan-500/10 text-cyan-100"
-        : "border-white/10 bg-slate-950/45 text-slate-200";
-
-  const runtimeChips = [
-    { label: "Voice", value: needsMobileAudioStart ? "Tap to unlock" : speakerOn ? "Ready" : "Muted" },
-    { label: "Mic", value: isListening ? "Listening" : isSpeaking ? "Paused" : "Ready" },
-    { label: "Mode", value: isCinematicLive ? "Live room" : "Standard" },
-  ];
+        ? "Recruiter speaking"
+        : isCinematicLive
+          ? "Speak naturally when ready"
+          : "Tap mic to answer"
+    : isCinematicLive
+      ? "Start cinematic live room"
+      : "Tap mic to start interview";
 
   return (
     <div
@@ -1883,6 +2039,12 @@ function InterviewRoom({
           0%, 100% { box-shadow: 0 0 34px rgba(59,130,246,.35), inset 0 1px 0 rgba(255,255,255,.18); }
           50% { box-shadow: 0 0 78px rgba(139,92,246,.72), inset 0 1px 0 rgba(255,255,255,.28); }
         }
+        @keyframes wzCoachChipIn {
+          0% { opacity: 0; transform: translateY(10px) scale(.96); filter: blur(3px); }
+          18% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+          82% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+          100% { opacity: 0; transform: translateY(-8px) scale(.98); filter: blur(2px); }
+        }
         .wz-avatar-frame { animation-name: wzFrameAlive; animation-duration: 5.2s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; transform-origin: center center; }
         .wz-avatar-frame-speaking { animation-name: wzFrameSpeak; animation-duration: 1.5s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; transform-origin: center center; }
         .wz-avatar-frame-listening { animation-name: wzFrameListen; animation-duration: 2.8s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; transform-origin: center center; }
@@ -1917,6 +2079,7 @@ function InterviewRoom({
         .wz-scan-line { animation-name: wzScanLine; animation-duration: 5.5s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
         .wz-trust-line { animation-name: wzTrustLine; animation-duration: 2.8s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
         .wz-mic-live { animation-name: wzMicGlow; animation-duration: 2.2s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+        .wz-coach-chip { animation-name: wzCoachChipIn; animation-duration: 3.6s; animation-timing-function: ease-in-out; animation-fill-mode: both; }
 
         .wz-thinking .wz-avatar-img { filter: brightness(.72) contrast(1.06) saturate(.92) !important; }
         .wz-thinking .wz-wave-bar { animation-name: wzWaveLow; animation-duration: 2.8s; opacity: .32; }
@@ -1985,6 +2148,7 @@ function InterviewRoom({
           .wz-live-badge { left: 22px !important; top: 18px !important; padding: 8px 12px !important; }
           .wz-live-status-badge { right: 18px !important; top: 18px !important; max-width: calc(100% - 142px) !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; padding: 8px 12px !important; }
           .wz-status-line { margin-top: 14px !important; font-size: 14px !important; }
+          .wz-coach-chip { left: 18px !important; right: 18px !important; top: 66px !important; max-width: none !important; }
           .wz-subtitle-pill { width: calc(100% - 28px) !important; margin: 8px auto 0 !important; }
           .wz-bottom-controls { position: relative !important; bottom: auto !important; width: calc(100% - 24px) !important; margin: 10px auto 0 !important; transform: none !important; padding: 12px !important; gap: 10px !important; z-index: 20 !important; }
           .wz-bottom-controls button { min-width: 0 !important; }
@@ -2187,105 +2351,6 @@ function InterviewRoom({
           .wz-topbar .wz-end-actions button:last-child { width: 100% !important; justify-content: center !important; padding: 10px 12px !important; font-size: 13px !important; }
           .wz-avatar-shell { max-width: 100% !important; overflow: hidden !important; }
         }
-
-        /* Launch polish: calmer desktop density, clearer runtime states, and safer mobile scrolling. */
-        .wz-runtime-strip span { backdrop-filter: blur(14px); }
-        .wz-recruiter-stage { contain: layout paint; }
-        .wz-transcript-panel { contain: layout paint; }
-        .wz-transcript-scroll { scrollbar-gutter: stable; }
-
-        @media (min-width: 1181px) {
-          .wz-room-grid {
-            grid-template-columns: minmax(620px, 1.65fr) minmax(390px, .82fr) 220px !important;
-            gap: 12px !important;
-          }
-          .wz-avatar-shell {
-            height: min(44vh, 410px) !important;
-            min-height: 300px !important;
-            margin-top: 24px !important;
-          }
-          .wz-subtitle-pill {
-            border-radius: 22px !important;
-            line-height: 1.45 !important;
-            max-height: 54px !important;
-            overflow: hidden !important;
-          }
-          .wz-bottom-controls {
-            max-width: 680px !important;
-          }
-          .wz-transcript-scroll {
-            padding: 14px 18px !important;
-          }
-          .wz-transcript-scroll > div {
-            padding-top: 14px !important;
-            padding-bottom: 14px !important;
-          }
-          .wz-side-panel > div {
-            padding: 16px !important;
-            border-radius: 22px !important;
-          }
-        }
-
-        @media (max-width: 760px) {
-          .wz-mobile-root { background: #020617 !important; }
-          .wz-mobile-page {
-            padding: max(8px, env(safe-area-inset-top)) 10px calc(env(safe-area-inset-bottom) + 20px) !important;
-          }
-          .wz-topbar {
-            grid-template-columns: 1fr 1fr !important;
-            min-height: 46px !important;
-          }
-          .wz-avatar-shell {
-            height: clamp(238px, 36vh, 320px) !important;
-            min-height: 238px !important;
-            margin-top: 6px !important;
-          }
-          .wz-live-badge, .wz-live-status-badge {
-            top: 10px !important;
-            letter-spacing: .08em !important;
-          }
-          .wz-status-line {
-            max-width: calc(100% - 20px) !important;
-            justify-content: center !important;
-            padding: 8px 12px !important;
-            font-size: 12px !important;
-          }
-          .wz-subtitle-pill {
-            width: calc(100% - 18px) !important;
-            max-height: 58px !important;
-            overflow-y: auto !important;
-            border-radius: 18px !important;
-          }
-          .wz-runtime-strip {
-            width: calc(100% - 18px) !important;
-            gap: 6px !important;
-          }
-          .wz-runtime-strip span {
-            padding: 6px 9px !important;
-            font-size: 10px !important;
-          }
-          .wz-bottom-controls {
-            width: min(94vw, 380px) !important;
-            margin-top: 8px !important;
-          }
-          .wz-metrics-row {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-          }
-          .wz-metrics-row > div:nth-child(3),
-          .wz-metrics-row > div:nth-child(4) {
-            display: none !important;
-          }
-          .wz-transcript-panel {
-            min-height: 360px !important;
-            margin-bottom: 8px !important;
-          }
-          .wz-transcript-panel > div:first-child button:nth-child(n+2) {
-            display: none !important;
-          }
-          .wz-transcript-scroll {
-            max-height: 46vh !important;
-          }
-        }
       `}</style>
 
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_42%_8%,rgba(56,189,248,0.18),transparent_34%),radial-gradient(circle_at_80%_40%,rgba(124,58,237,0.16),transparent_30%),linear-gradient(180deg,rgba(2,6,23,0.2),#020617_85%)]" />
@@ -2337,6 +2402,45 @@ function InterviewRoom({
               <div className="wz-live-status-badge absolute right-7 top-7 z-30 rounded-full border border-white/10 bg-slate-950/70 px-5 py-2 text-xs font-black uppercase tracking-[0.24em] text-cyan-100 shadow-[0_0_26px_rgba(34,211,238,0.12)]">
                 {liveStatusLabel}
               </div>
+
+              {coachChip && (
+                <div
+                  key={coachChip.id}
+                  className={cn(
+                    "wz-coach-chip pointer-events-none absolute right-7 top-[74px] z-40 max-w-[330px] rounded-2xl border px-4 py-3 text-left shadow-[0_18px_60px_rgba(2,6,23,0.55)] backdrop-blur-2xl",
+                    coachChip.tone === "positive"
+                      ? "border-emerald-300/25 bg-emerald-500/12 text-emerald-100"
+                      : coachChip.tone === "warning"
+                        ? "border-amber-300/25 bg-amber-500/12 text-amber-100"
+                        : "border-cyan-300/20 bg-cyan-500/10 text-cyan-100",
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={cn(
+                        "mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm font-black",
+                        coachChip.tone === "positive"
+                          ? "bg-emerald-400/18 text-emerald-100"
+                          : coachChip.tone === "warning"
+                            ? "bg-amber-400/18 text-amber-100"
+                            : "bg-cyan-400/18 text-cyan-100",
+                      )}
+                    >
+                      {coachChip.icon}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-black leading-5">
+                        {coachChip.label}
+                      </p>
+                      {coachChip.detail && (
+                        <p className="mt-0.5 text-xs font-semibold leading-5 opacity-75">
+                          {coachChip.detail}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {isCinematicLive && (
                 <>
@@ -2509,7 +2613,7 @@ function InterviewRoom({
                   recruiterVisualState === "speaking" && "text-cyan-100",
                 )}
               >
-                <p className="wz-status-line inline-flex items-center gap-2 rounded-full bg-slate-950/45 px-5 py-2 text-sm font-bold text-slate-300">
+                <p className="inline-flex items-center gap-2 rounded-full bg-slate-950/45 px-5 py-2 text-sm font-bold text-slate-300">
                   <Clock3 className="h-4 w-4 text-cyan-300" />
                   {isLive
                     ? recruiterVisualState === "speaking"
@@ -2525,7 +2629,7 @@ function InterviewRoom({
                 </p>
               </div>
 
-              <div className="wz-subtitle-pill mx-auto mt-2 w-[82%] max-w-[820px] rounded-full border border-white/5 bg-slate-950/45 px-5 py-2 text-center text-xs text-slate-400">
+              <div className="mx-auto mt-2 w-[82%] max-w-[820px] rounded-full border border-white/5 bg-slate-950/45 px-5 py-2 text-center text-xs text-slate-400">
                 <span
                   className={cn(
                     recruiterVisualState === "speaking" &&
@@ -2541,20 +2645,6 @@ function InterviewRoom({
                     |
                   </span>
                 )}
-              </div>
-
-              <div className="wz-runtime-strip mx-auto mt-2 flex w-[82%] max-w-[820px] flex-wrap items-center justify-center gap-2 text-[11px] font-bold">
-                <span className={cn("rounded-full border px-3 py-1.5", runtimeToneClass)}>
-                  {runtimeTone}
-                </span>
-                {runtimeChips.map((chip) => (
-                  <span
-                    key={`${chip.label}-${chip.value}`}
-                    className="rounded-full border border-white/8 bg-slate-950/35 px-3 py-1.5 text-slate-300"
-                  >
-                    <span className="text-slate-500">{chip.label}:</span> {chip.value}
-                  </span>
-                ))}
               </div>
 
               <div className="wz-bottom-controls mx-auto mt-2 flex w-[82%] max-w-[760px] items-center justify-center gap-4 rounded-3xl border border-white/10 bg-slate-950/55 px-4 py-2 shadow-[0_14px_45px_rgba(2,6,23,.35)] backdrop-blur-xl">
@@ -2786,7 +2876,7 @@ export default function InterviewPage() {
   const [activeSetup, setActiveSetup] = useState<WorkZoInterviewSetup>(() =>
     normalizeSetup(null),
   );
-  const [mode, setMode] = useState<InterviewMode>("video");
+  const [mode, setMode] = useState<InterviewMode>("standard");
   const [isLive, setIsLive] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -2843,9 +2933,11 @@ export default function InterviewPage() {
   const vapiFallbackActivatedRef = useRef(false);
   const lastVapiStartRef = useRef(0);
   const vapiTranscriptKeysRef = useRef<Set<string>>(new Set());
-  const [voiceProvider, setVoiceProvider] = useState<"vapi" | "tts-fallback">(
-    "tts-fallback",
-  );
+  const [voiceProvider, setVoiceProvider] = useState<"vapi" | "tts-fallback">("tts-fallback");
+  const [coachChip, setCoachChip] = useState<LiveCoachChip | null>(null);
+  const coachChipTimerRef = useRef<number | null>(null);
+  const lastCoachChipLabelRef = useRef<string | null>(null);
+  const lastCoachChipAtRef = useRef(0);
 
   useEffect(() => {
     const originalConsoleError = console.error;
@@ -2868,7 +2960,7 @@ export default function InterviewPage() {
                   }
                 })();
 
-        return /meeting ended due to ejection|meeting has ended|daily-js.*meeting|call ended|room.*not.*found|no-room|krisp processor|krispiniterror|error applying mic processor|audioworkletnode|no execution context available|wasm_or_worker_not_ready|error unloading krisp/i.test(
+        return /meeting ended due to ejection|meeting has ended|daily-js.*meeting|call ended|room.*not.*found|no-room|krisp processor|wasm_or_worker_not_ready|error unloading krisp/i.test(
           text,
         );
       });
@@ -2897,16 +2989,13 @@ export default function InterviewPage() {
       if (!shouldSuppress) return;
 
       event.preventDefault();
-      safeLogVapiIssue(
-        "Suppressed benign Vapi/Daily audio cleanup event",
-        event.reason,
-      );
+      safeLogVapiIssue("Suppressed benign Vapi/Daily audio cleanup event", event.reason);
 
-      // Do not switch to browser fallback for benign Daily/Vapi startup noise.
-      // Keep Vapi as the primary voice unless the explicit Vapi start call
-      // or Vapi error handler reports a hard failure.
       if (vapiStartingRef.current && !vapiCallActiveRef.current) {
-        setVoiceStatus("Vapi recruiter voice is still connecting...");
+        vapiStartingRef.current = false;
+        vapiFallbackActivatedRef.current = true;
+        setVoiceProvider("tts-fallback");
+        setVoiceStatus("Vapi ended before connecting. Using reliable fallback voice...");
       }
     };
 
@@ -2919,16 +3008,13 @@ export default function InterviewPage() {
       if (!shouldSuppress) return;
 
       event.preventDefault();
-      safeLogVapiIssue(
-        "Suppressed benign Vapi/Daily audio cleanup window error",
-        error,
-      );
+      safeLogVapiIssue("Suppressed benign Vapi/Daily audio cleanup window error", error);
 
-      // Do not switch to browser fallback for benign Daily/Vapi startup noise.
-      // Keep Vapi as the primary voice unless the explicit Vapi start call
-      // or Vapi error handler reports a hard failure.
       if (vapiStartingRef.current && !vapiCallActiveRef.current) {
-        setVoiceStatus("Vapi recruiter voice is still connecting...");
+        vapiStartingRef.current = false;
+        vapiFallbackActivatedRef.current = true;
+        setVoiceProvider("tts-fallback");
+        setVoiceStatus("Vapi ended before connecting. Using reliable fallback voice...");
       }
     };
 
@@ -2938,11 +3024,49 @@ export default function InterviewPage() {
     return () => {
       console.error = originalConsoleError;
       console.warn = originalConsoleWarn;
-      window.removeEventListener(
-        "unhandledrejection",
-        suppressBenignVapiRejection,
-      );
+      window.removeEventListener("unhandledrejection", suppressBenignVapiRejection);
       window.removeEventListener("error", suppressBenignVapiWindowError);
+    };
+  }, []);
+
+  const clearCoachChip = useCallback(() => {
+    if (coachChipTimerRef.current) {
+      window.clearTimeout(coachChipTimerRef.current);
+      coachChipTimerRef.current = null;
+    }
+    setCoachChip(null);
+  }, []);
+
+  const showLiveCoachChip = useCallback((chip: LiveCoachChip | null) => {
+    if (!chip || typeof window === "undefined") return;
+
+    const now = Date.now();
+    const isSameRecent =
+      lastCoachChipLabelRef.current === chip.label &&
+      now - lastCoachChipAtRef.current < 12000;
+
+    if (isSameRecent) return;
+    if (now - lastCoachChipAtRef.current < 5200) return;
+
+    lastCoachChipLabelRef.current = chip.label;
+    lastCoachChipAtRef.current = now;
+
+    if (coachChipTimerRef.current) {
+      window.clearTimeout(coachChipTimerRef.current);
+    }
+
+    setCoachChip(chip);
+    coachChipTimerRef.current = window.setTimeout(() => {
+      setCoachChip(null);
+      coachChipTimerRef.current = null;
+    }, 3600);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (coachChipTimerRef.current) {
+        window.clearTimeout(coachChipTimerRef.current);
+      }
     };
   }, []);
 
@@ -3131,6 +3255,7 @@ export default function InterviewPage() {
     setTranscript((items) => [...items, item].slice(-40));
   }, []);
 
+
   const playRecruiterMobileTts = useCallback(
     async (text: string, afterSpeak?: () => void) => {
       if (typeof window === "undefined" || !speakerOn) {
@@ -3198,8 +3323,7 @@ export default function InterviewPage() {
         const audio = mobileTtsAudioRef.current || new Audio();
         mobileTtsAudioRef.current = audio;
         audio.preload = "auto";
-        (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline =
-          true;
+        (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
         audio.muted = false;
         audio.volume = 1;
         audio.src = objectUrl;
@@ -3224,18 +3348,26 @@ export default function InterviewPage() {
 
   const speakRecruiter = useCallback(
     (text: string, afterSpeak?: () => void) => {
-      // When Vapi is active, Vapi owns the recruiter voice. Never also speak
-      // with browser/server TTS, because that creates slow duplicated turns.
-      if (vapiCallActiveRef.current || voiceProvider === "vapi") {
+      // When an actual Vapi call is active, Vapi owns recruiter audio.
+      // Important: do NOT skip browser speech just because voiceProvider is
+      // still "vapi" from a previous attempt. That was causing the transcript
+      // to update while the recruiter stayed silent.
+      if (vapiCallActiveRef.current) {
         afterSpeak?.();
         return;
       }
 
-      if (
-        typeof window === "undefined" ||
-        !window.speechSynthesis ||
-        !speakerOn
-      ) {
+      if (voiceProvider === "vapi") {
+        setVoiceProvider("tts-fallback");
+      }
+
+      if (typeof window === "undefined" || !window.speechSynthesis) {
+        afterSpeak?.();
+        return;
+      }
+
+      if (!speakerOn) {
+        setVoiceStatus("Audio is off. Turn on Audio to hear the recruiter.");
         afterSpeak?.();
         return;
       }
@@ -3309,16 +3441,8 @@ export default function InterviewPage() {
               const retry = new SpeechSynthesisUtterance(spokenText);
               retry.lang = "en-US";
               retry.voice = retryVoice;
-              retry.pitch = getBrowserSpeechPitch({
-                basePitch: runtimeVoice.pitch,
-                recruiterId,
-                recruiterState: recruiterStateRef.current,
-              });
-              retry.rate = getBrowserSpeechRate({
-                baseRate: runtimeVoice.rate,
-                recruiterId,
-                recruiterState: recruiterStateRef.current,
-              });
+              retry.pitch = getBrowserSpeechPitch({ basePitch: runtimeVoice.pitch, recruiterId, recruiterState: recruiterStateRef.current });
+              retry.rate = getBrowserSpeechRate({ baseRate: runtimeVoice.rate, recruiterId, recruiterState: recruiterStateRef.current });
               retry.volume = 1;
               retry.onstart = () => {
                 isSpeakingRef.current = true;
@@ -3396,16 +3520,8 @@ export default function InterviewPage() {
               const fallback = new SpeechSynthesisUtterance(spokenText);
               fallback.lang = "en-US";
               if (fallbackVoice) fallback.voice = fallbackVoice;
-              fallback.pitch = getBrowserSpeechPitch({
-                basePitch: runtimeVoice.pitch,
-                recruiterId,
-                recruiterState: recruiterStateRef.current,
-              });
-              fallback.rate = getBrowserSpeechRate({
-                baseRate: runtimeVoice.rate,
-                recruiterId,
-                recruiterState: recruiterStateRef.current,
-              });
+              fallback.pitch = getBrowserSpeechPitch({ basePitch: runtimeVoice.pitch, recruiterId, recruiterState: recruiterStateRef.current });
+              fallback.rate = getBrowserSpeechRate({ baseRate: runtimeVoice.rate, recruiterId, recruiterState: recruiterStateRef.current });
               fallback.volume = 1;
               fallback.onend = finishSpeech;
               fallback.onerror = finishSpeech;
@@ -3417,7 +3533,20 @@ export default function InterviewPage() {
           finishSpeech();
         };
 
-        window.speechSynthesis.speak(utterance);
+        try {
+          window.speechSynthesis.resume?.();
+        } catch {}
+
+        window.setTimeout(() => {
+          if (didFinish) return;
+          try {
+            window.speechSynthesis.speak(utterance);
+          } catch (error) {
+            console.warn("WorkZo recruiter speech speak() failed", error);
+            finishSpeech();
+          }
+        }, 80);
+
         if (isIOSBrowser) {
           // Safari sometimes pauses speech right after speak(); resume twice,
           // but never cancel here.
@@ -3456,13 +3585,7 @@ export default function InterviewPage() {
 
       speakNow(true);
     },
-    [
-      getLockedBrowserVoice,
-      playRecruiterMobileTts,
-      recruiterId,
-      speakerOn,
-      voiceProvider,
-    ],
+    [getLockedBrowserVoice, playRecruiterMobileTts, recruiterId, speakerOn, voiceProvider],
   );
 
   const listenForAnswer = useCallback(() => {
@@ -3530,12 +3653,7 @@ export default function InterviewPage() {
       if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = window.setTimeout(() => {
         if (listenSessionIdRef.current !== listenSessionId) return;
-        if (
-          !isLiveRef.current ||
-          isSpeakingRef.current ||
-          isProcessingAnswerRef.current
-        )
-          return;
+        if (!isLiveRef.current || isSpeakingRef.current || isProcessingAnswerRef.current) return;
         setVoiceStatus("Take your time — answer naturally");
       }, 5000);
     };
@@ -3551,10 +3669,7 @@ export default function InterviewPage() {
         );
         if (modeRef.current === "video" && !isMobileBrowserRuntime())
           window.setTimeout(() => {
-            if (
-              listenSessionIdRef.current === listenSessionId &&
-              !isProcessingAnswerRef.current
-            ) {
+            if (listenSessionIdRef.current === listenSessionId && !isProcessingAnswerRef.current) {
               listenForAnswer();
             }
           }, 900);
@@ -3629,12 +3744,7 @@ export default function InterviewPage() {
     // Start recognition only after recruiter speech has fully ended.
     window.setTimeout(() => {
       if (listenSessionIdRef.current !== listenSessionId) return;
-      if (
-        !isLiveRef.current ||
-        isSpeakingRef.current ||
-        isProcessingAnswerRef.current
-      )
-        return;
+      if (!isLiveRef.current || isSpeakingRef.current || isProcessingAnswerRef.current) return;
       try {
         recognition.start();
       } catch {
@@ -3660,9 +3770,7 @@ export default function InterviewPage() {
         .find(
           (item) =>
             item.role === "recruiter" &&
-            /\?|tell me|walk me|describe|why|what|how|give me|can you/i.test(
-              item.text || "",
-            ),
+            /\?|tell me|walk me|describe|why|what|how|give me|can you/i.test(item.text || ""),
         )?.text;
 
       // v75: use the latest recruiter spoken line as the active question and
@@ -3696,17 +3804,15 @@ export default function InterviewPage() {
       }
       answerProcessingUnlockTimerRef.current = window.setTimeout(() => {
         isProcessingAnswerRef.current = false;
-      }, 26000);
+      }, 45000);
 
       try {
         recognitionRef.current?.abort?.();
         recognitionRef.current?.stop();
       } catch {}
-      if (finalizationTimerRef.current)
-        window.clearTimeout(finalizationTimerRef.current);
+      if (finalizationTimerRef.current) window.clearTimeout(finalizationTimerRef.current);
       if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
-      if (pendingRecruiterReplyTimerRef.current)
-        window.clearTimeout(pendingRecruiterReplyTimerRef.current);
+      if (pendingRecruiterReplyTimerRef.current) window.clearTimeout(pendingRecruiterReplyTimerRef.current);
       pendingAnswerRef.current = "";
       setIsListening(false);
 
@@ -3722,7 +3828,7 @@ export default function InterviewPage() {
       const previousTrust = trustRef.current;
       const currentMemory = memoryRef.current;
 
-      setVoiceStatus("Recruiter is thinking...");
+      setVoiceStatus("Recruiter is preparing a reply...");
 
       let intelligence: UnifiedRecruiterApiResponse | null = null;
 
@@ -3732,11 +3838,7 @@ export default function InterviewPage() {
       if (isEarlyMultiIntentRapport(cleanAnswer)) {
         const targetRole = getRole(activeSetup);
         intelligence = {
-          question: buildEarlyMultiIntentRapportReply(
-            cleanAnswer,
-            recruiterProfile.name,
-            targetRole,
-          ),
+          question: buildEarlyMultiIntentRapportReply(cleanAnswer, recruiterProfile.name, targetRole),
           displayQuestion: `Tell me a little about yourself and connect your recent experience to ${targetRole}.`,
           feedback: "Handled rapport/audio/name turn without scoring.",
           intent: "smalltalk",
@@ -3748,48 +3850,34 @@ export default function InterviewPage() {
         };
       }
 
-      if (!intelligence)
-        try {
-          const interviewApiController = new AbortController();
-          const interviewApiTimeout = window.setTimeout(() => {
-            interviewApiController.abort();
-          }, 7000);
+      if (!intelligence) try {
+        const response = await fetch("/api/interview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            answer: cleanAnswer,
+            currentQuestion,
+            transcript: buildCompactTranscript(currentTranscript, 4),
+            setup: buildCompactInterviewSetup(activeSetup, recruiterId),
+            cvText: buildCompactCandidateProfile(activeSetup),
+            jobDescription: buildCompactJobProfile(activeSetup),
+            targetRole: getRole(activeSetup),
+            targetMarket: activeSetup.targetMarket || activeSetup.country || "Global",
+            companyStyle:
+              activeSetup.companyStyle || activeSetup.recruiterStyle || "Global Corporate",
+            recruiterPersonality: activeSetup.recruiterPersonality || recruiterId,
+            recruiterTrust: previousTrust,
+            recruiterState: recruiterStateRef.current,
+            recruiterMemorySummary: buildCompactRecruiterMemory(currentMemory),
+          }),
+        });
 
-          const response = await fetch("/api/interview", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            signal: interviewApiController.signal,
-            body: JSON.stringify({
-              answer: cleanAnswer,
-              currentQuestion,
-              transcript: currentTranscript,
-              setup: activeSetup,
-              cvText: activeSetup.cvText || "",
-              jobDescription: activeSetup.jobDescription || "",
-              targetRole: getRole(activeSetup),
-              targetMarket: activeSetup.targetMarket || "Global",
-              companyStyle: activeSetup.companyStyle || "Global Corporate",
-              recruiterPersonality:
-                activeSetup.recruiterPersonality || recruiterId,
-              recruiterTrust: previousTrust,
-              recruiterState: recruiterStateRef.current,
-            }),
-          });
-
-          window.clearTimeout(interviewApiTimeout);
-
-          if (response.ok) {
-            intelligence =
-              (await response.json()) as UnifiedRecruiterApiResponse;
-          }
-        } catch (error) {
-          if (error instanceof DOMException && error.name === "AbortError") {
-            console.warn(
-              "WorkZo interview AI response was slow; using local recruiter fallback for this turn.",
-            );
-          }
-          intelligence = null;
+        if (response.ok) {
+          intelligence = (await response.json()) as UnifiedRecruiterApiResponse;
         }
+      } catch {
+        intelligence = null;
+      }
 
       const fallbackAnalysis = analyzeAnswer(
         cleanAnswer,
@@ -3835,12 +3923,8 @@ export default function InterviewPage() {
         shouldCountAsAnswer &&
         isProbablySameRecruiterPrompt(spokenReply, currentQuestion)
       ) {
-        const repairedFollowUp =
-          fallbackAnalysis.followUp ||
-          fallbackQuestions[answeredQuestionCount % fallbackQuestions.length];
-        spokenReply = `${fallbackAnalysis.bridge} ${repairedFollowUp}`
-          .replace(/\s+/g, " ")
-          .trim();
+        const repairedFollowUp = fallbackAnalysis.followUp || fallbackQuestions[answeredQuestionCount % fallbackQuestions.length];
+        spokenReply = `${fallbackAnalysis.bridge} ${repairedFollowUp}`.replace(/\s+/g, " ").trim();
         displayQuestion = repairedFollowUp;
       }
 
@@ -3935,6 +4019,16 @@ export default function InterviewPage() {
       setRecruiterState(nextState);
       setRecruiterMemory(nextMemory);
       saveRecruiterMemory(nextMemory);
+      showLiveCoachChip(
+        buildLiveCoachChip({
+          analysis: fallbackAnalysis,
+          previousTrust,
+          nextTrust,
+          memory: nextMemory,
+          answer: cleanAnswer,
+          shouldCountAsAnswer,
+        }),
+      );
       setVoiceStatus(
         intelligence?.intent === "candidate_question"
           ? "Recruiter is answering briefly..."
@@ -3947,16 +4041,14 @@ export default function InterviewPage() {
                 intelligence?.intent === "contradiction"
               ? "Recruiter is checking realism..."
               : shouldCountAsAnswer
-                ? intelligence?.conversationStage === "background" ||
-                  intelligence?.conversationStage === "role_fit"
+                ? intelligence?.conversationStage === "background" || intelligence?.conversationStage === "role_fit"
                   ? "Recruiter is building the conversation..."
                   : "Recruiter accepted the answer..."
                 : "Recruiter is staying on this question...",
       );
 
       const apiPause =
-        typeof intelligence?.cinematicRealism?.pauseBeforeSpeakingMs ===
-        "number"
+        typeof intelligence?.cinematicRealism?.pauseBeforeSpeakingMs === "number"
           ? intelligence.cinematicRealism.pauseBeforeSpeakingMs
           : null;
 
@@ -3970,8 +4062,8 @@ export default function InterviewPage() {
 
       const thinkingDelay =
         modeRef.current === "video"
-          ? Math.min(baseThinkingDelay, 220)
-          : Math.min(baseThinkingDelay, 340);
+          ? Math.min(baseThinkingDelay, 420)
+          : Math.min(baseThinkingDelay, 650);
 
       pendingRecruiterReplyTimerRef.current = window.setTimeout(() => {
         if (!isLiveRef.current) {
@@ -4012,10 +4104,8 @@ export default function InterviewPage() {
           pressure: intelligence?.pressure?.level ?? null,
           pressureLabel: intelligence?.pressure?.label ?? null,
           pressureReason: intelligence?.pressure?.reason ?? null,
-          recruiterMood:
-            intelligence?.livePressureSimulation?.pressureMode ?? null,
-          memoryRecall:
-            intelligence?.recruiterMemoryInsight?.recallMode ?? null,
+          recruiterMood: intelligence?.livePressureSimulation?.pressureMode ?? null,
+          memoryRecall: intelligence?.recruiterMemoryInsight?.recallMode ?? null,
         },
       });
     },
@@ -4023,12 +4113,14 @@ export default function InterviewPage() {
       activeSetup,
       addTranscript,
       answeredQuestionCount,
+      clearCoachChip,
       candidateName,
       listenForAnswer,
       market,
       recruiterId,
       recruiterProfile.name,
       role,
+      showLiveCoachChip,
       speakRecruiter,
     ],
   );
@@ -4036,6 +4128,7 @@ export default function InterviewPage() {
   useEffect(() => {
     handleCandidateAnswerRef.current = handleCandidateAnswer;
   }, [handleCandidateAnswer]);
+
 
   const stopVapiCall = useCallback(() => {
     try {
@@ -4051,320 +4144,25 @@ export default function InterviewPage() {
   }, []);
 
   const startVapiInterview = useCallback(async () => {
-    if (typeof window === "undefined") return false;
-
-    const {
-      buildWorkZoVapiVariableValues,
-      createWorkZoVapiClient,
-      getWorkZoVapiConfig,
-      normalizeVapiTranscriptMessage,
-    } = await import("@/lib/workzoVapiVoice");
-
-    const config = getWorkZoVapiConfig(recruiterId, recruiterProfile.name);
-    if (!config.enabled) return false;
-
-    if (vapiCallActiveRef.current || vapiStartingRef.current) {
-      setVoiceStatus("Vapi recruiter voice is already connecting...");
-      return true;
-    }
-
-    const now = Date.now();
-    if (now - lastVapiStartRef.current < 4000) {
-      setVoiceStatus(
-        "Vapi recruiter voice is still resetting. Please wait a moment...",
-      );
-      return true;
-    }
-
-    lastVapiStartRef.current = now;
-    vapiStartingRef.current = true;
-    vapiFallbackActivatedRef.current = false;
-
-    try {
-      const setup = normalizeSetup(readLatestInterviewSetup());
-      saveLatestInterviewSetup(setup);
-      const profile = getRecruiterVoiceProfile(setup.recruiterPersonality);
-      const memory = createInitialRecruiterMemory();
-
-      resetLiveInterviewState();
-      setActiveSetup(setup);
-      setTranscript([]);
-      setAnsweredQuestionCount(0);
-      setElapsed(0);
-      setRecruiterMemory(memory);
-      setRecruiterTrust(memory.recruiterTrust || 58);
-      setRecruiterState("interested");
-      setQuestion("Live recruiter conversation");
-      setVoiceStatus("Connecting to Vapi recruiter voice...");
-      saveRecruiterMemory(memory);
-      hasGreetedRef.current = true;
-      interviewStepRef.current = "greeting";
-      manualListenRequestedRef.current = false;
-      isLiveRef.current = true;
-      setIsLive(true);
-      setVoiceProvider("vapi");
-      setIsSpeaking(false);
-      setIsListening(false);
-      vapiTranscriptKeysRef.current = new Set();
-
-      try {
-        recognitionRef.current?.abort?.();
-        recognitionRef.current?.stop();
-      } catch {}
-      try {
-        window.speechSynthesis?.cancel?.();
-      } catch {}
-      try {
-        mobileTtsAudioRef.current?.pause();
-      } catch {}
-      cleanupMobileTtsUrl();
-
-      const client = await createWorkZoVapiClient(config.publicKey);
-      try {
-        vapiClientRef.current?.removeAllListeners?.();
-      } catch {}
-      try {
-        vapiClientRef.current?.stop?.();
-      } catch {}
-      vapiClientRef.current = client;
-
-      const markVapiEnded = (reason: string) => {
-        vapiCallActiveRef.current = false;
-        vapiStartingRef.current = false;
-        setIsSpeaking(false);
-        setIsListening(false);
-        setVoiceStatus(reason);
-      };
-
-      const activateStartFallback = (reason: string) => {
-        if (vapiFallbackActivatedRef.current) return;
-        vapiFallbackActivatedRef.current = true;
-        vapiCallActiveRef.current = false;
-        vapiStartingRef.current = false;
-        setVoiceProvider("tts-fallback");
-        setIsSpeaking(false);
-        setIsListening(false);
-        setVoiceStatus(reason);
-      };
-
-      const onCallStart = () => {
-        vapiStartingRef.current = false;
-        vapiCallActiveRef.current = true;
-        vapiFallbackActivatedRef.current = false;
-        setVoiceProvider("vapi");
-        setVoiceStatus("Vapi recruiter voice connected");
-        setIsLive(true);
-        isLiveRef.current = true;
-      };
-
-      const onCallEnd = () => {
-        // Normal Vapi/Daily call-end should not trigger browser TTS takeover.
-        // If the user selected Vapi mode, keep the modes separated and simply
-        // mark the live voice session as ended.
-        markVapiEnded("Vapi voice session ended");
-      };
-
-      const onSpeechStart = () => {
-        setIsSpeaking(true);
-        setIsListening(false);
-        setVoiceStatus("Recruiter speaking...");
-      };
-
-      const onSpeechEnd = () => {
-        setIsSpeaking(false);
-        setIsListening(true);
-        setVoiceStatus("Listening to your answer");
-      };
-
-      const onMessage = (message: unknown) => {
-        const normalized = normalizeVapiTranscriptMessage(message);
-        if (!normalized || !normalized.isFinal) return;
-
-        const role = normalized.role === "user" ? "candidate" : "recruiter";
-        const key = `${role}|${normalized.text}`.toLowerCase();
-        if (vapiTranscriptKeysRef.current.has(key)) return;
-        vapiTranscriptKeysRef.current.add(key);
-
-        const item: TranscriptItem = {
-          role,
-          text: normalized.text,
-          time: timeLabel(),
-        };
-        addTranscript(item);
-
-        if (role === "candidate") {
-          setVoiceStatus("Recruiter is preparing a reply...");
-        } else {
-          setQuestion(normalized.text);
-          setVoiceStatus("Recruiter speaking...");
-        }
-      };
-
-      const onError = (error: unknown) => {
-        const message = getWorkZoVapiErrorMessage(error);
-        const isEndedNoise = isBenignVapiEndedError(error);
-
-        safeLogVapiIssue(
-          isEndedNoise
-            ? "WorkZo Vapi session ended; fallback remains available"
-            : "WorkZo Vapi voice failed; fallback available",
-          error,
-        );
-
-        if (vapiStartingRef.current && !vapiCallActiveRef.current) {
-          if (isEndedNoise) {
-            // Daily sometimes emits benign end/ejection noise while negotiating
-            // devices on desktop. Do not immediately replace the real Vapi voice
-            // with browser TTS unless Vapi explicitly hard-fails.
-            setVoiceStatus("Vapi recruiter voice is still connecting...");
-            return;
-          }
-
-          activateStartFallback(
-            isVapiStartNetworkError(error)
-              ? "Vapi network issue. Using reliable fallback voice."
-              : "Vapi voice unavailable before connecting. Using reliable fallback voice.",
-          );
-        } else {
-          markVapiEnded(
-            isEndedNoise
-              ? "Vapi voice session ended"
-              : "Vapi voice disconnected",
-          );
-        }
-
-        trackWorkZoLaunchEvent({
-          event: "voice_error",
-          setupId: setup.setupId,
-          role: getRole(setup),
-          market: setup.targetMarket || "Global",
-          recruiter: profile.name,
-          mode: "vapi",
-          metadata: {
-            provider: "vapi",
-            fallback: "tts",
-            reason: message || "unknown",
-            endedNoise: isEndedNoise,
-          },
-        });
-      };
-
-      client.on?.("call-start", onCallStart);
-      client.on?.("call-end", onCallEnd);
-      client.on?.("call-ended", onCallEnd);
-      client.on?.("call-end-error", onError);
-      client.on?.("speech-start", onSpeechStart);
-      client.on?.("speech-end", onSpeechEnd);
-      client.on?.("message", onMessage);
-      client.on?.("error", onError);
-
-      const variableValues = buildWorkZoVapiVariableValues({
-        candidateName: getCandidateName(setup),
-        recruiterName: profile.name,
-        recruiterRole: profile.role,
-        targetRole: getRole(setup),
-        targetMarket: setup.targetMarket || "Global",
-        companyStyle: setup.companyStyle || "Realistic",
-        companyName: getCompany(setup),
-        cvText: setup.cvText || "",
-        jobDescription: setup.jobDescription || "",
-      });
-
-      trackWorkZoLaunchEvent({
-        event: "interview_started",
-        setupId: setup.setupId,
-        role: getRole(setup),
-        market: setup.targetMarket || "Global",
-        recruiter: profile.name,
-        mode: "vapi",
-        metadata: {
-          provider: "vapi",
-          fallbackAvailable: true,
-          assistantId: config.assistantId,
-          recruiterKey: config.recruiterKey,
-        },
-      });
-
-      const vapiStarter = client as {
-        start: (
-          assistantId: string,
-          assistantOverrides?: {
-            variableValues?: Record<string, string>;
-            recordingEnabled?: boolean;
-            artifactPlan?: { videoRecordingEnabled?: boolean };
-            backgroundSpeechDenoisingPlan?: {
-              smartDenoisingPlan?: { enabled?: boolean };
-              fourierDenoisingPlan?: {
-                enabled?: boolean;
-                mediaDetectionEnabled?: boolean;
-              };
-            };
-          },
-        ) => Promise<unknown>;
-      };
-
-      await vapiStarter.start(config.assistantId, {
-        variableValues,
-        recordingEnabled: false,
-        artifactPlan: { videoRecordingEnabled: false },
-        // WorkZo disables Vapi/Daily Krisp processing from the client override.
-        // Krisp can fail in Chrome/Next dev/prod hydration with
-        // "AudioWorkletNode cannot be created: No execution context available",
-        // which then destabilizes the call. The assistant should use raw mic
-        // audio + Vapi endpointing instead of client-side noise processing.
-        backgroundSpeechDenoisingPlan: {
-          smartDenoisingPlan: { enabled: false },
-          fourierDenoisingPlan: {
-            enabled: false,
-            mediaDetectionEnabled: false,
-          },
-        },
-      });
-      setVoiceProvider("vapi");
-      setVoiceStatus("Vapi connected. Waiting for recruiter...");
-
-      window.setTimeout(() => {
-        if (!isLiveRef.current) return;
-        if (!vapiCallActiveRef.current && vapiStartingRef.current) {
-          setVoiceStatus("Vapi connected. Waiting for recruiter...");
-        }
-      }, 12000);
-
-      return true;
-    } catch (error) {
-      safeLogVapiIssue("WorkZo Vapi start failed; using TTS fallback", error);
-      try {
-        vapiClientRef.current?.removeAllListeners?.();
-      } catch {}
-      try {
-        if (!isBenignVapiEndedError(error)) {
-          vapiClientRef.current?.stop?.();
-        }
-      } catch {}
-      vapiCallActiveRef.current = false;
-      vapiStartingRef.current = false;
-      vapiFallbackActivatedRef.current = true;
-      isLiveRef.current = false;
-      setIsLive(false);
-      setIsSpeaking(false);
-      setIsListening(false);
-      setVoiceProvider("tts-fallback");
-      setVoiceStatus(
-        isBenignVapiEndedError(error)
-          ? "Vapi meeting ended before connecting. Starting reliable fallback voice..."
-          : isVapiStartNetworkError(error)
-            ? "Vapi network issue. Starting reliable fallback voice..."
-            : "Using reliable fallback voice...",
-      );
-      return false;
-    }
-  }, [addTranscript, cleanupMobileTtsUrl, recruiterId, recruiterProfile.name]);
+    // Vapi/Daily is intentionally disabled in the beta interview room.
+    // The app keeps recruiter audio reliable through browser/server TTS and
+    // avoids Daily "no-room" session failures.
+    vapiCallActiveRef.current = false;
+    vapiStartingRef.current = false;
+    vapiFallbackActivatedRef.current = true;
+    setVoiceProvider("tts-fallback");
+    setVoiceStatus("Using stable recruiter voice");
+    return false;
+  }, []);
 
   const startStandardInterview = useCallback(async () => {
-    if (!isLiveRef.current && modeRef.current === "video") {
-      const startedWithVapi = await startVapiInterview();
-      if (startedWithVapi) return;
-    }
+    // Beta stability decision: keep the normal interview 100% browser/server TTS.
+    // Do not start Vapi/Daily from this page. Daily was deleting rooms ("no-room")
+    // and causing silent recruiter audio even though the transcript continued.
+    vapiCallActiveRef.current = false;
+    vapiStartingRef.current = false;
+    vapiFallbackActivatedRef.current = true;
+    setVoiceProvider("tts-fallback");
 
     if (isMobileBrowserRuntime() && !mobileAudioUnlockedRef.current) {
       mobileAudioUnlockedRef.current = true;
@@ -4374,9 +4172,18 @@ export default function InterviewPage() {
       // Keep the first recruiter speech close to the tap gesture on iOS Safari.
     }
 
-    const setup = normalizeSetup(readLatestInterviewSetup());
-    saveLatestInterviewSetup(setup);
+    const setup = saveLatestInterviewSetup(
+      normalizeSetup(readLatestInterviewSetup()),
+    );
     setActiveSetup(setup);
+
+    // Standard interview must use the reliable browser/server TTS path.
+    // Vapi is reserved for Live Interview mode. Without this reset, a previous
+    // failed Vapi attempt can leave voiceProvider as "vapi" and silently skip
+    // recruiter audio while still showing transcript text.
+    vapiCallActiveRef.current = false;
+    vapiStartingRef.current = false;
+    setVoiceProvider("tts-fallback");
 
     // Do not start microphone before the recruiter speaks.
     // On mobile, active mic/recognition can suppress browser speech output.
@@ -4416,6 +4223,7 @@ export default function InterviewPage() {
 
     resetLiveInterviewState();
     setTranscript([]);
+    clearCoachChip();
     setAnsweredQuestionCount(0);
     setElapsed(0);
     setRecruiterMemory(memory);
@@ -4424,7 +4232,7 @@ export default function InterviewPage() {
     setQuestion(firstQuestion);
     setVoiceStatus(
       modeRef.current === "video"
-        ? "Cinematic recruiter opening..."
+        ? "Cinematic recruiter opening with stable voice..."
         : "Recruiter opening...",
     );
     saveRecruiterMemory(memory);
@@ -4453,7 +4261,7 @@ export default function InterviewPage() {
     speakRecruiter(spokenOpening, () => {
       window.setTimeout(() => listenForAnswer(), 400);
     });
-  }, [addTranscript, listenForAnswer, speakRecruiter, startVapiInterview]);
+  }, [addTranscript, clearCoachChip, listenForAnswer, speakRecruiter]);
 
   const stopInterview = useCallback(() => {
     isLiveRef.current = false;
@@ -4461,6 +4269,7 @@ export default function InterviewPage() {
     setIsListening(false);
     setIsSpeaking(false);
     setVoiceStatus("Alright. That gives me enough context for now.");
+    clearCoachChip();
     if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
     if (finalizationTimerRef.current)
       window.clearTimeout(finalizationTimerRef.current);
@@ -4529,22 +4338,8 @@ export default function InterviewPage() {
       );
     } catch {}
 
-    // Phase 2: persist completed interviews to Supabase through a server route.
-    // This is intentionally fire-and-forget so ending the interview never feels slow
-    // and never blocks users from seeing their results.
-    void fetch("/api/interview", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(completedSessionPayload),
-    }).catch((error) => {
-      console.warn("WorkZo interview history save failed", error);
-      try {
-        window.localStorage.setItem(
-          "workzo-last-interview-save-error",
-          String(error?.message || error || "unknown_error"),
-        );
-      } catch {}
-    });
+    // Keep ending the interview instant and offline-safe for beta.
+    // The latest results payload is already saved in localStorage above.
 
     trackWorkZoLaunchEvent({
       event: "interview_completed",
@@ -4566,6 +4361,7 @@ export default function InterviewPage() {
     role,
     transcript,
     cleanupMobileTtsUrl,
+    clearCoachChip,
   ]);
 
   const handleMicClick = useCallback(() => {
@@ -4618,12 +4414,12 @@ export default function InterviewPage() {
       modeRef.current = nextMode;
       setVoiceStatus(
         nextMode === "video"
-          ? "Cinematic recruiter room is live"
+          ? "Cinematic room uses the stable browser voice for beta"
           : "Ready for interview",
       );
 
       // Make Cinematic Live feel different from Standard Interview.
-      // Selecting it starts the pseudo-live recruiter room and enables hands-free replies.
+      // Selecting it starts the same stable browser/server TTS flow, not Vapi/Daily.
       if (nextMode === "video") {
         window.setTimeout(() => {
           if (!isLiveRef.current && modeRef.current === "video") {
@@ -4671,11 +4467,6 @@ export default function InterviewPage() {
 
   const recruiterName = recruiterProfile.name || "Priya";
   const recruiterRole = recruiterProfile.role || "Startup Recruiter";
-  const latestCandidateAnswer =
-    transcript
-      .slice()
-      .reverse()
-      .find((item) => item.role === "candidate")?.text || "";
 
   if (!isHydrated) {
     return (
@@ -4727,15 +4518,7 @@ export default function InterviewPage() {
         onToggleSpeaker={handleToggleSpeaker}
         needsMobileAudioStart={needsMobileAudioStart}
         hasUnlockedMobileAudio={hasUnlockedMobileAudio}
-      />
-
-      <LiveCopilotPanel
-        question={question}
-        latestAnswer={latestCandidateAnswer}
-        recruiterState={recruiterState}
-        recruiterTrust={recruiterTrust}
-        targetRole={getRole(activeSetup)}
-        recruiterId={activeSetup.recruiterPersonality}
+        coachChip={coachChip}
       />
     </main>
   );

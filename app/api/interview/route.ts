@@ -13,7 +13,9 @@ type InterviewRequest = {
   transcript?: TranscriptItem[];
   setup?: {
     cvText?: string;
+    candidateProfileSummary?: string;
     jobDescription?: string;
+    jobProfileSummary?: string;
     targetRole?: string;
     targetMarket?: string;
     companyStyle?: string;
@@ -30,10 +32,23 @@ type InterviewRequest = {
   recruiterPersonality?: string;
   recruiterTrust?: number;
   recruiterState?: string | null;
+  recruiterMemorySummary?: string;
 };
 
-function text(value: unknown) {
-  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+function text(value: unknown, maxChars = 1800) {
+  const clean = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+  return clean.slice(0, maxChars);
+}
+
+function compactTranscript(items: TranscriptItem[] | undefined) {
+  return (items || [])
+    .slice(-4)
+    .map((item) => ({
+      role: item.role,
+      text: text(item.text, 420),
+      time: item.time,
+    }))
+    .filter((item) => item.text);
 }
 
 export async function POST(request: Request) {
@@ -49,22 +64,33 @@ export async function POST(request: Request) {
       );
     }
 
+    const compactCv = text(
+      setup.candidateProfileSummary || body.cvText || setup.cvText,
+      1200,
+    );
+    const compactJob = text(
+      setup.jobProfileSummary || body.jobDescription || setup.jobDescription,
+      1200,
+    );
+
     const decision = await decideUnifiedRecruiterResponse({
       answer,
-      currentQuestion: text(body.currentQuestion),
-      transcript: body.transcript || [],
+      currentQuestion: text(body.currentQuestion, 500),
+      transcript: compactTranscript(body.transcript),
       recruiterTrust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58,
       recruiterState: body.recruiterState || null,
       setup: {
-        cvText: text(body.cvText || setup.cvText),
-        jobDescription: text(body.jobDescription || setup.jobDescription),
-        targetRole: text(body.targetRole || setup.targetRole),
-        targetMarket: text(body.targetMarket || setup.targetMarket),
-        companyStyle: text(body.companyStyle || setup.companyStyle),
-        recruiterPersonality: text(body.recruiterPersonality || setup.recruiterPersonality),
-        language: text(setup.language),
-        recruiterMemoryProfile: setup.recruiterMemoryProfile,
-        jobMemoryProfile: setup.jobMemoryProfile,
+        cvText: compactCv,
+        jobDescription: compactJob,
+        targetRole: text(body.targetRole || setup.targetRole, 120),
+        targetMarket: text(body.targetMarket || setup.targetMarket, 80),
+        companyStyle: text(body.companyStyle || setup.companyStyle, 120),
+        recruiterPersonality: text(body.recruiterPersonality || setup.recruiterPersonality, 80),
+        language: text(setup.language, 40),
+        recruiterMemoryProfile: body.recruiterMemorySummary
+          ? { summary: text(body.recruiterMemorySummary, 700) }
+          : undefined,
+        jobMemoryProfile: undefined,
       },
     });
 
