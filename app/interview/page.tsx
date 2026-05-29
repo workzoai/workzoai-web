@@ -3284,11 +3284,27 @@ export default function InterviewPage() {
 
       let didFinish = false;
       let finishTimer: number | null = null;
+      let minSpeechTimer: number | null = null;
+      const wordCount = spokenText.split(/\s+/).filter(Boolean).length;
+      const minimumSpeechMs = Math.min(28000, Math.max(2600, wordCount * 430));
+      const earliestFinishAt = Date.now() + minimumSpeechMs;
 
-      const finish = () => {
+      const finish = (reason: "audio-ended" | "timer" | "error" = "timer") => {
         if (didFinish) return;
+
+        const remainingMs = earliestFinishAt - Date.now();
+        // Mobile browsers can fire HTMLAudioElement onended early when audio output
+        // is interrupted by mic/audio focus changes. Do not open the microphone
+        // until the recruiter line had enough time to be heard.
+        if (reason === "audio-ended" && remainingMs > 250) {
+          if (minSpeechTimer) window.clearTimeout(minSpeechTimer);
+          minSpeechTimer = window.setTimeout(() => finish("timer"), remainingMs + 350);
+          return;
+        }
+
         didFinish = true;
         if (finishTimer) window.clearTimeout(finishTimer);
+        if (minSpeechTimer) window.clearTimeout(minSpeechTimer);
         try {
           mobileTtsAudioRef.current?.pause();
         } catch {}
@@ -3327,12 +3343,12 @@ export default function InterviewPage() {
         audio.muted = false;
         audio.volume = 1;
         audio.src = objectUrl;
-        audio.onended = finish;
-        audio.onerror = finish;
+        audio.onended = () => finish("audio-ended");
+        audio.onerror = () => finish("error");
 
         finishTimer = window.setTimeout(
-          finish,
-          Math.min(18000, Math.max(2600, spokenText.split(/\s+/).length * 260)),
+          () => finish("timer"),
+          minimumSpeechMs + 1800,
         );
 
         await audio.play();
@@ -3340,7 +3356,7 @@ export default function InterviewPage() {
         // Keep the flow moving even if iOS blocks audio or the TTS endpoint fails.
         // The transcript still shows the recruiter line and the mic opens after a short pause.
         console.warn("WorkZo mobile TTS failed", error);
-        finishTimer = window.setTimeout(finish, 900);
+        finishTimer = window.setTimeout(() => finish("error"), Math.min(5000, Math.max(1400, wordCount * 260)));
       }
     },
     [cleanupMobileTtsUrl, recruiterId, speakerOn],
