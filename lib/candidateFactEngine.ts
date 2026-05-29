@@ -10,6 +10,10 @@ export type CandidateFacts = {
   skills: string[];
   education: string[];
   rawEvidence: string[];
+  currentRole?: string;
+  currentCompany?: string;
+  careerStage?: "entry" | "early" | "experienced" | "senior" | "unknown";
+  estimatedYearsExperience?: number;
 };
 
 export type Contradiction = {
@@ -50,6 +54,137 @@ function firstLines(text: string, count = 22) {
     .map((line) => line.trim())
     .filter(Boolean)
     .slice(0, count);
+}
+
+function titleCase(value: string) {
+  return value
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function normalizeRole(value: string) {
+  return normalize(value)
+    .replace(/\b(senior|junior|lead|principal|associate|assistant|trainee|intern|graduate|entry level)\b/g, " ")
+    .replace(/\b(role|position|job|career|profession|field)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function roleTokens(value: string) {
+  return normalizeRole(value)
+    .split(" ")
+    .filter((token) => token.length > 2 && !/^(and|the|for|with|from|into|toward|towards)$/.test(token));
+}
+
+function roleLooksSupported(claimedRole: string, facts: CandidateFacts, cvText: string) {
+  const claimed = normalizeRole(claimedRole);
+  if (!claimed || claimed.length < 3) return true;
+  const cv = normalizeRole(cvText);
+  if (cv.includes(claimed)) return true;
+
+  const claimedTokens = roleTokens(claimedRole);
+  if (!claimedTokens.length) return true;
+
+  return facts.roles.some((role) => {
+    const roleNorm = normalizeRole(role);
+    if (!roleNorm) return false;
+    if (roleNorm.includes(claimed) || claimed.includes(roleNorm)) return true;
+    const tokens = roleTokens(role);
+    const overlap = claimedTokens.filter((token) => tokens.includes(token)).length;
+    return overlap / Math.max(claimedTokens.length, tokens.length || 1) >= 0.58;
+  });
+}
+
+function extractLikelyCurrentRoleAndCompany(cvText: string) {
+  const lines = cvText
+    .split(/\n|\r/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  const rolePattern = /\b(?:technical support engineer|support engineer|application engineer|data analyst|business analyst|data scientist|software engineer|frontend developer|backend developer|full stack developer|customer success manager|customer support specialist|it support specialist|qa engineer|project manager|product manager|sales executive|business development executive|production supervisor|operations manager|manufacturing operations professional|product design engineer|graduate intern|cybersecurity engineer|security analyst)\b/i;
+
+  let currentRole = "";
+  let currentCompany = "";
+
+  for (let i = 0; i < Math.min(lines.length, 80); i += 1) {
+    const line = lines[i];
+    const hasCurrentDate = /\b(?:present|current|heute|now)\b/i.test(line);
+    const hasRole = rolePattern.test(line);
+
+    if (hasCurrentDate || hasRole) {
+      const nearby = [lines[i - 1], line, lines[i + 1], lines[i + 2]].filter(Boolean).join(" | ");
+      const roleMatch = nearby.match(rolePattern);
+      if (roleMatch?.[0]) currentRole = titleCase(roleMatch[0]);
+
+      const companyMatch = nearby.match(/\b([A-Z][A-Za-z0-9&.'-]*(?:\s+[A-Z][A-Za-z0-9&.'-]*){0,4}\s+(?:GmbH|Inc|Corp|Corporation|Ltd|Limited|LLC|AG|PLC|Pvt|Technologies|Technology|Solutions|Systems|Services))\b/);
+      if (companyMatch?.[1]) currentCompany = companyMatch[1];
+
+      if (currentRole || currentCompany) break;
+    }
+  }
+
+  return { currentRole, currentCompany };
+}
+
+function estimateTotalExperienceYears(cvText: string) {
+  const text = cvText.replace(/\s+/g, " ");
+  const explicit = text.match(/\b(?:over|more than|around|about|nearly)?\s*(\d{1,2})\+?\s+years?\s+of\s+(?:professional\s+)?experience\b/i);
+  const explicitYears = explicit ? Number(explicit[1]) : 0;
+  const currentYear = new Date().getFullYear();
+  const ranges: Array<[number, number]> = [];
+
+  const patterns = [
+    /\b(?:\d{1,2}\/)?((?:19|20)\d{2})\s*(?:-|–|—|to)\s*(?:present|current|heute|now|((?:19|20)\d{2}))/gi,
+    /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+((?:19|20)\d{2})\s*(?:-|–|—|to)\s*(?:present|current|heute|now|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+((?:19|20)\d{2}))/gi,
+  ];
+
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(text))) {
+      const start = Number(match[1]);
+      const end = match[2] ? Number(match[2]) : currentYear;
+      if (start >= 1980 && end >= start && end <= currentYear + 1) ranges.push([start, end]);
+    }
+  }
+
+  const rangeYears = ranges.reduce((sum, [start, end]) => sum + Math.max(0.5, end - start), 0);
+  const estimated = Math.max(explicitYears, rangeYears);
+  return estimated > 0 ? Math.round(estimated * 10) / 10 : 0;
+}
+
+function deriveCareerStage(years: number, roles: string[]) {
+  const roleText = normalize(roles.join(" "));
+  if (/\b(senior|lead|principal|manager|head|director)\b/.test(roleText) || years >= 8) return "senior" as const;
+  if (years >= 3) return "experienced" as const;
+  if (years > 0) return "early" as const;
+  if (/\b(intern|trainee|junior|entry)\b/.test(roleText)) return "entry" as const;
+  return "unknown" as const;
+}
+
+function extractCareerEntryRoleClaim(answer: string) {
+  const cleanAnswer = answer.replace(/\s+/g, " ").trim();
+  const patterns = [
+    /\b(?:trying|hoping|looking|want|planning|aiming|interested)\s+(?:to\s+)?(?:move|transition|switch|shift|get|become|enter|start|break)\s+(?:into|towards?|as|in|a|an|the)?\s+([a-zA-Z][a-zA-Z0-9+.#/& -]{2,70})/i,
+    /\b(?:my\s+)?(?:first|entry[- ]level)\s+([a-zA-Z][a-zA-Z0-9+.#/& -]{2,70})\s+(?:role|job|position)\b/i,
+    /\b(?:new|beginner|starting out|just starting)\s+(?:in|with|as)?\s+([a-zA-Z][a-zA-Z0-9+.#/& -]{2,70})/i,
+    /\b(?:after|following)\s+(?:my\s+)?(?:bootcamp|course|training|degree)\s+(?:i\s+)?(?:want|wanted|hope|would like|am interested)\s+(?:to\s+)?(?:become|work as|get into|move into)\s+(?:a\s+|an\s+|the\s+)?([a-zA-Z][a-zA-Z0-9+.#/& -]{2,70})/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = cleanAnswer.match(pattern);
+    const raw = match?.[1]?.trim();
+    if (!raw) continue;
+    const role = raw
+      .replace(/\b(?:now|next|soon|because|and|but|with|where|when|for|from|job|role|position|field|career)\b.*$/i, "")
+      .replace(/[,.!?;:]+$/g, "")
+      .replace(/^\s*(?:a|an|the)\s+/i, "")
+      .trim();
+    if (role && role.length >= 3) return titleCase(role);
+  }
+
+  return "";
 }
 
 export function extractCandidateFacts(cvTextInput?: string): CandidateFacts {
@@ -370,6 +505,42 @@ export function detectCandidateContradictions({
     }
   }
 
+
+  const entryRoleClaim = extractCareerEntryRoleClaim(cleanAnswer);
+  if (
+    entryRoleClaim &&
+    sensitivity >= 0.72 &&
+    facts.roles.length > 0 &&
+    roleLooksSupported(entryRoleClaim, facts, cleanCv) &&
+    (facts.careerStage === "experienced" || facts.careerStage === "senior" || (facts.estimatedYearsExperience || 0) >= 2)
+  ) {
+    const currentRole = facts.currentRole || facts.roles[0];
+    const experienceLine = facts.estimatedYearsExperience
+      ? `CV suggests about ${facts.estimatedYearsExperience} years of experience.`
+      : "CV already shows experience in this area.";
+
+    issues.push({
+      field: "career narrative consistency",
+      candidateClaim: `moving into / becoming ${entryRoleClaim}`,
+      resumeEvidence: `CV shows ${currentRole || entryRoleClaim}${facts.currentCompany ? ` at ${facts.currentCompany}` : ""}. ${experienceLine}`,
+      severity: "high",
+      clarificationQuestion: `I want to clarify your career story. Your CV suggests you already have experience as ${currentRole || entryRoleClaim}, but your answer sounds like you are only now moving into ${entryRoleClaim}. Can you explain that timeline?`,
+    });
+  }
+
+  if (
+    /\b(?:first\s+(?:job|role|position)|no\s+(?:professional\s+)?experience|completely\s+new|just\s+starting)\b/i.test(cleanAnswer) &&
+    (facts.estimatedYearsExperience || 0) >= 2
+  ) {
+    issues.push({
+      field: "career stage consistency",
+      candidateClaim: cleanAnswer.slice(0, 180),
+      resumeEvidence: `CV suggests about ${facts.estimatedYearsExperience} years of experience${facts.currentRole ? ` and a role as ${facts.currentRole}` : ""}.`,
+      severity: "high",
+      clarificationQuestion: `Let me clarify something before we continue. Your answer sounds like you are just starting out, but your CV suggests prior professional experience${facts.currentRole ? ` as ${facts.currentRole}` : ""}. How should I understand that?`,
+    });
+  }
+
   const seniorityClaim = cleanAnswer.match(
     /\b(senior|lead|principal|manager|head of|director)\b/i
   );
@@ -453,6 +624,10 @@ export function factsToPrompt(facts: CandidateFacts) {
     `Locations: ${facts.locations.join(", ") || "unknown"}`,
     `Companies: ${facts.companies.join(", ") || "unknown"}`,
     `Roles: ${facts.roles.join(", ") || "unknown"}`,
+    `Current role: ${facts.currentRole || "unknown"}`,
+    `Current company: ${facts.currentCompany || "unknown"}`,
+    `Career stage: ${facts.careerStage || "unknown"}`,
+    `Estimated experience: ${facts.estimatedYearsExperience || "unknown"}`,
     `Years: ${facts.years.join(", ") || "unknown"}`,
     `Skills: ${facts.skills.join(", ") || "unknown"}`,
     `Education: ${facts.education.join(" | ") || "unknown"}`,

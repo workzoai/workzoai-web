@@ -1382,6 +1382,33 @@ function isLikelyInterviewAnswer(answer: string) {
   );
 }
 
+
+function isLikelyUnfinishedCandidateAnswer(answer: string) {
+  const clean = (answer || "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!clean) return true;
+  const words = clean.split(/\s+/).filter(Boolean);
+  const last = words[words.length - 1] || "";
+
+  // Speech recognition often emits partial fragments like "and", "then", or
+  // "because" before the candidate has finished the thought. Do not submit
+  // these fragments as final answers.
+  if (/\b(and|then|because|so|first|second|also|with|for|to|when|where|while|that|which|who|i|we|my|our)$/i.test(last)) {
+    return true;
+  }
+
+  if (/\b(and|then|because|so|first|second|also)\s*$/.test(clean)) return true;
+  if (/\b(i have|i worked|i was|we had|we were|the customer was|once the customer was)\s*$/i.test(clean)) return true;
+
+  // Very short interview evidence usually means the browser captured only the
+  // beginning of the candidate answer. Let the user continue unless it is clearly
+  // a rapport/audio answer.
+  if (words.length < 9 && !/[.!?]$/.test(clean) && !isRapportSmallTalkText(clean)) {
+    return true;
+  }
+
+  return false;
+}
+
 function extractSafeCvSignals(setup: WorkZoInterviewSetup) {
   const cv = buildCandidateContext(setup);
   if (!cv || cv.length < 120) return [];
@@ -1444,60 +1471,323 @@ function buildJobContext(setup: WorkZoInterviewSetup) {
   return source.replace(/\s+/g, " ").slice(0, 4000);
 }
 
-function compactInterviewText(value: unknown, maxChars = 900) {
-  const clean = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+function compactInterviewText(rawText: string, maxChars = 700) {
+  const clean = (rawText || "")
+    .replace(/\u0000/g, " ")
+    .replace(/[•●▪︎]/g, ". ")
+    .replace(/\s+/g, " ")
+    .trim();
+
   if (!clean) return "";
+  if (clean.length <= maxChars) return clean;
+
+  const priorityPatterns = [
+    /\b\d+\+?\s*(?:years?|yrs?)\b/i,
+    /\b(?:experience|worked|responsible|managed|led|owned|handled|supported|resolved|built|created|developed|implemented|improved|analyzed|designed|collaborated|delivered|trained|coached)\b/i,
+    /\b(?:customer|client|stakeholder|team|cross-functional|sales|support|operations|manufacturing|warehouse|logistics|data|analytics|reporting|dashboard|quality|safety|delivery|productivity|KPI|CRM|SaaS)\b/i,
+    /\b(?:Python|SQL|Excel|Tableau|Power BI|CRM|Salesforce|Zoho|HubSpot|Jira|SAP|SolidWorks|CREO|Catia|Inventor|Windchill|GCP|AWS|Azure)\b/i,
+    /\b\d+%|\b\d+\s*(?:customers?|users?|tickets?|projects?|hours?|days?|weeks?|months?)\b/i,
+  ];
 
   const sentences = clean
     .split(/(?<=[.!?])\s+|\n+/)
-    .map((item) => item.replace(/\s+/g, " ").trim())
-    .filter((item) => item.length > 18);
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 12);
 
-  const priorityPattern = /\b(role|experience|support|customer|client|project|built|created|managed|led|resolved|improved|reduced|increased|sql|python|excel|tableau|crm|sales|manufacturing|production|quality|safety|logistics|warehouse|lead|team|kpi|dashboard|communication|stakeholder|technical|data|analysis|analyst)\b/i;
+  const scored = sentences.map((sentence, index) => {
+    const score = priorityPatterns.reduce(
+      (total, pattern) => total + (pattern.test(sentence) ? 2 : 0),
+      0,
+    ) + (index < 8 ? 1 : 0) + (sentence.length < 220 ? 1 : 0);
+    return { sentence, score, index };
+  });
 
-  const selected = [
-    ...sentences.filter((item) => priorityPattern.test(item)),
-    ...sentences,
-  ];
+  const selected = scored
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, 10)
+    .sort((a, b) => a.index - b.index)
+    .map((item) => item.sentence);
 
   const unique: string[] = [];
-  for (const item of selected) {
-    const normalized = item.toLowerCase();
-    if (unique.some((existing) => existing.toLowerCase() === normalized)) continue;
+  const seen = new Set<string>();
+  for (const item of selected.length ? selected : sentences.slice(0, 8)) {
+    const key = item.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
     unique.push(item);
     if (unique.join(" ").length >= maxChars) break;
   }
 
-  const result = (unique.length ? unique.join(" ") : clean).slice(0, maxChars).trim();
+  const result = unique.join(" ").slice(0, maxChars).trim();
   return result || clean.slice(0, maxChars).trim();
 }
 
+function summarizeStructuredProfile(value: unknown, maxChars = 850) {
+  if (!value) return "";
+
+  if (typeof value === "string") return compactInterviewText(value, maxChars);
+
+  try {
+    const profile = value as Record<string, unknown>;
+    const basics = (profile.basics || {}) as Record<string, unknown>;
+    const parts: string[] = [];
+
+    const headline = typeof basics.headline === "string" ? basics.headline : "";
+    const summary = typeof profile.summary === "string" ? profile.summary : "";
+    if (headline) parts.push(`Headline: ${headline}`);
+    if (summary) parts.push(`Summary: ${summary}`);
+
+    const experience = Array.isArray(profile.experience) ? profile.experience : [];
+    for (const raw of experience.slice(0, 3)) {
+      const item = raw as Record<string, unknown>;
+      const role = typeof item.role === "string" ? item.role : "";
+      const company = typeof item.company === "string" ? item.company : "";
+      const bullets = Array.isArray(item.bullets)
+        ? item.bullets.filter((bullet): bullet is string => typeof bullet === "string").slice(0, 2)
+        : [];
+      const line = [role, company].filter(Boolean).join(" at ");
+      if (line || bullets.length) parts.push(`Experience: ${[line, ...bullets].filter(Boolean).join("; ")}`);
+    }
+
+    const skills = Array.isArray(profile.skills)
+      ? profile.skills.filter((skill): skill is string => typeof skill === "string").slice(0, 18)
+      : [];
+    if (skills.length) parts.push(`Skills: ${skills.join(", ")}`);
+
+    const languages = Array.isArray(profile.languages)
+      ? profile.languages.filter((language): language is string => typeof language === "string").slice(0, 5)
+      : [];
+    if (languages.length) parts.push(`Languages: ${languages.join(", ")}`);
+
+    const education = Array.isArray(profile.education)
+      ? profile.education.map((raw) => {
+          const item = raw as Record<string, unknown>;
+          return [item.degree, item.institution]
+            .filter((entry): entry is string => typeof entry === "string" && Boolean(entry.trim()))
+            .join(" at ");
+        }).filter(Boolean).slice(0, 3)
+      : [];
+    if (education.length) parts.push(`Education: ${education.join("; ")}`);
+
+    return compactInterviewText(parts.join(". "), maxChars);
+  } catch {
+    return compactInterviewText(JSON.stringify(value), maxChars);
+  }
+}
+
+function pickRoleKeywords(text: string, limit = 18) {
+  const source = (text || "").replace(/\s+/g, " ");
+  const matches = source.match(
+    /\b(?:Python|SQL|Excel|Tableau|Power BI|CRM|SaaS|Salesforce|Zoho|HubSpot|Pipedrive|LinkedIn|Outreach|Klenty|KPI|dashboard|reporting|stakeholder|customer|client|support|sales|lead generation|business development|prospecting|manufacturing|warehouse|logistics|material handling|inventory|quality|safety|delivery|productivity|continuous improvement|lean|5S|CAD|SolidWorks|CREO|Catia|Inventor|Windchill|GCP|AWS|Azure|German|English)\b/gi,
+  ) || [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const match of matches) {
+    const value = match.trim();
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+
+function normalizeFactToken(value: string) {
+  return (value || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/\b(?:gmbh|inc|corp|corporation|company|co|ltd|limited|llc|ag|plc|pvt|private|technologies|technology|solutions|systems|services)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function uniqueCleanFacts(values: string[], limit = 24) {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    const cleaned = String(raw || "")
+      .replace(/\s+/g, " ")
+      .replace(/^[•\-–—|:]+|[•\-–—|:]+$/g, "")
+      .trim();
+    if (!cleaned || cleaned.length < 2 || cleaned.length > 80) continue;
+    const key = normalizeFactToken(cleaned);
+    if (!key || key.length < 2 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleaned);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function collectStringsDeep(value: unknown, keyHints: string[], depth = 0): string[] {
+  if (!value || depth > 4) return [];
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap((item) => collectStringsDeep(item, keyHints, depth + 1));
+  if (typeof value !== "object") return [];
+
+  const out: string[] = [];
+  const record = value as Record<string, unknown>;
+  for (const [key, child] of Object.entries(record)) {
+    const lowerKey = key.toLowerCase();
+    const isHint = keyHints.some((hint) => lowerKey.includes(hint));
+    if (isHint && typeof child === "string") out.push(child);
+    else if (isHint && Array.isArray(child)) out.push(...collectStringsDeep(child, keyHints, depth + 1));
+    else if (typeof child === "object" && child) out.push(...collectStringsDeep(child, keyHints, depth + 1));
+  }
+  return out;
+}
+
+function extractCompanyLikeNames(text: string, limit = 18) {
+  const source = (text || "").replace(/\s+/g, " ");
+  const out: string[] = [];
+  const patterns = [
+    /\b(?:at|with|for|from)\s+([A-Z][A-Za-z0-9&.'-]*(?:\s+[A-Z][A-Za-z0-9&.'-]*){0,5})\b/g,
+    /\b([A-Z][A-Za-z0-9&.'-]*(?:\s+[A-Z][A-Za-z0-9&.'-]*){0,4}\s+(?:GmbH|Inc|Corp|Corporation|Ltd|Limited|LLC|AG|PLC|Pvt|Technologies|Technology|Solutions|Systems|Services|University|School|College))\b/g,
+  ];
+
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(source))) {
+      const candidate = (match[1] || "")
+        .replace(/\b(?:as|where|when|and|but|for|from|in|on|during|between|with|using|to|the|a|an)\b.*$/i, "")
+        .replace(/[,.!?;:]+$/g, "")
+        .trim();
+      if (!candidate) continue;
+      if (/\b(?:Data Analyst|Software Engineer|Technical Support|Product Design|Project Manager|Sales Executive|Customer Success|English|German|India|Germany|Netherlands|Global|Team|Role|Company|Candidate|Recruiter)\b/i.test(candidate)) continue;
+      out.push(candidate);
+      if (out.length >= limit) break;
+    }
+  }
+
+  return uniqueCleanFacts(out, limit);
+}
+
+
+function extractTitleLikeFacts(sourceText: string, limit = 20) {
+  const source = (sourceText || "").replace(/\s+/g, " ");
+  const explicit = source.match(
+    /\b(?:Technical Support Engineer|Application Engineer|Data Analyst|Data Scientist|Sales Executive|Business Development Executive|Customer Success Manager|Product Design Engineer|CAD Designer|Graduate Intern|Software Engineer|Project Manager|Production Supervisor|Operations Manager|Support Specialist|Product Specialist|Manufacturing Operations Professional|Customer-Facing SaaS|Business Development Professional)\b/gi,
+  ) || [];
+
+  const profileTitles: string[] = [];
+  const patterns = [
+    /\b(?:role|position|title)\s*[:|-]\s*([A-Z][A-Za-z0-9+.#/& -]{2,70})/g,
+    /\b([A-Z][A-Za-z0-9+.#/& -]{2,60})\s+\|\s+[A-Z][A-Za-z0-9&.' -]{2,60}\s+\|\s+(?:19|20)\d{2}/g,
+  ];
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(source))) {
+      const title = (match[1] || "")
+        .replace(/\b(?:at|with|for|from|in|where|when|and|but|because|during|the|a|an)\b.*$/i, "")
+        .replace(/[,.!?;:]+$/g, "")
+        .trim();
+      if (title) profileTitles.push(title);
+    }
+  }
+
+  return uniqueCleanFacts([...explicit, ...profileTitles], limit);
+}
+
+function estimateYearsFromCvEvidence(sourceText: string) {
+  const source = (sourceText || "").replace(/\s+/g, " ");
+  const explicit = source.match(/(?:over|more than|around|about|nearly)?\s*(\d{1,2})\+?\s+years?\s+of\s+experience/i);
+  const explicitYears = explicit ? Number(explicit[1]) : 0;
+
+  const currentYear = new Date().getFullYear();
+  let rangeYears = 0;
+  const patterns = [
+    /\b(?:\d{1,2}\/)?((?:19|20)\d{2})\s*(?:-|–|—|to)\s*(?:present|current|heute|now|((?:19|20)\d{2}))/gi,
+    /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+((?:19|20)\d{2})\s*(?:-|–|—|to)\s*(?:present|current|heute|now|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+((?:19|20)\d{2}))/gi,
+  ];
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(source))) {
+      const start = Number(match[1]);
+      const end = match[2] ? Number(match[2]) : currentYear;
+      if (start >= 1980 && end >= start && end <= currentYear + 1) {
+        rangeYears += Math.max(0.5, end - start);
+      }
+    }
+  }
+
+  const estimated = Math.max(explicitYears, rangeYears);
+  return estimated > 0 ? Math.round(estimated * 10) / 10 : undefined;
+}
+
+function buildCandidateFactProfile(setup: WorkZoInterviewSetup) {
+  const rawCv = [
+    setup.cvText,
+    setup.uploadedCvText,
+    setup.resumeText,
+    setup.candidateCv,
+    setup.previewText,
+  ].filter((entry): entry is string => typeof entry === "string" && Boolean(entry.trim())).join("\n");
+
+  const resumeProfile = setup.resumeProfile || setup.recruiterMemoryProfile || {};
+  const companies = uniqueCleanFacts([
+    ...collectStringsDeep(resumeProfile, ["company", "employer", "organization", "organisation"]),
+    ...extractCompanyLikeNames(rawCv, 20),
+  ], 24);
+  const titles = uniqueCleanFacts([
+    ...collectStringsDeep(resumeProfile, ["role", "title", "position", "headline"]),
+    ...extractTitleLikeFacts(rawCv, 24),
+  ], 24);
+  const skills = uniqueCleanFacts([
+    ...collectStringsDeep(resumeProfile, ["skill", "tool", "technology", "keyword"]),
+    ...pickRoleKeywords(rawCv, 24),
+  ], 30);
+  const education = uniqueCleanFacts(collectStringsDeep(resumeProfile, ["degree", "institution", "school", "college", "university", "education"]), 16);
+
+  return {
+    companies,
+    titles,
+    skills,
+    education,
+    evidenceText: compactInterviewText(rawCv, 2200),
+    estimatedYearsExperience: estimateYearsFromCvEvidence(rawCv),
+    factVersion: "candidate-facts-v2-role-year-grounded",
+  };
+}
+
 function buildCompactCandidateProfile(setup: WorkZoInterviewSetup) {
-  const profileText = setup.recruiterMemoryProfile
-    ? compactInterviewText(JSON.stringify(setup.recruiterMemoryProfile), 700)
-    : "";
-  const cvText = compactInterviewText(
+  const structured = summarizeStructuredProfile(setup.recruiterMemoryProfile, 850);
+  const rawCv = compactInterviewText(
     setup.cvText || setup.uploadedCvText || setup.resumeText || setup.candidateCv || "",
     900,
   );
-  return profileText || cvText;
+  const keywords = pickRoleKeywords(`${structured} ${rawCv}`, 14);
+  const parts = [
+    structured,
+    rawCv && rawCv !== structured ? `Additional CV evidence: ${rawCv}` : "",
+    keywords.length ? `Relevant interview keywords: ${keywords.join(", ")}` : "",
+  ].filter(Boolean);
+
+  return compactInterviewText(parts.join(". "), 1200);
 }
 
 function buildCompactJobProfile(setup: WorkZoInterviewSetup) {
-  const jobProfileText = setup.jobMemoryProfile
-    ? compactInterviewText(JSON.stringify(setup.jobMemoryProfile), 650)
-    : "";
-  const jdText = compactInterviewText(setup.jobDescription || setup.jdText || "", 850);
-  return jobProfileText || jdText;
+  const structured = summarizeStructuredProfile(setup.jobMemoryProfile, 650);
+  const jd = compactInterviewText(setup.jobDescription || setup.jdText || "", 900);
+  const keywords = pickRoleKeywords(`${structured} ${jd}`, 16);
+  const parts = [
+    structured,
+    jd && jd !== structured ? `Target job evidence: ${jd}` : "",
+    keywords.length ? `Job priority keywords: ${keywords.join(", ")}` : "",
+  ].filter(Boolean);
+
+  return compactInterviewText(parts.join(". "), 1150);
 }
 
 function buildCompactRecruiterMemory(memory: RecruiterMemory) {
   const parts = [
     memory.rememberedWeaknesses?.length
-      ? `Weaknesses: ${memory.rememberedWeaknesses.slice(0, 3).join("; ")}`
+      ? `Weaknesses: ${memory.rememberedWeaknesses.slice(0, 2).join("; ")}`
       : "",
     memory.rememberedStrengths?.length
-      ? `Strengths: ${memory.rememberedStrengths.slice(0, 3).join("; ")}`
+      ? `Strengths: ${memory.rememberedStrengths.slice(0, 2).join("; ")}`
       : "",
     typeof memory.recruiterTrust === "number" ? `Trust: ${memory.recruiterTrust}` : "",
     memory.weakMetrics ? `Metric gaps: ${memory.weakMetrics}` : "",
@@ -1505,13 +1795,13 @@ function buildCompactRecruiterMemory(memory: RecruiterMemory) {
     memory.vagueAnswers ? `Vague answers: ${memory.vagueAnswers}` : "",
   ].filter(Boolean);
 
-  return parts.join(" | ").slice(0, 700);
+  return parts.join(" | ").slice(0, 420);
 }
 
 function buildCompactTranscript(items: TranscriptItem[], maxTurns = 4) {
   return items.slice(-maxTurns).map((item) => ({
     role: item.role,
-    text: compactInterviewText(item.text, 420),
+    text: compactInterviewText(item.text, 260),
     time: item.time,
   }));
 }
@@ -1521,6 +1811,9 @@ function buildCompactInterviewSetup(setup: WorkZoInterviewSetup, recruiterId: Re
   const jobProfile = buildCompactJobProfile(setup);
 
   return {
+    // Important: full CV/JD remain saved in onboarding/workspace for Improve CV,
+    // Cover Letter, and job tools. The interview page only sends this compact
+    // context to keep live recruiter replies fast.
     cvText: candidateProfile,
     candidateProfileSummary: candidateProfile,
     jobDescription: jobProfile,
@@ -1530,6 +1823,196 @@ function buildCompactInterviewSetup(setup: WorkZoInterviewSetup, recruiterId: Re
     companyStyle: setup.companyStyle || setup.recruiterStyle || "Global Corporate",
     recruiterPersonality: setup.recruiterPersonality || recruiterId,
     language: setup.language || "English",
+    candidateFactProfile: buildCandidateFactProfile(setup),
+    contextVersion: "interview-compact-v4-cv-first-grounded",
+  };
+}
+
+
+const localNumberWordMap: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+  sixteen: 16,
+  seventeen: 17,
+  eighteen: 18,
+  nineteen: 19,
+  twenty: 20,
+};
+
+function parseLocalNumber(value: string) {
+  const clean = (value || "").toLowerCase().trim();
+  if (/^\d+$/.test(clean)) return Number(clean);
+  return localNumberWordMap[clean] || 0;
+}
+
+function extractLocalClaimedYears(answer: string) {
+  const clean = (answer || "").replace(/\s+/g, " ").trim().toLowerCase();
+  const claims: number[] = [];
+  const patterns = [
+    /\b(?:i\s+)?(?:have|had|bring|possess)\s+(?:about\s+|around\s+|over\s+|more than\s+|nearly\s+|almost\s+)?(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s*(?:\+\s*)?(?:years?|yrs?)\s+(?:of\s+)?(?:experience|background)/gi,
+    /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s*(?:\+\s*)?(?:years?|yrs?)\s+(?:of\s+)?(?:experience|background)\b/gi,
+  ];
+
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(clean))) {
+      const value = parseLocalNumber(match[1] || "");
+      if (value > 0) claims.push(value);
+    }
+  }
+
+  return claims.length ? Math.max(...claims) : 0;
+}
+
+function normalizeLocalTitle(value: string) {
+  return (value || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9+.# ]+/g, " ")
+    .replace(/\b(?:senior|junior|lead|principal|associate|assistant|trainee|intern|graduate|professional|specialist)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanLocalClaimedTitle(value: string) {
+  return (value || "")
+    .replace(/\b(?:for|at|with|in|where|when|and|but|because|during|from|to|the|a|an|my|our|their|this|that)\b.*$/i, "")
+    .replace(/[,.!?;:]+$/g, "")
+    .replace(/^\s*(?:a|an|the)\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractLocalClaimedTitles(answer: string) {
+  const clean = (answer || "").replace(/\s+/g, " ").trim();
+  if (!clean) return [];
+  const patterns = [
+    /\b(?:i\s+)?(?:have|had)\s+(?:about\s+|around\s+|over\s+|more than\s+|nearly\s+|almost\s+)?(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s*(?:\+\s*)?(?:years?|yrs?)\s+(?:of\s+)?(?:experience\s+)?(?:as|working as)\s+(?:a\s+|an\s+|the\s+)?([a-zA-Z][a-zA-Z0-9+.#/& -]{2,70})/gi,
+    /\b(?:i\s+)?(?:worked|work|was working|have worked|had worked|served|am working|was employed)\s+as\s+(?:a\s+|an\s+|the\s+)?([a-zA-Z][a-zA-Z0-9+.#/& -]{2,70})/gi,
+    /\b(?:my\s+)?(?:role|position|job|title)\s+(?:was|is|as)\s+(?:a\s+|an\s+|the\s+)?([a-zA-Z][a-zA-Z0-9+.#/& -]{2,70})/gi,
+  ];
+
+  const claims: string[] = [];
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(clean))) {
+      const title = cleanLocalClaimedTitle(match[1] || "");
+      if (!title) continue;
+      if (/\b(?:experience|years|company|team|role|job|background|career|field|industry)\b/i.test(title)) continue;
+      claims.push(title);
+    }
+  }
+
+  return Array.from(new Set(claims.map((item) => item.toLowerCase())))
+    .map((lower) => claims.find((item) => item.toLowerCase() === lower) || lower)
+    .slice(0, 4);
+}
+
+function localEvidenceMentionsYears(evidenceText: string, claimedYears: number) {
+  if (!claimedYears) return false;
+  const source = (evidenceText || "").toLowerCase();
+  const word = Object.entries(localNumberWordMap).find(([, value]) => value === claimedYears)?.[0];
+  const options = [String(claimedYears), word].filter(Boolean) as string[];
+  return options.some((value) => new RegExp(`\\b${value}\\+?\\s*(?:years?|yrs?)\\b`, "i").test(source));
+}
+
+function localTitleSupportedByCv(claimedTitle: string, verifiedTitles: string[], evidenceText: string) {
+  const claimedKey = normalizeLocalTitle(claimedTitle);
+  if (!claimedKey || claimedKey.length < 3) return true;
+  const evidenceKey = normalizeLocalTitle(evidenceText || "");
+  if (evidenceKey.includes(claimedKey)) return true;
+  const claimedTokens = claimedKey.split(" ").filter((token) => token.length > 2);
+  if (!claimedTokens.length) return true;
+
+  return verifiedTitles.some((title) => {
+    const key = normalizeLocalTitle(title);
+    if (!key) return false;
+    if (key === claimedKey || key.includes(claimedKey) || claimedKey.includes(key)) return true;
+    const tokens = key.split(" ").filter((token) => token.length > 2);
+    if (!tokens.length) return false;
+    const overlap = claimedTokens.filter((token) => tokens.includes(token)).length;
+    return overlap / Math.max(claimedTokens.length, tokens.length) >= 0.58;
+  });
+}
+
+function buildLocalCvGroundingResponse(
+  answer: string,
+  setup: WorkZoInterviewSetup,
+  previousTrust: number,
+): UnifiedRecruiterApiResponse | null {
+  const factProfile = buildCandidateFactProfile(setup);
+  const evidenceText = factProfile.evidenceText || buildCandidateContext(setup);
+  const verifiedTitles = factProfile.titles || [];
+  const verifiedCompanies = factProfile.companies || [];
+  const claimedYears = extractLocalClaimedYears(answer);
+  const claimedTitles = extractLocalClaimedTitles(answer);
+  const unsupportedTitle = claimedTitles.find((title) => !localTitleSupportedByCv(title, verifiedTitles, evidenceText));
+  const exactYearsSupported = localEvidenceMentionsYears(evidenceText, claimedYears);
+  const estimatedYears = factProfile.estimatedYearsExperience || 0;
+  const inflatedYears =
+    claimedYears > 0 &&
+    ((estimatedYears > 0 && claimedYears >= Math.max(estimatedYears + 2, estimatedYears * 1.45)) ||
+      (claimedYears >= 6 && !exactYearsSupported));
+
+  if (!unsupportedTitle && !inflatedYears) return null;
+
+  const rolesLine = verifiedTitles.length ? verifiedTitles.slice(0, 4).join(", ") : "the roles listed in your resume";
+  const companiesLine = verifiedCompanies.length ? ` at ${verifiedCompanies.slice(0, 3).join(", ")}` : "";
+  const timelineLine = estimatedYears ? ` The visible timeline suggests about ${estimatedYears} years of experience.` : "";
+  const claimLine = [inflatedYears ? `${claimedYears} years` : "", unsupportedTitle ? `as ${unsupportedTitle}` : ""]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const challenge = `Let me clarify one thing before we move on. I heard you say ${claimLine || "that experience"}, but your resume evidence shows ${rolesLine}${companiesLine}.${timelineLine} Can you explain whether this was an unlisted role, a responsibility inside another role, or transferable experience rather than an official title?`
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return {
+    question: challenge,
+    displayQuestion: challenge,
+    feedback: "Possible CV consistency issue detected before normal follow-up.",
+    intent: "possible_exaggeration",
+    shouldAdvanceQuestion: false,
+    shouldCountAsAnswer: false,
+    shouldStayOnCurrentQuestion: true,
+    trustDelta: -6,
+    recruiterState: "skeptical",
+    correction: challenge,
+    concern: `Candidate claimed ${claimLine || "experience"}, but it is not clearly supported by the CV evidence.`,
+    psychology: {
+      trust: Math.max(25, Math.min(90, previousTrust - 6)),
+      interest: 52,
+      skepticism: 74,
+      patience: 54,
+      engagement: 60,
+      confidenceInCandidate: 40,
+    },
+    recruiterMemory: {
+      summary: "Candidate made a CV claim that needs clarification. Stay slightly cautious until they explain it.",
+      weakMoments: ["Possible mismatch between spoken experience and CV evidence."],
+      strongMoments: [],
+      openDoubts: [`Unsupported claim: ${claimLine || "experience claim"}`],
+      roleFitSignals: [],
+    },
+    pressure: {
+      level: 68,
+      label: "consistency check",
+      reason: "Candidate mentioned experience that is not clearly supported by CV evidence.",
+      behaviorShift: "Recruiter pauses the interview and asks for clarification before moving on.",
+    },
   };
 }
 
@@ -1592,15 +2075,23 @@ function buildClarificationReply(
 
 
 function isEarlyMultiIntentRapport(answer: string) {
-  const clean = answer.replace(/\s+/g, " " ).trim().toLowerCase();
+  const clean = answer.replace(/\s+/g, " ").trim().toLowerCase();
   if (!clean) return false;
+
   const asksName = /\b(your name|who are you|what'?s your name|what is your name|let me know your name|may i know your name)\b/i.test(clean);
   const audioCheck = /\b(can you hear me|i can hear you|can hear you|can'?t hear|cannot hear|can not hear|no audio|voice is not audible|are you there)\b/i.test(clean);
   const asksHow = /\b(how are you|how are you doing|what about you|and you)\b/i.test(clean);
-  const saysGood = /\b(good|fine|okay|ok|great|well|ready|nervous|thank you|thanks)\b/i.test(clean);
-  const hasWorkEvidence = /\b(worked|experience|technical support|customer|client|ticket|project|handled|resolved|managed|led|built|improved|role|support engineer|customer success)\b/i.test(clean);
+  const saysGreetingOnly = /\b(good|fine|okay|ok|great|well|ready|nervous|thank you|thanks)\b/i.test(clean);
+
+  // Important: do NOT treat a real interview answer as rapport just because it
+  // contains friendly words like "good fit" or "thank you". This was causing
+  // answers such as "I have eight years of experience as Sales Executive" to
+  // bypass the CV-grounding API and fall back to the opening question again.
+  const hasInterviewEvidence = /\b(worked|work|working|experience|years?|technical support|application engineer|data analyst|sales executive|business development|customer|client|ticket|project|handled|resolved|managed|led|built|improved|role|support engineer|customer success|fit for this role|good fit)\b/i.test(clean);
+  if (hasInterviewEvidence) return false;
+
   const wordCount = clean.split(/\s+/).filter(Boolean).length;
-  return (asksName || audioCheck || asksHow || saysGood) && (wordCount <= 30 || !hasWorkEvidence);
+  return (asksName || audioCheck || asksHow || saysGreetingOnly) && wordCount <= 30;
 }
 
 function buildEarlyMultiIntentRapportReply(answer: string, recruiterName: string, targetRole: string) {
@@ -3421,17 +3912,34 @@ export default function InterviewPage() {
 
       let didFinish = false;
       let finishTimer: number | null = null;
+      let absoluteFinishTimer: number | null = null;
+      const desktopEstimatedSpeechMs = Math.min(14000, Math.max(2800, spokenText.split(/\s+/).filter(Boolean).length * 300 + 900));
+
+      // Final safety net: never leave the room stuck in “Recruiter speaking”.
+      // Chrome/Edge can occasionally miss speechSynthesis.onend after a selected
+      // voice fails or after a fast refresh. This watchdog forces the same cleanup
+      // path as onend, then the caller opens listening.
 
       const finishSpeech = () => {
         if (didFinish) return;
         didFinish = true;
         if (finishTimer) window.clearTimeout(finishTimer);
+        if (absoluteFinishTimer) window.clearTimeout(absoluteFinishTimer);
+        try {
+          window.speechSynthesis?.resume?.();
+        } catch {}
         isSpeakingRef.current = false;
         setIsSpeaking(false);
         setIsListening(false);
         setVoiceStatus("Your turn — answer naturally");
         afterSpeak?.();
       };
+
+      // Desktop Chrome can occasionally miss speechSynthesis.onend after the first
+      // recruiter line. This guard guarantees the room leaves “Recruiter speaking”
+      // and opens the mic even when the browser speech event is lost. Mobile uses
+      // the separate HTMLAudioElement timing path above, so this only affects desktop.
+      absoluteFinishTimer = window.setTimeout(finishSpeech, desktopEstimatedSpeechMs + 900);
 
       const speakNow = (allowVoiceWait = false) => {
         try {
@@ -3508,11 +4016,7 @@ export default function InterviewPage() {
         setIsListening(false);
         setVoiceStatus("Recruiter speaking...");
 
-        const estimatedMs = Math.min(
-          22000,
-          Math.max(2200, spokenText.split(/\s+/).length * 240),
-        );
-        finishTimer = window.setTimeout(finishSpeech, estimatedMs + 500);
+        finishTimer = window.setTimeout(finishSpeech, desktopEstimatedSpeechMs + 250);
 
         utterance.onstart = () => {
           isSpeakingRef.current = true;
@@ -3604,8 +4108,15 @@ export default function InterviewPage() {
     [getLockedBrowserVoice, playRecruiterMobileTts, recruiterId, speakerOn, voiceProvider],
   );
 
-  const listenForAnswer = useCallback(() => {
-    if (!isLiveRef.current || isSpeakingRef.current) return;
+  const listenForAnswer = useCallback((force = false) => {
+    if (!isLiveRef.current) return;
+
+    if (force) {
+      isSpeakingRef.current = false;
+      setIsSpeaking(false);
+    } else if (isSpeakingRef.current) {
+      return;
+    }
 
     // Standard mode stays intentional: recruiter speaks → user taps mic.
     // Cinematic Live is pseudo-live: after recruiter speech, listening opens automatically
@@ -3614,7 +4125,7 @@ export default function InterviewPage() {
       modeRef.current === "video" ||
       !isMobileBrowserRuntime() ||
       mobileAudioUnlockedRef.current;
-    if (!manualListenRequestedRef.current && !autoListenEnabled) {
+    if (!force && !manualListenRequestedRef.current && !autoListenEnabled) {
       setIsListening(false);
       setVoiceStatus("Your turn — answer naturally");
       return;
@@ -3657,7 +4168,7 @@ export default function InterviewPage() {
         } catch {}
         return;
       }
-      if (isSpeakingRef.current || isProcessingAnswerRef.current) {
+      if ((isSpeakingRef.current && !force) || isProcessingAnswerRef.current) {
         try {
           recognition.abort?.();
           recognition.stop();
@@ -3669,7 +4180,7 @@ export default function InterviewPage() {
       if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = window.setTimeout(() => {
         if (listenSessionIdRef.current !== listenSessionId) return;
-        if (!isLiveRef.current || isSpeakingRef.current || isProcessingAnswerRef.current) return;
+        if (!isLiveRef.current || (isSpeakingRef.current && !force) || isProcessingAnswerRef.current) return;
         setVoiceStatus("Take your time — answer naturally");
       }, 5000);
     };
@@ -3713,7 +4224,7 @@ export default function InterviewPage() {
 
     recognition.onresult = (event: BrowserSpeechRecognitionEvent) => {
       if (listenSessionIdRef.current !== listenSessionId) return;
-      if (isSpeakingRef.current || isProcessingAnswerRef.current) return;
+      if ((isSpeakingRef.current && !force) || isProcessingAnswerRef.current) return;
 
       let transcriptText = "";
       for (
@@ -3734,25 +4245,40 @@ export default function InterviewPage() {
         window.clearTimeout(finalizationTimerRef.current);
       }
 
-      finalizationTimerRef.current = window.setTimeout(() => {
-        if (listenSessionIdRef.current !== listenSessionId) return;
-        if (isProcessingAnswerRef.current || isSpeakingRef.current) return;
-        const finalAnswer = pendingAnswerRef.current.trim();
-        const wordCount = finalAnswer.split(/\s+/).filter(Boolean).length;
-
-        if (!finalAnswer || wordCount < 5) {
-          setVoiceStatus("Continue your answer naturally");
-          return;
+      const scheduleFinalization = (extraDelay = 0) => {
+        if (finalizationTimerRef.current) {
+          window.clearTimeout(finalizationTimerRef.current);
         }
 
-        pendingAnswerRef.current = "";
-        try {
-          recognition.stop();
-        } catch {}
+        const baseDelay = isMobileBrowserRuntime() ? 3200 : 2400;
+        finalizationTimerRef.current = window.setTimeout(() => {
+          if (listenSessionIdRef.current !== listenSessionId) return;
+          if (isProcessingAnswerRef.current || isSpeakingRef.current) return;
+          const finalAnswer = pendingAnswerRef.current.trim();
+          const wordCount = finalAnswer.split(/\s+/).filter(Boolean).length;
 
-        setIsListening(false);
-        handleCandidateAnswerRef.current(finalAnswer);
-      }, 750);
+          if (!finalAnswer || wordCount < 5) {
+            setVoiceStatus("Continue your answer naturally");
+            return;
+          }
+
+          if (isLikelyUnfinishedCandidateAnswer(finalAnswer)) {
+            setVoiceStatus("Keep going — I’m listening");
+            scheduleFinalization(isMobileBrowserRuntime() ? 2200 : 1700);
+            return;
+          }
+
+          pendingAnswerRef.current = "";
+          try {
+            recognition.stop();
+          } catch {}
+
+          setIsListening(false);
+          handleCandidateAnswerRef.current(finalAnswer);
+        }, baseDelay + extraDelay);
+      };
+
+      scheduleFinalization();
     };
 
     recognitionRef.current = recognition;
@@ -3760,7 +4286,7 @@ export default function InterviewPage() {
     // Start recognition only after recruiter speech has fully ended.
     window.setTimeout(() => {
       if (listenSessionIdRef.current !== listenSessionId) return;
-      if (!isLiveRef.current || isSpeakingRef.current || isProcessingAnswerRef.current) return;
+      if (!isLiveRef.current || (isSpeakingRef.current && !force) || isProcessingAnswerRef.current) return;
       try {
         recognition.start();
       } catch {
@@ -3866,26 +4392,30 @@ export default function InterviewPage() {
         };
       }
 
+      if (!intelligence) {
+        intelligence = buildLocalCvGroundingResponse(cleanAnswer, activeSetup, previousTrust);
+      }
+
       if (!intelligence) try {
         const response = await fetch("/api/interview", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            answer: cleanAnswer,
-            currentQuestion,
-            transcript: buildCompactTranscript(currentTranscript, 4),
-            setup: buildCompactInterviewSetup(activeSetup, recruiterId),
-            cvText: buildCompactCandidateProfile(activeSetup),
-            jobDescription: buildCompactJobProfile(activeSetup),
-            targetRole: getRole(activeSetup),
-            targetMarket: activeSetup.targetMarket || activeSetup.country || "Global",
-            companyStyle:
-              activeSetup.companyStyle || activeSetup.recruiterStyle || "Global Corporate",
-            recruiterPersonality: activeSetup.recruiterPersonality || recruiterId,
-            recruiterTrust: previousTrust,
-            recruiterState: recruiterStateRef.current,
-            recruiterMemorySummary: buildCompactRecruiterMemory(currentMemory),
-          }),
+          body: (() => {
+            const compactSetup = buildCompactInterviewSetup(activeSetup, recruiterId);
+            return JSON.stringify({
+              answer: cleanAnswer,
+              currentQuestion: compactInterviewText(currentQuestion, 360),
+              transcript: buildCompactTranscript(currentTranscript, 4),
+              setup: compactSetup,
+              targetRole: compactSetup.targetRole,
+              targetMarket: compactSetup.targetMarket,
+              companyStyle: compactSetup.companyStyle,
+              recruiterPersonality: compactSetup.recruiterPersonality,
+              recruiterTrust: previousTrust,
+              recruiterState: recruiterStateRef.current,
+              recruiterMemorySummary: buildCompactRecruiterMemory(currentMemory),
+            });
+          })(),
         });
 
         if (response.ok) {
@@ -4101,7 +4631,7 @@ export default function InterviewPage() {
             answerProcessingUnlockTimerRef.current = null;
           }
           isProcessingAnswerRef.current = false;
-          window.setTimeout(() => listenForAnswer(), 120);
+          window.setTimeout(() => listenForAnswer(true), 180);
         });
       }, thinkingDelay);
 
@@ -4224,7 +4754,7 @@ export default function InterviewPage() {
     const openingInsight = buildOpeningWowMoment({
       recruiterName: profile.name,
       role: getRole(setup),
-      cvText: setup.cvText || "",
+      cvText: buildCompactCandidateProfile(setup),
     });
     const firstQuestion = "Hi, how are you today?";
     const spokenOpening = buildConversationalRecruiterSpeech({
@@ -4275,7 +4805,7 @@ export default function InterviewPage() {
     });
 
     speakRecruiter(spokenOpening, () => {
-      window.setTimeout(() => listenForAnswer(), 400);
+      window.setTimeout(() => listenForAnswer(true), 450);
     });
   }, [addTranscript, clearCoachChip, listenForAnswer, speakRecruiter]);
 

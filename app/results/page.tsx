@@ -306,6 +306,57 @@ export default function ResultsPage() {
               </div>
             </section>
 
+
+
+            <section className="rounded-[30px] border border-white/[0.07] bg-white/[0.04] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl sm:p-5">
+              <div className="flex items-center gap-3">
+                <ShieldAlert className="h-5 w-5 text-amber-200" />
+                <h2 className="text-2xl font-black tracking-[-0.03em]">Why trust changed</h2>
+              </div>
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <InsightList
+                  title="Trust dropped because"
+                  tone="warning"
+                  items={insight.trustDropReasons}
+                  fallback="No major trust drop reason was detected yet."
+                />
+                <InsightList
+                  title="Trust recovered because"
+                  tone="positive"
+                  items={insight.trustRecoveryReasons}
+                  fallback="No clear recovery moment was detected yet."
+                />
+              </div>
+            </section>
+
+            <section className="rounded-[30px] border border-white/[0.07] bg-white/[0.04] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl sm:p-5">
+              <div className="flex items-center gap-3">
+                <Target className="h-5 w-5 text-violet-200" />
+                <h2 className="text-2xl font-black tracking-[-0.03em]">Patterns to fix</h2>
+              </div>
+              <div className="mt-4 grid gap-3">
+                {insight.repeatedPatterns.length > 0 ? (
+                  insight.repeatedPatterns.map((pattern) => (
+                    <div key={pattern.label} className="rounded-[24px] border border-white/[0.06] bg-slate-950/42 p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-black">{pattern.label}</p>
+                          <p className="mt-1 text-sm leading-6 text-slate-300">{pattern.reason}</p>
+                        </div>
+                        <span className="rounded-full border border-white/[0.08] bg-white/[0.045] px-3 py-1 text-xs font-black text-slate-300">
+                          {pattern.count}x
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="rounded-[24px] border border-white/[0.06] bg-slate-950/42 p-4 text-sm leading-6 text-slate-300">
+                    No repeated weak pattern detected yet. Complete a longer interview to unlock deeper pattern memory.
+                  </p>
+                )}
+              </div>
+            </section>
+
             <section className="rounded-[30px] border border-red-300/16 bg-red-500/[0.045] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl sm:p-5">
               <div className="flex items-center gap-3">
                 <AlertTriangle className="h-5 w-5 text-red-200" />
@@ -387,7 +438,7 @@ export default function ResultsPage() {
                   <h2 className="text-xl font-black tracking-[-0.02em]">Next practice plan</h2>
                 </div>
                 <div className="mt-4 space-y-3">
-                  {insight.coachingPlan.map((item, index) => (
+                  {insight.topFixesBeforeRealInterview.map((item, index) => (
                     <div key={`${item}-${index}`} className="flex gap-3 rounded-2xl border border-white/[0.07] bg-black/16 p-3 text-sm leading-6 text-slate-300">
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-400/12 text-xs font-black text-emerald-200">{index + 1}</span>
                       <span>{item}</span>
@@ -445,6 +496,26 @@ export default function ResultsPage() {
           </section>
         </section>
 
+
+        {insight.unsupportedClaimSignals.length > 0 && (
+          <section className="mt-4 rounded-[30px] border border-amber-300/18 bg-amber-400/[0.045] p-4 shadow-[0_18px_70px_rgba(0,0,0,0.20)] backdrop-blur-2xl sm:p-5">
+            <div className="flex items-center gap-3">
+              <ShieldAlert className="h-5 w-5 text-amber-200" />
+              <h2 className="text-xl font-black tracking-[-0.02em]">CV consistency moments</h2>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              These are moments where the recruiter needed clarification because an answer did not clearly align with the CV or career timeline.
+            </p>
+            <div className="mt-4 grid gap-3">
+              {insight.unsupportedClaimSignals.map((item, index) => (
+                <div key={`${item}-${index}`} className="rounded-2xl border border-white/[0.07] bg-black/16 p-3 text-sm leading-6 text-amber-50/90">
+                  “{item}”
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="mt-4 grid gap-4 xl:grid-cols-[1fr_0.85fr]">
           <FeedbackCapture source="results" />
           <div className="rounded-[30px] border border-white/[0.07] bg-white/[0.04] p-4 shadow-[0_18px_70px_rgba(0,0,0,0.20)] backdrop-blur-2xl sm:p-5">
@@ -469,6 +540,40 @@ export default function ResultsPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+
+function InsightList({
+  title,
+  items,
+  fallback,
+  tone,
+}: {
+  title: string;
+  items: string[];
+  fallback: string;
+  tone: "positive" | "warning";
+}) {
+  const Icon = tone === "positive" ? CheckCircle2 : AlertTriangle;
+  const iconClass = tone === "positive" ? "text-emerald-200" : "text-amber-200";
+  const shellClass = tone === "positive" ? "border-emerald-300/14 bg-emerald-400/[0.045]" : "border-amber-300/14 bg-amber-400/[0.045]";
+  const values = items.length ? items : [fallback];
+
+  return (
+    <div className={cn("rounded-[24px] border p-4", shellClass)}>
+      <div className="flex items-center gap-2">
+        <Icon className={cn("h-4 w-4", iconClass)} />
+        <p className="font-black">{title}</p>
+      </div>
+      <div className="mt-3 space-y-2">
+        {values.map((item, index) => (
+          <div key={`${title}-${index}-${item}`} className="rounded-2xl border border-white/[0.07] bg-black/14 px-3 py-2 text-sm leading-6 text-slate-300">
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

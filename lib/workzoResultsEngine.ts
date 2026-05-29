@@ -72,6 +72,11 @@ export type ResultsInsight = {
   coachingPlan: string[];
   recruiterMemory: Array<{ label: string; value: string; tone: "positive" | "warning" | "neutral" }>;
   atmosphere: Array<{ label: string; value: string }>;
+  trustDropReasons: string[];
+  trustRecoveryReasons: string[];
+  repeatedPatterns: Array<{ label: string; count: number; reason: string }>;
+  unsupportedClaimSignals: string[];
+  topFixesBeforeRealInterview: string[];
 };
 
 export type AnswerComparison = {
@@ -220,6 +225,108 @@ function scoreLabel(score: number) {
   if (score >= 58) return "Mixed";
   if (score > 0) return "At risk";
   return "Not enough signal";
+}
+
+
+function uniq(values: string[], limit = 8) {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    const clean = cleanText(raw, 260);
+    const key = clean.toLowerCase();
+    if (!clean || seen.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function detectUnsupportedClaimSignals(transcript?: TranscriptItem[]) {
+  const normalized = normalizeTranscript(transcript);
+  const recruiterLines = normalized
+    .filter((item) => item.role === "recruiter")
+    .map((item) => item.text);
+
+  const signals: string[] = [];
+  for (const line of recruiterLines) {
+    if (/resume|cv|information we started with|doesn'?t align|not align|not reflected|don'?t see|do not see|clarify|timeline|career stage/i.test(line)) {
+      signals.push(line);
+    }
+  }
+  return uniq(signals, 5);
+}
+
+function buildRepeatedPatterns(signals: AnswerSignal[], unsupportedClaims: string[]) {
+  const missingMetrics = signals.filter((item) => !item.hasMetric && item.score > 0).length;
+  const unclearOwnership = signals.filter((item) => !item.hasOwnership && item.score > 0).length;
+  const vagueAnswers = signals.filter((item) => item.isVague && item.score > 0).length;
+  const ramblingAnswers = signals.filter((item) => item.isRambling).length;
+  const tooShortAnswers = signals.filter((item) => item.isTooShort).length;
+
+  return [
+    missingMetrics >= 2 && {
+      label: "Metrics avoidance",
+      count: missingMetrics,
+      reason: "Several answers described impact without numbers, scale, or measurable outcomes.",
+    },
+    unclearOwnership >= 2 && {
+      label: "Ownership unclear",
+      count: unclearOwnership,
+      reason: "The recruiter repeatedly had to infer what the candidate personally did.",
+    },
+    vagueAnswers >= 2 && {
+      label: "Vague examples",
+      count: vagueAnswers,
+      reason: "Answers sounded general instead of anchored in one specific situation.",
+    },
+    ramblingAnswers >= 1 && {
+      label: "Rambling risk",
+      count: ramblingAnswers,
+      reason: "At least one answer likely felt too long or unfocused for a live interview.",
+    },
+    tooShortAnswers >= 2 && {
+      label: "Too little detail",
+      count: tooShortAnswers,
+      reason: "Multiple answers were too short to build recruiter confidence.",
+    },
+    unsupportedClaims.length > 0 && {
+      label: "CV consistency concern",
+      count: unsupportedClaims.length,
+      reason: "The recruiter detected claims or timeline details that needed clarification against the CV.",
+    },
+  ].filter(Boolean) as Array<{ label: string; count: number; reason: string }>;
+}
+
+function buildTrustDropReasons(signals: AnswerSignal[], unsupportedClaims: string[]) {
+  const reasons: string[] = [];
+  if (unsupportedClaims.length) reasons.push("One or more claims needed clarification against the CV or career timeline.");
+  if (signals.some((item) => !item.hasMetric && item.score > 0)) reasons.push("Answers often missed measurable impact, such as numbers, scale, or business outcome.");
+  if (signals.some((item) => !item.hasOwnership && item.score > 0)) reasons.push("Personal ownership was not always clear enough for a recruiter.");
+  if (signals.some((item) => item.isVague)) reasons.push("Some answers were too general and lacked one concrete example.");
+  if (signals.some((item) => item.isRambling)) reasons.push("At least one answer likely felt too long or unfocused.");
+  if (signals.some((item) => item.isTooShort)) reasons.push("At least one answer ended before the recruiter had enough evidence.");
+  return uniq(reasons, 6);
+}
+
+function buildTrustRecoveryReasons(signals: AnswerSignal[]) {
+  const reasons: string[] = [];
+  if (signals.some((item) => item.hasMetric && item.score >= 70)) reasons.push("Trust recovered when the candidate used measurable proof.");
+  if (signals.some((item) => item.hasOwnership && item.score >= 70)) reasons.push("The recruiter became more confident when personal responsibility was clear.");
+  if (signals.some((item) => item.hasSpecificExample && item.hasStructure)) reasons.push("Specific examples with a clear situation/action/result improved the hiring signal.");
+  if (signals.some((item) => item.hasRoleFit && item.score >= 70)) reasons.push("Role-relevant details helped the recruiter connect the answer to the job.");
+  return uniq(reasons.length ? reasons : ["No clear recovery moment was captured yet. The next attempt should add one strong proof story."], 5);
+}
+
+function buildTopFixesBeforeRealInterview(weakest: AnswerSignal, patterns: Array<{ label: string; count: number; reason: string }>, unsupportedClaims: string[]) {
+  const fixes: string[] = [];
+  if (unsupportedClaims.length) fixes.push("Clarify any career timeline or experience claim that does not clearly appear in the CV.");
+  if (!weakest.hasMetric || patterns.some((p) => /metrics/i.test(p.label))) fixes.push("Prepare 2–3 measurable outcomes: %, time saved, tickets handled, revenue, quality, delivery, or users impacted.");
+  if (!weakest.hasOwnership || patterns.some((p) => /ownership/i.test(p.label))) fixes.push("Rewrite examples with stronger ‘I did…’ ownership instead of only team-level wording.");
+  if (!weakest.hasStructure) fixes.push("Use STAR: situation → task → action → result, and end with impact.");
+  if (weakest.isVague || patterns.some((p) => /vague/i.test(p.label))) fixes.push("Replace generic explanations with one concrete story from a real project, client, or problem.");
+  if (weakest.isRambling) fixes.push("Keep key answers under 90 seconds and stop after the result.");
+  return uniq(fixes.length ? fixes : ["Keep the strongest answer, but make the link to the job description more explicit."], 5);
 }
 
 function buildTimeline(answerSignals: AnswerSignal[], finalTrust: number): TrustTimelinePoint[] {
@@ -373,6 +480,11 @@ export function buildResultsInsight(payload: ResultPayload): ResultsInsight {
   const hiringSignal = scoreLabel(trust);
   const timeline = buildTimeline(signals, trust);
   const scoreCards = buildScoreCards(signals, payload.scores);
+  const unsupportedClaimSignals = detectUnsupportedClaimSignals(payload.transcript);
+  const repeatedPatterns = buildRepeatedPatterns(signals, unsupportedClaimSignals);
+  const trustDropReasons = buildTrustDropReasons(signals, unsupportedClaimSignals);
+  const trustRecoveryReasons = buildTrustRecoveryReasons(signals);
+  const topFixesBeforeRealInterview = buildTopFixesBeforeRealInterview(weakest, repeatedPatterns, unsupportedClaimSignals);
 
   const continuationVerdict =
     trust >= 84
@@ -410,6 +522,11 @@ export function buildResultsInsight(payload: ResultPayload): ResultsInsight {
     coachingPlan: buildCoachingPlan(weakest, trust),
     recruiterMemory: buildRecruiterMemory(strongest, weakest, trust),
     atmosphere: buildAtmosphere(payload, trust, signals.length),
+    trustDropReasons,
+    trustRecoveryReasons,
+    repeatedPatterns,
+    unsupportedClaimSignals,
+    topFixesBeforeRealInterview,
   };
 }
 
