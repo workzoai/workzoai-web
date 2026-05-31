@@ -38,9 +38,9 @@ export async function POST(req: Request) {
 
     const action = clean(body.action, 80) || "recruiter_analysis";
     const question = clean(body.question, 2000);
-    const answer = clean(body.answer, 5000);
-    const cvText = clean(body.cvText, 7000);
-    const jobDescription = clean(body.jobDescription, 5000);
+    const answer = clean(body.answer, 2500);
+    const cvText = clean(body.cvText, 4500);
+    const jobDescription = clean(body.jobDescription, 3500);
     const targetRole = clean(body.targetRole, 200) || "target role";
     const targetMarket = clean(body.targetMarket, 120) || "Global";
     const recruiterName = clean(body.recruiterName, 80) || "Recruiter";
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     const prompt = `
 You are ${recruiterName}, a ${recruiterRole}.
 You are NOT a generic career coach.
-You are an experienced recruiter analyzing a candidate answer.
+You are an experienced recruiter giving live interview copilot guidance while the candidate is speaking.
 
 TASK:
 Analyze the answer for action: ${action}.
@@ -61,6 +61,8 @@ STRICT RULES:
 - Do NOT praise weak answers.
 - Challenge vague answers.
 - Focus on recruiter trust, not motivation.
+- Keep every section short enough to read during a live interview.
+- Do not return long paragraphs or a full report.
 
 EVALUATE:
 - measurable impact
@@ -72,32 +74,22 @@ EVALUATE:
 - likely recruiter doubts
 - likely follow-up questions
 
-RETURN IN THIS EXACT FORMAT:
+RETURN IN THIS EXACT FORMAT ONLY:
 
-Recruiter reaction:
+Say next:
 ...
 
-Hidden recruiter intent:
+Add proof:
 ...
 
-Weakness radar:
-- ...
-- ...
-- ...
-
-Likely follow-up questions:
-1. ...
-2. ...
-3. ...
-
-Improved answer:
-"..."
-
-Trust score:
-__/100
-
-Trust recovery:
+Recruiter concern:
 ...
+
+Likely follow-up:
+...
+
+Signal:
+Good / Neutral / Risky
 
 QUESTION:
 ${question || "No question provided."}
@@ -120,7 +112,8 @@ ${jobDescription || "No job description provided."}
 
     const completion = await client.chat.completions.create({
       model: "gpt-4.1-mini",
-      temperature: 0.45,
+      temperature: 0.22,
+      max_tokens: 420,
       messages: [
         {
           role: "system",

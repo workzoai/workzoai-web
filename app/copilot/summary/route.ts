@@ -67,7 +67,7 @@ function actionInstruction(action: CopilotAction) {
     career_chat:
       "Act as a practical career copilot. Answer the user's question using the CV, role, market, and job context when relevant.",
     interview_coach:
-      "Coach the user for the interview. Diagnose the answer, explain recruiter expectations, and give a better version without inventing facts.",
+      "Act as Live Copilot during an interview. Give short real-time suggestions: what to say next, what to avoid, one stronger phrase, and one likely follow-up. Keep it compact and usable while speaking.",
     recruiter_intent:
       "Explain what the recruiter is really testing behind the question and what a strong answer must prove.",
     expectation:
@@ -163,6 +163,17 @@ OUTPUT FORMAT:
 4. Skills to strengthen
 5. Portfolio / proof ideas
 6. Next action today
+`.trim();
+  }
+
+  if (action === "interview_coach" || action === "magic") {
+    return `
+OUTPUT FORMAT:
+1. Say next: one short sentence the user can say now
+2. Improve: one specific fix
+3. Avoid: one risk or unsupported claim to avoid
+4. Likely follow-up: one recruiter question
+5. Score signal: Good / Neutral / Risky
 `.trim();
   }
 
@@ -268,9 +279,9 @@ ${conversation}
 `.trim();
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      temperature: 0.28,
-      max_tokens: 1200,
+      model: "gpt-4o-mini",
+      temperature: 0.22,
+      max_tokens: 700,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -282,7 +293,7 @@ ${conversation}
     return NextResponse.json({
       success: true,
       output,
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       action,
     });
   } catch (error) {
