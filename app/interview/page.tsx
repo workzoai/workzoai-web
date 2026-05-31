@@ -3,6 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
+  ChevronRight,
+  ArrowLeft,
   BarChart3,
   Briefcase,
   CheckCircle2,
@@ -631,6 +633,14 @@ export default function InterviewPage() {
   const [elapsed, setElapsed] = useState(0);
   const [interimText, setInterimText] = useState("");
   const [transcript, setTranscript] = useState<TranscriptItem[]>(initialTranscript);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(true);
+  const [showCopilot, setShowCopilot] = useState(true);
+  const [autoScrollTranscript, setAutoScrollTranscript] = useState(true);
+  const [interviewStyle, setInterviewStyle] = useState<"Supportive" | "Realistic" | "Challenging" | "Brutal">("Realistic");
+  const [voiceSpeed, setVoiceSpeed] = useState(0.94);
+  const [copilotAggressiveness, setCopilotAggressiveness] = useState<"Low" | "Medium" | "High">("Medium");
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const listeningRef = useRef(false);
@@ -685,8 +695,8 @@ export default function InterviewPage() {
   }, [status]);
 
   useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [transcript, interimText]);
+    if (autoScrollTranscript) transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [transcript, interimText, autoScrollTranscript]);
 
   const addTranscript = useCallback((item: Omit<TranscriptItem, "id" | "time">) => {
     setTranscript((current) => [
@@ -821,7 +831,7 @@ export default function InterviewPage() {
         const utterance = new SpeechSynthesisUtterance(text);
         const wantsMale = recruiterLooksMale(activeSetup);
 
-        utterance.rate = wantsMale ? 0.9 : 0.94;
+        utterance.rate = wantsMale ? Math.max(0.75, voiceSpeed - 0.04) : voiceSpeed;
         utterance.pitch = wantsMale ? 0.86 : 1.08;
         utterance.lang = activeSetup.language || "en-US";
 
@@ -849,7 +859,7 @@ export default function InterviewPage() {
         startListening();
       }
     },
-    [addTranscript, audioEnabled, startListening],
+    [addTranscript, audioEnabled, startListening, voiceSpeed],
   );
 
   const startInterview = useCallback(() => {
@@ -906,7 +916,7 @@ export default function InterviewPage() {
   }, [elapsed]);
 
   return (
-    <main className="h-screen overflow-hidden bg-[#050b14] text-white">
+    <main className="min-h-screen overflow-x-hidden bg-[#050b14] text-white lg:h-screen lg:overflow-hidden">
       <style jsx global>{`
         @keyframes workzoRecruiterBreath {
           0%, 100% {
@@ -919,12 +929,25 @@ export default function InterviewPage() {
           }
         }
 
-        @keyframes workzoRecruiterMicroMove {
+        @keyframes workzoRecruiterPresence {
           0%, 100% {
-            transform: translate3d(-3px, 0, 0);
+            opacity: 0.18;
+            transform: scale(0.98);
           }
           50% {
-            transform: translate3d(3px, 2px, 0);
+            opacity: 0.42;
+            transform: scale(1.02);
+          }
+        }
+
+        @keyframes workzoStatusPulse {
+          0%, 100% {
+            transform: scale(1);
+            opacity: 0.8;
+          }
+          50% {
+            transform: scale(1.35);
+            opacity: 1;
           }
         }
 
@@ -932,51 +955,6 @@ export default function InterviewPage() {
           animation: workzoRecruiterBreath 5s ease-in-out infinite;
           transform-origin: center 40%;
           will-change: transform, filter;
-        }
-
-        .workzo-recruiter-micro {
-          animation: workzoRecruiterMicroMove 7s ease-in-out infinite;
-          will-change: transform;
-        }
-
-
-        50% {
-            transform: scale(1.045) translateY(4px);
-            filter: saturate(1.07) brightness(1.035);
-          }
-        }
-          50% {
-            transform: scale(1.16) translate3d(0, 3px, 0);
-            filter: saturate(1.06) brightness(1.03);
-          }
-        }
-          50% { transform: scale(1.025) translate3d(0, 3px, 0); filter: saturate(1.04) brightness(1.03); }
-        }
-          50% {
-            transform: translate3d(0, 8px, 0) scale(1.055);
-            filter: saturate(1.08) brightness(1.04);
-          }
-        }
-          50% { transform: scale(1.018) translate3d(0, -3px, 0); filter: saturate(1.08); }
-        }
-
-        @keyframes workzoRecruiterPresence {
-          0%, 100% { opacity: .18; transform: scale(.98); }
-          50% { opacity: .42; transform: scale(1.02); }
-        }
-
-        @keyframes workzoStatusPulse {
-          0%, 100% { transform: scale(1); opacity: .8; }
-          50% { transform: scale(1.35); opacity: 1; }
-        }
-
-        50% { transform: translate3d(2px, 2px, 0); }
-        }
-
-        @keyframes workzoBlink {
-          0%, 91%, 100% { opacity: 0; transform: translateX(-50%) scaleY(1); }
-          93% { opacity: .65; transform: translateX(-50%) scaleY(.1); }
-          95% { opacity: 0; transform: translateX(-50%) scaleY(1); }
         }
 
         .workzo-recruiter-presence {
@@ -987,41 +965,59 @@ export default function InterviewPage() {
           animation: workzoStatusPulse 1.7s ease-in-out infinite;
         }
 
-        .workzo-blink {
-          animation: workzoBlink 4.6s infinite;
+
+        @media (max-width: 1023px) {
+          html,
+          body {
+            overflow-x: hidden;
+          }
+
+          main {
+            min-height: 100dvh;
+          }
         }
 
         @media (prefers-reduced-motion: reduce) {
           .workzo-recruiter-presence,
           .workzo-recruiter-breath,
-          .workzo-recruiter-micro,
-          .workzo-blink {
+          .workzo-status-pulse {
             animation: none !important;
           }
         }
       `}</style>
 
-      <section className="grid h-full grid-rows-[70px_1fr]">
-        <header className="flex items-center justify-between border-b border-white/10 px-5">
-          <div className="flex min-w-0 items-center gap-5">
-            <Link href="/dashboard" className="flex shrink-0 items-center gap-3">
-              <Image
-                src="/workzo_icon.png"
-                alt="WorkZo AI"
-                width={42}
-                height={42}
-                priority
-                className="rounded-xl"
-              />
-              <span className="hidden text-2xl font-black tracking-tight sm:inline">
-                WorkZo <span className="text-blue-400">AI</span>
-              </span>
-            </Link>
+      <section className="grid min-h-screen grid-rows-[64px_1fr] lg:h-full lg:min-h-0 lg:grid-rows-[70px_1fr]">
+        <header className="flex items-center justify-between gap-2 border-b border-white/10 px-3 sm:px-5">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-5">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => window.history.back()}
+                className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.03] text-slate-200 transition hover:bg-white/[0.08] hover:text-white"
+                aria-label="Go back"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
 
-            <div className="h-9 w-px bg-white/10" />
+              <Link href="/dashboard" className="flex items-center gap-3">
+                <Image
+                  src="/workzo_icon.png"
+                  alt="WorkZo AI"
+                  width={42}
+                  height={42}
+                  priority
+                  className="rounded-xl"
+                />
+                <span className="hidden text-2xl font-black tracking-tight sm:inline">
+                  WorkZo <span className="text-blue-400">AI</span>
+                </span>
+              </Link>
+            </div>
+
+            <div className="hidden h-9 w-px bg-white/10 sm:block" />
 
             <div className="flex min-w-0 items-center gap-3">
-              <h1 className="truncate text-base font-black sm:text-lg lg:text-xl">
+              <h1 className="max-w-[170px] truncate text-sm font-black sm:max-w-none sm:text-lg lg:text-xl">
                 {headerTitle}
               </h1>
               <span className="hidden h-2.5 w-2.5 rounded-full bg-emerald-400 sm:block" />
@@ -1040,7 +1036,7 @@ export default function InterviewPage() {
             {status === "idle" || status === "ended" ? (
               <button
                 onClick={startInterview}
-                className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-violet-600 px-4 text-sm font-black"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-violet-600 px-3 text-sm font-black sm:h-10 sm:gap-2 sm:px-4"
               >
                 <Play className="h-4 w-4" />
                 Start
@@ -1048,7 +1044,7 @@ export default function InterviewPage() {
             ) : (
               <button
                 onClick={endInterview}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-red-500/40 px-4 text-sm font-black text-red-300 lg:px-5"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-red-500/40 px-3 text-sm font-black text-red-300 sm:h-10 sm:gap-2 sm:px-4 lg:px-5"
               >
                 <PhoneOff className="h-4 w-4" />
                 End Interview
@@ -1061,18 +1057,184 @@ export default function InterviewPage() {
             >
               <Volume2 className={`h-5 w-5 ${audioEnabled ? "" : "text-slate-500"}`} />
             </button>
-            <button className="hidden h-10 w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.03] sm:grid">
-              <Settings className="h-5 w-5" />
-            </button>
-            <button className="hidden h-10 w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.03] md:grid">
-              <MoreVertical className="h-5 w-5" />
-            </button>
+            <div className="relative hidden sm:block">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsOpen((value) => !value);
+                    setMoreOpen(false);
+                  }}
+                  className="grid h-10 w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.08]"
+                  aria-label="Interview settings"
+                >
+                  <Settings className="h-5 w-5" />
+                </button>
+
+                {settingsOpen ? (
+                  <div className="absolute right-0 top-12 z-50 max-h-[calc(100vh-96px)] w-[330px] overflow-y-auto rounded-2xl border border-white/10 bg-[#091323]/95 p-4 shadow-2xl backdrop-blur-xl">
+                    <div className="mb-4">
+                      <p className="text-sm font-black text-white">Interview Settings</p>
+                      <p className="mt-1 text-xs text-slate-400">Adjust only this interview room.</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <section>
+                        <p className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Recruiter</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {["Sarah", "Priya", "Daniel", "Markus"].map((name) => (
+                            <button
+                              key={name}
+                              type="button"
+                              className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
+                                setup.recruiterName === name
+                                  ? "border-blue-400/60 bg-blue-500/15 text-white"
+                                  : "border-white/10 bg-white/[0.03] text-slate-300"
+                              }`}
+                            >
+                              {name}
+                            </button>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section>
+                        <p className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Interview Atmosphere</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(["Supportive", "Realistic", "Challenging", "Brutal"] as const).map((style) => (
+                            <button
+                              key={style}
+                              type="button"
+                              onClick={() => setInterviewStyle(style)}
+                              className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
+                                interviewStyle === style
+                                  ? "border-violet-400/60 bg-violet-500/15 text-white"
+                                  : "border-white/10 bg-white/[0.03] text-slate-300"
+                              }`}
+                            >
+                              {style}
+                            </button>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section className="space-y-3">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Voice Settings</p>
+                        <button
+                          type="button"
+                          onClick={() => setAudioEnabled((value) => !value)}
+                          className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm"
+                        >
+                          <span>Voice On/Off</span>
+                          <span className="text-slate-400">{audioEnabled ? "On" : "Off"}</span>
+                        </button>
+                        <label className="block rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+                          <div className="mb-2 flex items-center justify-between">
+                            <span>Voice Speed</span>
+                            <span className="text-slate-400">{voiceSpeed.toFixed(2)}x</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.75"
+                            max="1.15"
+                            step="0.05"
+                            value={voiceSpeed}
+                            onChange={(event) => setVoiceSpeed(Number(event.target.value))}
+                            className="w-full"
+                          />
+                        </label>
+                      </section>
+
+                      <section className="space-y-2">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Transcript</p>
+                        <button type="button" onClick={() => setShowTranscript((value) => !value)} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+                          <span>{showTranscript ? "Hide Transcript" : "Show Live Transcript"}</span>
+                          <span className="text-slate-400">{showTranscript ? "On" : "Off"}</span>
+                        </button>
+                        <button type="button" onClick={() => setAutoScrollTranscript((value) => !value)} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+                          <span>Auto-scroll Transcript</span>
+                          <span className="text-slate-400">{autoScrollTranscript ? "On" : "Off"}</span>
+                        </button>
+                      </section>
+
+                      <section className="space-y-2">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Live Copilot</p>
+                        <button type="button" onClick={() => setShowCopilot((value) => !value)} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+                          <span>{showCopilot ? "Hide Live Copilot" : "Show Live Copilot"}</span>
+                          <span className="text-slate-400">{showCopilot ? "On" : "Off"}</span>
+                        </button>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(["Low", "Medium", "High"] as const).map((level) => (
+                            <button
+                              key={level}
+                              type="button"
+                              onClick={() => setCopilotAggressiveness(level)}
+                              className={`rounded-xl border px-3 py-2 text-sm font-bold ${
+                                copilotAggressiveness === level
+                                  ? "border-blue-400/60 bg-blue-500/15 text-white"
+                                  : "border-white/10 bg-white/[0.03] text-slate-300"
+                              }`}
+                            >
+                              {level}
+                            </button>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section className="space-y-2">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Interview Controls</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button type="button" onClick={stopListening} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm font-bold text-slate-200">Pause</button>
+                          <button type="button" onClick={() => speakRecruiter(recruiterQuestions[Math.max(0, questionIndex)])} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm font-bold text-slate-200">Restart question</button>
+                        </div>
+                      </section>
+
+                      <section>
+                        <p className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Accessibility</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button type="button" className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm font-bold text-slate-200">Larger text</button>
+                          <button type="button" className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm font-bold text-slate-200">High contrast</button>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="relative hidden md:block">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen((value) => !value);
+                    setSettingsOpen(false);
+                  }}
+                  className="grid h-10 w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.08]"
+                  aria-label="More interview actions"
+                >
+                  <MoreVertical className="h-5 w-5" />
+                </button>
+
+                {moreOpen ? (
+                  <div className="absolute right-0 top-12 z-50 w-56 rounded-2xl border border-white/10 bg-[#091323]/95 p-2 shadow-2xl backdrop-blur-xl">
+                    {["Take Notes", "Report Issue", "Help Center", "Exit Interview"].map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={item === "Exit Interview" ? endInterview : undefined}
+                        className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-200 hover:bg-white/[0.06]"
+                      >
+                        {item}
+                        <ChevronRight className="h-4 w-4 text-slate-500" />
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
           </div>
         </header>
 
-        <div className="grid min-h-0 grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[1fr_400px] lg:overflow-hidden lg:p-4">
-          <div className="grid min-h-0 gap-3 lg:grid-rows-[62vh_28vh]">
-            <section className="relative h-[280px] overflow-hidden rounded-2xl border border-white/10 bg-[#0b1527] sm:h-[390px] lg:h-auto">
+        <div className="grid grid-cols-1 gap-3 overflow-x-hidden p-3 pb-24 lg:min-h-0 lg:grid-cols-[1fr_400px] lg:overflow-hidden lg:p-4">
+          <div className="grid gap-3 lg:min-h-0 lg:grid-rows-[62vh_28vh]">
+            <section className="relative h-[260px] overflow-hidden rounded-2xl border border-white/10 bg-[#0b1527] sm:h-[390px] lg:h-auto">
               <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-blue-500/20 blur-3xl workzo-recruiter-presence" />
               <div className="absolute inset-0 will-change-transform workzo-recruiter-breath">
                 <Image
@@ -1091,39 +1253,44 @@ export default function InterviewPage() {
                 <span className="inline-block h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.9)] workzo-status-pulse" /> {status === "recruiter-speaking" ? "SPEAKING" : status === "listening" ? "LISTENING" : status === "thinking" ? "THINKING" : "LIVE"}
               </div>
 
-              <div className="absolute bottom-5 left-5">
+              <div className="absolute bottom-4 left-3 max-w-[145px] sm:bottom-5 sm:left-5 sm:max-w-none">
                 <div className="flex items-center gap-2 text-lg font-black">
                   {setup.recruiterName}
                   <CheckCircle2 className="h-5 w-5 fill-blue-500 text-blue-500" />
                 </div>
-                <p className="mt-1 text-sm text-white/85">{setup.recruiterTitle}</p>
+                <p className="mt-1 truncate text-xs text-white/85 sm:text-sm">{setup.recruiterTitle}</p>
               </div>
 
-              <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-3 sm:bottom-5 sm:gap-4">
+              <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2 sm:bottom-5 sm:gap-4">
                 <button
                   onClick={toggleMic}
-                  className={`grid h-11 w-11 place-items-center rounded-full shadow-2xl sm:h-14 sm:w-14 ${
+                  className={`grid h-10 w-10 place-items-center rounded-full sm:h-14 sm:w-14 shadow-2xl ${
                     status === "listening" ? "bg-blue-500 text-white" : "bg-white text-slate-950"
                   }`}
                 >
                   {status === "listening" ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
                 </button>
-                <button className="grid h-11 w-11 place-items-center rounded-full bg-white text-slate-950 shadow-2xl sm:h-14 sm:w-14">
+                <button className="grid h-10 w-10 place-items-center rounded-full sm:h-14 sm:w-14 bg-white text-slate-950 shadow-2xl sm:h-14 sm:w-14">
                   <Video className="h-6 w-6" />
                 </button>
-                <button className="grid h-11 w-11 place-items-center rounded-full bg-white text-slate-950 shadow-2xl sm:h-14 sm:w-14">
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(true)}
+                  className="grid h-10 w-10 place-items-center rounded-full sm:h-14 sm:w-14 bg-white text-slate-950 shadow-2xl sm:h-14 sm:w-14"
+                  aria-label="Interview settings"
+                >
                   <Settings className="h-6 w-6" />
                 </button>
                 <button
                   onClick={endInterview}
-                  className="grid h-11 w-11 place-items-center rounded-full bg-red-500 text-white shadow-2xl sm:h-14 sm:w-14"
+                  className="grid h-10 w-10 place-items-center rounded-full sm:h-14 sm:w-14 bg-red-500 text-white shadow-2xl sm:h-14 sm:w-14"
                 >
                   <PhoneOff className="h-6 w-6" />
                 </button>
               </div>
             </section>
 
-            <section className="min-h-[210px] rounded-2xl border border-white/10 bg-[#0b1527]/95 lg:min-h-0">
+            <section style={{ display: showTranscript ? undefined : "none" }} className="rounded-2xl border border-white/10 bg-[#0b1527]/95 lg:min-h-0">
               <div className="flex h-12 items-center justify-between border-b border-white/10 px-5">
                 <div className="flex items-center gap-3">
                   <h2 className="text-lg font-black">Live Transcript</h2>
@@ -1132,13 +1299,17 @@ export default function InterviewPage() {
                 </div>
                 <div className="hidden items-center gap-3 text-sm text-slate-300 sm:flex">
                   Auto-scroll
-                  <span className="relative h-5 w-9 rounded-full bg-blue-500">
-                    <span className="absolute right-1 top-1 h-3 w-3 rounded-full bg-white" />
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAutoScrollTranscript((value) => !value)}
+                    className={`relative h-5 w-9 rounded-full ${autoScrollTranscript ? "bg-blue-500" : "bg-white/15"}`}
+                  >
+                    <span className={`absolute top-1 h-3 w-3 rounded-full bg-white transition ${autoScrollTranscript ? "right-1" : "left-1"}`} />
+                  </button>
                 </div>
               </div>
 
-              <div className="h-[190px] overflow-y-auto px-4 py-2 lg:h-[calc(100%-86px)]">
+              <div className="max-h-[230px] overflow-y-auto px-4 py-2 lg:h-[calc(100%-86px)] lg:max-h-none">
                 <div className="divide-y divide-white/8">
                   {transcript.map((line) => (
                     <div
@@ -1157,7 +1328,7 @@ export default function InterviewPage() {
                       >
                         {line.speaker}
                       </span>
-                      <span className="line-clamp-2 leading-6 text-slate-100">{line.text}</span>
+                      <span className="leading-6 text-slate-100 max-sm:line-clamp-none sm:line-clamp-2">{line.text}</span>
                     </div>
                   ))}
 
@@ -1173,7 +1344,7 @@ export default function InterviewPage() {
                 </div>
               </div>
 
-              <div className="flex h-10 items-center justify-between border-t border-white/10 px-5 text-xs text-slate-400">
+              <div className="flex min-h-10 flex-wrap items-center justify-between gap-2 border-t border-white/10 px-4 py-2 text-xs text-slate-400 sm:px-5">
                 <span>Transcript is AI-generated and may not be 100% accurate.</span>
                 <button onClick={() => setTranscript([])} className="hover:text-white">
                   Clear Transcript
@@ -1182,10 +1353,10 @@ export default function InterviewPage() {
             </section>
           </div>
 
-          <aside className="grid min-h-0 gap-3 lg:grid-rows-[250px_minmax(0,1fr)_110px]">
+          <aside className="grid gap-3 lg:min-h-0 lg:grid-rows-[250px_minmax(0,1fr)_110px]">
             <section className="rounded-2xl border border-white/10 bg-[#0b1527] p-4">
               <h2 className="text-lg font-black">Interview Score</h2>
-              <div className="mt-3 flex items-center gap-4">
+              <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center">
                 <div className="grid h-28 w-28 place-items-center rounded-full border-[10px] border-blue-500 bg-[#07111f] shadow-[0_0_0_10px_rgba(124,58,237,0.2)]">
                   <div className="text-center">
                     <div className="text-4xl font-black">78</div>
@@ -1193,7 +1364,7 @@ export default function InterviewPage() {
                   </div>
                 </div>
 
-                <div className="min-w-0 flex-1 space-y-2.5">
+                <div className="w-full min-w-0 flex-1 space-y-2.5">
                   {scoreItems.map((item) => {
                     const Icon = item.icon;
                     return (
@@ -1216,10 +1387,10 @@ export default function InterviewPage() {
               </p>
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-[#0b1527] p-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-black text-blue-300">
-                    Live Copilot{" "}
+            <section style={{ display: showCopilot ? undefined : "none" }} className="rounded-2xl border border-white/10 bg-[#0b1527] p-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-black text-blue-300">
+                  Live Copilot{" "}
                   <span className="ml-2 rounded-full bg-violet-400/15 px-2 py-1 text-xs text-violet-200">
                     Beta
                   </span>
@@ -1230,7 +1401,7 @@ export default function InterviewPage() {
               </div>
 
               <p className="mt-3 text-sm font-semibold text-slate-200">Live guidance</p>
-              <div className="mt-2 max-h-[calc(100%-58px)] space-y-2 overflow-y-auto pr-1">
+              <div className="mt-2 max-h-[220px] space-y-2 overflow-y-auto pr-1 lg:max-h-[calc(100%-58px)]">
                 <div className="rounded-xl border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-1.5">
                   <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200">Say next</p>
                   <p className="mt-1 text-[13px] leading-5 text-slate-100">Use one real example and state the result.</p>
