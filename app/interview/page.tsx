@@ -2619,20 +2619,7 @@ export default function InterviewPage() {
       setElapsed(restoredSnapshot.elapsed);
       setQuestionIndex(restoredSnapshot.questionIndex);
       setInterimText("");
-      const lastCandidateAnswer = getLastCandidateAnswer(restoredSnapshot.transcript);
-      const lastRecruiterQuestion = getLastRecruiterQuestion(restoredSnapshot.transcript);
       const candidateAnswers = countCandidateAnswers(restoredSnapshot.transcript);
-      const resumePrompt =
-        lastCandidateAnswer && restoredSnapshot.transcript[restoredSnapshot.transcript.length - 1]?.role === "candidate"
-          ? `Welcome back, ${safeGreetingName(restoredSnapshot.setup.candidateName)}. I have your last answer saved. Let’s continue from there. ${buildRecruiterReply(
-              lastCandidateAnswer,
-              Math.max(1, restoredSnapshot.questionIndex),
-              restoredSnapshot.setup,
-              restoredSnapshot.recruiterMemory,
-            )}`
-          : `Welcome back, ${safeGreetingName(restoredSnapshot.setup.candidateName)}. Let’s continue from where we stopped. Please answer the last question again: ${
-              lastRecruiterQuestion || recruiterQuestions[Math.max(0, Math.min(candidateAnswers, recruiterQuestions.length - 1))]
-            }`;
 
       trackWorkZoFailureEvent("interview_recovered_and_resumed", {
         role: restoredSnapshot.setup.targetRole,
@@ -2647,7 +2634,14 @@ export default function InterviewPage() {
       setRecoverySnapshot(null);
       setRecoveryNoticeDismissed(false);
       setPremiumVoiceError("");
-      setPremiumVoiceStatus((current) => (current === "connected" ? current : "fallback"));
+
+      // Important: restored interviews must not auto-drop into browser TTS fallback.
+      // Recovery restores state first; Vapi should reconnect only through the normal
+      // premium voice path, and if it cannot reconnect we keep the interview idle.
+      vapiFallbackStartedRef.current = false;
+      vapiStartingRef.current = false;
+      vapiConnectedRef.current = false;
+      setPremiumVoiceStatus("idle");
 
       const nextQuestionIndex = Math.max(
         restoredSnapshot.questionIndex,
@@ -2657,7 +2651,34 @@ export default function InterviewPage() {
       questionIndexRef.current = nextQuestionIndex;
       setQuestionIndex(nextQuestionIndex);
 
-      speakRecruiter(resumePrompt);
+      if (premiumVoiceEnabledRef.current && audioEnabledRef.current) {
+        const reconnectedPremiumVoice = await startPremiumVoice(restoredSetup);
+
+        if (reconnectedPremiumVoice) {
+          addTranscript({
+            role: "system",
+            speaker: "System",
+            text: "Interview restored. Premium voice reconnected.",
+          });
+          setStatus("listening");
+          return;
+        }
+
+        addTranscript({
+          role: "system",
+          speaker: "System",
+          text: "Interview restored. Premium voice is not connected yet. Tap Start again when you are ready to reconnect voice.",
+        });
+        setStatus("idle");
+        return;
+      }
+
+      addTranscript({
+        role: "system",
+        speaker: "System",
+        text: "Interview restored. Voice is idle. Tap Start when you are ready to continue.",
+      });
+      setStatus("idle");
       return;
     }
 
@@ -2881,12 +2902,15 @@ export default function InterviewPage() {
       questionIndex: snapshot.questionIndex,
     }, "low");
 
-    window.setTimeout(() => {
-      const activeSnapshot = recoveredSessionRef.current;
-      if (!activeSnapshot) return;
-      startInterview();
-    }, 250);
-  }, [recoverySnapshot, startInterview, stopListening, stopPremiumVoice]);
+    // Do not auto-start after restore. Auto-start was forcing the restored session
+    // into browser TTS fallback on some devices. The user can tap Start to reconnect
+    // Vapi through the normal voice path.
+    vapiFallbackStartedRef.current = false;
+    vapiStartingRef.current = false;
+    vapiConnectedRef.current = false;
+    setPremiumVoiceStatus("idle");
+    setPremiumVoiceError("");
+  }, [recoverySnapshot, stopListening, stopPremiumVoice]);
 
   const discardInterviewSnapshot = useCallback(() => {
     const snapshot = recoverySnapshotRef.current || recoverySnapshot;
