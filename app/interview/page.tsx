@@ -27,6 +27,17 @@ import {
   Volume2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import UpgradeModal from "@/components/premium/UpgradeModal";
+import PremiumUsageBadge from "@/components/premium/PremiumUsageBadge";
+import {
+  checkWorkZoInterviewAllowed,
+  checkWorkZoTavusAllowed,
+  getWorkZoCurrentPlan,
+  recordWorkZoInterviewStarted,
+  recordWorkZoTavusInterviewStarted,
+} from "@/lib/workzoUsageTracker";
+import { getWorkZoPlanLimits } from "@/lib/workzoPlanLimits";
+
 import {
   buildWorkZoVapiVariableValues,
   createWorkZoVapiClient,
@@ -687,34 +698,8 @@ function safeLocalStorageList(key: string) {
 }
 
 function isWorkZoPremiumUnlocked() {
-  if (typeof window === "undefined") return false;
-
-  try {
-    const directFlags = [
-      "workzo_premium_unlocked",
-      "workzoPremiumUnlocked",
-      "workzo_pro_unlocked",
-      "workzoProUnlocked",
-    ];
-
-    for (const key of directFlags) {
-      const value = window.localStorage.getItem(key);
-      if (value === "true" || value === "1" || value === "yes") return true;
-    }
-
-    const rawSubscription =
-      window.localStorage.getItem("workzo_subscription") ||
-      window.localStorage.getItem("workzoSubscription") ||
-      window.localStorage.getItem("subscription");
-
-    if (!rawSubscription) return false;
-
-    const subscription = JSON.parse(rawSubscription) as Record<string, unknown>;
-    const plan = String(subscription.plan || subscription.tier || subscription.status || "").toLowerCase();
-    return /premium|pro|paid|active/.test(plan);
-  } catch {
-    return false;
-  }
+  const limits = getWorkZoPlanLimits(getWorkZoCurrentPlan());
+  return limits.tavus || limits.advancedReports;
 }
 
 function pushWorkZoLocalEvent(key: string, eventName: string, payload: Record<string, unknown> = {}, limit = 500) {
@@ -2243,6 +2228,9 @@ export default function InterviewPage() {
     };
   }, []);
   const [setupLoaded, setSetupLoaded] = useState(false);
+
+  const [upgradeModalFeature, setUpgradeModalFeature] = useState<string>("");
+  const upgradeModalOpen = Boolean(upgradeModalFeature);
   const [setup, setSetup] = useState<InterviewSetup>({
     candidateName: "Candidate",
     targetRole: "Interview Role",
@@ -2802,8 +2790,39 @@ export default function InterviewPage() {
     [speakRecruiter],
   );
 
+  
+  function openUpgradeModal(feature: string) {
+    setUpgradeModalFeature(feature);
+  }
+
+  function closeUpgradeModal() {
+    setUpgradeModalFeature("");
+  }
+
+  function handleUpgradeInterest() {
+    setUpgradeModalFeature("");
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        "workzo_pending_upgrade_route",
+        JSON.stringify({
+          feature: upgradeModalFeature || "premium",
+          createdAt: new Date().toISOString(),
+        }),
+      );
+    }
+  }
+
   const startPremiumVoice = useCallback(
     async (activeSetup: InterviewSetup) => {
+    const tavusCheck = checkWorkZoTavusAllowed();
+    if (!tavusCheck.allowed) {
+      openUpgradeModal("tavus");
+      setPremiumVoiceStatus("fallback");
+      return;
+    }
+
+    recordWorkZoTavusInterviewStarted();
+
       if (vapiStartingRef.current || vapiConnectedRef.current) return true;
 
       // Reset stale client/call state first, then mark this new Vapi start attempt.
@@ -3536,7 +3555,8 @@ export default function InterviewPage() {
                 className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-red-500/40 px-3 text-sm font-black text-red-300 sm:h-10 sm:gap-2 sm:px-4 lg:px-5"
               >
                 <PhoneOff className="h-4 w-4" />
-                End Interview
+                <PremiumUsageBadge compact />
+              End Interview
               </button>
             )}
 
@@ -4048,7 +4068,14 @@ export default function InterviewPage() {
                       <>
                         <div className="text-sm font-black uppercase tracking-[0.14em] text-blue-100">Ready</div>
                         <div className="text-[10px] text-slate-400">first answer</div>
-                      </>
+                      
+      <UpgradeModal
+        open={upgradeModalOpen}
+        feature={upgradeModalFeature}
+        onClose={closeUpgradeModal}
+        onUpgrade={handleUpgradeInterest}
+      />
+</>
                     )}
                     {scoreFlash ? (
                       <div className={`mt-1 text-[10px] font-black uppercase ${scoreFlash === "up" ? "text-emerald-300" : "text-amber-300"}`}>
