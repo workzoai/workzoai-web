@@ -248,9 +248,7 @@ function saveSetupToStore(nextSetup: SetupState, store: unknown) {
   const normalizedSetup: SetupState = {
     ...nextSetup,
     recruiterPersonality: normalizeRecruiterKey(nextSetup.recruiterPersonality),
-    language: normalizeInterviewLanguage(nextSetup.language || nextSetup.interviewLanguage || nextSetup.selectedLanguage),
-    interviewLanguage: normalizeInterviewLanguage(nextSetup.language || nextSetup.interviewLanguage || nextSetup.selectedLanguage),
-    selectedLanguage: normalizeInterviewLanguage(nextSetup.language || nextSetup.interviewLanguage || nextSetup.selectedLanguage),
+    language: normalizeInterviewLanguage(nextSetup.language),
     targetMarket: nextSetup.targetMarket || nextSetup.country || "Global",
     country: nextSetup.targetMarket || nextSetup.country || "Global",
   };

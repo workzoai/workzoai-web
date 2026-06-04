@@ -1549,37 +1549,26 @@ function companyStyleInstructions(style: CompanyInterviewStyle) {
 }
 
 function normalizeInterviewLanguage(value?: string) {
-  const raw = safeText(value, "English").trim().toLowerCase();
+  const raw = safeText(value, "en-US").toLowerCase();
 
-  const matches = (...items: string[]) =>
-    items.some((item) => raw === item || raw.includes(item));
-
-  if (matches("german", "deutsch", "de-de", "deutschland", "germany") || raw === "de") {
-    return { code: "de-DE", label: "German", instruction: "Conduct the entire interview in German." };
+  if (raw.includes("de") || raw.includes("german") || raw.includes("deutsch")) {
+    return { code: "de-DE", label: "German", instruction: "Conduct the interview in German. Keep recruiter questions natural, professional, and concise." };
   }
 
-  if (matches("dutch", "nederlands", "nl-nl", "netherlands", "nederland") || raw === "nl") {
-    return { code: "nl-NL", label: "Dutch", instruction: "Conduct the entire interview in Dutch." };
+  if (raw.includes("nl") || raw.includes("dutch") || raw.includes("nederlands")) {
+    return { code: "nl-NL", label: "Dutch", instruction: "Conduct the interview in Dutch. Keep recruiter questions natural, professional, and concise." };
   }
 
-  if (matches("french", "français", "francais", "fr-fr", "france") || raw === "fr") {
-    return { code: "fr-FR", label: "French", instruction: "Conduct the entire interview in French." };
+  if (raw.includes("hi") || raw.includes("hindi")) {
+    return { code: "hi-IN", label: "Hindi", instruction: "Conduct the interview in Hindi when possible. If voice support is limited, use clear simple English with Hindi-friendly phrasing." };
   }
 
-  if (matches("spanish", "español", "espanol", "es-es", "spain") || raw === "es") {
-    return { code: "es-ES", label: "Spanish", instruction: "Conduct the entire interview in Spanish." };
+  if (raw.includes("ta") || raw.includes("tamil")) {
+    return { code: "ta-IN", label: "Tamil", instruction: "Conduct the interview in Tamil when possible. If voice support is limited, use clear simple English with Tamil-friendly phrasing." };
   }
 
-  if (matches("italian", "italiano", "it-it", "italy") || raw === "it") {
-    return { code: "it-IT", label: "Italian", instruction: "Conduct the entire interview in Italian." };
-  }
-
-  if (matches("portuguese", "português", "portugues", "pt-pt", "pt-br", "portugal", "brazil") || raw === "pt") {
-    return {
-      code: raw.includes("brazil") || raw === "pt-br" ? "pt-BR" : "pt-PT",
-      label: "Portuguese",
-      instruction: "Conduct the entire interview in Portuguese.",
-    };
+  if (raw.includes("auto")) {
+    return { code: "en-US", label: "Auto", instruction: "Use the candidate's selected or detected language. If unsure, default to English." };
   }
 
   return { code: "en-US", label: "English", instruction: "Conduct the interview in English." };
@@ -1639,14 +1628,15 @@ function buildLanguageInstruction(setup: InterviewSetup) {
   return [
     `MANDATORY INTERVIEW LANGUAGE: ${language.label}.`,
     language.instruction,
-    "All recruiter questions, follow-ups, transcript messages, browser TTS replies, and Vapi replies must use this selected language.",
+    "All recruiter questions, follow-ups, clarifications, pressure moments, transcript messages, and fallback TTS replies must use this selected language.",
     "Do not default to English unless the selected language is English or the candidate explicitly asks to switch.",
+    "Evaluate internally however needed, but speak to the candidate in the selected language.",
   ].join(" ");
 }
 
 function localizedOpeningQuestion(setup: InterviewSetup) {
   const language = normalizeInterviewLanguage(setup.language);
-  const name = safeGreetingName(normalizeCandidateName(setup.candidateName) || "Candidate");
+  const name = safeGreetingName(setup.candidateName);
   const role = setup.targetRole || "this role";
 
   if (language.code === "de-DE") {
@@ -1657,27 +1647,15 @@ function localizedOpeningQuestion(setup: InterviewSetup) {
     return `Hallo ${name}. Laten we beginnen met je interview voor de rol ${role}. Kun je kort je achtergrond toelichten en uitleggen waarom deze rol relevant voor je is?`;
   }
 
-  if (language.code === "fr-FR") {
-    return `Bonjour ${name}. Commençons ton entretien pour le poste ${role}. Peux-tu me présenter brièvement ton parcours et expliquer pourquoi ce poste est pertinent pour toi ?`;
+  if (language.code === "hi-IN") {
+    return `Hi ${name}. Let’s begin your interview for the ${role} role. Please answer in Hindi or English, whichever feels natural. ${recruiterQuestions[0]}`;
   }
 
-  if (language.code === "es-ES") {
-    return `Hola ${name}. Empecemos tu entrevista para el puesto ${role}. ¿Puedes resumir tu trayectoria y explicar por qué este puesto es relevante para ti?`;
+  if (language.code === "ta-IN") {
+    return `Hi ${name}. Let’s begin your interview for the ${role} role. Please answer in Tamil or English, whichever feels natural. ${recruiterQuestions[0]}`;
   }
 
-  if (language.code === "it-IT") {
-    return `Ciao ${name}. Iniziamo il colloquio per il ruolo ${role}. Puoi raccontarmi brevemente il tuo percorso e spiegare perché questo ruolo è rilevante per te?`;
-  }
-
-  if (language.code === "pt-BR") {
-    return `Olá ${name}. Vamos começar sua entrevista para a função ${role}. Você pode resumir sua trajetória e explicar por que essa função é relevante para você?`;
-  }
-
-  if (language.code === "pt-PT") {
-    return `Olá ${name}. Vamos começar a tua entrevista para a função ${role}. Podes resumir o teu percurso e explicar porque esta função é relevante para ti?`;
-  }
-
-  return `Hi ${name}. Let’s begin your interview for the ${role} role. Can you walk me through your background and what makes you interested in this role?`;
+  return `Hi ${name}. Let’s begin your interview for the ${role} role. ${recruiterQuestions[0]}`;
 }
 
 function buildContextQualityNotice(setup: InterviewSetup) {
@@ -3475,7 +3453,7 @@ export default function InterviewPage() {
                 <ArrowLeft className="h-5 w-5" />
               </button>
 
-              <Link href="/dashboard" className="flex items-center gap-3">
+              <Link href="/" className="flex items-center gap-3">
                 <Image
                   src="/workzo_icon.png"
                   alt="WorkZo AI"
