@@ -321,7 +321,7 @@ export default function LandingPage() {
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/login" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-7 py-4 text-base font-black text-slate-900 shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-blue-50">
+              <Link href="/pricing?intent=interview" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-7 py-4 text-base font-black text-slate-900 shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-blue-50">
                 Start Free Interview
                 <ArrowRight className="h-5 w-5" />
               </Link>
@@ -417,36 +417,57 @@ export default function LandingPage() {
       {/* ── Pricing ── */}
       <section className="px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-2">
-          <div className="flex flex-col rounded-[2rem] border border-white/20 bg-black/20 p-8 backdrop-blur-sm">
-            <p className="text-sm font-black uppercase tracking-[0.20em] text-white/50">Free beta</p>
-            <h3 className="mt-3 text-3xl font-black">Start with interview practice</h3>
-            <p className="mt-3 text-white/60">Practice a realistic recruiter interview based on your CV and target role.</p>
+          <div className="flex flex-col rounded-[2rem] border border-emerald-300/20 bg-emerald-400/[0.06] p-8 backdrop-blur-sm">
+            <p className="text-sm font-black uppercase tracking-[0.20em] text-emerald-300">Free</p>
+            <h3 className="mt-3 text-3xl font-black">2 Free AI Voice Interviews</h3>
+            <p className="mt-3 text-white/60">
+              Experience realistic recruiter interviews with AI voice before upgrading.
+            </p>
             <ul className="mt-5 space-y-2">
-              {["CV + job description aware", "Dynamic recruiter follow-ups", "Live score and trust tracking", "Feedback after every session"].map((item) => (
+              {[
+                "2 full AI voice interviews",
+                "CV + job aware interview",
+                "Dynamic recruiter follow-ups",
+                "Interview score preview",
+              ].map((item) => (
                 <li key={item} className="flex items-center gap-2 text-sm text-white/80">
                   <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />{item}
                 </li>
               ))}
             </ul>
-            <Link href="/login" className="mt-8 inline-flex items-center gap-2 self-start rounded-2xl bg-white px-6 py-3 text-sm font-black text-slate-900 shadow-lg transition hover:scale-[1.02] hover:bg-blue-50">
+            <Link href="/pricing?intent=interview" className="mt-8 inline-flex items-center gap-2 self-start rounded-2xl bg-white px-6 py-3 text-sm font-black text-slate-900 shadow-lg transition hover:scale-[1.02] hover:bg-blue-50">
               Start Free Interview
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
 
-          <div className="flex flex-col rounded-[2rem] border border-white/[0.10] bg-black/10 p-8 backdrop-blur-sm">
-            <p className="text-sm font-black uppercase tracking-[0.20em] text-white/30">Premium</p>
-            <h3 className="mt-3 text-3xl font-black text-white/60">Notify me when premium launches</h3>
-            <p className="mt-3 text-white/40">Advanced recruiter memory, deeper results, and more interview modes.</p>
+          <div className="flex flex-col rounded-[2rem] border border-blue-300/25 bg-blue-500/[0.08] p-8 backdrop-blur-sm">
+            <p className="text-sm font-black uppercase tracking-[0.20em] text-blue-200">Premium</p>
+            <h3 className="mt-3 text-3xl font-black text-white">Unlock AI Video Recruiter</h3>
+            <p className="mt-2 text-5xl font-black">
+              €14.99<span className="text-xl text-white/50">/month</span>
+            </p>
+            <p className="mt-4 text-white/60">
+              Practice with realistic AI recruiter avatars, full interview reports, recruiter memory,
+              CV tools, and job preparation features.
+            </p>
             <ul className="mt-5 space-y-2">
-              {["Advanced recruiter memory", "Deeper post-interview reports", "More recruiter personalities", "Priority access"].map((item) => (
-                <li key={item} className="flex items-center gap-2 text-sm text-white/30">
-                  <ShieldCheck className="h-4 w-4 shrink-0 text-white/20" />{item}
+              {[
+                "25 interviews/month",
+                "AI Video Recruiter",
+                "Full interview reports",
+                "Interview history",
+                "Improve CV",
+                "Cover Letter Generator",
+                "Job Assist",
+              ].map((item) => (
+                <li key={item} className="flex items-center gap-2 text-sm text-white/80">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-blue-200" />{item}
                 </li>
               ))}
             </ul>
-            <Link href="/pricing" className="mt-8 inline-flex items-center gap-2 self-start rounded-2xl border border-white/[0.12] bg-white/[0.06] px-6 py-3 text-sm font-black text-white/50 transition hover:bg-white/[0.12] hover:text-white">
-              View Pricing
+            <Link href="/pricing?intent=upgrade" className="mt-8 inline-flex items-center gap-2 self-start rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] hover:bg-blue-400">
+              Upgrade to Premium
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>

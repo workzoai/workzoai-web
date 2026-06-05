@@ -1,172 +1,280 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Briefcase,
-  CheckCircle2,
-  FileText,
-  Mic,
-  PlayCircle,
-  Sparkles,
-  User,
-} from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowRight, CheckCircle2, Mic, Play, Sparkles, Volume2 } from "lucide-react";
 
-const demoCv = `Sarah Johnson
-Customer Success Manager
+const demoRoles = [
+  "Customer Success Manager",
+  "Data Analyst",
+  "Software Engineer",
+  "IT Support Specialist",
+];
 
-Experience
-Customer Success Specialist at CloudBridge SaaS
-- Managed onboarding for B2B SaaS customers
-- Reduced customer churn by improving onboarding handoff
-- Worked with support, sales, and product teams
-- Handled customer escalations and retention conversations
+const recruiters = [
+  { id: "sarah", name: "Sarah", style: "Friendly HR Recruiter", voiceHint: "female" },
+  { id: "daniel", name: "Daniel", style: "Analytical Hiring Manager", voiceHint: "male" },
+  { id: "priya", name: "Priya", style: "Startup Recruiter", voiceHint: "female" },
+];
 
-Skills
-Customer onboarding, SaaS support, relationship management, CRM, renewals, communication`;
+const questions = [
+  "Tell me briefly about yourself and why this role interests you.",
+  "Give me one example where you solved a real problem.",
+  "What measurable result or impact came from your work?",
+];
 
-const demoJobDescription = `Customer Success Manager
+function pickVoice(voices: SpeechSynthesisVoice[], recruiterId: string) {
+  const femaleVoiceNames = [
+    "zira",
+    "jenny",
+    "aria",
+    "samantha",
+    "susan",
+    "victoria",
+    "karen",
+    "moira",
+    "tessa",
+    "serena",
+    "ava",
+    "emma",
+    "amy",
+    "joanna",
+    "salli",
+    "female",
+  ];
 
-We are looking for a Customer Success Manager to own onboarding, improve retention, manage customer relationships, identify expansion opportunities, and work cross-functionally with sales, support, and product teams.
+  const maleVoiceNames = [
+    "david",
+    "mark",
+    "george",
+    "daniel",
+    "alex",
+    "tom",
+    "male",
+  ];
 
-Requirements
-- SaaS or B2B customer-facing experience
-- Strong communication and stakeholder management
-- Comfortable with CRM tools
-- Ability to handle objections and difficult customer conversations
-- Experience improving retention, adoption, or customer satisfaction`;
+  const isMaleRecruiter = recruiterId === "daniel";
 
-function startDemoInterview() {
-  if (typeof window === "undefined") return;
+  const preferredNames = isMaleRecruiter ? maleVoiceNames : femaleVoiceNames;
+  const blockedNames = isMaleRecruiter ? femaleVoiceNames : maleVoiceNames;
 
-  const demoSetup = {
-    candidateName: "Sarah Johnson",
-    targetRole: "Customer Success Manager",
-    targetCompany: "CloudBridge SaaS",
-    recruiterId: "analytical_hiring_manager",
-    recruiterName: "Daniel",
-    recruiterTitle: "Analytical Hiring Manager",
-    recruiterImage: "/recruiters/daniel.png",
-    language: "en-US",
-    cvText: demoCv,
-    jobDescription: demoJobDescription,
-  };
+  const englishVoices = voices.filter((voice) => /^en/i.test(voice.lang || ""));
 
-  window.localStorage.setItem("workzo_interview_setup", JSON.stringify(demoSetup));
-  window.localStorage.setItem("workzo_demo_mode", "true");
-  window.location.href = "/interview?demo=true";
+  const exactPreferred = englishVoices.find((voice) => {
+    const name = `${voice.name} ${voice.voiceURI}`.toLowerCase();
+    return preferredNames.some((preferred) => name.includes(preferred));
+  });
+
+  if (exactPreferred) return exactPreferred;
+
+  const safeEnglish = englishVoices.find((voice) => {
+    const name = `${voice.name} ${voice.voiceURI}`.toLowerCase();
+    return !blockedNames.some((blocked) => name.includes(blocked));
+  });
+
+  return safeEnglish || englishVoices[0] || voices[0] || null;
 }
 
+function speak(text: string, recruiterId: string) {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+
+  window.speechSynthesis.cancel();
+
+  const voices = window.speechSynthesis.getVoices();
+  const utterance = new SpeechSynthesisUtterance(text);
+  const isMaleRecruiter = recruiterId === "daniel";
+
+  utterance.rate = isMaleRecruiter ? 0.92 : 1;
+  utterance.pitch = isMaleRecruiter ? 0.82 : 1.35;
+  utterance.lang = "en-US";
+
+  const preferred = pickVoice(voices, recruiterId);
+  if (preferred) utterance.voice = preferred;
+
+  window.speechSynthesis.speak(utterance);
+}
+
+function ensureVoicesLoaded() {
+  if (typeof window === "undefined" || !window.speechSynthesis) return Promise.resolve();
+
+  if (window.speechSynthesis.getVoices().length > 0) return Promise.resolve();
+
+  return new Promise<void>((resolve) => {
+    const timeout = window.setTimeout(() => resolve(), 600);
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.clearTimeout(timeout);
+      resolve();
+    };
+  });
+}
+
+
 export default function DemoPage() {
+  const [role, setRole] = useState(demoRoles[0]);
+  const [recruiter, setRecruiter] = useState(recruiters[0]);
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [started, setStarted] = useState(false);
+
+  const currentQuestion = useMemo(() => {
+    return `Hi, I'm ${recruiter.name}. This is a quick WorkZo demo for a ${role} interview. ${questions[questionIndex]}`;
+  }, [questionIndex, recruiter.name, role]);
+
+  async function startDemo() {
+    setStarted(true);
+    setQuestionIndex(0);
+    await ensureVoicesLoaded();
+    speak(currentQuestion, recruiter.id);
+  }
+
+  async function nextQuestion() {
+    const next = Math.min(questionIndex + 1, questions.length - 1);
+    setQuestionIndex(next);
+    const text = `Question ${next + 1}. ${questions[next]}`;
+    await ensureVoicesLoaded();
+    speak(text, recruiter.id);
+  }
+
+  const finished = started && questionIndex >= questions.length - 1;
+
   return (
-    <main className="min-h-screen bg-[#050b14] text-white">
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.20),transparent_34%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_34%),linear-gradient(180deg,#050b14_0%,#08111f_55%,#050b14_100%)]" />
+    <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
+      <div className="mx-auto max-w-6xl">
+        <header className="flex items-center justify-between gap-4">
+          <Link href="/" className="text-sm font-black text-slate-300 hover:text-white">
+            WorkZo AI
+          </Link>
+          <Link
+            href="/pricing?intent=interview"
+            className="rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400"
+          >
+            Start free interview
+          </Link>
+        </header>
 
-      <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-bold text-slate-300 hover:text-white">
-          <ArrowLeft className="h-4 w-4" />
-          Back to home
-        </Link>
-
-        <Link href="/onboarding" className="hidden rounded-xl border border-white/10 px-4 py-2 text-sm font-black text-slate-200 hover:bg-white/[0.06] sm:inline-flex">
-          Use my own CV
-        </Link>
-      </header>
-
-      <section className="mx-auto grid max-w-7xl items-center gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_520px] lg:px-8 lg:py-20">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-blue-200">
-            <PlayCircle className="h-3.5 w-3.5" />
-            WorkZo Demo
-          </div>
-
-          <h1 className="mt-6 text-4xl font-black tracking-tight sm:text-6xl">
-            Try a realistic interview without uploading anything.
-          </h1>
-
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-            This demo uses a sample CV and job description so you can experience WorkZo AI immediately.
-          </p>
-
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={startDemoInterview}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 px-6 py-4 text-base font-black shadow-xl shadow-blue-500/20 transition hover:scale-[1.02]"
-            >
-              Start Demo Interview
-              <ArrowRight className="h-5 w-5" />
-            </button>
-
-            <Link
-              href="/onboarding"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-4 text-base font-black text-slate-100 transition hover:bg-white/[0.08]"
-            >
-              Use my own CV
-            </Link>
-          </div>
-
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            {[
-              ["No upload", "Preloaded demo CV"],
-              ["No setup", "Role already selected"],
-              ["Fast test", "Enter interview room"],
-            ].map(([title, subtitle]) => (
-              <div key={title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="font-black">{title}</p>
-                <p className="mt-1 text-sm text-slate-400">{subtitle}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[2rem] border border-white/10 bg-[#091323]/90 p-5 shadow-2xl">
-          <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-blue-400/10">
-              <User className="h-7 w-7 text-blue-200" />
+        <section className="mt-10 grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-black text-cyan-100">
+              <Sparkles className="h-4 w-4" />
+              Voice demo · no login · no CV
             </div>
-            <div>
-              <p className="text-sm text-slate-400">Demo candidate</p>
-              <h2 className="text-xl font-black">Sarah Johnson</h2>
-              <p className="text-sm text-slate-300">Customer Success Manager</p>
+            <h1 className="mt-5 text-5xl font-black tracking-tight">
+              Hear how WorkZo interviews feel in under 2 minutes.
+            </h1>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
+              This demo uses browser TTS, not AI voice or AI video recruiter. It does not ask for your CV, JD, or account.
+              For the real CV-based experience, start a free interview after the demo.
+            </p>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+              {demoRoles.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setRole(item)}
+                  className={`rounded-2xl border px-4 py-3 text-left text-sm font-black ${
+                    role === item
+                      ? "border-blue-300/40 bg-blue-500/20 text-white"
+                      : "border-white/10 bg-white/[0.04] text-slate-300"
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {recruiters.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setRecruiter(item)}
+                  className={`rounded-2xl border p-4 text-left ${
+                    recruiter.id === item.id
+                      ? "border-cyan-300/40 bg-cyan-400/15"
+                      : "border-white/10 bg-white/[0.04]"
+                  }`}
+                >
+                  <p className="font-black">{item.name}</p>
+                  <p className="mt-1 text-xs text-slate-400">{item.style}</p>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={startDemo}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-500 px-6 text-sm font-black text-white hover:bg-blue-400"
+              >
+                <Play className="h-4 w-4" />
+                Try voice demo
+              </button>
+              <Link
+                href="/pricing?intent=interview"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 px-6 text-sm font-black text-slate-200 hover:bg-white/10"
+              >
+                Start free interview
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-blue-300" />
-                <p className="font-black">Sample CV</p>
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl">
+            <div className="rounded-[1.5rem] bg-gradient-to-br from-blue-500/20 via-violet-500/10 to-cyan-400/10 p-6">
+              <div className="flex items-center gap-4">
+                <div className="grid h-16 w-16 place-items-center rounded-3xl bg-blue-500/20">
+                  <Mic className="h-7 w-7 text-blue-200" />
+                </div>
+                <div>
+                  <p className="text-xl font-black">{recruiter.name}</p>
+                  <p className="text-sm text-slate-300">{recruiter.style}</p>
+                </div>
               </div>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                SaaS onboarding, customer retention, escalations, CRM, cross-functional collaboration.
+
+              <div className="mt-6 rounded-3xl border border-white/10 bg-black/30 p-5">
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">
+                  Demo Question {started ? questionIndex + 1 : 0} of 3
+                </p>
+                <p className="mt-3 text-lg font-bold leading-8 text-white">
+                  {started ? currentQuestion : "Choose a role and recruiter, then start the voice demo."}
+                </p>
+              </div>
+
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  onClick={async () => { await ensureVoicesLoaded(); speak(currentQuestion, recruiter.id); }}
+                  disabled={!started}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 px-4 py-3 text-sm font-black text-slate-200 disabled:opacity-40"
+                >
+                  <Volume2 className="h-4 w-4" />
+                  Replay
+                </button>
+                <button
+                  type="button"
+                  onClick={nextQuestion}
+                  disabled={!started || finished}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-40"
+                >
+                  Next
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-3xl border border-emerald-300/20 bg-emerald-400/10 p-5">
+              <p className="flex items-center gap-2 text-sm font-black text-emerald-100">
+                <CheckCircle2 className="h-4 w-4" />
+                Demo summary
+              </p>
+              <p className="mt-2 text-sm leading-6 text-emerald-50/90">
+                The full interview uses your CV and job description, asks deeper follow-ups,
+                and gives a results report. Free users get 2 full AI voice interviews.
               </p>
             </div>
-
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <div className="flex items-center gap-2">
-                <Briefcase className="h-4 w-4 text-violet-300" />
-                <p className="font-black">Sample Job</p>
-              </div>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Customer Success Manager role focused on onboarding, retention, renewals, and customer relationships.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.07] p-4">
-              <div className="flex items-center gap-2">
-                <Mic className="h-4 w-4 text-emerald-300" />
-                <p className="font-black">Demo recruiter</p>
-              </div>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Daniel will ask realistic follow-ups and challenge vague answers.
-              </p>
-            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
   );
 }

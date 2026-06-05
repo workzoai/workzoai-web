@@ -25,9 +25,9 @@ import {
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: Home },
-  { label: "Improve CV", href: "/cv", icon: FileText },
-  { label: "Cover Letter", href: "/cover-letter", icon: Mail },
-  { label: "Find Jobs", href: "/jobs", icon: Briefcase },
+  { label: "Improve CV", href: "/pricing?intent=upgrade", icon: FileText },
+  { label: "Cover Letter", href: "/pricing?intent=upgrade", icon: Mail },
+  { label: "Find Jobs", href: "/pricing?intent=upgrade", icon: Briefcase },
   { label: "Real Interview AI", href: "/interview", icon: Mic },
   { label: "Results", href: "/results", icon: BarChart3 },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
@@ -37,7 +37,7 @@ const actionCards = [
   {
     title: "Improve CV",
     detail: "ATS score: 85 · 3 fixes available",
-    href: "/cv",
+    href: "/pricing?intent=upgrade",
     icon: FileText,
     tone: "emerald",
     cta: "Review CV",
@@ -45,7 +45,7 @@ const actionCards = [
   {
     title: "Cover Letter",
     detail: "Create a focused letter from CV + job context",
-    href: "/cover-letter",
+    href: "/pricing?intent=upgrade",
     icon: Mail,
     tone: "violet",
     cta: "Create letter",
@@ -53,7 +53,7 @@ const actionCards = [
   {
     title: "Find Jobs",
     detail: "12 matching roles prepared from your profile",
-    href: "/jobs",
+    href: "/pricing?intent=upgrade",
     icon: Search,
     tone: "blue",
     cta: "Find roles",
@@ -87,6 +87,7 @@ const insights = [
     detail: "Choose one example with pressure, your action, and the final result.",
   },
 ];
+
 
 function toneClasses(tone: string) {
   if (tone === "emerald") return "bg-emerald-400/10 text-emerald-300 border-emerald-400/20";
@@ -334,8 +335,8 @@ function SidebarContent({
         <div className="flex items-center gap-2.5 border-t border-white/10 pt-3">
           <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-100 to-slate-300" />
           <div className="min-w-0">
-            <div className="truncate text-xs font-black">Haritha Vijayakumar</div>
-            <div className="truncate text-[10px] text-slate-400">Data Science Enthusiast</div>
+            <div className="truncate text-xs font-black">Candidate</div>
+            <div className="truncate text-[10px] text-slate-400">WorkZo AI User</div>
           </div>
         </div>
       </div>
@@ -421,8 +422,9 @@ export default function DashboardPage() {
           {/* Header — eyebrow removed, h1 is the anchor */}
           <header className="flex flex-col gap-5 border-b border-white/10 pb-7 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h1 className="text-4xl font-black tracking-[-0.04em] sm:text-5xl">Welcome back, Haritha! 👋</h1>
-              <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300">Your focused workspace for interview practice, CV improvement, and job preparation.</p>
+              <p className="text-xs font-black uppercase tracking-[0.42em] text-cyan-200">Career Workspace</p>
+              <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">Welcome back! 👋</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Your focused workspace for interview practice, CV improvement, and job preparation.</p>
             </div>
             <div className="flex shrink-0 items-center xl:mt-1">
               <Link
@@ -433,6 +435,25 @@ export default function DashboardPage() {
               </Link>
             </div>
           </header>
+            <div className="mt-5 rounded-[1.5rem] border border-blue-300/20 bg-blue-500/10 p-5">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200">Free plan active</p>
+                  <h2 className="mt-2 text-xl font-black text-white">Upgrade to unlock Premium tools</h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-300">
+                    Premium unlocks AI Video Recruiter, full interview history, advanced reports, Improve CV, Cover Letter, and Job Assist.
+                  </p>
+                </div>
+                <Link
+                  href="/pricing?intent=upgrade"
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400"
+                >
+                  Upgrade
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
+
 
           {/* Row 1 — Hero CTA + Journey */}
           <div className="mt-8 grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">

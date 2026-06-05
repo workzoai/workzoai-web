@@ -17,7 +17,6 @@ const WORKZO_INVALID_CANDIDATE_NAME_RE =
 function workzoCleanCandidateName(value: unknown, fallback = "Candidate") {
   const raw = typeof value === "string" ? value.trim() : "";
   const cleaned = raw
-    .replace(/\bH\s*A\s*R\s*I\s*T\s*H\s*A\s+V\s*I\s*J\s*A\s*Y\s*A\s*K\s*U\s*M\s*A\s*R\b/i, "Haritha Vijayakumar")
     .replace(/\s+/g, " ")
     .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ' .-]/g, " ")
     .replace(/\s+/g, " ")
@@ -34,8 +33,7 @@ function workzoCleanCandidateName(value: unknown, fallback = "Candidate") {
 }
 
 function workzoExtractNameFromRawCv(rawText: string) {
-  const normalized = String(rawText || "")
-    .replace(/\bH\s*A\s*R\s*I\s*T\s*H\s*A\s+V\s*I\s*J\s*A\s*Y\s*A\s*K\s*U\s*M\s*A\s*R\b/i, "Haritha Vijayakumar");
+  const normalized = String(rawText || "");
 
   const lines = normalized
     .split(/\n+/)
@@ -629,7 +627,7 @@ function isPollutedSkill(value = "") {
   if (!clean || clean.length > 42) return true;
   if (/\d/.test(clean) && !/^(3D CAD|3D Printing|Catia V5|FFF)$/i.test(clean)) return true;
   if (/^(and|or|in|with|using|education|languages|contact|profile|summary|work experience|experience|projects|berufserfahrung|bildung|kontakt|sprachen)$/i.test(clean)) return true;
-  if (/@|linkedin|outlook|gmail|\+\d|\b\d{4}\b|würzburg|wurzburg|germany|india|sweden|candidate|haritha|surender|aarav/i.test(clean)) return true;
+  if (/@|linkedin|outlook|gmail|\+\d|\b\d{4}\b|würzburg|wurzburg|germany|india|sweden|candidate|candidate|surender|aarav/i.test(clean)) return true;
   if (/experience|responsible|supported|collaborated|delivered|developed|designed|analyzed|proven|track record|background|fluent in|bachelor|master|degree|university|college|satellite|docking|retrieval|generation|implementation|configuration|performance optimization$/i.test(clean)) return true;
   return false;
 }
@@ -673,7 +671,7 @@ function extractEducation(sections: SectionMap, lines: string[]) {
   function cleanDegree(line = "") {
     return titleCase(removeDate(line))
       .replace(/\b[A-Z][a-z]+\s+[A-Z][a-z]+\b(?=\s*$)/g, "")
-      .replace(/\bHarithavijayakumar\b/gi, "")
+      .replace(/\bCandidate\b/gi, "")
       .replace(/\s+/g, " ")
       .trim();
   }
@@ -681,7 +679,7 @@ function extractEducation(sections: SectionMap, lines: string[]) {
   function cleanInstitution(line = "") {
     return titleCase(removeDate(line))
       .replace(/\b[A-Z][a-z]+\s+[A-Z][a-z]+\b(?=\s*$)/g, "")
-      .replace(/\bHarithavijayakumar\b/gi, "")
+      .replace(/\bCandidate\b/gi, "")
       .replace(/\s+/g, " ")
       .trim();
   }

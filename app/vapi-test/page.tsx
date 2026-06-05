@@ -61,12 +61,12 @@ export default function VapiTestPage() {
 
     vapi.on("call-start", () => {
       setStatus("connected");
-      addLog("Vapi call started successfully.");
+      addLog("AI voice call started successfully.");
     });
 
     vapi.on("call-end", () => {
       setStatus("ended");
-      addLog("Vapi call ended.");
+      addLog("AI voice call ended.");
     });
 
     vapi.on("speech-start", () => {
@@ -83,8 +83,8 @@ export default function VapiTestPage() {
 
     vapi.on("error", (error: any) => {
       setStatus("error");
-      addLog(`Vapi error: ${JSON.stringify(error)}`);
-      console.error("Vapi test error:", error);
+      addLog(`AI voice error: ${JSON.stringify(error)}`);
+      console.error("AI voice test error:", error);
     });
 
     return () => {
@@ -99,7 +99,7 @@ export default function VapiTestPage() {
 
   async function startTest() {
     if (!vapiRef.current) {
-      addLog("Vapi instance not ready.");
+      addLog("AI voice instance not ready.");
       return;
     }
 
@@ -113,14 +113,14 @@ export default function VapiTestPage() {
 
     try {
       setStatus("connecting");
-      addLog(`Starting Vapi test for ${selectedRecruiter}...`);
+      addLog(`Starting AI voice test for ${selectedRecruiter}...`);
       addLog(`Assistant ID: ${assistantId}`);
 
       await vapiRef.current.start(assistantId);
     } catch (error: any) {
       setStatus("error");
       addLog(`Start failed: ${error?.message || JSON.stringify(error)}`);
-      console.error("Vapi start failed:", error);
+      console.error("AI voice start failed:", error);
     }
   }
 
@@ -156,11 +156,11 @@ export default function VapiTestPage() {
           </p>
 
           <h1 className="mt-3 text-3xl font-black md:text-5xl">
-            Isolated Vapi Test Room
+            Isolated AI voice Test Room
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-300">
-            This page only tests Vapi connection, recruiter audio, microphone
+            This page only tests AI voice connection, recruiter audio, microphone
             input, and assistant stability. It does not use analytics,
             interview intelligence, history, scoring, or the main interview
             flow.
@@ -217,7 +217,7 @@ export default function VapiTestPage() {
                 disabled={status === "connecting" || status === "connected"}
                 className="rounded-2xl bg-blue-500 px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Start Vapi Test
+                Start AI voice Test
               </button>
 
               <button
@@ -237,7 +237,7 @@ export default function VapiTestPage() {
           </section>
 
           <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
-            <h2 className="text-xl font-bold">Live Vapi logs</h2>
+            <h2 className="text-xl font-bold">Live AI voice logs</h2>
 
             <div className="mt-5 h-[520px] overflow-auto rounded-2xl border border-white/10 bg-black/40 p-4">
               {logs.length === 0 ? (

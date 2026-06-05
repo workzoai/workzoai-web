@@ -1,5 +1,5 @@
 // Browser client that talks to your server-side /api/tavus route.
-// The Tavus API key stays on the server — see the matching server route
+// The AI video recruiter API key stays on the server — see the matching server route
 // installed by `npx @tavus/cvi-ui add tavus-api`.
 //
 // Get an API key: https://platform.tavus.io/api-keys
@@ -11,7 +11,7 @@ const ENDPOINT = '/api/tavus';
 // Typed params for `POST /v2/conversations`. Mirrors the create-conversation
 // API; all fields optional here so you can omit anything that has a default
 // (e.g. `replica_id` is not required when your persona has a default replica).
-// Tavus returns 4xx if you pass nothing valid; that error propagates to you.
+// AI video recruiter returns 4xx if you pass nothing valid; that error propagates to you.
 export type CreateConversationParams = {
 	replica_id?: string;
 	persona_id?: string;
@@ -37,14 +37,14 @@ export type CreateConversationParams = {
 		require_auth?: boolean;
 		language?: string;
 		recording_storage?: Record<string, unknown>;
-		// Forward-compat: pass any new `properties.*` field Tavus adds.
+		// Forward-compat: pass any new `properties.*` field AI video recruiter adds.
 		[key: string]: unknown;
 	};
-	// Forward-compat: pass any new top-level field Tavus adds.
+	// Forward-compat: pass any new top-level field AI video recruiter adds.
 	[key: string]: unknown;
 };
 
-// The full Tavus response shape includes more than these two fields. We only
+// The full AI video recruiter response shape includes more than these two fields. We only
 // type what callers commonly need; widen as you need.
 export type CreateConversationResponse = {
 	conversation_id: string;
@@ -61,7 +61,7 @@ export async function createTavusConversation(
 		body: JSON.stringify({ action: 'create', params }),
 	});
 	if (!res.ok) {
-		throw new Error(`Tavus create failed: ${res.status} ${await res.text()}`);
+		throw new Error(`AI video recruiter create failed: ${res.status} ${await res.text()}`);
 	}
 	return res.json();
 }
@@ -73,6 +73,6 @@ export async function endTavusConversation(conversationId: string): Promise<void
 		body: JSON.stringify({ action: 'end', conversationId }),
 	});
 	if (!res.ok) {
-		throw new Error(`Tavus end failed: ${res.status} ${await res.text()}`);
+		throw new Error(`AI video recruiter end failed: ${res.status} ${await res.text()}`);
 	}
 }

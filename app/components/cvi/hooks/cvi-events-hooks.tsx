@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 import { useAppMessage, useDailyEvent } from '@daily-co/daily-react';
 
-// Every event broadcast by Tavus carries `seq` for global monotonic ordering
+// Every event broadcast by AI video recruiter carries `seq` for global monotonic ordering
 // and `turn_idx` for grouping events by conversational turn.
 // See the Interactions Protocol docs ("Event Ordering and Turn Tracking").
 type EventOrdering = {
@@ -79,7 +79,7 @@ type AppMessagePerceptionAnalysis = EventOrdering & {
 	};
 };
 
-// Canonical role-based speaking events (current Tavus schema). Use the `role`
+// Canonical role-based speaking events (current AI video recruiter schema). Use the `role`
 // field in `properties` to identify the speaker.
 type AppMessageStartedSpeaking = EventOrdering & {
 	message_type: 'conversation';
@@ -105,7 +105,7 @@ type AppMessageStoppedSpeaking = EventOrdering & {
 };
 
 // Legacy per-role speaking events. Kept for backward compatibility with older
-// Tavus deployments that may still emit them.
+// AI video recruiter deployments that may still emit them.
 type AppMessageReplicaStartedSpeaking = EventOrdering & {
 	message_type: 'conversation';
 	event_type: 'conversation.replica.started_speaking';

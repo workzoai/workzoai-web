@@ -65,7 +65,7 @@ export function getWorkZoVapiConfig(recruiterId?: WorkZoRecruiterId, recruiterNa
 
 
 export async function createWorkZoVapiClient(publicKey: string): Promise<WorkZoVapiClient> {
-  // Lazy-load the Vapi SDK only after the user taps Start/Mic.
+  // Lazy-load the AI voice SDK only after the user taps Start/Mic.
   // A static top-level import can cause the SDK/Daily layer to warm device APIs
   // during the heavy /interview page load, which leads to repeated
   // enumerateDevices delays before the user even starts voice.

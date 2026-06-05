@@ -337,7 +337,7 @@ function runRuntimeTest() {
   runPersonalityBlock();
 
   console.log(
-    "\n✅ Recruiter runtime isolated test completed.\nNo Vapi, no browser speech, no interview page changes. This test only validates recruiter runtime behavior.",
+    "\n✅ Recruiter runtime isolated test completed.\nNo AI voice, no browser speech, no interview page changes. This test only validates recruiter runtime behavior.",
   );
 }
 

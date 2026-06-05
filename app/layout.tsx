@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import LegacyStoragePrivacyCleanup from "@/components/privacy/LegacyStoragePrivacyCleanup";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://workzoai.com"),
@@ -46,7 +47,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><LegacyStoragePrivacyCleanup />{children}</body>
     </html>
   );
 }
