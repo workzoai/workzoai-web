@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createRequire } from "module";
+import { uploadFileToS3 } from "@/services/S3.service";
+import { analyzeDocument } from "@/services/textract.service";
 import { extractResumeProfile } from "@/lib/workzoResumeParser";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
+import { processCvAnalyzationsPrompt } from "@/services/prompt.service";
+import { CV_ANALYZATION_SYSTEM_PROMPT, CV_ANALYZATION_USER_PROMPT } from "@/services/promptConstants.service";
 
 const require = createRequire(import.meta.url);
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -68,32 +71,65 @@ function sentences(value: string, limit = 8) {
     .slice(0, limit);
 }
 
-async function extractPdfText(buffer: Buffer) {
+async function extractPdfText(buffer: Buffer): Promise<string> {
   debugCvPipeline("api.cv.pdf_parse.before", { bytes: buffer.length });
+
   try {
-    type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>;
+    // Upload buffer to S3
+    const { key, bucket } = await uploadFileToS3(buffer, "cv.pdf", {
+      folder: "cv-uploads",
+    });
 
-    const pdfParse = require("pdf-parse/lib/pdf-parse.js") as PdfParseFn;
+    // Analyze with Textract (plain text, not CSV)
+    const { output } = await analyzeDocument(key, bucket, {
+      featureTypes: ["TABLES", "FORMS"],
+      createCsv: false,
+    });
 
-    const result = await pdfParse(buffer);
-    const extracted = normalizeExtractedText(result.text || "");
-    debugCvText("api.cv.pdf_parse.after", extracted, { pages: result.numpages || null });
+    // const extracted = normalizeExtractedText(output);
+    debugCvText("api.cv.pdf_parse.after", output, {});
 
-    if (extracted.length > 30) {
-      return extracted;
+    if (output.length > 30) {
+      return output;
     }
 
-    throw new Error("PDF parser returned empty text.");
+    throw new Error("Textract returned empty text.");
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "PDF extraction failed.";
-
     throw new Error(
       "PDF uploaded, but WorkZo could not extract readable text. Parser note: " +
-        message
+      message
     );
   }
 }
+
+// async function extractPdfText(buffer: Buffer) {
+//   debugCvPipeline("api.cv.pdf_parse.before", { bytes: buffer.length });
+//   try {
+//     type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>;
+
+//     const pdfParse = require("pdf-parse/lib/pdf-parse.js") as PdfParseFn;
+
+//     const result = await pdfParse(buffer);
+//     const extracted = normalizeExtractedText(result.text || "");
+//     debugCvText("api.cv.pdf_parse.after", extracted, { pages: result.numpages || null });
+
+//     if (extracted.length > 30) {
+//       return extracted;
+//     }
+
+//     throw new Error("PDF parser returned empty text.");
+//   } catch (error) {
+//     const message =
+//       error instanceof Error ? error.message : "PDF extraction failed.";
+
+//     throw new Error(
+//       "PDF uploaded, but WorkZo could not extract readable text. Parser note: " +
+//       message
+//     );
+//   }
+// }
 
 function normalizeCvText(raw: string) {
   return raw
@@ -343,20 +379,21 @@ export async function POST(request: Request) {
       const extracted = await extractFileText(file);
       debugCvText("api.cv.file_text.extracted", extracted, { fileName: file.name, fileType: file.type });
 
-      const cleanedCv = normalizeCvText(extracted);
-      debugCvText("api.cv.file_text.cleaned", cleanedCv, { fileName: file.name });
+      const response = await processCvAnalyzationsPrompt(CV_ANALYZATION_SYSTEM_PROMPT, CV_ANALYZATION_USER_PROMPT(extracted));
+      // const cleanedCv = normalizeCvText(extracted);
+      // debugCvText("api.cv.file_text.cleaned", cleanedCv, { fileName: file.name });
 
-      const resumeProfile = extractResumeProfile(cleanedCv);
-      debugCvProfile("api.cv.parser.output", resumeProfile, { fileName: file.name });
+      // const resumeProfile = extractResumeProfile(cleanedCv);
+      // debugCvProfile("api.cv.parser.output", resumeProfile, { fileName: file.name });
 
       return NextResponse.json({
-        text: cleanedCv,
-        cvText: cleanedCv,
-        content: cleanedCv,
-        resumeProfile,
-        profile: resumeProfile,
+        text: extracted,
+        cvText: extracted,
+        content: extracted,
+        resumeProfile: JSON.parse(response),
+        profile: response,
         fileName: file.name,
-        chars: cleanedCv.length,
+        chars: extracted.length,
       });
     } catch (error) {
       return NextResponse.json(

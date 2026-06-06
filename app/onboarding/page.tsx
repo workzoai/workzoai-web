@@ -122,39 +122,39 @@ const recruiters: {
   quote: string;
   description: string;
 }[] = [
-  {
-    key: "friendly_hr",
-    name: "Sarah",
-    role: "Friendly HR",
-    avatar: "👩🏻‍💼",
-    quote: "I'd love to understand how you work with people.",
-    description: "Warm, supportive, and communication-focused.",
-  },
-  {
-    key: "analytical_hiring_manager",
-    name: "Daniel",
-    role: "Hiring Manager",
-    avatar: "👨🏻‍💼",
-    quote: "Can you prove the business impact behind that answer?",
-    description: "Evidence-driven and focused on measurable impact.",
-  },
-  {
-    key: "startup_recruiter",
-    name: "Priya",
-    role: "Startup Recruiter",
-    avatar: "👩🏽‍💼",
-    quote: "What did YOU specifically own in that project?",
-    description: "Fast-paced, practical, and ownership-focused.",
-  },
-  {
-    key: "german_corporate",
-    name: "Markus",
-    role: "Corporate Recruiter",
-    avatar: "👨🏼‍💼",
-    quote: "Please keep the answer concise and relevant.",
-    description: "Structured, professional, and process-oriented.",
-  },
-];
+    {
+      key: "friendly_hr",
+      name: "Sarah",
+      role: "Friendly HR",
+      avatar: "👩🏻‍💼",
+      quote: "I'd love to understand how you work with people.",
+      description: "Warm, supportive, and communication-focused.",
+    },
+    {
+      key: "analytical_hiring_manager",
+      name: "Daniel",
+      role: "Hiring Manager",
+      avatar: "👨🏻‍💼",
+      quote: "Can you prove the business impact behind that answer?",
+      description: "Evidence-driven and focused on measurable impact.",
+    },
+    {
+      key: "startup_recruiter",
+      name: "Priya",
+      role: "Startup Recruiter",
+      avatar: "👩🏽‍💼",
+      quote: "What did YOU specifically own in that project?",
+      description: "Fast-paced, practical, and ownership-focused.",
+    },
+    {
+      key: "german_corporate",
+      name: "Markus",
+      role: "Corporate Recruiter",
+      avatar: "👨🏼‍💼",
+      quote: "Please keep the answer concise and relevant.",
+      description: "Structured, professional, and process-oriented.",
+    },
+  ];
 
 const interviewLanguages: { label: InterviewLanguage; nativeLabel: string; hint: string }[] = [
   { label: "English", nativeLabel: "English", hint: "Global interview practice" },
@@ -378,12 +378,24 @@ function ResumeProfileReview({ profile }: { profile: ResumeProfile | null }) {
     );
   }
 
+  function getSkills(skills: string[] | Record<string, string[]> | undefined) {
+    if (!skills) return [];
+
+    if (Array.isArray(skills)) {
+      return skills;
+    }
+
+    return Object.values(skills)
+      .flat()
+      .filter(Boolean);
+  }
+
   const basics = profile.basics;
-  const topSkills = profile.skills.slice(0, 18);
-  const experience = profile.experience.slice(0, 3);
-  const projects = profile.projects.slice(0, 3);
-  const education = profile.education.slice(0, 3);
-  const languages = profile.languages.slice(0, 6);
+  const topSkills = getSkills(profile.skills);
+  const experience = profile.experience;
+  const projects = profile.projects;
+  const education = profile.education;
+  const languages = profile.languages;
 
   return (
     <section className="mt-4 space-y-4 rounded-3xl border border-white/10 bg-[#050b16] p-4">
@@ -538,8 +550,8 @@ export default function OnboardingPage() {
   );
   const [companyStyle, setCompanyStyle] = useState<CompanyStyle>(
     (setup.companyStyle as CompanyStyle) ||
-      (setup.recruiterStyle as CompanyStyle) ||
-      "Realistic",
+    (setup.recruiterStyle as CompanyStyle) ||
+    "Realistic",
   );
   const [recruiter, setRecruiter] = useState<RecruiterKey>(
     normalizeRecruiterKey(setup.recruiterPersonality),
@@ -570,7 +582,7 @@ export default function OnboardingPage() {
     return Math.min(
       100,
       [cvReady, roleReady, preferencesReady, jdBonus].filter(Boolean).length *
-        25,
+      25,
     );
   }, [
     manualCv,
@@ -763,28 +775,28 @@ export default function OnboardingPage() {
     const rawCvText = normalizeResumeText(cvText);
     const canonicalSetup = rawCvText
       ? buildCanonicalCvSetup({
-          setup,
-          rawCvText,
-          jobDescription: jdText,
-          role: role || "General Role",
-          market,
-          companyStyle,
-          recruiter,
-          language: interviewLanguage,
-        })
+        setup,
+        rawCvText,
+        jobDescription: jdText,
+        role: role || "General Role",
+        market,
+        companyStyle,
+        recruiter,
+        language: interviewLanguage,
+      })
       : ({
-          ...setup,
-          cvText: "",
-          jobDescription: jdText,
-          jdText,
-          targetRole: role || "General Role",
-          targetMarket: market,
-          country: market,
-          companyStyle,
-          recruiterStyle: companyStyle,
-          recruiterPersonality: normalizeRecruiterKey(recruiter),
-          updatedAt: new Date().toISOString(),
-        } as SetupState);
+        ...setup,
+        cvText: "",
+        jobDescription: jdText,
+        jdText,
+        targetRole: role || "General Role",
+        targetMarket: market,
+        country: market,
+        companyStyle,
+        recruiterStyle: companyStyle,
+        recruiterPersonality: normalizeRecruiterKey(recruiter),
+        updatedAt: new Date().toISOString(),
+      } as SetupState);
 
     if (cvText.length > 0 || jdText.length > 0) {
       const memorySetup = (await buildAndSaveInterviewSetup({
@@ -891,13 +903,15 @@ export default function OnboardingPage() {
       debugCvText("onboarding.upload.cleaned_text", rawCvText, { fileName: file.name });
 
       const apiProfile = data?.resumeProfile || data?.profile;
-      const localProfile = apiProfile && typeof apiProfile === "object" && "basics" in apiProfile
+      // apiProfile && typeof apiProfile === "object" && "basics" in apiProfile ? "1" : "2"
+      const localProfile = apiProfile && typeof apiProfile === "object"
         ? (apiProfile as ResumeProfile)
         : extractResumeProfileComplex(rawCvText);
 
       setAiResumeProfile(localProfile);
-      setAiCvStructuringStatus("structuring");
+      return setAiCvStructuringStatus("structuring");
 
+      // will implment this afterwards
       const profile = await structureCvWithAi(rawCvText);
 
       debugCvProfile("onboarding.upload.profile_selected", profile, {
@@ -918,8 +932,8 @@ export default function OnboardingPage() {
         market,
         companyStyle,
         recruiter: recruiter as RecruiterKey,
-          language: interviewLanguage,
-        });
+        language: interviewLanguage,
+      });
 
       saveCanonicalCvSetup(canonicalSetup, store);
       debugCvProfile("onboarding.upload.canonical_saved", canonicalSetup.resumeProfile, { setupId: canonicalSetup.setupId });
@@ -1096,12 +1110,12 @@ export default function OnboardingPage() {
                     className={cn(
                       "flex h-10 w-10 items-center justify-center rounded-full border text-sm font-black transition",
                       complete &&
-                        "border-emerald-400/35 bg-emerald-400/12 text-emerald-200",
+                      "border-emerald-400/35 bg-emerald-400/12 text-emerald-200",
                       active &&
-                        "border-blue-300 bg-blue-500 text-white shadow-[0_0_22px_rgba(59,130,246,0.30)]",
+                      "border-blue-300 bg-blue-500 text-white shadow-[0_0_22px_rgba(59,130,246,0.30)]",
                       !complete &&
-                        !active &&
-                        "border-white/10 bg-white/8 text-slate-300",
+                      !active &&
+                      "border-white/10 bg-white/8 text-slate-300",
                     )}
                   >
                     {complete ? <Check className="h-4 w-4" /> : item.id}
@@ -1250,8 +1264,8 @@ export default function OnboardingPage() {
                           market,
                           companyStyle,
                           recruiter: recruiter as RecruiterKey,
-          language: interviewLanguage,
-        });
+                          language: interviewLanguage,
+                        });
 
                         saveCanonicalCvSetup(canonicalSetup, store);
                       }}
