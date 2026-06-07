@@ -1,7 +1,7 @@
 "use client";
 
-import { X, CheckCircle2, Sparkles } from "lucide-react";
-import { getWorkZoPlanUpgradeCopy, WORKZO_PLAN_LIMITS } from "@/lib/workzoPlanLimits";
+import { X, CheckCircle2, Sparkles, Gift } from "lucide-react";
+import { getWorkZoPlanUpgradeCopy } from "@/lib/workzoPlanLimits";
 import { recordWorkZoUpgradeClick } from "@/lib/workzoUsageTracker";
 
 type UpgradeModalProps = {
@@ -11,11 +11,13 @@ type UpgradeModalProps = {
   onUpgrade?: () => void;
 };
 
+const PREMIUM_REGULAR_PRICE = "€29.99";
+const PREMIUM_OPENING_PRICE = "€14.99";
+
 export default function UpgradeModal({ open, feature = "premium", onClose, onUpgrade }: UpgradeModalProps) {
   if (!open) return null;
 
   const copy = getWorkZoPlanUpgradeCopy(feature);
-  const premium = WORKZO_PLAN_LIMITS.premium;
 
   function handleUpgradeClick() {
     recordWorkZoUpgradeClick();
@@ -41,7 +43,7 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
           <X className="h-5 w-5" />
         </button>
 
-        <div className="bg-gradient-to-br from-blue-500/20 via-violet-500/10 to-cyan-500/10 px-7 py-8">
+        <div className="bg-gradient-to-br from-blue-500/25 via-violet-500/10 to-cyan-500/10 px-7 py-8">
           <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-black text-cyan-100">
             <Sparkles className="h-4 w-4" />
             WorkZo Premium
@@ -60,20 +62,38 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
             <p className="text-sm font-black uppercase tracking-[0.22em] text-slate-400">Free</p>
             <p className="mt-3 text-3xl font-black text-white">€0</p>
             <ul className="mt-5 space-y-3 text-sm leading-6 text-slate-200">
-              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />2 full AI voice interviews</li>
-              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />CV + JD based interview</li>
-              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />Results preview</li>
+              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />2 full AI voice interviews</li>
+              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />CV + JD based interview</li>
+              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />Results preview</li>
             </ul>
           </div>
 
           <div className="rounded-3xl border border-blue-300/20 bg-blue-400/10 p-5">
-            <p className="text-sm font-black uppercase tracking-[0.22em] text-blue-200">Premium</p>
-            <p className="mt-3 text-3xl font-black text-white">{premium.priceLabel}</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-black uppercase tracking-[0.22em] text-blue-200">Premium</p>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">
+                <Gift className="h-3 w-3" />
+                Opening offer
+              </span>
+            </div>
+
+            <div className="mt-3">
+              <p className="text-sm font-bold text-slate-400 line-through decoration-2">
+                {PREMIUM_REGULAR_PRICE}/month
+              </p>
+              <p className="text-3xl font-black text-white">
+                {PREMIUM_OPENING_PRICE}<span className="text-base text-white/50">/month</span>
+              </p>
+              <p className="mt-1 text-xs font-black text-emerald-300">
+                Save 50% as an early WorkZo AI user.
+              </p>
+            </div>
+
             <ul className="mt-5 space-y-3 text-sm leading-6 text-slate-200">
-              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-blue-200" />25 interviews/month</li>
-              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-blue-200" />AI video recruiter interviews</li>
-              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-blue-200" />Full results + history</li>
-              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-blue-200" />Improve CV, cover letter, job assist</li>
+              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-200" />25 interviews/month</li>
+              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-200" />AI voice + video recruiters</li>
+              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-200" />Full results, trust audit, and history</li>
+              <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-200" />Improve CV, cover letter, job assist</li>
             </ul>
           </div>
         </div>
@@ -84,7 +104,7 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
             onClick={handleUpgradeClick}
             className="flex-1 rounded-2xl bg-blue-500 px-5 py-4 text-base font-black text-white transition hover:bg-blue-400"
           >
-            Unlock AI Video Recruiter
+            Get Premium Opening Offer
           </button>
           <button
             type="button"

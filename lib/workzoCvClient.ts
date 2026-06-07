@@ -84,6 +84,8 @@ export async function buildAndSaveInterviewSetup(input: {
   companyStyle?: string;
   recruiterPersonality?: string;
   language?: string;
+  save?: boolean;
+  baseSetup?: WorkZoInterviewSetup;
 }): Promise<WorkZoInterviewSetup> {
   const cvText = (input.cvText || "").trim();
   const jobDescription = (input.jobDescription || "").trim();
@@ -96,19 +98,34 @@ export async function buildAndSaveInterviewSetup(input: {
     language: input.language || "English",
   });
 
-  return saveLatestInterviewSetup({
+  const payload: WorkZoInterviewSetup = {
+    ...(input.baseSetup || {}),
     cvText,
+    uploadedCvText: cvText,
+    resumeText: cvText,
+    candidateCv: cvText,
     jobDescription,
-    targetRole: input.targetRole || "General Role",
-    targetMarket: input.targetMarket || "Global",
-    companyStyle: input.companyStyle || "Realistic",
+    jdText: jobDescription,
+    targetRole: input.targetRole || input.baseSetup?.targetRole || "General Role",
+    role: input.targetRole || input.baseSetup?.role || "General Role",
+    targetMarket: input.targetMarket || input.baseSetup?.targetMarket || "Global",
+    country: input.targetMarket || input.baseSetup?.country || "Global",
+    companyStyle: input.companyStyle || input.baseSetup?.companyStyle || "Realistic",
     recruiterPersonality:
-      input.recruiterPersonality || "analytical_hiring_manager",
-    language: input.language || "English",
+      input.recruiterPersonality || input.baseSetup?.recruiterPersonality || "analytical_hiring_manager",
+    language: input.language || input.baseSetup?.language || "English",
     recruiterMemoryProfile: structured.recruiterMemoryProfile,
     jobMemoryProfile: structured.jobMemoryProfile,
-    source: "latest-upload",
-  });
+    source: input.baseSetup?.source || "onboarding-canonical-cv-extraction",
+    setupVersion: Math.max(Number(input.baseSetup?.setupVersion || 0), 8),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (input.save === false) {
+    return payload;
+  }
+
+  return saveLatestInterviewSetup(payload);
 }
 
 

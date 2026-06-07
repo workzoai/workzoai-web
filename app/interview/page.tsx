@@ -50,6 +50,14 @@ import {
   classifyVoiceError,
   requestMicrophoneAccess,
 } from "@/lib/workzoVoiceReliability";
+import {
+  readLatestInterviewSetup,
+  normalizeCandidateName as normalizeStoredCandidateName,
+  normalizeSetupCvText,
+  normalizeSetupJobDescription,
+  normalizeSetupTargetMarket,
+  normalizeSetupTargetRole,
+} from "@/lib/workzoInterviewSetup";
 
 type TranscriptRole = "recruiter" | "candidate" | "system";
 
@@ -429,7 +437,7 @@ function normalizeCandidateName(name: string) {
     .trim();
 
   if (!cleaned || cleaned.length < 2) return "";
-  if (/\b(resume|cv|curriculum|profile|summary|experience|education|skills|project|sales|manager|executive|engineer|analyst)\b/i.test(cleaned)) {
+  if (/\b(resume|cv|curriculum|profile|summary|experience|education|skills|project|language|english|german|dutch|french|spanish|italian|portuguese|fluent|native|conversational|sales|manager|executive|engineer|analyst)\b/i.test(cleaned)) {
     return "";
   }
 
@@ -455,38 +463,59 @@ function extractNameFromCvText(cvText: string) {
 }
 
 function buildSetupFromStorage(): InterviewSetup {
-  const stored = findSetupFromLocalStorage();
+  // Source-of-truth rule:
+  // The interview room must only use the final canonical setup saved after CV parsing is complete.
+  // It must not scan random stale localStorage keys first, and it must not re-parse a clumsy CV preview.
+  const latestSetup = readLatestInterviewSetup();
 
+  const fallbackStored = latestSetup ? null : findSetupFromLocalStorage();
   const state =
-    stored && typeof stored === "object" && "state" in stored
-      ? (stored as Record<string, unknown>).state
-      : stored;
+    latestSetup ||
+    (fallbackStored && typeof fallbackStored === "object" && "state" in fallbackStored
+      ? (fallbackStored as Record<string, unknown>).state
+      : fallbackStored);
 
-  const cvText = getNestedValue(state, [
-    "cvText",
-    "resumeText",
-    "candidate.cvText",
-    "setup.cvText",
-    "profile.cvText",
-  ]);
+  const resumeProfile =
+    state && typeof state === "object"
+      ? ((state as Record<string, unknown>).resumeProfile as Record<string, unknown> | undefined)
+      : undefined;
+  const basics =
+    resumeProfile && typeof resumeProfile.basics === "object"
+      ? (resumeProfile.basics as Record<string, unknown>)
+      : {};
 
-  const jobDescription = getNestedValue(state, [
-    "jobDescription",
-    "jdText",
-    "jd",
-    "job.description",
-    "job.jobDescription",
-    "setup.jobDescription",
-    "setup.jdText",
-    "selectedJob.description",
-    "selectedJob.jobDescription",
-  ]);
+  const cvText =
+    latestSetup
+      ? normalizeSetupCvText(latestSetup)
+      : getNestedValue(state, [
+          "cvText",
+          "uploadedCvText",
+          "resumeText",
+          "candidateCv",
+          "candidate.cvText",
+          "setup.cvText",
+          "profile.cvText",
+        ]);
 
+  const jobDescription =
+    latestSetup
+      ? normalizeSetupJobDescription(latestSetup)
+      : getNestedValue(state, [
+          "jobDescription",
+          "jdText",
+          "jd",
+          "job.description",
+          "job.jobDescription",
+          "setup.jobDescription",
+          "setup.jdText",
+          "selectedJob.description",
+          "selectedJob.jobDescription",
+        ]);
+
+  const profileCandidateName = normalizeStoredCandidateName(basics.name);
   const storedCandidateName = normalizeCandidateName(
     getNestedValue(state, [
       "candidateName",
-      "name",
-      "userName",
       "candidate.name",
       "profile.name",
       "setup.candidateName",
@@ -494,9 +523,15 @@ function buildSetupFromStorage(): InterviewSetup {
     ]),
   );
   const cvCandidateName = normalizeCandidateName(extractNameFromCvText(cvText));
-  const candidateName = storedCandidateName || cvCandidateName || "Candidate";
+
+  const candidateName =
+    profileCandidateName ||
+    storedCandidateName ||
+    cvCandidateName ||
+    "Candidate";
 
   const targetRole =
+    (latestSetup ? normalizeSetupTargetRole(latestSetup) : "") ||
     getNestedValue(state, [
       "targetRole",
       "role",
@@ -507,7 +542,9 @@ function buildSetupFromStorage(): InterviewSetup {
       "job.title",
       "job.role",
       "jobDescriptionTitle",
-    ]) || "Interview Role";
+      "resumeProfile.basics.headline",
+    ]) ||
+    "Interview Role";
 
   const targetCompany =
     getNestedValue(state, [
@@ -517,6 +554,8 @@ function buildSetupFromStorage(): InterviewSetup {
       "setup.targetCompany",
       "job.company",
       "job.companyName",
+      "selectedJob.company",
+      "selectedJob.companyName",
     ]) || "";
 
   const recruiterId = normalizeRecruiterId(
@@ -529,7 +568,7 @@ function buildSetupFromStorage(): InterviewSetup {
       "setup.selectedRecruiter",
       "setup.recruiter",
       "setup.recruiterPersonality",
-    ]),
+    ]) || latestSetup?.recruiterPersonality,
   );
 
   const profile = recruiterProfiles[recruiterId] || recruiterProfiles.friendly_hr;

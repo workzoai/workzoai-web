@@ -344,8 +344,11 @@ export function buildWorkZoReport(source: WorkZoReportSource, isPremium: boolean
     betterAnswer: source.recruiterHeard?.[index]?.rewrite || source.weakAnswers?.[index]?.betterAnswer || rewriteAnswer(pair.answer),
   }));
 
-  return {
-    ...free,
+  const { tier: _freeTier, ...freeReportBase } = free;
+  void _freeTier;
+
+  return ({
+    ...freeReportBase,
     tier: "premium",
     transcriptTimeline,
     redFlags: flags,
@@ -396,5 +399,5 @@ export function buildWorkZoReport(source: WorkZoReportSource, isPremium: boolean
         { label: "Posture", value: "Not captured" },
       ],
     },
-  };
+  } as any);
 }

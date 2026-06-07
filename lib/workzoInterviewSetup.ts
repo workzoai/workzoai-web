@@ -52,6 +52,8 @@ export type WorkZoInterviewSetup = {
   recruiterPersonality?: string;
   recruiter?: string;
   language?: string;
+  interviewLanguage?: string;
+  selectedLanguage?: string;
 
   candidateName?: string;
   candidateHeadline?: string;
@@ -63,11 +65,14 @@ export type WorkZoInterviewSetup = {
   resumeProfile?: any;
   jobMemory?: JobMemoryProfile;
   recruiterMemory?: RecruiterMemoryProfile;
+  recruiterMemoryProfile?: RecruiterMemoryProfile | null;
+  jobMemoryProfile?: JobMemoryProfile | null;
 
   source?: string;
   setupVersion?: number;
   setupId?: string;
   updatedAt?: string;
+  createdAt?: string;
   version?: number;
 
   [key: string]: any;
@@ -86,6 +91,28 @@ const SETUP_KEYS = [
   "workzo-interview-setup-latest",
 ];
 
+const LEGACY_KEYS_TO_CLEAR = [
+  "workzo-interview-setup-v3",
+  "workzo-interview-setup-v2",
+  "workzo-interview-setup",
+  "workzo_setup",
+  "workzo-onboarding",
+  "workzo_onboarding",
+];
+
+const BLOCKED_NAME_WORDS = /\b(resume|cv|curriculum|profile|summary|experience|education|skills?|projects?|languages?|english|german|dutch|french|spanish|italian|portuguese|fluent|native|conversational|professional|engineer|analyst|manager|developer|specialist|consultant|support|sales|executive|objective|contact|email|phone|linkedin|github)\b/i;
+
+function cleanString(value: unknown, max = 20000) {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/\u0000/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, max);
+}
+
 function safeParse(value: string | null): WorkZoInterviewSetup | null {
   if (!value) return null;
 
@@ -103,18 +130,118 @@ function getTime(setup: WorkZoInterviewSetup) {
   return Number.isFinite(time) ? time : 0;
 }
 
+function hasUsableResumeProfile(setup: WorkZoInterviewSetup) {
+  const profile = setup.resumeProfile;
+  if (!profile || typeof profile !== "object") return false;
+
+  const basics = profile.basics && typeof profile.basics === "object" ? profile.basics : {};
+  const hasName = isValidCandidateName((basics as any).name || setup.candidateName || "");
+  const hasSummary = cleanString((profile as any).summary, 1200).length > 20;
+  const hasExperience = Array.isArray((profile as any).experience) && (profile as any).experience.length > 0;
+  const hasEducation = Array.isArray((profile as any).education) && (profile as any).education.length > 0;
+  const hasSkills = Array.isArray((profile as any).skills) && (profile as any).skills.length > 0;
+
+  return hasName || hasSummary || hasExperience || hasEducation || hasSkills;
+}
+
+function isCanonicalSetup(setup: WorkZoInterviewSetup) {
+  return (
+    setup.source === "onboarding-canonical-cv-extraction" ||
+    Number(setup.setupVersion || setup.version || 0) >= 7 ||
+    hasUsableResumeProfile(setup)
+  );
+}
+
 function scoreSetup(setup: WorkZoInterviewSetup) {
   let score = 0;
 
-  if (setup.cvText || setup.uploadedCvText || setup.resumeText || setup.candidateCv) score += 20;
-  if (setup.jobDescription || setup.jdText) score += 8;
+  const cvText = normalizeSetupCvText(setup);
+  const jdText = normalizeSetupJobDescription(setup);
+
+  if (cvText) score += 20;
+  if (jdText) score += 8;
   if (setup.targetRole || setup.role || setup.jobTitle) score += 5;
-  if (setup.resumeProfile) score += 5;
-  if (setup.candidateName || setup.candidateEmail) score += 3;
+  if (hasUsableResumeProfile(setup)) score += 20;
+  if (isValidCandidateName(setup.candidateName || setup.resumeProfile?.basics?.name || "")) score += 8;
+  if (isCanonicalSetup(setup)) score += 12;
   if (setup.setupVersion || setup.version) score += 2;
   if (getTime(setup)) score += 1;
 
   return score;
+}
+
+export function isValidCandidateName(value: unknown): boolean {
+  const text = cleanString(value, 120)
+    .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ' .-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!text || text.length < 2 || text.length > 60) return false;
+  if (/@|www|http|\d/.test(text)) return false;
+  if (BLOCKED_NAME_WORDS.test(text)) return false;
+
+  const parts = text.split(" ").filter(Boolean);
+  if (parts.length > 4) return false;
+  if (parts.some((part) => part.length < 2 && !/^[A-Z]\.?$/.test(part))) return false;
+
+  return true;
+}
+
+export function normalizeCandidateName(value: unknown): string {
+  const text = cleanString(value, 120)
+    .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ' .-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return isValidCandidateName(text) ? text : "";
+}
+
+function sanitizeResumeProfile(profile: any) {
+  if (!profile || typeof profile !== "object") return undefined;
+
+  const basics = profile.basics && typeof profile.basics === "object" ? { ...profile.basics } : {};
+  const safeName = normalizeCandidateName(basics.name);
+  basics.name = safeName;
+
+  return {
+    ...profile,
+    basics,
+  };
+}
+
+export function sanitizeInterviewSetup(setup: WorkZoInterviewSetup | null | undefined): WorkZoInterviewSetup | null {
+  if (!setup) return null;
+
+  const resumeProfile = sanitizeResumeProfile(setup.resumeProfile);
+  const profileBasics = resumeProfile?.basics || {};
+
+  const candidateName =
+    normalizeCandidateName(profileBasics.name) ||
+    normalizeCandidateName(setup.candidateName) ||
+    "";
+
+  return {
+    ...setup,
+    cvText: normalizeSetupCvText(setup),
+    uploadedCvText: normalizeSetupCvText(setup),
+    resumeText: normalizeSetupCvText(setup),
+    candidateCv: normalizeSetupCvText(setup),
+    jobDescription: normalizeSetupJobDescription(setup),
+    jdText: normalizeSetupJobDescription(setup),
+    targetRole: normalizeSetupTargetRole(setup) || "General Role",
+    role: normalizeSetupTargetRole(setup) || "General Role",
+    targetMarket: normalizeSetupTargetMarket(setup),
+    country: normalizeSetupTargetMarket(setup),
+    recruiterPersonality: normalizeSetupRecruiterPersonality(setup),
+    companyStyle: normalizeSetupCompanyStyle(setup),
+    candidateName,
+    candidateHeadline: cleanString(setup.candidateHeadline || profileBasics.headline, 200),
+    candidateEmail: cleanString(setup.candidateEmail || profileBasics.email, 200),
+    candidatePhone: cleanString(setup.candidatePhone || profileBasics.phone, 80),
+    candidateLocation: cleanString(setup.candidateLocation || profileBasics.location, 200),
+    candidateLinkedin: cleanString(setup.candidateLinkedin || profileBasics.linkedin, 300),
+    resumeProfile,
+  };
 }
 
 export function readLatestInterviewSetup(): WorkZoInterviewSetup | null {
@@ -132,29 +259,40 @@ export function readLatestInterviewSetup(): WorkZoInterviewSetup | null {
 
   if (!candidates.length) return null;
 
-  return candidates.sort((a, b) => {
-    const scoreDiff = scoreSetup(b) - scoreSetup(a);
-    if (scoreDiff !== 0) return scoreDiff;
-    return getTime(b) - getTime(a);
-  })[0] || null;
+  const selected =
+    candidates.sort((a, b) => {
+      const scoreDiff = scoreSetup(b) - scoreSetup(a);
+      if (scoreDiff !== 0) return scoreDiff;
+      return getTime(b) - getTime(a);
+    })[0] || null;
+
+  return sanitizeInterviewSetup(selected);
 }
 
 export function saveLatestInterviewSetup(setup: WorkZoInterviewSetup): WorkZoInterviewSetup {
+  const sanitized = sanitizeInterviewSetup(setup) || setup;
+
   const payload: WorkZoInterviewSetup = {
-    ...setup,
+    ...sanitized,
     updatedAt: new Date().toISOString(),
-    setupVersion: Number(setup.setupVersion || setup.version || 6),
+    setupVersion: Number(sanitized.setupVersion || sanitized.version || 8),
+    source: sanitized.source || "onboarding-canonical-cv-extraction",
   };
 
   if (typeof window === "undefined") {
     return payload;
   }
 
-  for (const key of SETUP_KEYS.slice(0, 5)) {
+  for (const key of SETUP_KEYS) {
     window.localStorage.setItem(key, JSON.stringify(payload));
   }
 
   window.sessionStorage.setItem("workzoInterviewSetup", JSON.stringify(payload));
+
+  for (const key of LEGACY_KEYS_TO_CLEAR) {
+    window.localStorage.removeItem(key);
+    window.sessionStorage.removeItem(key);
+  }
 
   return payload;
 }
@@ -162,7 +300,7 @@ export function saveLatestInterviewSetup(setup: WorkZoInterviewSetup): WorkZoInt
 export function clearLatestInterviewSetup(): void {
   if (typeof window === "undefined") return;
 
-  for (const key of SETUP_KEYS) {
+  for (const key of [...SETUP_KEYS, ...LEGACY_KEYS_TO_CLEAR]) {
     window.localStorage.removeItem(key);
     window.sessionStorage.removeItem(key);
   }
@@ -171,37 +309,39 @@ export function clearLatestInterviewSetup(): void {
 export function normalizeSetupCvText(setup: WorkZoInterviewSetup | null | undefined): string {
   if (!setup) return "";
 
-  return String(
+  return cleanString(
     setup.cvText ||
       setup.uploadedCvText ||
       setup.resumeText ||
       setup.candidateCv ||
       "",
+    50000,
   );
 }
 
 export function normalizeSetupJobDescription(setup: WorkZoInterviewSetup | null | undefined): string {
   if (!setup) return "";
 
-  return String(setup.jobDescription || setup.jdText || "");
+  return cleanString(setup.jobDescription || setup.jdText || "", 50000);
 }
 
 export function normalizeSetupTargetRole(setup: WorkZoInterviewSetup | null | undefined): string {
   if (!setup) return "";
 
-  return String(
+  return cleanString(
     setup.targetRole ||
       setup.role ||
       setup.jobTitle ||
       setup.resumeProfile?.basics?.headline ||
       "",
+    200,
   );
 }
 
 export function normalizeSetupTargetMarket(setup: WorkZoInterviewSetup | null | undefined): string {
   if (!setup) return "global";
 
-  return String(setup.targetMarket || setup.country || "global");
+  return cleanString(setup.targetMarket || setup.country || "global", 80) || "global";
 }
 
 export function normalizeSetupRecruiterPersonality(
@@ -209,7 +349,7 @@ export function normalizeSetupRecruiterPersonality(
 ): string {
   if (!setup) return "sarah";
 
-  return String(setup.recruiterPersonality || setup.recruiter || "sarah");
+  return cleanString(setup.recruiterPersonality || setup.recruiter || "sarah", 80) || "sarah";
 }
 
 export function normalizeSetupCompanyStyle(
@@ -217,5 +357,5 @@ export function normalizeSetupCompanyStyle(
 ): string {
   if (!setup) return "global_corporate";
 
-  return String(setup.companyStyle || setup.recruiterStyle || "global_corporate");
+  return cleanString(setup.companyStyle || setup.recruiterStyle || "global_corporate", 120) || "global_corporate";
 }

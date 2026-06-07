@@ -362,7 +362,7 @@ function saveCanonicalCvSetup(setup: SetupState, store: any) {
     cvChars: typeof setup.cvText === "string" ? setup.cvText.length : 0,
   });
   saveSetupToStore(setup, store);
-  const saved = saveLatestInterviewSetup(setup);
+  const saved = saveLatestInterviewSetup(setup as Parameters<typeof saveLatestInterviewSetup>[0]);
   debugCvProfile("onboarding.saveCanonicalCvSetup.after", saved.resumeProfile, {
     setupId: saved.setupId,
     source: saved.source,
@@ -523,7 +523,14 @@ function ResumeProfileReview({ profile }: { profile: ResumeProfile | null }) {
 
 export default function OnboardingPage() {
   function resetCvPreviewBeforeParsing() {
-    // Clear stale CV preview before reading a new file.
+    // Critical trust guard:
+    // Never show or save a temporary/client-parsed CV while the real parser is still reading.
+    // This prevents clumsy intermediate details like "English Fluent" or a section title
+    // becoming the candidate name or recruiter context.
+    setManualCv("");
+    setAiResumeProfile(null);
+    setAiCvStructuringStatus("structuring");
+    setUploadError("");
   }
 
 
@@ -554,23 +561,29 @@ export default function OnboardingPage() {
   const [interviewLanguage, setInterviewLanguage] = useState<InterviewLanguage>(
     normalizeInterviewLanguage(setup.language),
   );
-  const [aiResumeProfile, setAiResumeProfile] = useState<ResumeProfile | null>(
-    null,
-  );
+  const [aiResumeProfile, setAiResumeProfile] = useState<ResumeProfile | null>(() => {
+    const existing = (setup as SetupState & { resumeProfile?: unknown }).resumeProfile;
+    return existing && typeof existing === "object" && "basics" in existing
+      ? (existing as ResumeProfile)
+      : null;
+  });
   const [aiCvStructuringStatus, setAiCvStructuringStatus] = useState<
     "idle" | "structuring" | "ready" | "fallback"
   >("idle");
 
   const resumeProfile = useMemo(() => {
+    if (uploading || aiCvStructuringStatus === "structuring") return null;
     if (aiResumeProfile) return aiResumeProfile;
 
-    const source = normalizeResumeText(manualCv || setup.cvText || "");
+    // Only manual paste is allowed to use the local fallback parser for preview.
+    // Uploaded files must wait for the final structured API profile before displaying/saving.
+    const source = normalizeResumeText(manualCv || "");
     if (!source.trim()) return null;
     return extractResumeProfileComplex(source);
-  }, [aiResumeProfile, manualCv, setup.cvText]);
+  }, [aiResumeProfile, aiCvStructuringStatus, manualCv, uploading]);
 
   const readiness = useMemo(() => {
-    const cvReady = Boolean((manualCv || setup.cvText || "").trim());
+    const cvReady = Boolean((manualCv || setup.cvText || "").trim()) && !uploading && aiCvStructuringStatus !== "structuring";
     const roleReady = Boolean(role.trim());
     const preferencesReady = Boolean(market && companyStyle && recruiter && interviewLanguage);
     const jdBonus = Boolean(jobDescription.trim());
@@ -582,6 +595,8 @@ export default function OnboardingPage() {
   }, [
     manualCv,
     setup.cvText,
+    uploading,
+    aiCvStructuringStatus,
     role,
     market,
     companyStyle,
@@ -680,6 +695,8 @@ export default function OnboardingPage() {
         companyStyle: (draft.companyStyle as CompanyStyle) || companyStyle,
         recruiterPersonality: normalizeRecruiterKey(draft.recruiterPersonality),
         language: normalizeInterviewLanguage(draft.language) || interviewLanguage,
+        save: false,
+        baseSetup: draft as never,
       })
         .then((nextSetup) => {
           // Keep the canonical local CV parse as the source of truth.
@@ -699,9 +716,19 @@ export default function OnboardingPage() {
   }
 
   function persistFast(nextStep?: number) {
+    if (uploading || aiCvStructuringStatus === "structuring") {
+      setUploadError("Please wait until WorkZo finishes reading your CV before continuing.");
+      return;
+    }
+
     const draft = buildDraftSetup();
     const rawCvText = normalizeResumeText(draft.cvText || manualCv || "");
-    const profile = extractResumeProfileComplex(rawCvText);
+    const storedProfile = (setup as SetupState & { resumeProfile?: unknown }).resumeProfile;
+    const profile =
+      aiResumeProfile ||
+      (storedProfile && typeof storedProfile === "object" && "basics" in storedProfile
+        ? (storedProfile as ResumeProfile)
+        : extractResumeProfileComplex(rawCvText));
 
     const canonicalSetup = {
       ...draft,
@@ -723,7 +750,8 @@ export default function OnboardingPage() {
       candidateLocation: profile.basics.location,
       candidateLinkedin: profile.basics.linkedin,
       resumeProfile: profile,
-      setupVersion: 7,
+      source: "onboarding-canonical-cv-extraction",
+      setupVersion: 8,
       updatedAt: new Date().toISOString(),
     } as SetupState;
 
@@ -898,18 +926,13 @@ export default function OnboardingPage() {
       const rawCvText = normalizeResumeText(String(extracted));
       debugCvText("onboarding.upload.cleaned_text", rawCvText, { fileName: file.name });
 
-      const apiProfile = data?.resumeProfile || data?.profile;
-      const localProfile = apiProfile && typeof apiProfile === "object" && "basics" in apiProfile
-        ? (apiProfile as ResumeProfile)
-        : extractResumeProfileComplex(rawCvText);
-
-      setAiResumeProfile(localProfile);
+      setAiResumeProfile(null);
       setAiCvStructuringStatus("structuring");
 
       const profile = await structureCvWithAi(rawCvText);
 
       debugCvProfile("onboarding.upload.profile_selected", profile, {
-        source: profile === localProfile ? "local_profile" : "ai_structured_profile",
+        source: "final_structured_profile",
         fileName: file.name,
       });
 
@@ -940,6 +963,9 @@ export default function OnboardingPage() {
         targetMarket: market,
         companyStyle,
         recruiterPersonality: normalizeRecruiterKey(recruiter),
+        language: interviewLanguage,
+        save: false,
+        baseSetup: canonicalSetup as never,
       })
         .then((nextSetup) => {
           const enrichedSetup = {
@@ -980,9 +1006,14 @@ export default function OnboardingPage() {
     setUploadError("");
     setAiResumeProfile(null);
     setAiCvStructuringStatus("idle");
+    clearLatestInterviewSetup();
   }
 
   function next() {
+    if (uploading || aiCvStructuringStatus === "structuring") {
+      setUploadError("Please wait until WorkZo finishes reading your CV before continuing.");
+      return;
+    }
     persistFast(Math.min(5, step + 1));
   }
 
@@ -991,6 +1022,10 @@ export default function OnboardingPage() {
   }
 
   function startInterview() {
+    if (uploading || aiCvStructuringStatus === "structuring") {
+      setUploadError("Please wait until WorkZo finishes reading your CV before starting the interview.");
+      return;
+    }
     persistFast();
     router.push("/interview");
   }
@@ -1305,7 +1340,21 @@ export default function OnboardingPage() {
                     </div>
                   )}
 
-                  <ResumeProfileReview profile={resumeProfile} />
+                  {uploading || aiCvStructuringStatus === "structuring" ? (
+                    <div className="mt-4 rounded-3xl border border-blue-300/20 bg-blue-500/8 p-5 text-sm leading-6 text-blue-100">
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <div>
+                          <p className="font-black text-white">Reading your CV carefully...</p>
+                          <p className="mt-1 text-xs text-blue-200/80">
+                            WorkZo will show the profile only after the final clean recruiter context is ready.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <ResumeProfileReview profile={resumeProfile} />
+                  )}
 
                   <details className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-4">
                     <summary className="cursor-pointer text-sm font-black text-slate-200">
