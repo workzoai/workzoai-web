@@ -336,23 +336,6 @@ export default function PricingPage() {
             </div>
           </div>
         </section>
-
-          <div className="mt-5 overflow-hidden rounded-3xl border border-white/10">
-            {comparisonRows.map((row, index) => (
-              <div
-                key={row.label}
-                className={cn(
-                  "grid gap-3 p-4 text-sm sm:grid-cols-[1.3fr_0.7fr_0.7fr]",
-                  index % 2 === 0 ? "bg-white/[0.025]" : "bg-transparent",
-                )}
-              >
-                <p className="font-bold text-white">{row.label}</p>
-                <p className="text-slate-400">Free: {row.free}</p>
-                <p className="font-black text-blue-100">Premium: {row.premium}</p>
-              </div>
-            ))}
-          </div>
-        </section>
       </div>
     </main>
   );
