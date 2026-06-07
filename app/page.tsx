@@ -7,6 +7,7 @@ import {
   ArrowRight,
   BarChart3,
   CheckCircle2,
+  ChevronDown,
   FileText,
   Mic,
   PlayCircle,
@@ -293,10 +294,68 @@ export default function LandingPage() {
           </Link>
 
           <nav className="hidden items-center gap-7 text-sm font-semibold text-white/60 md:flex">
-            <a href="#features" className="transition hover:text-white">Features</a>
+            <div className="group relative">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 transition hover:text-white"
+              >
+                Features
+                <ChevronDown className="h-4 w-4" />
+              </button>
+
+              <div className="invisible absolute left-0 top-full z-50 mt-4 w-72 translate-y-2 rounded-2xl border border-white/10 bg-[#071120]/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+                {[
+                  ["Real Interview AI", "/interview", "Practice with recruiter-style follow-ups."],
+                  ["Improve CV", "/cv", "Turn your CV into a stronger role match."],
+                  ["Cover Letter", "/cover-letter", "Generate tailored application letters."],
+                  ["Find Jobs", "/jobs", "Search roles and prepare before applying."],
+                  ["Results Report", "/results", "Review trust, score, and weak answers."],
+                ].map(([title, href, text]) => (
+                  <Link
+                    key={title}
+                    href={href}
+                    className="block rounded-xl px-3 py-2.5 transition hover:bg-white/10"
+                  >
+                    <span className="block text-sm font-black text-white">{title}</span>
+                    <span className="mt-0.5 block text-xs leading-5 text-white/50">{text}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
             <a href="#how" className="transition hover:text-white">How it works</a>
             <Link href="/pricing" className="transition hover:text-white">Pricing</Link>
-            <Link href="/changelog" className="transition hover:text-white">Updates</Link>
+
+            <div className="group relative">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 transition hover:text-white"
+              >
+                Resources
+                <ChevronDown className="h-4 w-4" />
+              </button>
+
+              <div className="invisible absolute left-0 top-full z-50 mt-4 w-72 translate-y-2 rounded-2xl border border-white/10 bg-[#071120]/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+                {[
+                  ["Resources", "/resources", "Interview, CV, and job-search guides."],
+                  ["About", "/about", "Meet Haritha and the WorkZo AI story."],
+                  ["FAQ", "/faq", "Answers to common product questions."],
+                  ["Help Center", "/help", "Support and troubleshooting basics."],
+                  ["Roadmap", "/roadmap", "What is planned next."],
+                  ["Changelog", "/changelog", "Latest product updates."],
+                  ["Contact", "/contact", "Support, feedback, and partnerships."],
+                ].map(([title, href, text]) => (
+                  <Link
+                    key={title}
+                    href={href}
+                    className="block rounded-xl px-3 py-2.5 transition hover:bg-white/10"
+                  >
+                    <span className="block text-sm font-black text-white">{title}</span>
+                    <span className="mt-0.5 block text-xs leading-5 text-white/50">{text}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
           </nav>
 
           <Link href="/pricing?intent=interview" className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-black text-white backdrop-blur transition hover:bg-white/20">
@@ -444,8 +503,19 @@ export default function LandingPage() {
           <div className="flex flex-col rounded-[2rem] border border-blue-300/25 bg-blue-500/[0.08] p-8 backdrop-blur-sm">
             <p className="text-sm font-black uppercase tracking-[0.20em] text-blue-200">Premium</p>
             <h3 className="mt-3 text-3xl font-black text-white">Unlock AI Video Recruiter</h3>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <span className="text-lg font-black text-white/40 line-through decoration-2">
+                €29.99/month
+              </span>
+              <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-200">
+                Opening offer
+              </span>
+            </div>
             <p className="mt-2 text-5xl font-black">
               €14.99<span className="text-xl text-white/50">/month</span>
+            </p>
+            <p className="mt-2 text-sm font-black text-emerald-300">
+              Save 50% as an early WorkZo AI user.
             </p>
             <p className="mt-4 text-white/60">
               Practice with realistic AI recruiter avatars, full interview reports, recruiter memory,

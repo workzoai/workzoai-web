@@ -28,6 +28,9 @@ import {
 import UpgradeModal from "@/components/premium/UpgradeModal";
 import PremiumUsageBadge from "@/components/premium/PremiumUsageBadge";
 import { getWorkZoCurrentPlan, recordWorkZoReportViewed } from "@/lib/workzoUsageTracker";
+import { readLatestInterviewSetup } from "@/lib/workzoInterviewSetup";
+import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
+import { buildCareerBrain, updateCareerMemoryFromReport, type PhaseCCareerBrain } from "@/lib/workzoCareerMemory";
 
 type TranscriptTurn = {
   role?: string;
@@ -540,7 +543,7 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
 
   const verdict = `${recruiterName} heard useful role signal, but the current answers need stronger proof, clearer ownership, and more measurable outcomes before a confident next-round decision.`;
 
-  const trustDeductions = [
+  const trustDeductions: Array<{ label: string; value: number; tone: "positive" | "negative" }> = [
     { label: "Missing measurable impact", value: answerInsights.some((item) => !item.metricPresent) ? -12 : 5, tone: answerInsights.some((item) => !item.metricPresent) ? "negative" : "positive" as const },
     { label: "Personal ownership clarity", value: answerInsights.some((item) => !item.ownershipPresent) ? -8 : 6, tone: answerInsights.some((item) => !item.ownershipPresent) ? "negative" : "positive" as const },
     { label: "STAR structure", value: structureScore < 68 ? -7 : 5, tone: structureScore < 68 ? "negative" : "positive" as const },
@@ -713,13 +716,141 @@ function TranscriptCard({ item, index }: { item: AnswerInsight; index: number })
   );
 }
 
+
+function CareerBrainSection({ brain }: { brain: PhaseCCareerBrain }) {
+  const probabilityBars = [
+    { label: "Current profile", value: brain.probability.current, tone: "from-amber-400 to-orange-300" },
+    { label: "After CV improvements", value: brain.probability.afterCv, tone: "from-blue-400 to-cyan-300" },
+    { label: "After interview prep", value: brain.probability.afterPrep, tone: "from-emerald-400 to-teal-300" },
+  ];
+
+  return (
+    <section className="mt-6 rounded-[2rem] border border-emerald-300/15 bg-emerald-500/[0.045] p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-emerald-200">Phase C unified career brain</p>
+          <h2 className="mt-2 text-2xl font-black">One learning loop across CV, jobs, interviews, and results</h2>
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">{brain.progress.latestSummary}</p>
+        </div>
+        <div className="grid h-16 w-16 place-items-center rounded-2xl border border-emerald-300/20 bg-black/25 text-center">
+          <p className="text-2xl font-black text-emerald-100">{brain.probability.current}%</p>
+          <p className="-mt-2 text-[10px] font-black text-slate-500">PROB.</p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-sm font-black text-emerald-100">Interview probability engine</p>
+          <div className="mt-4 space-y-4">
+            {probabilityBars.map((item) => (
+              <div key={item.label}>
+                <div className="flex items-center justify-between text-sm">
+                  <p className="font-bold text-slate-200">{item.label}</p>
+                  <p className="font-black text-white">{item.value}%</p>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                  <div className={`h-full rounded-full bg-gradient-to-r ${item.tone}`} style={{ width: `${item.value}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 space-y-2">
+            {brain.probability.reasons.map((item) => <p key={item} className="text-xs leading-5 text-slate-400">• {item}</p>)}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-sm font-black text-amber-100">Persistent weakness tracking</p>
+          <div className="mt-3 space-y-3">
+            {brain.persistentWeaknesses.length ? brain.persistentWeaknesses.map((item) => (
+              <div key={item.label} className="rounded-2xl bg-amber-400/10 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-black text-white">{item.label}</p>
+                  <span className="rounded-full bg-black/25 px-2 py-1 text-[11px] font-black text-amber-100">seen {item.count}x</span>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-amber-50/85">{item.coachLine}</p>
+              </div>
+            )) : <p className="text-sm leading-6 text-slate-400">No recurring weakness yet. WorkZo will learn after more sessions.</p>}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-sm font-black text-blue-100">Cross-feature actions</p>
+          <div className="mt-3 space-y-3">
+            {brain.crossFeatureActions.map((item) => (
+              <div key={`${item.feature}-${item.action}`} className="rounded-2xl bg-blue-400/10 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200">{item.feature}</p>
+                <p className="mt-2 text-sm leading-6 text-blue-50/90">{item.action}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-sm font-black text-violet-100">Future recruiter memory challenges</p>
+          <div className="mt-3 space-y-2">
+            {brain.futureRecruiterChallenges.map((item) => <p key={item} className="rounded-2xl bg-violet-400/10 p-3 text-sm leading-6 text-violet-50">“{item}”</p>)}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-sm font-black text-cyan-100">Persistent career roadmap</p>
+          <div className="mt-3 space-y-3">
+            {brain.roadmap.slice(0, 4).map((item) => (
+              <div key={item.id} className="rounded-2xl bg-cyan-400/10 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">{item.priority} · {item.estimatedGain}</p>
+                <p className="mt-1 font-black text-white">{item.title}</p>
+                <p className="mt-1 text-sm leading-6 text-cyan-50/85">{item.action}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function ResultsPage() {
   const [mounted, setMounted] = useState(false);
   const [result, setResult] = useState<StoredResult>({});
+  const [setupContext, setSetupContext] = useState<Record<string, unknown>>({});
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [careerBrain, setCareerBrain] = useState<PhaseCCareerBrain | null>(null);
 
   useEffect(() => {
-    setResult(readStoredResult());
+    const storedResult = readStoredResult();
+    const storedSetup = (readLatestInterviewSetup() || {}) as Record<string, unknown>;
+    setResult(storedResult);
+    setSetupContext(storedSetup);
+
+    try {
+      const premiumNow = Boolean(
+        storedResult.isPremium ||
+          String(storedResult.plan || "").toLowerCase().includes("premium") ||
+          getWorkZoCurrentPlan() === "premium",
+      );
+      const immediateReport = buildRichReport(storedResult, premiumNow);
+      const brain = updateCareerMemoryFromReport({
+        targetRole: immediateReport.roleLabel,
+        companyName: immediateReport.companyLabel,
+        overallScore: immediateReport.overallScore,
+        trustScore: immediateReport.trustScore,
+        evidenceQuality: immediateReport.evidenceQuality,
+        ownershipScore: immediateReport.ownershipScore,
+        structureScore: immediateReport.structureScore,
+        biggestBlocker: immediateReport.biggestBlocker,
+        strengths: immediateReport.strengths,
+        improvements: immediateReport.improvements,
+        answerInsights: immediateReport.answerInsights,
+        contradictions: immediateReport.contradictions,
+      });
+      setCareerBrain(brain);
+    } catch {
+      setCareerBrain(buildCareerBrain());
+    }
+
     setMounted(true);
     try {
       recordWorkZoReportViewed();
@@ -739,7 +870,17 @@ export default function ResultsPage() {
   }, [result]);
 
   const report = useMemo(() => buildRichReport(result, isPremium), [result, isPremium]);
-
+  const phaseB = useMemo(
+    () => buildPhaseBInsights({
+      cvText: String(setupContext.cvText || setupContext.uploadedCvText || setupContext.resumeText || setupContext.candidateCv || ""),
+      jobDescription: String(setupContext.jobDescription || setupContext.jdText || ""),
+      targetRole: String(result.targetRole || result.role || setupContext.targetRole || setupContext.role || ""),
+      targetMarket: String(setupContext.targetMarket || setupContext.country || ""),
+      companyName: String(result.companyName || result.targetCompany || setupContext.companyName || setupContext.targetCompany || ""),
+      companyStyle: String(result.companyStyle || setupContext.companyStyle || ""),
+    }),
+    [result, setupContext],
+  );
   if (!mounted) {
     return <main className="min-h-screen bg-[#050a12] text-white" />;
   }
@@ -792,6 +933,55 @@ export default function ResultsPage() {
           <MetricCard icon={Target} label="Role Competency" value={report.roleCompetencyScore} note="How relevant your evidence sounded for the role." />
           <MetricCard icon={ShieldCheck} label="Trust Signal" value={report.trustScore} note="Consistency, ownership, and proof strength." />
         </section>
+
+
+        <section className="mt-6 rounded-[2rem] border border-blue-300/15 bg-blue-500/[0.045] p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-200">Phase 2 diagnostic layer</p>
+              <h2 className="mt-2 text-2xl font-black">{phaseB.companyDNA.label}</h2>
+              <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">{phaseB.companyDNA.description}</p>
+            </div>
+            <div className="grid h-16 w-16 place-items-center rounded-2xl border border-blue-300/20 bg-black/25 text-center">
+              <p className="text-2xl font-black text-blue-100">{phaseB.trustAudit.overall}</p>
+              <p className="-mt-2 text-[10px] font-black text-slate-500">TRUST</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-sm font-black text-blue-100">Company DNA alignment</p>
+              <div className="mt-3 space-y-3">
+                {phaseB.companyDNA.dimensions.map((item) => (
+                  <Bar key={item.label} label={item.label} value={item.score} target={item.target} note={item.note} />
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-sm font-black text-emerald-200">Trust audit deductions</p>
+              <div className="mt-3 space-y-2">
+                {phaseB.trustAudit.deductions.map((item) => (
+                  <p key={item.label} className="text-sm leading-6 text-slate-300">
+                    <span className="font-black text-white">{item.delta >= 0 ? "+" : ""}{item.delta}</span> {item.label}: {item.reason}
+                  </p>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-sm font-black text-amber-200">Cross-feature consistency</p>
+              <p className="mt-2 text-lg font-black text-white">{phaseB.consistency.status}</p>
+              <div className="mt-3 space-y-2">
+                {phaseB.consistency.notes.map((item) => (
+                  <p key={item} className="text-sm leading-6 text-slate-300">• {item}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {careerBrain ? <CareerBrainSection brain={careerBrain} /> : null}
 
         {!isPremium ? (
           <>

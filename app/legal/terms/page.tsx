@@ -1,88 +1,32 @@
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
 
-function LegalShell({ eyebrow, title, children }: { eyebrow: string; title: string; children: React.ReactNode }) {
-  return (
-    <main className="min-h-screen bg-[#050b14] px-5 py-8 text-white">
-      <div className="mx-auto max-w-4xl">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white">
-          <ArrowLeft className="h-4 w-4" />
-          Back to WorkZo AI
-        </Link>
-        <section className="mt-8 rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
-          <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-blue-400/10 text-blue-200">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">{eyebrow}</p>
-              <h1 className="mt-1 text-3xl font-black sm:text-4xl">{title}</h1>
-            </div>
-          </div>
-          <div className="mt-7 space-y-6 text-sm leading-7 text-slate-300">{children}</div>
-        </section>
-      </div>
-    </main>
-  );
-}
-
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h2 className="text-xl font-black text-white">{title}</h2>
-      <div className="mt-2 space-y-2">{children}</div>
-    </section>
-  );
-}
-
-export const metadata = { title: "Terms of Use | WorkZo AI" };
+const sections = [
+  ["1. Service purpose", "WorkZo AI provides interview preparation, CV-related guidance, and job-preparation support. It is not an employer, recruiter, legal advisor, immigration advisor, or guaranteed job-placement service."],
+  ["2. No guarantee", "WorkZo AI does not guarantee interview invitations, job offers, hiring outcomes, salary outcomes, or employer responses."],
+  ["3. User responsibility", "You are responsible for the accuracy of the CVs, job descriptions, answers, and other content you upload or enter. You should review AI-generated outputs before using them in real applications."],
+  ["4. Acceptable use", "Do not use WorkZo AI for unlawful activity, harassment, impersonation, uploading content you do not have the right to use, or attempting to reverse-engineer or abuse the service."],
+  ["5. Beta status", "WorkZo AI is currently in beta. Features, limits, pricing, and availability may change as the product improves."],
+  ["6. Payments", "Premium checkout and billing may be enabled later. Any paid plan details shown before checkout is connected are product-intent information and may be updated before billing begins."],
+  ["7. Contact", "For questions about these terms, contact support@workzoai.com."],
+];
 
 export default function TermsPage() {
   return (
-    <LegalShell eyebrow="Legal" title="Terms of Use">
-      <p className="text-slate-400">Last updated: June 2, 2026</p>
-
-      <Block title="1. Acceptance">
-        <p>By using WorkZo AI, you agree to these Terms. If you do not agree, do not use the product.</p>
-      </Block>
-
-      <Block title="2. Beta product">
-        <p>WorkZo AI is currently a beta product. Features may change, improve, break, be removed, or be temporarily unavailable during development.</p>
-      </Block>
-
-      <Block title="3. User responsibility">
-        <p>You are responsible for the information you upload, paste, generate, save, or share. You should review all AI-generated content before relying on it.</p>
-      </Block>
-
-      <Block title="4. No employment guarantee">
-        <p>WorkZo AI provides interview practice, career preparation, and AI-generated feedback. We do not guarantee interviews, job offers, employment, salary outcomes, recruiter responses, visa outcomes, or career success.</p>
-      </Block>
-
-      <Block title="5. AI output">
-        <p>AI-generated feedback may be incomplete, inaccurate, or unsuitable for your situation. You should independently verify important suggestions, especially for legal, immigration, financial, employment, or professional decisions.</p>
-      </Block>
-
-      <Block title="6. Subscriptions and payments">
-        <p>Premium features may be introduced later. Pricing, access rules, refund terms, and subscription details will be shown before purchase when payment features are enabled.</p>
-      </Block>
-
-      <Block title="7. Prohibited use">
-        <p>You may not use WorkZo AI to:</p>
-        <ul className="list-disc space-y-1 pl-5">
-          <li>Upload unlawful, harmful, or abusive content.</li>
-          <li>Misrepresent credentials, employment history, or qualifications.</li>
-          <li>Attempt to reverse engineer, attack, overload, or misuse the service.</li>
-          <li>Use generated content for fraud, impersonation, or deceptive hiring practices.</li>
-        </ul>
-      </Block>
-
-      <Block title="8. Limitation of liability">
-        <p>To the fullest extent permitted by law, WorkZo AI is provided “as is” without warranties. We are not liable for indirect, incidental, consequential, or employment-related damages arising from use of the product.</p>
-      </Block>
-
-      <Block title="9. Contact">
-        <p>For terms questions, contact: <a className="text-blue-300 hover:text-blue-200" href="mailto:support@workzoai.com">support@workzoai.com</a></p>
-      </Block>
-    </LegalShell>
+    <main className="min-h-screen bg-[#050a12] px-5 py-10 text-white">
+      <div className="mx-auto max-w-4xl">
+        <Link href="/" className="text-sm font-bold text-slate-400 hover:text-white">← Back home</Link>
+        <p className="mt-10 text-xs font-black uppercase tracking-[0.28em] text-cyan-200">Legal</p>
+        <h1 className="mt-3 text-4xl font-black tracking-[-0.04em] sm:text-5xl">Terms of Service</h1>
+        <p className="mt-4 text-sm leading-7 text-slate-300">Last updated: June 2026. Please review these terms before using WorkZo AI.</p>
+        <div className="mt-8 space-y-4">
+          {sections.map(([title, body]) => (
+            <section key={title} className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+              <h2 className="text-lg font-black">{title}</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-300">{body}</p>
+            </section>
+          ))}
+        </div>
+      </div>
+    </main>
   );
 }

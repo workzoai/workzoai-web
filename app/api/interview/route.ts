@@ -519,7 +519,7 @@ function validateCandidateCompanyClaim({
 
 function compactTranscript(items: TranscriptItem[] | undefined) {
   return (items || [])
-    .slice(-2)
+    .slice(-10)
     .map((item) => ({
       role: item.role,
       text: text(item.text, 220),
@@ -679,6 +679,8 @@ export async function POST(request: Request) {
       companyName: text((setup as any).companyName || (body as any).companyName, 120),
       companyStyle: text(body.companyStyle || setup.companyStyle, 120),
       recruiterPersonality: text(body.recruiterPersonality || setup.recruiterPersonality, 80),
+      currentTrust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58,
+      currentState: body.recruiterState || null,
     });
 
     const companyDecoratedJob = decorateJobContextWithCompanyDNA(compactJob, intelligence95.companyDNA);
