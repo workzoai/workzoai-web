@@ -7,6 +7,8 @@ import {
   ArrowLeft,
   BarChart3,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Crown,
   Eye,
   Flag,
@@ -14,23 +16,21 @@ import {
   Lightbulb,
   Lock,
   MessageSquareText,
-  Mic2,
   RefreshCcw,
-  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Target,
   TrendingUp,
   Wand2,
+  XCircle,
 } from "lucide-react";
 
 import UpgradeModal from "@/components/premium/UpgradeModal";
 import PremiumUsageBadge from "@/components/premium/PremiumUsageBadge";
-import { getWorkZoPlanLimits } from "@/lib/workzoPlanLimits";
-import {
-  getWorkZoCurrentPlan,
-  recordWorkZoReportViewed,
-} from "@/lib/workzoUsageTracker";
+import { getWorkZoCurrentPlan, recordWorkZoReportViewed } from "@/lib/workzoUsageTracker";
+import { readLatestInterviewSetup } from "@/lib/workzoInterviewSetup";
+import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
+import { buildCareerBrain, updateCareerMemoryFromReport, type PhaseCCareerBrain } from "@/lib/workzoCareerMemory";
 
 type TranscriptTurn = {
   role?: string;
@@ -41,13 +41,6 @@ type TranscriptTurn = {
   answer?: string;
   timestamp?: string;
   time?: string;
-};
-
-type WeakAnswer = {
-  question?: string;
-  answer?: string;
-  reason?: string;
-  betterAnswer?: string;
 };
 
 type StoredResult = {
@@ -73,19 +66,15 @@ type StoredResult = {
   selectedCompany?: string;
   strengths?: string[];
   improvements?: string[];
-  weakAnswers?: WeakAnswer[];
+  weakAnswers?: Array<{ question?: string; answer?: string; reason?: string; betterAnswer?: string }>;
   contradictions?: string[];
   evidenceRequests?: string[];
   redFlags?: string[];
-  trustTimeline?: Array<{ label?: string; score?: number; reason?: string; evidence?: string }>;
   transcript?: TranscriptTurn[];
   messages?: TranscriptTurn[];
   answers?: TranscriptTurn[];
-  transcriptTimeline?: TranscriptTurn[];
-  report?: Record<string, unknown>;
-  intelligence?: Record<string, unknown>;
+  resumeProfile?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
-  [key: string]: unknown;
 };
 
 type AnswerInsight = {
@@ -93,73 +82,58 @@ type AnswerInsight = {
   question: string;
   answer: string;
   wordCount: number;
-  estimatedWpm: number;
   fillerCount: number;
-  pauseRisk: "low" | "medium" | "high";
   metricPresent: boolean;
   ownershipPresent: boolean;
   resultPresent: boolean;
-  structurePresent: boolean;
-  roleRelevancePresent: boolean;
-  blameShiftDetected: boolean;
-  vagueLanguageDetected: boolean;
   structureScore: number;
   evidenceScore: number;
-  confidenceScore: number;
   trustImpact: number;
   weakness: string;
-  whatRecruiterHeard: string;
-  betterAnswer: string;
+  recruiterHeard: string;
+  rewrite: string;
   redFlags: string[];
-  benchmarkGap: string;
 };
 
-type CompanyDNA = {
+type CompanyDimension = {
   label: string;
-  description: string;
-  interviewerMode: string;
-  dimensions: Array<{ label: string; score: number; target: number; note: string }>;
-};
-
-type ContradictionAudit = {
-  severity: number;
-  title: string;
-  detail: string;
-  trustDrop: number;
-  challengePrompt: string;
+  score: number;
+  target: number;
+  note: string;
 };
 
 type RichReport = {
+  isPremium: boolean;
   overallScore: number;
   grade: string;
+  decision: string;
+  biggestBlocker: string;
   communicationScore: number;
   confidenceScore: number;
   roleCompetencyScore: number;
   trustScore: number;
   evidenceQuality: number;
-  contradictionRisk: number;
+  ownershipScore: number;
+  structureScore: number;
   durationLabel: string;
-  durationSeconds: number;
   answersCount: number;
   averageWpm: number;
   recruiterName: string;
   roleLabel: string;
   companyLabel: string;
-  verdictTitle: string;
-  verdictBody: string;
-  sentiment: string;
+  verdict: string;
   quickWin: string;
   strengths: string[];
   improvements: string[];
   answerInsights: AnswerInsight[];
-  contradictions: ContradictionAudit[];
   redFlags: string[];
+  contradictions: Array<{ title: string; detail: string; severity: number; trustDrop: number }>;
   evidenceRequests: string[];
-  companyDNA: CompanyDNA;
+  trustDeductions: Array<{ label: string; value: number; tone: "positive" | "negative" }>;
+  companyDNA: { label: string; description: string; dimensions: CompanyDimension[] };
   benchmark: Array<{ label: string; user: number; top: number; note: string }>;
-  vocalFillers: Array<{ label: string; count: number; risk: "low" | "medium" | "high" }>;
-  improvementPlan: Array<{ title: string; action: string }>;
-  trustTimeline: Array<{ label: string; score: number; reason: string; evidence: string }>;
+  audioSignals: Array<{ label: string; value: number; risk: "low" | "medium" | "high" }>;
+  improvementPlan: Array<{ priority: string; title: string; action: string; gain: string }>;
 };
 
 const STORAGE_KEYS = [
@@ -190,61 +164,61 @@ function clamp(value: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, Math.round(value)));
 }
 
-function average(values: number[], fallback = 0) {
-  const clean = values.filter((value) => Number.isFinite(value));
-  if (!clean.length) return fallback;
-  return clamp(clean.reduce((sum, value) => sum + value, 0) / clean.length);
+function cleanText(value: unknown, fallback = "") {
+  if (typeof value !== "string") return fallback;
+  return value.replace(/\s+/g, " ").trim() || fallback;
 }
 
 function numberOr(value: unknown, fallback: number) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-function cleanText(value: unknown, max = 6000) {
-  return typeof value === "string"
-    ? value.replace(/\u0000/g, " ").replace(/\s+/g, " ").trim().slice(0, max)
-    : "";
+function average(values: number[], fallback = 0) {
+  const valid = values.filter((value) => Number.isFinite(value));
+  if (!valid.length) return fallback;
+  return clamp(valid.reduce((sum, value) => sum + value, 0) / valid.length);
 }
 
-function normalizeList(value: unknown, fallback: string[], limit = 6) {
-  if (Array.isArray(value)) {
-    const items = value.map((item) => cleanText(item, 300)).filter(Boolean);
-    if (items.length) return Array.from(new Set(items)).slice(0, limit);
+function uniqueList(values: unknown, fallback: string[], limit = 5) {
+  const source = Array.isArray(values) ? values : fallback;
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const item of source) {
+    const text = cleanText(item);
+    const key = text.toLowerCase();
+    if (!text || seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+    if (out.length >= limit) break;
   }
-  return fallback.slice(0, limit);
+
+  return out.length ? out : fallback.slice(0, limit);
 }
 
-function readJsonFromStorage(keys: string[]) {
+function readJson(keys: string[]) {
   if (typeof window === "undefined") return null;
 
   for (const key of keys) {
-    try {
-      const local = window.localStorage.getItem(key);
-      if (local) {
-        const parsed = JSON.parse(local);
+    for (const storage of [window.localStorage, window.sessionStorage]) {
+      try {
+        const raw = storage.getItem(key);
+        if (!raw) continue;
+        const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
+      } catch {
+        // Try next key.
       }
-
-      const session = window.sessionStorage.getItem(key);
-      if (session) {
-        const parsed = JSON.parse(session);
-        if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
-      }
-    } catch {
-      // Continue to the next key.
     }
   }
 
   return null;
 }
 
-function readResultFromStorage(): StoredResult {
-  const result = readJsonFromStorage(STORAGE_KEYS);
-  const setup = readJsonFromStorage(SETUP_KEYS);
-  return {
-    ...(setup || {}),
-    ...(result || {}),
-  } as StoredResult;
+function readStoredResult(): StoredResult {
+  const setup = readJson(SETUP_KEYS) || {};
+  const result = readJson(STORAGE_KEYS) || {};
+  return { ...setup, ...result } as StoredResult;
 }
 
 function gradeFromScore(score: number) {
@@ -261,14 +235,9 @@ function gradeFromScore(score: number) {
 function durationToSeconds(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, value);
   const text = cleanText(value);
-  if (!text) return 0;
-
-  const minuteMatch = text.match(/(\d+)\s*m/i);
-  const secondMatch = text.match(/(\d+)\s*s/i);
-  if (minuteMatch || secondMatch) {
-    return Number(minuteMatch?.[1] || 0) * 60 + Number(secondMatch?.[1] || 0);
-  }
-
+  const minutes = text.match(/(\d+)\s*m/i);
+  const seconds = text.match(/(\d+)\s*s/i);
+  if (minutes || seconds) return Number(minutes?.[1] || 0) * 60 + Number(seconds?.[1] || 0);
   return 0;
 }
 
@@ -280,8 +249,8 @@ function formatDuration(seconds: number) {
   return `${mins}m ${secs}s`;
 }
 
-function getText(turn: TranscriptTurn) {
-  return cleanText(turn.text || turn.content || turn.answer || turn.question || "");
+function getTurnText(turn: TranscriptTurn) {
+  return cleanText(turn.text || turn.content || turn.answer || turn.question);
 }
 
 function isRecruiterTurn(turn: TranscriptTurn) {
@@ -297,32 +266,30 @@ function isCandidateTurn(turn: TranscriptTurn) {
 function buildPairs(result: StoredResult) {
   const source = Array.isArray(result.transcript)
     ? result.transcript
-    : Array.isArray(result.transcriptTimeline)
-      ? result.transcriptTimeline
-      : Array.isArray(result.messages)
-        ? result.messages
-        : Array.isArray(result.answers)
-          ? result.answers
-          : [];
+    : Array.isArray(result.messages)
+      ? result.messages
+      : Array.isArray(result.answers)
+        ? result.answers
+        : [];
 
   if (!source.length && Array.isArray(result.weakAnswers)) {
     return result.weakAnswers.map((item, index) => ({
-      question: cleanText(item.question) || `Interview question ${index + 1}`,
-      answer: cleanText(item.answer) || "Answer not captured.",
+      question: cleanText(item.question, `Interview question ${index + 1}`),
+      answer: cleanText(item.answer, "Answer not captured yet."),
     }));
   }
 
   const pairs: Array<{ question: string; answer: string }> = [];
-  let pendingQuestion = "";
+  let pendingQuestion = "Tell me about your background for this role.";
 
   for (const turn of source) {
-    const text = getText(turn);
-    if (!text) continue;
-
     if (turn.question && turn.answer) {
       pairs.push({ question: cleanText(turn.question), answer: cleanText(turn.answer) });
       continue;
     }
+
+    const text = getTurnText(turn);
+    if (!text) continue;
 
     if (isRecruiterTurn(turn)) {
       pendingQuestion = text;
@@ -330,15 +297,12 @@ function buildPairs(result: StoredResult) {
     }
 
     if (isCandidateTurn(turn)) {
-      pairs.push({
-        question: pendingQuestion || `Interview question ${pairs.length + 1}`,
-        answer: text,
-      });
-      pendingQuestion = "";
+      pairs.push({ question: pendingQuestion, answer: text });
+      pendingQuestion = `Interview question ${pairs.length + 2}`;
     }
   }
 
-  return pairs.slice(0, 14);
+  return pairs.slice(0, 12);
 }
 
 function countWords(text: string) {
@@ -346,91 +310,33 @@ function countWords(text: string) {
 }
 
 function countFillers(text: string) {
-  return (text.match(/\b(um|uh|like|basically|actually|sort of|kind of|you know|i mean)\b/gi) || []).length;
+  return (text.match(/\b(um|uh|like|basically|actually|sort of|kind of|you know|i mean|maybe|probably)\b/gi) || []).length;
 }
 
 function hasMetric(text: string) {
-  return /\b\d+\s*(%|percent|k|m|million|thousand|x|times|users|customers|hours|days|weeks|months|tickets|cases|revenue|cost|sla|nps|csat|projects|reports|calls|leads)\b/i.test(text);
+  return /\b\d+\s*(%|percent|k|m|million|thousand|x|times|users|customers|tickets|cases|incidents|hours|days|weeks|months|revenue|cost|sla|nps|csat)\b/i.test(text);
 }
 
 function hasOwnership(text: string) {
-  return /\b(i|my|me)\b/i.test(text) && /\b(led|owned|built|created|designed|implemented|resolved|improved|managed|delivered|automated|analyzed|analysed|coordinated|handled|drove|initiated)\b/i.test(text);
+  return /\b(i|my|me|personally)\b/i.test(text) && /\b(led|owned|built|created|designed|implemented|resolved|improved|managed|delivered|automated|analyzed|coordinated|handled|trained|supported)\b/i.test(text);
 }
 
 function hasResult(text: string) {
-  return /\b(result|outcome|impact|improved|reduced|increased|saved|achieved|delivered|therefore|as a result|because of this|led to)\b/i.test(text) || hasMetric(text);
-}
-
-function hasStructure(text: string) {
-  return /\b(situation|task|action|result|challenge|approach|outcome|impact|first|then|finally|because|therefore|as a result)\b/i.test(text);
-}
-
-function hasRoleRelevance(text: string) {
-  return /\b(customer|client|stakeholder|team|technical|business|data|product|sales|support|engineering|delivery|quality|process|report|dashboard|system|user|revenue|operation|project)\b/i.test(text);
-}
-
-function detectBlameShift(text: string) {
-  return /\b(they failed|team failed|manager failed|because of them|not my fault|they did not|they didn'?t|wasn'?t my responsibility)\b/i.test(text);
-}
-
-function detectVagueLanguage(text: string) {
-  return /\b(stuff|things|various|many things|some tasks|helped with|worked on things|good communication|hard working|etcetera|etc\.)\b/i.test(text);
+  return /\b(result|impact|outcome|after|therefore|as a result|which led|improved|reduced|increased|saved|resolved|delivered|achieved)\b/i.test(text) || hasMetric(text);
 }
 
 function detectRedFlags(answer: string) {
   const flags: string[] = [];
-  if (/\b(my manager told me|just did what i was told|not my responsibility)\b/i.test(answer)) {
-    flags.push("May sound low-ownership unless clarified.");
-  }
-  if (detectBlameShift(answer)) flags.push("Possible blame-shifting signal.");
-  if (countWords(answer) < 18) flags.push("Answer may be too short for recruiter confidence.");
-  if (countWords(answer) > 260) flags.push("Answer may be too long and unfocused.");
+  const words = countWords(answer);
+
+  if (/\b(my manager told me|just did what i was told|not my responsibility)\b/i.test(answer)) flags.push("May sound low-ownership unless clarified.");
+  if (/\b(they failed|team failed|manager failed|because of them|not my fault)\b/i.test(answer)) flags.push("Possible blame-shifting signal.");
+  if (words > 0 && words < 25) flags.push("Answer ended before enough evidence was provided.");
+  if (words > 230) flags.push("Answer may feel too long or unfocused.");
   if (!hasMetric(answer)) flags.push("No measurable outcome detected.");
   if (!hasOwnership(answer)) flags.push("Personal ownership is not clear enough.");
-  if (detectVagueLanguage(answer)) flags.push("Vague wording may reduce credibility.");
-  return flags.slice(0, 5);
-}
 
-function classifyPauseRisk(wordCount: number) {
-  if (wordCount < 20) return "high" as const;
-  if (wordCount > 220) return "medium" as const;
-  return "low" as const;
-}
-
-function whatHeard(answer: string) {
-  const words = countWords(answer);
-  const metric = hasMetric(answer);
-  const ownership = hasOwnership(answer);
-  const result = hasResult(answer);
-  const blame = detectBlameShift(answer);
-
-  if (words < 22) return "The recruiter may feel the answer ended before enough proof was provided.";
-  if (blame) return "The recruiter may hear a risk of blame-shifting rather than ownership under pressure.";
-  if (!ownership && !metric) return "The recruiter hears useful background, but not enough proof of personal impact.";
-  if (!metric) return "The recruiter may believe the story, but still wonder how impact was measured.";
-  if (!ownership) return "The recruiter may not know which part was personally owned versus handled by the wider team.";
-  if (!result) return "The recruiter hears action, but needs a clearer final outcome.";
-  return "The recruiter hears a credible example with evidence, ownership, and role-relevant impact.";
-}
-
-function rewriteAnswer(question: string, answer: string) {
-  if (!answer || /not captured/i.test(answer)) {
-    return "Use a short STAR answer: situation, task, action, measurable result, and one sentence connecting it to the target role.";
-  }
-
-  const intro = /tell me about yourself|introduce|background/i.test(question)
-    ? "My background is strongest when I connect my experience directly to this role."
-    : "In that situation, I would structure the answer around the business problem, my ownership, and the measurable result.";
-
-  const metricLine = hasMetric(answer)
-    ? "I would keep the metric and make the result the final sentence so the recruiter remembers it."
-    : "I would add one measurable outcome, such as time saved, tickets resolved, revenue impact, quality improved, or customer satisfaction change.";
-
-  const ownershipLine = hasOwnership(answer)
-    ? "I would make the ownership statement even clearer by saying exactly what I personally decided, built, or handled."
-    : "I would add a clear ownership phrase: ‘I personally handled…’, ‘I owned…’, or ‘I led…’.";
-
-  return `${intro} I would explain the context in one sentence, describe the exact action I personally took, and close with the outcome. ${ownershipLine} ${metricLine}`;
+  return flags.slice(0, 4);
 }
 
 function analyzeAnswer(question: string, answer: string, index: number): AnswerInsight {
@@ -439,98 +345,69 @@ function analyzeAnswer(question: string, answer: string, index: number): AnswerI
   const metricPresent = hasMetric(answer);
   const ownershipPresent = hasOwnership(answer);
   const resultPresent = hasResult(answer);
-  const structurePresent = hasStructure(answer);
-  const roleRelevancePresent = hasRoleRelevance(answer);
-  const blameShiftDetected = detectBlameShift(answer);
-  const vagueLanguageDetected = detectVagueLanguage(answer);
-
-  const structureScore = clamp(
-    28 +
-      (words >= 35 ? 14 : 0) +
-      (words <= 180 && words > 0 ? 14 : 0) +
-      (structurePresent ? 18 : 0) +
-      (ownershipPresent ? 14 : 0) +
-      (resultPresent ? 12 : 0) -
-      (words > 260 ? 18 : 0),
-  );
-
-  const evidenceScore = clamp(
-    25 +
-      (metricPresent ? 28 : 0) +
-      (ownershipPresent ? 18 : 0) +
-      (resultPresent ? 17 : 0) +
-      (roleRelevancePresent ? 12 : 0) -
-      (vagueLanguageDetected ? 12 : 0),
-  );
-
-  const confidenceScore = clamp(
-    40 +
-      (words >= 35 ? 12 : -10) +
-      (fillerCount <= 2 ? 10 : -8) +
-      (ownershipPresent ? 14 : 0) +
-      (structurePresent ? 10 : 0) -
-      (blameShiftDetected ? 18 : 0),
-  );
-
   const redFlags = detectRedFlags(answer);
-  const trustImpact = clamp(average([structureScore, evidenceScore, confidenceScore], 55) - redFlags.length * 5);
+
+  const structureScore = clamp(36 + (words >= 35 ? 14 : 0) + (words <= 180 ? 16 : 0) + (ownershipPresent ? 14 : 0) + (resultPresent ? 16 : 0) - (words > 230 ? 12 : 0));
+  const evidenceScore = clamp(30 + (metricPresent ? 35 : 0) + (ownershipPresent ? 18 : 0) + (resultPresent ? 17 : 0) - (redFlags.length * 3));
+  const trustImpact = clamp(44 + (ownershipPresent ? 18 : -8) + (metricPresent ? 18 : -12) + (resultPresent ? 12 : -6) - (redFlags.length * 5));
 
   let weakness = "Good foundation; make the answer sharper with stronger structure.";
   if (!metricPresent) weakness = "Missing measurable evidence.";
   if (!ownershipPresent) weakness = "Personal ownership is not clear.";
-  if (words < 18) weakness = "Answer is too short to evaluate deeply.";
-  if (words > 260) weakness = "Answer is too long and may lose recruiter attention.";
-  if (blameShiftDetected) weakness = "The answer may sound like blame-shifting under pressure.";
+  if (words < 25) weakness = "Answer is too short to evaluate deeply.";
+  if (words > 230) weakness = "Answer is too long and may lose recruiter attention.";
 
-  let benchmarkGap = "Top candidates answer with a concrete situation, personal action, and measurable result.";
-  if (!metricPresent) benchmarkGap = "Top candidates quantify the result instead of describing effort only.";
-  if (!ownershipPresent) benchmarkGap = "Top candidates make personal decision-making and ownership unmistakable.";
-  if (!structurePresent) benchmarkGap = "Top candidates organize answers with clear STAR flow.";
+  const recruiterHeard = words < 25
+    ? "The recruiter may feel the answer ended before enough proof was provided."
+    : !ownershipPresent && !metricPresent
+      ? "The recruiter hears useful background, but not enough proof of personal impact."
+      : !metricPresent
+        ? "The recruiter may believe the story, but still wonder how impact was measured."
+        : !ownershipPresent
+          ? "The recruiter may not know which part was personally owned by you versus the wider team."
+          : !resultPresent
+            ? "The recruiter hears action, but needs a clearer final outcome."
+            : "The recruiter hears a credible answer with evidence, ownership, and role relevance.";
+
+  const rewrite = answer && !/not captured/i.test(answer)
+    ? "I would answer this with a short STAR structure: explain the situation, define my task, describe the action I personally owned, and close with one measurable result connected to the target role."
+    : "Use a short STAR answer: situation, task, action, measurable result, and one sentence linking it to the role.";
 
   return {
     id: `answer-${index + 1}`,
     question,
-    answer,
+    answer: cleanText(answer, "Answer not captured yet."),
     wordCount: words,
-    estimatedWpm: words ? clamp(words / 1.4, 50, 210) : 0,
     fillerCount,
-    pauseRisk: classifyPauseRisk(words),
     metricPresent,
     ownershipPresent,
     resultPresent,
-    structurePresent,
-    roleRelevancePresent,
-    blameShiftDetected,
-    vagueLanguageDetected,
     structureScore,
     evidenceScore,
-    confidenceScore,
     trustImpact,
     weakness,
-    whatRecruiterHeard: whatHeard(answer),
-    betterAnswer: rewriteAnswer(question, answer),
+    recruiterHeard,
+    rewrite,
     redFlags,
-    benchmarkGap,
   };
 }
 
-function companyDNA(company: string, role: string, insights: AnswerInsight[]): CompanyDNA {
+function buildCompanyDNA(company: string, role: string, insights: AnswerInsight[]): RichReport["companyDNA"] {
   const source = `${company} ${role}`.toLowerCase();
-  const avgEvidence = average(insights.map((item) => item.evidenceScore), 62);
-  const avgStructure = average(insights.map((item) => item.structureScore), 64);
-  const avgTrust = average(insights.map((item) => item.trustImpact), 66);
-  const avgConfidence = average(insights.map((item) => item.confidenceScore), 64);
+  const evidence = average(insights.map((item) => item.evidenceScore), 58);
+  const structure = average(insights.map((item) => item.structureScore), 62);
+  const trust = average(insights.map((item) => item.trustImpact), 60);
+  const ownership = average(insights.map((item) => item.ownershipPresent ? 78 : 48), 55);
 
   if (/amazon|aws/.test(source)) {
     return {
       label: "Amazon Bar Raiser Alignment",
-      description: "Mapped to Amazon-style leadership signal expectations: ownership, evidence, customer impact, and ability to dive deep.",
-      interviewerMode: "Bar Raiser: direct, evidence-heavy, skeptical of unsupported claims.",
+      description: "Mapped to Amazon-style leadership signals: ownership, customer impact, bias for action, and dive-deep evidence.",
       dimensions: [
-        { label: "Customer Obsession", score: clamp(avgEvidence + 4), target: 88, note: "Needs customer/user impact evidence." },
-        { label: "Ownership", score: avgTrust, target: 90, note: "Strong only when personal contribution is explicit." },
-        { label: "Dive Deep", score: avgEvidence, target: 86, note: "Metrics, root-cause detail, and specificity matter heavily." },
-        { label: "Bias for Action", score: clamp(avgStructure + 2), target: 84, note: "Clear action steps improve this score." },
+        { label: "Customer Obsession", score: clamp(evidence + 6), target: 88, note: "Connect stories to customer or user impact." },
+        { label: "Ownership", score: ownership, target: 90, note: "Make your personal scope unmistakable." },
+        { label: "Dive Deep", score: evidence, target: 86, note: "Add metrics, root cause, and operational detail." },
+        { label: "Bias for Action", score: clamp(structure + 4), target: 84, note: "Show fast, practical decision-making." },
       ],
     };
   }
@@ -538,697 +415,738 @@ function companyDNA(company: string, role: string, insights: AnswerInsight[]): C
   if (/mckinsey|consulting|consultant|bcg|bain/.test(source)) {
     return {
       label: "Consulting / MECE Alignment",
-      description: "Mapped to consulting-style expectations: structured thinking, concise reasoning, quantified business impact, and executive communication.",
-      interviewerMode: "Case-style interviewer: expects structured, MECE answers and clear trade-offs.",
+      description: "Mapped to structured thinking, concise communication, business impact, and executive-ready reasoning.",
       dimensions: [
-        { label: "Structured Thinking", score: avgStructure, target: 90, note: "Answers need clean situation-task-action-result flow." },
-        { label: "Business Impact", score: avgEvidence, target: 88, note: "Quantified outcomes are critical." },
-        { label: "Executive Clarity", score: clamp(avgConfidence + 3), target: 86, note: "Lead with the conclusion and reduce rambling." },
-        { label: "Prioritization", score: clamp(avgStructure - 2), target: 84, note: "Explain why your approach was the right one." },
+        { label: "MECE Structure", score: structure, target: 90, note: "Lead with clear buckets and avoid rambling." },
+        { label: "Business Impact", score: evidence, target: 88, note: "Quantify the commercial or operational value." },
+        { label: "Executive Clarity", score: clamp(structure - 2), target: 86, note: "Start with the conclusion, then explain." },
+        { label: "Hypothesis Thinking", score: clamp(trust - 4), target: 82, note: "Explain why you chose the approach." },
       ],
     };
   }
 
-  if (/google|meta|microsoft|software|engineer|developer|technical/.test(source)) {
+  if (/google|meta|microsoft|software|developer|engineer|technical|data|analyst/.test(source)) {
     return {
       label: "Technical Company Alignment",
-      description: "Mapped to technical-company expectations: problem solving, scale, collaboration, ownership, and measurable impact.",
-      interviewerMode: "Technical hiring manager: tests clarity, trade-offs, depth, and evidence.",
+      description: "Mapped to technical depth, collaboration, role relevance, and measurable delivery impact.",
       dimensions: [
-        { label: "Technical Depth", score: avgEvidence, target: 86, note: "Use concrete systems, tools, constraints, or scale." },
-        { label: "Ownership", score: avgTrust, target: 86, note: "Clarify what you personally built or decided." },
-        { label: "Collaboration", score: clamp(avgStructure + 3), target: 82, note: "Explain stakeholders and trade-offs." },
-        { label: "Impact", score: avgEvidence, target: 88, note: "Quantify user, speed, cost, quality, or revenue impact." },
-      ],
-    };
-  }
-
-  if (/startup|founder|early|scale|growth/.test(source)) {
-    return {
-      label: "Startup Readiness Alignment",
-      description: "Mapped to startup expectations: ownership, speed, adaptability, customer learning, and measurable execution.",
-      interviewerMode: "Startup recruiter: practical, fast-paced, ownership-first.",
-      dimensions: [
-        { label: "Ownership", score: avgTrust, target: 86, note: "Startups need self-directed execution." },
-        { label: "Speed", score: avgStructure, target: 82, note: "Show fast decisions and iteration." },
-        { label: "Customer Learning", score: avgEvidence, target: 84, note: "Connect work to users or market signal." },
-        { label: "Adaptability", score: avgConfidence, target: 82, note: "Explain how you handled ambiguity." },
+        { label: "Problem Solving", score: clamp(structure + 3), target: 86, note: "Explain the problem and trade-offs clearly." },
+        { label: "Technical Evidence", score: evidence, target: 88, note: "Use tools, systems, scale, and results." },
+        { label: "Collaboration", score: clamp(trust + 2), target: 82, note: "Show stakeholder and team communication." },
+        { label: "Role Relevance", score: clamp((evidence + structure) / 2), target: 84, note: "Tie examples directly to the job." },
       ],
     };
   }
 
   return {
-    label: "Role-Specific Company Alignment",
-    description: "Mapped to general hiring expectations: clarity, ownership, role relevance, evidence, and communication maturity.",
-    interviewerMode: "Professional recruiter: checks fit, consistency, motivation, and proof.",
+    label: "Professional Recruiter Alignment",
+    description: "Mapped to general hiring expectations: fit, consistency, motivation, evidence, and communication maturity.",
     dimensions: [
-      { label: "Role Fit", score: avgEvidence, target: 84, note: "Connect examples directly to the target role." },
-      { label: "Ownership", score: avgTrust, target: 84, note: "Make personal contribution clearer." },
-      { label: "Communication", score: avgStructure, target: 82, note: "Structure answers tightly." },
-      { label: "Hiring Confidence", score: avgConfidence, target: 84, note: "Reduce vague or hesitant language." },
+      { label: "Role Fit", score: clamp((evidence + structure) / 2), target: 84, note: "Connect examples directly to the target role." },
+      { label: "Ownership", score: ownership, target: 84, note: "Make personal contribution clearer." },
+      { label: "Communication", score: structure, target: 82, note: "Structure answers tightly." },
+      { label: "Hiring Confidence", score: trust, target: 84, note: "Reduce vague or hesitant language." },
     ],
   };
 }
 
-function buildContradictions(result: StoredResult, insights: AnswerInsight[]): ContradictionAudit[] {
-  const provided = normalizeList(result.contradictions, [], 6).map((item, index) => ({
-    severity: index === 0 ? 4 : 3,
-    title: "Consistency concern detected",
-    detail: item,
-    trustDrop: index === 0 ? 15 : 8,
-    challengePrompt: `Earlier you said something that may conflict with this: ${item}. Can you clarify the exact context and your real responsibility?`,
-  }));
-
-  if (provided.length) return provided;
-
-  const audits: ContradictionAudit[] = [];
-  const allAnswers = insights.map((item) => item.answer).join(" ").toLowerCase();
-  if (/\bled\b|\bmanaged\b|\bteam of\b/.test(allAnswers) && /\bno management\b|\bnever managed\b|\bdid not manage\b/.test(allAnswers)) {
-    audits.push({
-      severity: 5,
-      title: "Leadership claim conflict",
-      detail: "The interview contains both leadership/management language and a denial of management responsibility.",
-      trustDrop: 18,
-      challengePrompt: "Earlier you mentioned leadership or management, but later you seemed to deny management responsibility. What exactly did you own?",
-    });
-  }
-
-  if (/\b\d+\+?\s*years\b/.test(allAnswers)) {
-    const years = [...allAnswers.matchAll(/\b(\d{1,2})\+?\s*years\b/g)].map((match) => Number(match[1])).filter(Number.isFinite);
-    if (years.length >= 2 && Math.max(...years) - Math.min(...years) >= 4) {
-      audits.push({
-        severity: 4,
-        title: "Experience timeline changed",
-        detail: `Experience length varied between ${Math.min(...years)} and ${Math.max(...years)} years during the interview.`,
-        trustDrop: 12,
-        challengePrompt: "Your experience timeline sounded different across answers. Can you give the exact years and role scope?",
-      });
-    }
-  }
-
-  return audits;
-}
-
-function buildTrustTimeline(result: StoredResult, insights: AnswerInsight[]) {
-  if (Array.isArray(result.trustTimeline) && result.trustTimeline.length) {
-    return result.trustTimeline.slice(0, 8).map((item, index) => ({
-      label: cleanText(item.label) || `Moment ${index + 1}`,
-      score: clamp(numberOr(item.score, 65)),
-      reason: cleanText(item.reason) || "Recruiter confidence changed based on answer quality.",
-      evidence: cleanText(item.evidence) || "Evidence not captured.",
+function buildContradictions(result: StoredResult, insights: AnswerInsight[]) {
+  const direct = Array.isArray(result.contradictions) ? result.contradictions.filter(Boolean) : [];
+  if (direct.length) {
+    return direct.slice(0, 4).map((detail, index) => ({
+      title: `Consistency concern ${index + 1}`,
+      detail: cleanText(detail),
+      severity: index === 0 ? 4 : 3,
+      trustDrop: index === 0 ? 12 : 7,
     }));
   }
 
-  return insights.slice(0, 8).map((item, index) => ({
-    label: `Q${index + 1}: ${item.metricPresent ? "Evidence gained" : item.redFlags.length ? "Trust pressure" : "Neutral signal"}`,
-    score: item.trustImpact,
-    reason: item.weakness,
-    evidence: item.answer.slice(0, 150),
-  }));
+  const lowOwnershipCount = insights.filter((item) => !item.ownershipPresent).length;
+  const metricMissingCount = insights.filter((item) => !item.metricPresent).length;
+
+  if (lowOwnershipCount >= 2 && metricMissingCount >= 2) {
+    return [{
+      title: "Evidence consistency risk",
+      detail: "Several answers described relevant work without enough ownership or measurable proof. This is not a contradiction, but it can reduce recruiter confidence.",
+      severity: 2,
+      trustDrop: 6,
+    }];
+  }
+
+  return [];
 }
 
-function buildRichReport(result: StoredResult): RichReport {
+function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
   const pairs = buildPairs(result);
-  const answerInsights = pairs.map((pair, index) => analyzeAnswer(pair.question, pair.answer, index));
-  const answersCount = answerInsights.length;
-  const durationSeconds = numberOr(result.durationSeconds, durationToSeconds(result.duration));
-  const averageWpm = answersCount ? average(answerInsights.map((item) => item.estimatedWpm), 0) : 0;
+  const answerInsights = pairs.length
+    ? pairs.map((pair, index) => analyzeAnswer(pair.question, pair.answer, index))
+    : [analyzeAnswer("Interview question", "Answer not captured yet.", 0)];
 
-  const computedCommunication = average(answerInsights.map((item) => item.structureScore), 68);
-  const computedConfidence = average(answerInsights.map((item) => item.confidenceScore), 66);
-  const computedRole = average(answerInsights.map((item) => item.evidenceScore), 70);
-  const computedTrust = average(answerInsights.map((item) => item.trustImpact), 68);
+  const answersCount = pairs.length;
+  const durationSeconds = durationToSeconds(result.durationSeconds || result.duration);
+  const averageWpm = durationSeconds && answersCount
+    ? clamp(answerInsights.reduce((sum, item) => sum + item.wordCount, 0) / Math.max(durationSeconds / 60, 1), 0, 220)
+    : 0;
 
-  const communicationScore = clamp(numberOr(result.communicationScore, computedCommunication));
-  const confidenceScore = clamp(numberOr(result.confidenceScore, computedConfidence));
-  const roleCompetencyScore = clamp(numberOr(result.roleCompetencyScore, computedRole));
-  const trustScore = clamp(numberOr(result.trustScore, numberOr(result.recruiterTrust, computedTrust)));
-  const evidenceQuality = clamp(numberOr(result.evidenceQuality, average(answerInsights.map((item) => item.evidenceScore), 68)));
+  const evidenceQuality = numberOr(result.evidenceQuality, average(answerInsights.map((item) => item.evidenceScore), 58));
+  const trustScore = numberOr(result.trustScore, average(answerInsights.map((item) => item.trustImpact), 62));
+  const structureScore = average(answerInsights.map((item) => item.structureScore), 60);
+  const ownershipScore = average(answerInsights.map((item) => item.ownershipPresent ? 78 : 48), 58);
+
+  const communicationScore = numberOr(result.communicationScore, clamp(structureScore + (averageWpm >= 110 && averageWpm <= 170 ? 8 : -4)));
+  const confidenceScore = numberOr(result.confidenceScore, clamp(trustScore - (answerInsights.some((item) => item.fillerCount >= 4) ? 8 : 0) + (ownershipScore >= 70 ? 4 : -3)));
+  const roleCompetencyScore = numberOr(result.roleCompetencyScore, clamp((evidenceQuality * 0.58) + (structureScore * 0.22) + (ownershipScore * 0.2)));
+
+  const overallScore = numberOr(
+    result.overallScore,
+    clamp((communicationScore * 0.22) + (confidenceScore * 0.18) + (roleCompetencyScore * 0.28) + (trustScore * 0.2) + (evidenceQuality * 0.12)),
+  );
+
+  const redFlags = uniqueList(
+    result.redFlags,
+    answerInsights.flatMap((item) => item.redFlags),
+    6,
+  ).filter(Boolean);
+
+  const evidenceRequests = uniqueList(
+    result.evidenceRequests,
+    [
+      !answerInsights.some((item) => item.metricPresent) ? "Add one measurable result to your strongest story." : "Keep the strongest metric and explain why it mattered.",
+      !answerInsights.some((item) => item.ownershipPresent) ? "Clarify exactly what you personally owned." : "Make ownership visible in the first sentence of each answer.",
+      "Connect each answer back to the target role or company expectation.",
+    ],
+    5,
+  );
 
   const contradictions = buildContradictions(result, answerInsights);
-  const contradictionRisk = clamp(numberOr(result.contradictionRisk, contradictions.length ? Math.max(...contradictions.map((item) => item.severity * 18)) : 15));
+  const roleLabel = cleanText(result.targetRole || result.role, "Target role");
+  const companyLabel = cleanText(result.companyName || result.targetCompany || result.selectedCompany || result.companyStyle, "General company");
+  const recruiterName = cleanText(result.recruiterName || result.recruiter || result.recruiterPersonality, "Recruiter").replace(/_/g, " ");
 
-  const overallScore = clamp(
-    numberOr(
-      result.overallScore,
-      communicationScore * 0.22 + confidenceScore * 0.18 + roleCompetencyScore * 0.25 + trustScore * 0.2 + evidenceQuality * 0.15 - contradictions.length * 4,
-    ),
-  );
+  const biggestBlocker = !answerInsights.some((item) => item.metricPresent)
+    ? "Lack of measurable impact evidence"
+    : !answerInsights.some((item) => item.ownershipPresent)
+      ? "Unclear personal ownership"
+      : structureScore < 68
+        ? "Answers need tighter STAR structure"
+        : contradictions.length
+          ? "Consistency concerns need clarification"
+          : "You need one stronger closing proof story";
 
-  const recruiterName = cleanText(result.recruiterName || result.recruiter || result.recruiterPersonality) || "Daniel";
-  const roleLabel = cleanText(result.targetRole || result.role) || "Target role";
-  const companyLabel = cleanText(result.companyName || result.targetCompany || result.selectedCompany || result.companyStyle) || "target company";
+  const decision = overallScore >= 82
+    ? "Likely proceed"
+    : overallScore >= 70
+      ? "Proceed with reservations"
+      : overallScore >= 58
+        ? "Borderline proceed"
+        : "Needs retry before real interview";
 
-  const verdictTitle =
-    overallScore >= 84
-      ? "Strong signal — likely to continue"
-      : overallScore >= 72
-        ? "Promising, but not fully convincing yet"
-        : overallScore >= 60
-          ? "Borderline — needs sharper evidence"
-          : "Not ready yet — recruiter confidence is low";
+  const verdict = `${recruiterName} heard useful role signal, but the current answers need stronger proof, clearer ownership, and more measurable outcomes before a confident next-round decision.`;
 
-  const verdictBody =
-    overallScore >= 84
-      ? `${recruiterName} would likely continue the process, but still test consistency and depth in the next round.`
-      : overallScore >= 72
-        ? `${recruiterName} sees role fit, but would need clearer metrics, ownership, and answer structure before fully recommending you.`
-        : overallScore >= 60
-          ? `${recruiterName} heard useful background, but the answers did not yet create enough proof for a confident next-round decision.`
-          : `${recruiterName} did not receive enough concrete, role-specific evidence yet. A retry should focus on one strong proof story per answer.`;
+  const trustDeductions: Array<{ label: string; value: number; tone: "positive" | "negative" }> = [
+    { label: "Missing measurable impact", value: answerInsights.some((item) => !item.metricPresent) ? -12 : 5, tone: answerInsights.some((item) => !item.metricPresent) ? "negative" : "positive" as const },
+    { label: "Personal ownership clarity", value: answerInsights.some((item) => !item.ownershipPresent) ? -8 : 6, tone: answerInsights.some((item) => !item.ownershipPresent) ? "negative" : "positive" as const },
+    { label: "STAR structure", value: structureScore < 68 ? -7 : 5, tone: structureScore < 68 ? "negative" : "positive" as const },
+    { label: "Consistency check", value: contradictions.length ? -10 : 4, tone: contradictions.length ? "negative" : "positive" as const },
+  ];
 
-  const redFlags = Array.from(
-    new Set([
-      ...normalizeList(result.redFlags, [], 8),
-      ...answerInsights.flatMap((item) => item.redFlags),
-    ]),
-  ).slice(0, 10);
-
-  const evidenceRequests = Array.from(
-    new Set([
-      ...normalizeList(result.evidenceRequests, [], 8),
-      ...answerInsights
-        .filter((item) => !item.metricPresent || !item.ownershipPresent || !item.resultPresent)
-        .map((item) => `For ${item.id.toUpperCase()}, add ${!item.metricPresent ? "one metric" : !item.ownershipPresent ? "clear personal ownership" : "a final outcome"}.`),
-    ]),
-  ).slice(0, 8);
-
-  const quickWin =
-    answerInsights[0]?.weakness && answersCount
-      ? `On ${answerInsights[0].id.toUpperCase()}, ${answerInsights[0].weakness.toLowerCase()} Rewrite it with one situation, one personal action, and one measurable result.`
-      : "Complete a full interview to receive your first personalized quick win.";
-
-  const strengths = normalizeList(
-    result.strengths,
-    [
-      answerInsights.some((item) => item.roleRelevancePresent)
-        ? "You gave recruiter-relevant context for the target role."
-        : "You showed useful background signal for the target role.",
-      answerInsights.some((item) => item.ownershipPresent)
-        ? "At least one answer included personal ownership signal."
-        : "You showed motivation to improve and prepare seriously.",
-      answerInsights.some((item) => item.metricPresent)
-        ? "At least one answer included measurable proof."
-        : "Your answers contained at least some recruiter-relevant context.",
-    ],
-    4,
-  );
-
-  const improvements = normalizeList(
-    result.improvements,
-    [
-      "Make your answers more measurable and structured.",
-      "Make your personal ownership clearer.",
-      "Use a sharper STAR structure for every major answer.",
-    ],
-    4,
-  );
-
-  const companyProfile = companyDNA(companyLabel, roleLabel, answerInsights);
+  const companyDNA = buildCompanyDNA(companyLabel, roleLabel, answerInsights);
 
   return {
+    isPremium,
     overallScore,
     grade: gradeFromScore(overallScore),
+    decision,
+    biggestBlocker,
     communicationScore,
     confidenceScore,
     roleCompetencyScore,
     trustScore,
     evidenceQuality,
-    contradictionRisk,
+    ownershipScore,
+    structureScore,
     durationLabel: formatDuration(durationSeconds),
-    durationSeconds,
     answersCount,
     averageWpm,
     recruiterName,
     roleLabel,
     companyLabel,
-    verdictTitle,
-    verdictBody,
-    sentiment: `You showed useful role fit, but ${recruiterName} still needs sharper metrics, ownership, and structure before fully trusting the signal.`,
-    quickWin,
-    strengths,
-    improvements,
+    verdict,
+    quickWin: answerInsights[0]?.weakness === "Missing measurable evidence."
+      ? "Add one number to your strongest answer: time saved, users supported, tickets resolved, revenue impact, quality improvement, or project scale."
+      : `Rewrite your weakest answer around ${biggestBlocker.toLowerCase()} and keep it under two minutes.`,
+    strengths: uniqueList(result.strengths, [
+      "You gave useful background signal for the target role.",
+      "You showed motivation to improve and prepare seriously.",
+      "Your answers contained at least some recruiter-relevant context.",
+    ], 4),
+    improvements: uniqueList(result.improvements, [
+      "Make your answers more measurable and structured.",
+      "Make your personal ownership clearer.",
+      "Use a sharper STAR structure for every major answer.",
+    ], 4),
     answerInsights,
-    contradictions,
     redFlags,
+    contradictions,
     evidenceRequests,
-    companyDNA: companyProfile,
+    trustDeductions,
+    companyDNA,
     benchmark: [
-      { label: "Pacing", user: averageWpm ? clamp(100 - Math.abs(145 - averageWpm) / 1.4) : 45, top: 86, note: "Top candidates stay concise without sounding rushed." },
-      { label: "Metric usage", user: average(answerInsights.map((item) => (item.metricPresent ? 85 : 42)), 42), top: 88, note: "Top candidates quantify impact in most major answers." },
-      { label: "Ownership", user: average(answerInsights.map((item) => (item.ownershipPresent ? 86 : 45)), 45), top: 90, note: "Top candidates make personal contribution obvious." },
-      { label: "Structure", user: communicationScore, top: 87, note: "Top candidates use clear STAR-style flow." },
+      { label: "Pacing", user: averageWpm ? clamp(100 - Math.abs(145 - averageWpm)) : 45, top: 86, note: "Top candidates stay concise without sounding rushed." },
+      { label: "Metric usage", user: evidenceQuality, top: 88, note: "Top candidates quantify impact in most major answers." },
+      { label: "Ownership", user: ownershipScore, top: 90, note: "Top candidates make personal contribution obvious." },
+      { label: "Structure", user: structureScore, top: 87, note: "Top candidates use clear STAR-style flow." },
       { label: "Trust", user: trustScore, top: 90, note: "Top candidates sound consistent and evidence-backed." },
     ],
-    vocalFillers: [
-      { label: "Filler words", count: answerInsights.reduce((sum, item) => sum + item.fillerCount, 0), risk: answerInsights.some((item) => item.fillerCount >= 4) ? "high" : "low" },
-      { label: "Long/short answer risk", count: answerInsights.filter((item) => item.wordCount < 18 || item.wordCount > 260).length, risk: answerInsights.some((item) => item.wordCount < 18 || item.wordCount > 260) ? "medium" : "low" },
-      { label: "Pause risk estimate", count: answerInsights.filter((item) => item.pauseRisk !== "low").length, risk: answerInsights.some((item) => item.pauseRisk === "high") ? "high" : "low" },
+    audioSignals: [
+      { label: "Filler words", value: answerInsights.reduce((sum, item) => sum + item.fillerCount, 0), risk: answerInsights.some((item) => item.fillerCount >= 4) ? "high" : "low" },
+      { label: "Long/short answer risk", value: answerInsights.filter((item) => item.wordCount < 25 || item.wordCount > 230).length, risk: answerInsights.some((item) => item.wordCount < 25 || item.wordCount > 230) ? "medium" : "low" },
+      { label: "Pause risk estimate", value: averageWpm && averageWpm < 85 ? 1 : 0, risk: averageWpm && averageWpm < 85 ? "medium" : "low" },
     ],
     improvementPlan: [
-      { title: "Rewrite your weakest answer", action: answerInsights[0]?.betterAnswer || "Use STAR with one measurable result." },
-      { title: "Prepare two metric-backed stories", action: "Have one customer/user impact story and one ownership story ready before the next interview." },
-      { title: "Reduce recruiter doubt", action: contradictions[0]?.challengePrompt || "Clarify timeline, role scope, and personal contribution before the recruiter has to ask." },
+      { priority: "Priority 1", title: "Add measurable outcomes", action: "Prepare two stories with numbers: one customer/user impact story and one ownership story.", gain: "+6 to +10 pts" },
+      { priority: "Priority 2", title: "Rewrite weakest answer", action: "Use STAR with one measurable result and one sentence connecting it to the target role.", gain: "+4 to +8 pts" },
+      { priority: "Priority 3", title: "Reduce recruiter doubt", action: "Clarify timeline, role scope, and personal contribution before the recruiter has to ask.", gain: "+3 to +7 pts" },
     ],
-    trustTimeline: buildTrustTimeline(result, answerInsights),
   };
 }
 
 function ScoreRing({ score, grade }: { score: number; grade: string }) {
+  const angle = clamp(score) * 3.6;
   return (
-    <div className="relative flex h-36 w-36 items-center justify-center rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20">
-      <div
-        className="absolute inset-0 rounded-full"
-        style={{ background: `conic-gradient(#3b82f6 ${score * 3.6}deg, rgba(255,255,255,0.12) 0deg)` }}
-      />
-      <div className="relative flex h-28 w-28 flex-col items-center justify-center rounded-full bg-[#130b37] shadow-inner shadow-black/30">
-        <span className="text-4xl font-black text-white">{score}</span>
-        <span className="text-sm font-bold text-blue-100">{grade} · /100</span>
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({ label, value, note, Icon }: { label: string; value: string; note: string; Icon: typeof Gauge }) {
-  return (
-    <div className="rounded-[1.6rem] border border-white/10 bg-white/[0.035] p-5">
-      <Icon className="mb-7 h-6 w-6 text-blue-300" />
-      <p className="text-xs font-black uppercase tracking-[0.35em] text-slate-500">{label}</p>
-      <p className="mt-4 text-4xl font-black text-white">{value}</p>
-      <p className="mt-3 text-sm leading-6 text-blue-100/75">{note}</p>
-    </div>
-  );
-}
-
-function ProgressLine({ label, score, target, note }: { label: string; score: number; target?: number; note?: string }) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-4 text-sm">
-        <span className="font-bold text-slate-100">{label}</span>
-        <span className="font-black text-blue-200">{score}%{target ? ` / ${target}%` : ""}</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-white/10">
-        <div className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-300 to-emerald-300" style={{ width: `${clamp(score)}%` }} />
-      </div>
-      {note ? <p className="text-xs leading-5 text-slate-400">{note}</p> : null}
-    </div>
-  );
-}
-
-function LockedPreview({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
-  return (
-    <section className="relative overflow-hidden rounded-[2rem] border border-purple-300/15 bg-gradient-to-br from-[#12142f] to-[#100b27] p-6 shadow-2xl shadow-purple-950/10">
-      <div className="flex items-start justify-between gap-4">
+    <div
+      className="grid h-36 w-36 shrink-0 place-items-center rounded-full"
+      style={{ background: `conic-gradient(#3b82f6 ${angle}deg, rgba(255,255,255,0.14) 0deg)` }}
+    >
+      <div className="grid h-28 w-28 place-items-center rounded-full bg-[#120b3d] text-center">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.35em] text-blue-200">Premium Preview</p>
-          <h3 className="mt-4 text-2xl font-black text-white">{title}</h3>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-100/85">{description}</p>
-        </div>
-        <div className="rounded-2xl border border-yellow-200/10 bg-yellow-300/15 p-4 text-yellow-100">
-          <Lock className="h-6 w-6" />
+          <p className="text-4xl font-black text-white">{score}</p>
+          <p className="text-sm font-black text-blue-100">{grade} · /100</p>
         </div>
       </div>
-      <div className="mt-6 select-none blur-md pointer-events-none">{children}</div>
+    </div>
+  );
+}
+
+function MetricCard({ icon: Icon, label, value, note }: { icon: typeof Gauge; label: string; value: number; note: string }) {
+  return (
+    <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.035] p-5">
+      <Icon className="h-6 w-6 text-blue-300" />
+      <p className="mt-6 text-xs font-black uppercase tracking-[0.28em] text-slate-500">{label}</p>
+      <p className="mt-3 text-4xl font-black text-white">{value}%</p>
+      <p className="mt-3 text-sm leading-6 text-slate-400">{note}</p>
+    </div>
+  );
+}
+
+function Bar({ value, target, label, note }: { value: number; target?: number; label: string; note?: string }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-black text-white">{label}</p>
+        <p className="font-black text-blue-100">{value}%{typeof target === "number" ? ` / ${target}%` : ""}</p>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-300" style={{ width: `${clamp(value)}%` }} />
+      </div>
+      {note ? <p className="mt-2 text-sm leading-6 text-slate-400">{note}</p> : null}
+    </div>
+  );
+}
+
+function LockedPreview({ title, children, count }: { title: string; children: React.ReactNode; count?: string }) {
+  return (
+    <div className="relative overflow-hidden rounded-[2rem] border border-violet-300/15 bg-violet-500/[0.08] p-6">
+      <div className="absolute right-6 top-6 grid h-14 w-14 place-items-center rounded-2xl bg-amber-300/15 text-amber-100">
+        <Lock className="h-6 w-6" />
+      </div>
+      <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-200">Premium Preview</p>
+      <h3 className="mt-3 pr-16 text-2xl font-black text-white">{title}</h3>
+      {count ? <p className="mt-3 text-sm font-black text-amber-200">{count}</p> : null}
+      <div className="mt-6 select-none blur-[5px] pointer-events-none">{children}</div>
       <button
         type="button"
-        className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400"
+        onClick={() => {
+          if (typeof window !== "undefined") window.location.href = "/pricing?intent=results-report";
+        }}
+        className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400"
       >
         <Crown className="h-4 w-4" />
         Upgrade to unlock
       </button>
+    </div>
+  );
+}
+
+function TranscriptCard({ item, index }: { item: AnswerInsight; index: number }) {
+  const [open, setOpen] = useState(index === 0);
+
+  return (
+    <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/20">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center justify-between gap-4 p-5 text-left"
+      >
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-200">Question {index + 1}</p>
+          <h3 className="mt-2 text-xl font-black text-white">{item.question}</h3>
+          <p className="mt-2 text-sm text-slate-400">Evidence {item.evidenceScore}% · Trust impact {item.trustImpact}% · {item.weakness}</p>
+        </div>
+        <ChevronDown className={cn("h-5 w-5 shrink-0 text-slate-300 transition", open && "rotate-180")} />
+      </button>
+
+      {open ? (
+        <div className="grid gap-4 border-t border-white/10 p-5 xl:grid-cols-3">
+          <div className="rounded-2xl bg-white/[0.04] p-4">
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-500">Your answer</p>
+            <p className="mt-3 text-sm leading-7 text-slate-200">{item.answer}</p>
+          </div>
+          <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4">
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-amber-200">What the recruiter heard</p>
+            <p className="mt-3 text-sm leading-7 text-amber-50">{item.recruiterHeard}</p>
+          </div>
+          <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4">
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-200">Top 10% rewrite</p>
+            <p className="mt-3 text-sm leading-7 text-emerald-50">{item.rewrite}</p>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+
+function CareerBrainSection({ brain }: { brain: PhaseCCareerBrain }) {
+  const probabilityBars = [
+    { label: "Current profile", value: brain.probability.current, tone: "from-amber-400 to-orange-300" },
+    { label: "After CV improvements", value: brain.probability.afterCv, tone: "from-blue-400 to-cyan-300" },
+    { label: "After interview prep", value: brain.probability.afterPrep, tone: "from-emerald-400 to-teal-300" },
+  ];
+
+  return (
+    <section className="mt-6 rounded-[2rem] border border-emerald-300/15 bg-emerald-500/[0.045] p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-emerald-200">Phase C unified career brain</p>
+          <h2 className="mt-2 text-2xl font-black">One learning loop across CV, jobs, interviews, and results</h2>
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">{brain.progress.latestSummary}</p>
+        </div>
+        <div className="grid h-16 w-16 place-items-center rounded-2xl border border-emerald-300/20 bg-black/25 text-center">
+          <p className="text-2xl font-black text-emerald-100">{brain.probability.current}%</p>
+          <p className="-mt-2 text-[10px] font-black text-slate-500">PROB.</p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-sm font-black text-emerald-100">Interview probability engine</p>
+          <div className="mt-4 space-y-4">
+            {probabilityBars.map((item) => (
+              <div key={item.label}>
+                <div className="flex items-center justify-between text-sm">
+                  <p className="font-bold text-slate-200">{item.label}</p>
+                  <p className="font-black text-white">{item.value}%</p>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                  <div className={`h-full rounded-full bg-gradient-to-r ${item.tone}`} style={{ width: `${item.value}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 space-y-2">
+            {brain.probability.reasons.map((item) => <p key={item} className="text-xs leading-5 text-slate-400">• {item}</p>)}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-sm font-black text-amber-100">Persistent weakness tracking</p>
+          <div className="mt-3 space-y-3">
+            {brain.persistentWeaknesses.length ? brain.persistentWeaknesses.map((item) => (
+              <div key={item.label} className="rounded-2xl bg-amber-400/10 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-black text-white">{item.label}</p>
+                  <span className="rounded-full bg-black/25 px-2 py-1 text-[11px] font-black text-amber-100">seen {item.count}x</span>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-amber-50/85">{item.coachLine}</p>
+              </div>
+            )) : <p className="text-sm leading-6 text-slate-400">No recurring weakness yet. WorkZo will learn after more sessions.</p>}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-sm font-black text-blue-100">Cross-feature actions</p>
+          <div className="mt-3 space-y-3">
+            {brain.crossFeatureActions.map((item) => (
+              <div key={`${item.feature}-${item.action}`} className="rounded-2xl bg-blue-400/10 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200">{item.feature}</p>
+                <p className="mt-2 text-sm leading-6 text-blue-50/90">{item.action}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-sm font-black text-violet-100">Future recruiter memory challenges</p>
+          <div className="mt-3 space-y-2">
+            {brain.futureRecruiterChallenges.map((item) => <p key={item} className="rounded-2xl bg-violet-400/10 p-3 text-sm leading-6 text-violet-50">“{item}”</p>)}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-sm font-black text-cyan-100">Persistent career roadmap</p>
+          <div className="mt-3 space-y-3">
+            {brain.roadmap.slice(0, 4).map((item) => (
+              <div key={item.id} className="rounded-2xl bg-cyan-400/10 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">{item.priority} · {item.estimatedGain}</p>
+                <p className="mt-1 font-black text-white">{item.title}</p>
+                <p className="mt-1 text-sm leading-6 text-cyan-50/85">{item.action}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
 
-function FreeTimelinePreview({ report }: { report: RichReport }) {
-  const previews = report.answerInsights.length
-    ? report.answerInsights.slice(0, 3)
-    : [
-        {
-          id: "answer-1",
-          question: "Tell me about a time you handled a difficult situation.",
-          weakness: "Locked recruiter interpretation",
-          trustImpact: 0,
-        } as AnswerInsight,
-      ];
-
-  return (
-    <LockedPreview
-      title="Question-by-question feedback timeline"
-      description="See every question, answer, recruiter interpretation, rewrite, and trust impact."
-    >
-      <div className="space-y-4 rounded-3xl bg-black/25 p-4">
-        {previews.map((item, index) => (
-          <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-500">Q{index + 1}</p>
-            <p className="mt-2 font-bold text-white">{item.question}</p>
-            <p className="mt-3 text-sm text-slate-400">Recruiter heard: {item.weakness}</p>
-            <p className="mt-1 text-sm text-slate-400">Trust impact: {item.trustImpact}/100</p>
-          </div>
-        ))}
-      </div>
-    </LockedPreview>
-  );
-}
-
-function FreeResults({ report, onUpgrade }: { report: RichReport; onUpgrade: () => void }) {
-  return (
-    <>
-      <section className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-[#111733] via-[#15112d] to-[#052229] p-6 shadow-2xl shadow-black/25 lg:p-8">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-black text-cyan-100">
-              <Sparkles className="h-4 w-4" /> Free Interview Snapshot
-            </span>
-            <h1 className="mt-7 max-w-4xl text-4xl font-black tracking-tight text-white lg:text-5xl">
-              Interview Complete — {report.roleLabel}
-            </h1>
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-blue-100/90">{report.verdictBody}</p>
-          </div>
-          <ScoreRing score={report.overallScore} grade={report.grade} />
-        </div>
-      </section>
-
-      <section className="grid gap-5 lg:grid-cols-4">
-        <MetricCard label="Communication" value={`${report.communicationScore}%`} note="Clarity, answer length, and structure." Icon={MessageSquareText} />
-        <MetricCard label="Confidence" value={`${report.confidenceScore}%`} note="Pace, ownership, and certainty signals." Icon={Gauge} />
-        <MetricCard label="Role Competency" value={`${report.roleCompetencyScore}%`} note="How relevant your answers sounded for the role." Icon={Target} />
-        <MetricCard label="Trust Signal" value={`${report.trustScore}%`} note="Visible score. Detailed trust audit is premium." Icon={ShieldCheck} />
-      </section>
-
-      <section className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-          <h2 className="flex items-center gap-3 text-2xl font-black text-white">
-            <ShieldCheck className="h-6 w-6 text-emerald-300" /> Recruiter verdict
-          </h2>
-          <p className="mt-4 text-xl font-black text-white">{report.verdictTitle}</p>
-          <p className="mt-3 text-base leading-8 text-blue-100/90">{report.sentiment}</p>
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl bg-black/20 p-4">
-              <p className="text-xs text-slate-400">Avg. pace</p>
-              <p className="mt-2 text-2xl font-black text-white">{report.averageWpm ? `${report.averageWpm} WPM` : "— WPM"}</p>
-            </div>
-            <div className="rounded-2xl bg-black/20 p-4">
-              <p className="text-xs text-slate-400">Duration</p>
-              <p className="mt-2 text-2xl font-black text-white">{report.durationLabel}</p>
-            </div>
-            <div className="rounded-2xl bg-black/20 p-4">
-              <p className="text-xs text-slate-400">Answers</p>
-              <p className="mt-2 text-2xl font-black text-white">{report.answersCount}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-[2rem] border border-emerald-300/15 bg-emerald-400/10 p-6">
-          <h2 className="flex items-center gap-3 text-2xl font-black text-white">
-            <Lightbulb className="h-6 w-6 text-emerald-200" /> Your free actionable win
-          </h2>
-          <p className="mt-5 text-base leading-8 text-emerald-50">{report.quickWin}</p>
-        </div>
-      </section>
-
-      <section className="grid gap-5 lg:grid-cols-2">
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-          <h2 className="flex items-center gap-3 text-2xl font-black text-white">
-            <CheckCircle2 className="h-6 w-6 text-emerald-300" /> Strengths
-          </h2>
-          <div className="mt-5 space-y-3">
-            {report.strengths.map((item) => (
-              <p key={item} className="rounded-2xl bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-50">{item}</p>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-          <h2 className="flex items-center gap-3 text-2xl font-black text-white">
-            <Target className="h-6 w-6 text-blue-300" /> Improvements
-          </h2>
-          <div className="mt-5 space-y-3">
-            {report.improvements.map((item) => (
-              <p key={item} className="rounded-2xl bg-blue-500/10 p-4 text-sm leading-6 text-blue-50">{item}</p>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-[2rem] border border-yellow-300/20 bg-gradient-to-r from-yellow-300/10 via-purple-500/10 to-blue-500/10 p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.32em] text-yellow-100">Upgrade to unlock premium</p>
-            <h2 className="mt-3 text-3xl font-black text-white">Your full recruiter masterclass is ready.</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-blue-100/85">
-              Unlock the trust audit, red flags, contradictions, company DNA alignment, top 10% rewrites, and question-by-question coaching timeline.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onUpgrade}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-6 py-4 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400"
-          >
-            <Crown className="h-5 w-5" /> Upgrade to unlock full report
-          </button>
-        </div>
-      </section>
-
-      <section className="grid gap-5 lg:grid-cols-2">
-        <LockedPreview
-          title="Detected red flags & contradictions"
-          description={`We check communication risk, missing evidence, low ownership, contradictions, and confidence signals. Premium found ${report.redFlags.length} red flag(s) and ${report.contradictions.length} contradiction concern(s).`}
-        >
-          <div className="space-y-3 rounded-3xl bg-black/25 p-4">
-            {(report.redFlags.length ? report.redFlags : ["Missing measurable evidence", "Ownership clarity risk"]).slice(0, 3).map((item) => (
-              <p key={item} className="rounded-2xl bg-red-500/10 p-4 text-sm text-red-100">{item}</p>
-            ))}
-          </div>
-        </LockedPreview>
-        <FreeTimelinePreview report={report} />
-      </section>
-    </>
-  );
-}
-
-function PremiumResults({ report }: { report: RichReport }) {
-  return (
-    <>
-      <section className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-[#111733] via-[#15112d] to-[#052229] p-6 shadow-2xl shadow-black/25 lg:p-8">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-yellow-300/20 bg-yellow-300/10 px-4 py-2 text-sm font-black text-yellow-100">
-              <Crown className="h-4 w-4" /> Premium Interview Debrief
-            </span>
-            <h1 className="mt-7 max-w-4xl text-4xl font-black tracking-tight text-white lg:text-5xl">
-              Masterclass diagnostic — {report.roleLabel}
-            </h1>
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-blue-100/90">{report.verdictBody}</p>
-          </div>
-          <ScoreRing score={report.overallScore} grade={report.grade} />
-        </div>
-      </section>
-
-      <section className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-          <h2 className="flex items-center gap-3 text-2xl font-black text-white">
-            <BarChart3 className="h-6 w-6 text-cyan-300" /> Benchmarking & Company DNA
-          </h2>
-          <p className="mt-3 text-sm leading-7 text-blue-100/80">{report.companyDNA.description}</p>
-          <p className="mt-2 rounded-2xl bg-blue-500/10 p-3 text-sm font-bold text-blue-100">{report.companyDNA.interviewerMode}</p>
-          <div className="mt-5 space-y-5">
-            {report.companyDNA.dimensions.map((item) => (
-              <ProgressLine key={item.label} label={item.label} score={item.score} target={item.target} note={item.note} />
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-          <h2 className="flex items-center gap-3 text-2xl font-black text-white">
-            <ShieldAlert className="h-6 w-6 text-yellow-200" /> Trust & Integrity Audit
-          </h2>
-          <div className="mt-5 grid gap-3">
-            <ProgressLine label="Credibility" score={report.trustScore} note="Evidence, consistency, and recruiter confidence." />
-            <ProgressLine label="Evidence Quality" score={report.evidenceQuality} note="Metrics, ownership, and result clarity." />
-            <ProgressLine label="Contradiction Risk" score={100 - report.contradictionRisk} note="Higher means fewer consistency concerns." />
-          </div>
-          {report.contradictions.length ? (
-            <div className="mt-5 rounded-2xl border border-red-300/15 bg-red-500/10 p-4">
-              <p className="font-black text-red-100">Contradiction detected</p>
-              <p className="mt-2 text-sm leading-6 text-red-50/90">{report.contradictions[0].detail}</p>
-              <p className="mt-3 text-xs font-bold text-yellow-100">Challenge prompt: {report.contradictions[0].challengePrompt}</p>
-            </div>
-          ) : (
-            <div className="mt-5 rounded-2xl border border-emerald-300/15 bg-emerald-400/10 p-4 text-sm text-emerald-50">
-              No major contradiction detected in the captured answers.
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-        <h2 className="flex items-center gap-3 text-2xl font-black text-white">
-          <TrendingUp className="h-6 w-6 text-blue-300" /> Top 10% Candidate Overlay
-        </h2>
-        <div className="mt-6 grid gap-5 lg:grid-cols-5">
-          {report.benchmark.map((item) => (
-            <div key={item.label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="font-black text-white">{item.label}</p>
-              <div className="mt-4 space-y-3">
-                <ProgressLine label="You" score={item.user} />
-                <ProgressLine label="Top 10%" score={item.top} />
-              </div>
-              <p className="mt-3 text-xs leading-5 text-slate-400">{item.note}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-        <h2 className="flex items-center gap-3 text-2xl font-black text-white">
-          <Mic2 className="h-6 w-6 text-purple-300" /> Audio & Presentation Timeline Analysis
-        </h2>
-        <p className="mt-3 text-sm leading-7 text-blue-100/80">
-          WorkZo currently estimates delivery risk from transcript length and filler words. Real audio/camera analysis can be connected later without changing this report structure.
-        </p>
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
-          {report.vocalFillers.map((item) => (
-            <div key={item.label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-sm font-bold text-slate-300">{item.label}</p>
-              <p className="mt-2 text-3xl font-black text-white">{item.count}</p>
-              <p className={cn("mt-2 text-xs font-black uppercase", item.risk === "high" ? "text-red-200" : item.risk === "medium" ? "text-yellow-200" : "text-emerald-200")}>{item.risk} risk</p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-7 text-slate-300">
-          <Eye className="mb-3 h-5 w-5 text-blue-300" /> Presence & eye-contact metrics are not captured yet. The report is ready for future camera signals, but it does not pretend to analyze video that was not recorded.
-        </div>
-      </section>
-
-      <section className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-        <h2 className="flex items-center gap-3 text-2xl font-black text-white">
-          <MessageSquareText className="h-6 w-6 text-cyan-300" /> Interactive Transcript & Coaching Debrief
-        </h2>
-        <div className="mt-6 space-y-5">
-          {(report.answerInsights.length ? report.answerInsights : [analyzeAnswer("Interview question", "Answer not captured yet.", 0)]).map((item, index) => (
-            <article key={item.id} className="rounded-[1.5rem] border border-white/10 bg-black/20 p-5">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.25em] text-blue-200">Question {index + 1}</p>
-                  <h3 className="mt-2 text-xl font-black text-white">{item.question}</h3>
-                </div>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-blue-100">Trust impact {item.trustImpact}/100</span>
-              </div>
-              <div className="mt-5 grid gap-4 lg:grid-cols-3">
-                <div className="rounded-2xl bg-white/[0.04] p-4">
-                  <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Your Answer</p>
-                  <p className="mt-3 text-sm leading-7 text-slate-200">{item.answer}</p>
-                </div>
-                <div className="rounded-2xl border border-yellow-300/15 bg-yellow-300/10 p-4">
-                  <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-100">What the Recruiter Heard</p>
-                  <p className="mt-3 text-sm leading-7 text-yellow-50/90">{item.whatRecruiterHeard}</p>
-                  <p className="mt-3 text-xs leading-5 text-yellow-100/75">Gap: {item.benchmarkGap}</p>
-                </div>
-                <div className="rounded-2xl border border-emerald-300/15 bg-emerald-400/10 p-4">
-                  <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-100">Top 10% Rewrite</p>
-                  <p className="mt-3 text-sm leading-7 text-emerald-50/90">{item.betterAnswer}</p>
-                </div>
-              </div>
-              <div className="mt-5 grid gap-3 md:grid-cols-4">
-                <ProgressLine label="Structure" score={item.structureScore} />
-                <ProgressLine label="Evidence" score={item.evidenceScore} />
-                <ProgressLine label="Confidence" score={item.confidenceScore} />
-                <ProgressLine label="Trust" score={item.trustImpact} />
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="grid gap-5 lg:grid-cols-2">
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-          <h2 className="flex items-center gap-3 text-2xl font-black text-white">
-            <Flag className="h-6 w-6 text-red-300" /> Red Flags & Evidence Requests
-          </h2>
-          <div className="mt-5 space-y-3">
-            {(report.redFlags.length ? report.redFlags : ["No major red flag detected in captured answers."]).map((item) => (
-              <p key={item} className="rounded-2xl bg-red-500/10 p-4 text-sm leading-6 text-red-50">{item}</p>
-            ))}
-            {report.evidenceRequests.slice(0, 4).map((item) => (
-              <p key={item} className="rounded-2xl bg-blue-500/10 p-4 text-sm leading-6 text-blue-50">{item}</p>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-          <h2 className="flex items-center gap-3 text-2xl font-black text-white">
-            <Wand2 className="h-6 w-6 text-purple-300" /> Improvement Plan
-          </h2>
-          <div className="mt-5 space-y-3">
-            {report.improvementPlan.map((item) => (
-              <div key={item.title} className="rounded-2xl bg-purple-500/10 p-4">
-                <p className="font-black text-white">{item.title}</p>
-                <p className="mt-2 text-sm leading-6 text-purple-50/85">{item.action}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    </>
-  );
-}
-
 export default function ResultsPage() {
-  const [result, setResult] = useState<StoredResult | null>(null);
-  const [plan, setPlan] = useState("free");
-  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [result, setResult] = useState<StoredResult>({});
+  const [setupContext, setSetupContext] = useState<Record<string, unknown>>({});
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [careerBrain, setCareerBrain] = useState<PhaseCCareerBrain | null>(null);
 
   useEffect(() => {
-    setResult(readResultFromStorage());
-    const currentPlan = getWorkZoCurrentPlan();
-    setPlan(currentPlan);
-    recordWorkZoReportViewed();
+    const storedResult = readStoredResult();
+    const storedSetup = (readLatestInterviewSetup() || {}) as Record<string, unknown>;
+    setResult(storedResult);
+    setSetupContext(storedSetup);
+
+    try {
+      const premiumNow = Boolean(
+        storedResult.isPremium ||
+          String(storedResult.plan || "").toLowerCase().includes("premium") ||
+          getWorkZoCurrentPlan() === "premium",
+      );
+      const immediateReport = buildRichReport(storedResult, premiumNow);
+      const brain = updateCareerMemoryFromReport({
+        targetRole: immediateReport.roleLabel,
+        companyName: immediateReport.companyLabel,
+        overallScore: immediateReport.overallScore,
+        trustScore: immediateReport.trustScore,
+        evidenceQuality: immediateReport.evidenceQuality,
+        ownershipScore: immediateReport.ownershipScore,
+        structureScore: immediateReport.structureScore,
+        biggestBlocker: immediateReport.biggestBlocker,
+        strengths: immediateReport.strengths,
+        improvements: immediateReport.improvements,
+        answerInsights: immediateReport.answerInsights,
+        contradictions: immediateReport.contradictions,
+      });
+      setCareerBrain(brain);
+    } catch {
+      setCareerBrain(buildCareerBrain());
+    }
+
+    setMounted(true);
+    try {
+      recordWorkZoReportViewed();
+    } catch {
+      // Analytics should never block the report.
+    }
   }, []);
 
-  const report = useMemo(() => buildRichReport(result || {}), [result]);
-  const isPremium = Boolean(result?.isPremium || result?.plan === "premium" || plan === "premium");
-  const limits = getWorkZoPlanLimits(plan);
+  const isPremium = useMemo(() => {
+    if (result.isPremium) return true;
+    if (String(result.plan || "").toLowerCase().includes("premium")) return true;
+    try {
+      return getWorkZoCurrentPlan() === "premium";
+    } catch {
+      return false;
+    }
+  }, [result]);
+
+  const report = useMemo(() => buildRichReport(result, isPremium), [result, isPremium]);
+  const phaseB = useMemo(
+    () => buildPhaseBInsights({
+      cvText: String(setupContext.cvText || setupContext.uploadedCvText || setupContext.resumeText || setupContext.candidateCv || ""),
+      jobDescription: String(setupContext.jobDescription || setupContext.jdText || ""),
+      targetRole: String(result.targetRole || result.role || setupContext.targetRole || setupContext.role || ""),
+      targetMarket: String(setupContext.targetMarket || setupContext.country || ""),
+      companyName: String(result.companyName || result.targetCompany || setupContext.companyName || setupContext.targetCompany || ""),
+      companyStyle: String(result.companyStyle || setupContext.companyStyle || ""),
+    }),
+    [result, setupContext],
+  );
+  if (!mounted) {
+    return <main className="min-h-screen bg-[#050a12] text-white" />;
+  }
 
   return (
-    <main className="min-h-screen bg-[#020817] px-5 py-6 text-white">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-100 transition hover:bg-white/10"
-          >
-            <ArrowLeft className="h-4 w-4" /> Back home
+    <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
+      <div className="mx-auto max-w-7xl">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
+            <ArrowLeft className="h-4 w-4" />
+            Back home
           </Link>
 
           <div className="flex items-center gap-3">
-            <PremiumUsageBadge label={isPremium ? "Premium report" : `Free · ${limits.interviewsPerMonth ?? 2}/2 interviews left`} />
-            <button
-              type="button"
-              onClick={() => setShowUpgrade(true)}
-              className="rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400"
-            >
-              {isPremium ? "Manage plan" : "Pricing"}
-            </button>
+            <PremiumUsageBadge compact={false} label={isPremium ? "Premium report" : "Free report"} />
+            <Link href="/pricing" className="rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400">
+              {isPremium ? "Manage plan" : "Upgrade"}
+            </Link>
           </div>
-        </header>
+        </div>
 
-        {isPremium ? <PremiumResults report={report} /> : <FreeResults report={report} onUpgrade={() => setShowUpgrade(true)} />}
+        <section className="mt-8 rounded-[2rem] border border-white/10 bg-gradient-to-br from-violet-500/15 via-blue-500/10 to-cyan-500/10 p-7 md:p-10">
+          <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/25 bg-amber-300/10 px-4 py-2 text-sm font-black text-amber-100">
+                {isPremium ? <Crown className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+                {isPremium ? "Premium Interview Debrief" : "Free Interview Snapshot"}
+              </div>
 
-        <section className="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] border border-white/10 bg-white/[0.035] p-5">
-          <div>
-            <p className="text-sm font-black text-white">Next best action</p>
-            <p className="mt-1 text-sm text-slate-400">Retry the interview using the improvement plan and compare your next score.</p>
+              <h1 className="mt-6 max-w-5xl text-4xl font-black tracking-[-0.05em] sm:text-6xl">
+                {isPremium ? "Recruiter decision simulation" : "Your recruiter-style feedback report"}
+              </h1>
+
+              <p className="mt-5 max-w-4xl text-lg leading-8 text-blue-100">
+                Current hiring confidence: <span className="font-black text-white">{report.decision}</span>. Biggest blocker: <span className="font-black text-white">{report.biggestBlocker}</span>.
+              </p>
+
+              <p className="mt-4 max-w-4xl text-base leading-8 text-slate-300">
+                {report.verdict}
+              </p>
+            </div>
+
+            <ScoreRing score={report.overallScore} grade={report.grade} />
           </div>
-          <Link
-            href="/interview"
-            className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-blue-50"
-          >
-            <RefreshCcw className="h-4 w-4" /> Retry interview
-          </Link>
+        </section>
+
+        <section className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard icon={MessageSquareText} label="Communication" value={report.communicationScore} note="Clarity, answer length, and structure." />
+          <MetricCard icon={Gauge} label="Confidence" value={report.confidenceScore} note="Pace, ownership, certainty, and delivery signals." />
+          <MetricCard icon={Target} label="Role Competency" value={report.roleCompetencyScore} note="How relevant your evidence sounded for the role." />
+          <MetricCard icon={ShieldCheck} label="Trust Signal" value={report.trustScore} note="Consistency, ownership, and proof strength." />
+        </section>
+
+
+        <section className="mt-6 rounded-[2rem] border border-blue-300/15 bg-blue-500/[0.045] p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-200">Phase 2 diagnostic layer</p>
+              <h2 className="mt-2 text-2xl font-black">{phaseB.companyDNA.label}</h2>
+              <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">{phaseB.companyDNA.description}</p>
+            </div>
+            <div className="grid h-16 w-16 place-items-center rounded-2xl border border-blue-300/20 bg-black/25 text-center">
+              <p className="text-2xl font-black text-blue-100">{phaseB.trustAudit.overall}</p>
+              <p className="-mt-2 text-[10px] font-black text-slate-500">TRUST</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-sm font-black text-blue-100">Company DNA alignment</p>
+              <div className="mt-3 space-y-3">
+                {phaseB.companyDNA.dimensions.map((item) => (
+                  <Bar key={item.label} label={item.label} value={item.score} target={item.target} note={item.note} />
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-sm font-black text-emerald-200">Trust audit deductions</p>
+              <div className="mt-3 space-y-2">
+                {phaseB.trustAudit.deductions.map((item) => (
+                  <p key={item.label} className="text-sm leading-6 text-slate-300">
+                    <span className="font-black text-white">{item.delta >= 0 ? "+" : ""}{item.delta}</span> {item.label}: {item.reason}
+                  </p>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-sm font-black text-amber-200">Cross-feature consistency</p>
+              <p className="mt-2 text-lg font-black text-white">{phaseB.consistency.status}</p>
+              <div className="mt-3 space-y-2">
+                {phaseB.consistency.notes.map((item) => (
+                  <p key={item} className="text-sm leading-6 text-slate-300">• {item}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {careerBrain ? <CareerBrainSection brain={careerBrain} /> : null}
+
+        {!isPremium ? (
+          <>
+            <section className="mt-6 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+                <h2 className="flex items-center gap-3 text-2xl font-black"><ShieldCheck className="h-6 w-6 text-emerald-300" />Sentiment snapshot</h2>
+                <p className="mt-4 text-base leading-8 text-slate-200">You showed useful role fit, but the recruiter still needs sharper metrics, ownership, or structure.</p>
+                <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Avg. pace</p><p className="mt-2 text-2xl font-black">{report.averageWpm || "—"} WPM</p></div>
+                  <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Duration</p><p className="mt-2 text-2xl font-black">{report.durationLabel}</p></div>
+                  <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Answers</p><p className="mt-2 text-2xl font-black">{report.answersCount}</p></div>
+                </div>
+              </div>
+
+              <div className="rounded-[2rem] border border-emerald-300/20 bg-emerald-400/10 p-6">
+                <h2 className="flex items-center gap-3 text-2xl font-black"><Lightbulb className="h-6 w-6 text-emerald-200" />One quick win</h2>
+                <p className="mt-4 text-base leading-8 text-emerald-50">{report.quickWin}</p>
+              </div>
+            </section>
+
+            <section className="mt-6 grid gap-5 lg:grid-cols-2">
+              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+                <h2 className="flex items-center gap-3 text-2xl font-black"><CheckCircle2 className="h-6 w-6 text-emerald-300" />Strengths</h2>
+                <div className="mt-5 space-y-3">{report.strengths.map((item) => <p key={item} className="rounded-2xl bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-50">{item}</p>)}</div>
+              </div>
+              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+                <h2 className="flex items-center gap-3 text-2xl font-black"><Target className="h-6 w-6 text-blue-300" />Improvements</h2>
+                <div className="mt-5 space-y-3">{report.improvements.map((item) => <p key={item} className="rounded-2xl bg-blue-400/10 p-4 text-sm leading-6 text-blue-50">{item}</p>)}</div>
+              </div>
+            </section>
+
+            <section className="mt-6 grid gap-5 lg:grid-cols-2">
+              <LockedPreview title="Detected red flags & contradictions" count={`${report.redFlags.length} red flag signal(s), ${report.contradictions.length} contradiction concern(s)`}>
+                <div className="space-y-3">
+                  <p className="rounded-2xl bg-white/10 p-4">Trust deduction audit</p>
+                  <p className="rounded-2xl bg-white/10 p-4">Contradiction timeline</p>
+                  <p className="rounded-2xl bg-white/10 p-4">Evidence request script</p>
+                </div>
+              </LockedPreview>
+              <LockedPreview title="Question-by-question feedback timeline" count={`${report.answersCount || 1} answer(s) analyzed`}>
+                <div className="space-y-3">
+                  {report.answerInsights.slice(0, 3).map((item, index) => (
+                    <div key={item.id} className="rounded-2xl bg-white/10 p-4">
+                      <p>Q{index + 1}: {item.question}</p>
+                      <p className="mt-2">Recruiter interpretation and rewrite locked.</p>
+                    </div>
+                  ))}
+                </div>
+              </LockedPreview>
+            </section>
+          </>
+        ) : (
+          <>
+            <section className="mt-6 grid gap-5 lg:grid-cols-2">
+              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+                <h2 className="flex items-center gap-3 text-2xl font-black"><BarChart3 className="h-6 w-6 text-cyan-300" />Benchmarking & Company DNA</h2>
+                <p className="mt-4 text-base leading-8 text-slate-300">{report.companyDNA.description}</p>
+                <div className="mt-5 rounded-2xl bg-blue-400/10 p-4 text-sm font-black text-blue-100">{report.companyDNA.label}</div>
+                <div className="mt-6 space-y-5">{report.companyDNA.dimensions.map((item) => <Bar key={item.label} label={item.label} value={item.score} target={item.target} note={item.note} />)}</div>
+              </div>
+
+              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+                <h2 className="flex items-center gap-3 text-2xl font-black"><ShieldCheck className="h-6 w-6 text-amber-200" />Trust & Integrity Audit</h2>
+                <div className="mt-6 space-y-5">
+                  <Bar label="Credibility" value={report.trustScore} note="Evidence, consistency, and recruiter confidence." />
+                  <Bar label="Evidence Quality" value={report.evidenceQuality} note="Metrics, ownership, and result clarity." />
+                  <Bar label="Contradiction Safety" value={report.contradictions.length ? clamp(100 - report.contradictions[0].trustDrop * 4) : 92} note="Higher means fewer consistency concerns." />
+                </div>
+                <div className="mt-6 space-y-3">
+                  {report.trustDeductions.map((item) => (
+                    <div key={item.label} className={cn("flex items-center justify-between rounded-2xl p-4 text-sm font-bold", item.tone === "negative" ? "bg-rose-400/10 text-rose-100" : "bg-emerald-400/10 text-emerald-100")}>
+                      <span>{item.label}</span>
+                      <span>{item.value > 0 ? `+${item.value}` : item.value} pts</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+              <h2 className="flex items-center gap-3 text-2xl font-black"><TrendingUp className="h-6 w-6 text-blue-300" />Top 10% Candidate Overlay</h2>
+              <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                {report.benchmark.map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="font-black text-white">{item.label}</p>
+                    <div className="mt-4 space-y-3">
+                      <Bar label="You" value={item.user} />
+                      <Bar label="Top 10%" value={item.top} />
+                    </div>
+                    <p className="mt-4 text-sm leading-6 text-slate-400">{item.note}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="mt-6 grid gap-5 lg:grid-cols-2">
+              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+                <h2 className="flex items-center gap-3 text-2xl font-black"><Flag className="h-6 w-6 text-rose-300" />Red Flags & Evidence Requests</h2>
+                <div className="mt-6 space-y-3">
+                  {report.redFlags.length ? report.redFlags.map((item) => <p key={item} className="rounded-2xl bg-rose-400/10 p-4 text-sm leading-6 text-rose-50">{item}</p>) : (
+                    <div className="space-y-3">
+                      <p className="rounded-2xl bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-50">No critical red flag detected in captured answers.</p>
+                      {["No blame-shifting language detected", "No toxic communication pattern detected", "No major contradiction detected", "Professional communication tone maintained"].map((item) => <p key={item} className="flex items-center gap-2 text-sm text-slate-300"><CheckCircle2 className="h-4 w-4 text-emerald-300" />{item}</p>)}
+                    </div>
+                  )}
+                </div>
+                <div className="mt-6 space-y-3">
+                  {report.evidenceRequests.map((item) => <p key={item} className="rounded-2xl bg-amber-400/10 p-4 text-sm leading-6 text-amber-50">Recruiter would ask: {item}</p>)}
+                </div>
+              </div>
+
+              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+                <h2 className="flex items-center gap-3 text-2xl font-black"><Wand2 className="h-6 w-6 text-violet-300" />Improvement Roadmap</h2>
+                <div className="mt-6 space-y-4">
+                  {report.improvementPlan.map((item) => (
+                    <div key={item.priority} className="rounded-2xl bg-violet-400/10 p-4">
+                      <p className="text-xs font-black uppercase tracking-[0.25em] text-violet-200">{item.priority} · {item.gain}</p>
+                      <h3 className="mt-2 font-black text-white">{item.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">{item.action}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+              <h2 className="flex items-center gap-3 text-2xl font-black"><Eye className="h-6 w-6 text-blue-300" />Audio & Presentation Timeline Analysis</h2>
+              <p className="mt-4 text-sm leading-7 text-slate-300">WorkZo currently estimates delivery risk from transcript length and filler words. Real audio/camera analysis can be connected later without changing this report structure.</p>
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                {report.audioSignals.map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="font-black text-white">{item.label}</p>
+                    <p className="mt-3 text-3xl font-black">{item.value}</p>
+                    <p className={cn("mt-2 text-xs font-black uppercase", item.risk === "high" ? "text-rose-300" : item.risk === "medium" ? "text-amber-300" : "text-emerald-300")}>{item.risk} risk</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-7 text-slate-300">
+                Presence & eye-contact metrics are not captured yet. This section is ready for future camera signals, but it does not pretend to analyze video that was not recorded.
+              </div>
+            </section>
+
+            <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+              <h2 className="flex items-center gap-3 text-2xl font-black"><MessageSquareText className="h-6 w-6 text-cyan-300" />Interactive Transcript & Coaching Debrief</h2>
+              <div className="mt-6 space-y-4">
+                {report.answerInsights.map((item, index) => <TranscriptCard key={item.id} item={item} index={index} />)}
+              </div>
+            </section>
+          </>
+        )}
+
+        <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-black text-white">Next best action</p>
+              <p className="mt-2 text-sm leading-6 text-slate-400">Retry the interview using the improvement roadmap and compare your next score.</p>
+            </div>
+            <Link href="/interview" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 hover:bg-slate-200">
+              <RefreshCcw className="h-4 w-4" /> Retry interview
+            </Link>
+          </div>
         </section>
       </div>
 
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
+      <UpgradeModal open={upgradeOpen} feature="advanced interview report" onClose={() => setUpgradeOpen(false)} />
     </main>
   );
 }

@@ -16,6 +16,8 @@ import {
   Mic,
   Search,
   Sparkles,
+  Target,
+  TrendingUp,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -28,6 +30,8 @@ import {
   saveLatestInterviewSetup,
   type WorkZoInterviewSetup,
 } from "@/lib/workzoInterviewSetup";
+import { buildPhaseAInsights } from "@/lib/workzoCareerSuitePhaseA";
+import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
 
 type LiveJob = {
   id: string;
@@ -302,6 +306,16 @@ export default function JobsWorkspacePage() {
     [targetRole, targetMarket, keywords],
   );
 
+  const phaseA = useMemo(
+    () => buildPhaseAInsights({ cvText, jobDescription, targetRole, targetMarket, companyName: setup?.companyName || setup?.targetCompany || "", companyStyle: setup?.companyStyle || "" }),
+    [cvText, jobDescription, targetRole, targetMarket, setup],
+  );
+
+  const phaseB = useMemo(
+    () => buildPhaseBInsights({ cvText, jobDescription, targetRole, targetMarket, companyName: setup?.companyName || setup?.targetCompany || "", companyStyle: setup?.companyStyle || "" }),
+    [cvText, jobDescription, targetRole, targetMarket, setup],
+  );
+
   async function handleFindLiveJobs() {
     setLoading(true);
     setMessage("");
@@ -505,6 +519,116 @@ export default function JobsWorkspacePage() {
           </aside>
 
           <section className="space-y-5">
+
+            <div className="rounded-[2rem] border border-cyan-300/15 bg-cyan-400/[0.045] p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">Prepare for this job</p>
+                  <h2 className="mt-2 text-2xl font-black">{phaseA.hiringRecommendation}</h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{phaseA.recruiterScan.firstImpression}</p>
+                </div>
+                <div className="grid h-16 w-16 place-items-center rounded-2xl border border-cyan-300/20 bg-black/25 text-center">
+                  <p className="text-2xl font-black text-cyan-100">{phaseA.readinessScore}</p>
+                  <p className="-mt-2 text-[10px] font-black text-slate-500">READY</p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-black text-blue-100"><Target className="h-4 w-4" /> Missing requirements</div>
+                  <div className="space-y-2">
+                    {phaseA.missingRequirements.filter((item) => item.status !== "matched").slice(0, 5).map((item) => (
+                      <p key={item.label} className="text-sm leading-6 text-slate-300">• {item.label} <span className="text-slate-500">({item.status})</span></p>
+                    ))}
+                    {!phaseA.missingRequirements.some((item) => item.status !== "matched") ? <p className="text-sm text-emerald-200">No major requirement gap detected.</p> : null}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-black text-blue-100"><Mic className="h-4 w-4" /> Likely recruiter questions</div>
+                  <div className="space-y-2">
+                    {phaseA.recruiterQuestions.slice(0, 4).map((item) => <p key={item.question} className="text-sm leading-6 text-slate-300">• {item.question}</p>)}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-black text-blue-100"><TrendingUp className="h-4 w-4" /> Interview probability</div>
+                  <div className="space-y-3">
+                    {[
+                      ["Current", phaseA.interviewProbability.current],
+                      ["After CV fix", phaseA.interviewProbability.afterCvFix],
+                      ["After prep", phaseA.interviewProbability.afterInterviewPrep],
+                    ].map(([label, value]) => (
+                      <div key={String(label)}>
+                        <div className="mb-1 flex justify-between text-xs font-black"><span className="text-slate-400">{label}</span><span>{value}%</span></div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-cyan-300" style={{ width: `${value}%` }} /></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-amber-300/15 bg-amber-400/[0.06] p-4">
+                <p className="text-sm font-black text-amber-100">Potential recruiter objections</p>
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  {phaseA.objections.slice(0, 3).map((item) => (
+                    <div key={item.title} className="rounded-xl bg-black/20 p-3">
+                      <p className="text-sm font-black text-white">{item.title}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-400">{item.fix}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+
+            <div className="rounded-[2rem] border border-blue-300/15 bg-blue-500/[0.045] p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-200">Phase 2 job intelligence</p>
+                  <h2 className="mt-2 text-2xl font-black">{phaseB.consistency.status}</h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{phaseB.companyDNA.interviewStyle}</p>
+                </div>
+                <div className="grid h-16 w-16 place-items-center rounded-2xl border border-blue-300/20 bg-black/25 text-center">
+                  <p className="text-2xl font-black text-blue-100">{phaseB.trustAudit.overall}</p>
+                  <p className="-mt-2 text-[10px] font-black text-slate-500">TRUST</p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm font-black text-blue-100">Company DNA</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">{phaseB.companyDNA.label}</p>
+                  <div className="mt-3 space-y-2">
+                    {phaseB.companyDNA.dimensions.slice(0, 4).map((item) => (
+                      <div key={item.label}>
+                        <div className="mb-1 flex justify-between text-xs font-black"><span className="text-slate-400">{item.label}</span><span>{item.score}%</span></div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-blue-400" style={{ width: `${item.score}%` }} /></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm font-black text-emerald-200">Cross-feature actions</p>
+                  <div className="mt-3 space-y-2">
+                    {phaseB.consistency.crossFeatureActions.map((item) => (
+                      <p key={item} className="text-sm leading-6 text-slate-300">• {item}</p>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm font-black text-amber-200">Trust recovery</p>
+                  <div className="mt-3 space-y-2">
+                    {phaseB.trustAudit.recoveryActions.map((item) => (
+                      <p key={item} className="text-sm leading-6 text-slate-300">• {item}</p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {message ? (
               <div className="rounded-2xl border border-blue-300/15 bg-blue-400/[0.07] p-4 text-sm leading-6 text-blue-100">
                 {message}

@@ -50,14 +50,6 @@ import {
   classifyVoiceError,
   requestMicrophoneAccess,
 } from "@/lib/workzoVoiceReliability";
-import {
-  readLatestInterviewSetup,
-  normalizeCandidateName as normalizeStoredCandidateName,
-  normalizeSetupCvText,
-  normalizeSetupJobDescription,
-  normalizeSetupTargetMarket,
-  normalizeSetupTargetRole,
-} from "@/lib/workzoInterviewSetup";
 
 type TranscriptRole = "recruiter" | "candidate" | "system";
 
@@ -437,7 +429,7 @@ function normalizeCandidateName(name: string) {
     .trim();
 
   if (!cleaned || cleaned.length < 2) return "";
-  if (/\b(resume|cv|curriculum|profile|summary|experience|education|skills|project|language|english|german|dutch|french|spanish|italian|portuguese|fluent|native|conversational|sales|manager|executive|engineer|analyst)\b/i.test(cleaned)) {
+  if (/\b(resume|cv|curriculum|profile|summary|experience|education|skills|project|sales|manager|executive|engineer|analyst)\b/i.test(cleaned)) {
     return "";
   }
 
@@ -463,59 +455,38 @@ function extractNameFromCvText(cvText: string) {
 }
 
 function buildSetupFromStorage(): InterviewSetup {
-  // Source-of-truth rule:
-  // The interview room must only use the final canonical setup saved after CV parsing is complete.
-  // It must not scan random stale localStorage keys first, and it must not re-parse a clumsy CV preview.
-  const latestSetup = readLatestInterviewSetup();
+  const stored = findSetupFromLocalStorage();
 
-  const fallbackStored = latestSetup ? null : findSetupFromLocalStorage();
   const state =
-    latestSetup ||
-    (fallbackStored && typeof fallbackStored === "object" && "state" in fallbackStored
-      ? (fallbackStored as Record<string, unknown>).state
-      : fallbackStored);
+    stored && typeof stored === "object" && "state" in stored
+      ? (stored as Record<string, unknown>).state
+      : stored;
 
-  const resumeProfile =
-    state && typeof state === "object"
-      ? ((state as Record<string, unknown>).resumeProfile as Record<string, unknown> | undefined)
-      : undefined;
-  const basics =
-    resumeProfile && typeof resumeProfile.basics === "object"
-      ? (resumeProfile.basics as Record<string, unknown>)
-      : {};
+  const cvText = getNestedValue(state, [
+    "cvText",
+    "resumeText",
+    "candidate.cvText",
+    "setup.cvText",
+    "profile.cvText",
+  ]);
 
-  const cvText =
-    latestSetup
-      ? normalizeSetupCvText(latestSetup)
-      : getNestedValue(state, [
-          "cvText",
-          "uploadedCvText",
-          "resumeText",
-          "candidateCv",
-          "candidate.cvText",
-          "setup.cvText",
-          "profile.cvText",
-        ]);
+  const jobDescription = getNestedValue(state, [
+    "jobDescription",
+    "jdText",
+    "jd",
+    "job.description",
+    "job.jobDescription",
+    "setup.jobDescription",
+    "setup.jdText",
+    "selectedJob.description",
+    "selectedJob.jobDescription",
+  ]);
 
-  const jobDescription =
-    latestSetup
-      ? normalizeSetupJobDescription(latestSetup)
-      : getNestedValue(state, [
-          "jobDescription",
-          "jdText",
-          "jd",
-          "job.description",
-          "job.jobDescription",
-          "setup.jobDescription",
-          "setup.jdText",
-          "selectedJob.description",
-          "selectedJob.jobDescription",
-        ]);
-
-  const profileCandidateName = normalizeStoredCandidateName(basics.name);
   const storedCandidateName = normalizeCandidateName(
     getNestedValue(state, [
       "candidateName",
+      "name",
+      "userName",
       "candidate.name",
       "profile.name",
       "setup.candidateName",
@@ -523,15 +494,9 @@ function buildSetupFromStorage(): InterviewSetup {
     ]),
   );
   const cvCandidateName = normalizeCandidateName(extractNameFromCvText(cvText));
-
-  const candidateName =
-    profileCandidateName ||
-    storedCandidateName ||
-    cvCandidateName ||
-    "Candidate";
+  const candidateName = storedCandidateName || cvCandidateName || "Candidate";
 
   const targetRole =
-    (latestSetup ? normalizeSetupTargetRole(latestSetup) : "") ||
     getNestedValue(state, [
       "targetRole",
       "role",
@@ -542,9 +507,7 @@ function buildSetupFromStorage(): InterviewSetup {
       "job.title",
       "job.role",
       "jobDescriptionTitle",
-      "resumeProfile.basics.headline",
-    ]) ||
-    "Interview Role";
+    ]) || "Interview Role";
 
   const targetCompany =
     getNestedValue(state, [
@@ -554,8 +517,6 @@ function buildSetupFromStorage(): InterviewSetup {
       "setup.targetCompany",
       "job.company",
       "job.companyName",
-      "selectedJob.company",
-      "selectedJob.companyName",
     ]) || "";
 
   const recruiterId = normalizeRecruiterId(
@@ -568,7 +529,7 @@ function buildSetupFromStorage(): InterviewSetup {
       "setup.selectedRecruiter",
       "setup.recruiter",
       "setup.recruiterPersonality",
-    ]) || latestSetup?.recruiterPersonality,
+    ]),
   );
 
   const profile = recruiterProfiles[recruiterId] || recruiterProfiles.friendly_hr;
@@ -1689,14 +1650,14 @@ function localizedOpeningQuestion(setup: InterviewSetup) {
   }
 
   if (language.code === "hi-IN") {
-    return `Hi ${name}. Let’s begin your interview for the ${role} role. Please answer in Hindi or English, whichever feels natural. Thanks for joining today. To start, tell me briefly about your professional background and why this role fits you.`;
+    return `Hi ${name}. Let’s begin your interview for the ${role} role. Please answer in Hindi or English, whichever feels natural. ${recruiterQuestions[0]}`;
   }
 
   if (language.code === "ta-IN") {
-    return `Hi ${name}. Let’s begin your interview for the ${role} role. Please answer in Tamil or English, whichever feels natural. Thanks for joining today. To start, tell me briefly about your professional background and why this role fits you.`;
+    return `Hi ${name}. Let’s begin your interview for the ${role} role. Please answer in Tamil or English, whichever feels natural. ${recruiterQuestions[0]}`;
   }
 
-  return `Hi ${name}. Let’s begin your interview for the ${role} role. Thanks for joining today. To start, tell me briefly about your professional background and why this role fits you.`;
+  return `Hi ${name}. Let’s begin your interview for the ${role} role. ${recruiterQuestions[0]}`;
 }
 
 function buildContextQualityNotice(setup: InterviewSetup) {
@@ -2234,15 +2195,124 @@ function isProgressWorthyRecruiterTurn(text: string) {
 
 
 
-function getLocalizedFirstQuestion(setup: InterviewSetup) {
-  const language = normalizeInterviewLanguage(setup.language).code;
-  if (language.startsWith("de")) return "Danke, dass Sie heute dabei sind. Erzählen Sie mir bitte kurz von Ihrem beruflichen Hintergrund und warum diese Rolle zu Ihnen passt.";
-  if (language.startsWith("nl")) return "Bedankt dat je er vandaag bent. Vertel kort over je professionele achtergrond en waarom deze rol bij je past.";
-  if (language.startsWith("fr")) return "Merci d’être là aujourd’hui. Présentez brièvement votre parcours professionnel et expliquez pourquoi ce poste vous intéresse.";
-  if (language.startsWith("pt")) return "Obrigado por participar hoje. Conte brevemente sobre sua experiência profissional e por que esta vaga combina com você.";
-  if (language.startsWith("es")) return "Gracias por estar aquí hoy. Cuéntame brevemente sobre tu experiencia profesional y por qué este puesto encaja contigo.";
-  return "Thanks for joining today. To start, tell me briefly about your professional background and why this role fits you.";
+function getWorkZoLiveCopilotInsight(input: {
+  status: string;
+  transcriptCount: number;
+  questionIndex: number;
+  currentQuestion: string;
+  interimText: string;
+  recruiterConcern?: string;
+  recruiterMood?: string;
+  trust?: number;
+  interest?: number;
+}) {
+  const answer = input.interimText.trim();
+  const lower = answer.toLowerCase();
+  const wordCount = answer.split(/\s+/).filter(Boolean).length;
+  const hasMetric = /\d|%|percent|customers?|tickets?|hours?|days?|weeks?|months?|saved|reduced|increased|improved|revenue|cost|time|quality|sla|csat|nps/i.test(answer);
+  const hasOwnership = /\b(i|my|me|personally|owned|built|handled|created|led|resolved|analyzed|analysed|improved|reduced|increased|implemented|designed|managed|coordinated|delivered)\b/i.test(answer);
+  const hasOutcome = /\b(result|impact|outcome|after|therefore|which led|so that|improved|reduced|increased|saved|achieved|delivered|helped|enabled)\b/i.test(answer);
+  const tooGeneric = /\b(things|stuff|many|some|good|nice|various|etc|responsible for|worked on)\b/i.test(lower);
+
+  if (input.status === "idle" || input.status === "ended") {
+    return {
+      headline: "Before you start",
+      sayNext: "Keep each answer simple: situation, your action, proof, result.",
+      recruiterConcern: "The recruiter will look for ownership, evidence, and role relevance.",
+      liveTip: "Use one real example from your CV instead of a generic summary.",
+      tone: "neutral",
+    };
+  }
+
+  if (input.status === "recruiter-speaking") {
+    return {
+      headline: "Listen for the hidden test",
+      sayNext: "Identify what the recruiter is really testing before answering.",
+      recruiterConcern: input.currentQuestion || "The recruiter is setting up the next evaluation point.",
+      liveTip: "Prepare a 45-60 second answer with one measurable proof point.",
+      tone: "listening",
+    };
+  }
+
+  if (input.status === "listening") {
+    if (!answer) {
+      return {
+        headline: "Answer structure",
+        sayNext: "Start with: “In my previous role, I handled…” then give one specific example.",
+        recruiterConcern: input.recruiterConcern || "Waiting for evidence, ownership, and clear relevance.",
+        liveTip: "Avoid starting too broad. Give one real situation first.",
+        tone: "ready",
+      };
+    }
+
+    if (wordCount < 18) {
+      return {
+        headline: "Too short",
+        sayNext: "Add one specific situation, your personal action, and what changed after it.",
+        recruiterConcern: "The recruiter cannot judge fit from a short answer.",
+        liveTip: "Extend this answer with one concrete detail from your CV.",
+        tone: "warning",
+      };
+    }
+
+    if (!hasOwnership) {
+      return {
+        headline: "Ownership unclear",
+        sayNext: "Use “I” and explain exactly what you personally did.",
+        recruiterConcern: "The answer sounds team-level instead of candidate-level.",
+        liveTip: "Replace “we worked on” with “I handled / I built / I resolved…”.",
+        tone: "warning",
+      };
+    }
+
+    if (!hasMetric) {
+      return {
+        headline: "Missing proof",
+        sayNext: "Add a number: tickets, users, time saved, quality improvement, SLA, revenue, or before/after result.",
+        recruiterConcern: "The recruiter may not trust the impact without evidence.",
+        liveTip: "Even an approximate metric is better than no proof.",
+        tone: "warning",
+      };
+    }
+
+    if (!hasOutcome) {
+      return {
+        headline: "Outcome missing",
+        sayNext: "Finish with the result: what improved, who benefited, and how you know it worked.",
+        recruiterConcern: "The answer explains activity but not business impact.",
+        liveTip: "Close the answer with one clear result sentence.",
+        tone: "warning",
+      };
+    }
+
+    if (tooGeneric) {
+      return {
+        headline: "Make it sharper",
+        sayNext: "Replace vague words with one exact task, tool, customer issue, or result.",
+        recruiterConcern: "The answer may sound rehearsed or generic.",
+        liveTip: "Use a named project, system, process, or measurable outcome.",
+        tone: "warning",
+      };
+    }
+
+    return {
+      headline: "Strong answer forming",
+      sayNext: "Now close confidently with the result and what you learned.",
+      recruiterConcern: "The recruiter is likely checking depth and consistency.",
+      liveTip: "Do not keep adding details. Finish with a clear outcome.",
+      tone: "positive",
+    };
+  }
+
+  return {
+    headline: "Stay focused",
+    sayNext: "Answer the recruiter with one clear, role-relevant example.",
+    recruiterConcern: input.recruiterConcern || "The recruiter is watching for evidence and consistency.",
+    liveTip: "Keep it concise and specific.",
+    tone: "neutral",
+  };
 }
+
 
 export default function InterviewPage() {
 
@@ -2319,12 +2389,26 @@ export default function InterviewPage() {
     ],
     [recruiterSignal, scoreReady],
   );
-
-
-  const [questionIndex, setQuestionIndex] = useState(0);
+const [questionIndex, setQuestionIndex] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [interimText, setInterimText] = useState("");
   const [transcript, setTranscript] = useState<TranscriptItem[]>(initialTranscript);
+  const liveCopilotInsight = useMemo(
+    () =>
+      getWorkZoLiveCopilotInsight({
+        status,
+        transcriptCount: transcript.length,
+        questionIndex,
+        currentQuestion: recruiterQuestions[Math.min(questionIndex, recruiterQuestions.length - 1)] || "",
+        interimText,
+        recruiterConcern: recruiterSignal.concern,
+        recruiterMood: recruiterSignal.mood,
+        trust: recruiterSignal.trust,
+        interest: recruiterSignal.interest,
+      }),
+    [status, transcript.length, questionIndex, interimText, recruiterSignal],
+  );
+
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
@@ -3754,11 +3838,11 @@ export default function InterviewPage() {
 
                       <section className="space-y-2">
                         <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Transcript</p>
-                        <button type="button" onClick={() => setShowTranscript((value) => !value)} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm">
+                        <button type="button" onClick={() => setShowTranscript((value) => !value)} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm workzo-transcript-panel">
                           <span>{showTranscript ? "Hide Transcript" : "Show Live Transcript"}</span>
                           <span className="text-slate-400">{showTranscript ? "On" : "Off"}</span>
                         </button>
-                        <button type="button" onClick={() => setAutoScrollTranscript((value) => !value)} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm">
+                        <button type="button" onClick={() => setAutoScrollTranscript((value) => !value)} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm workzo-transcript-body">
                           <span>Auto-scroll Transcript</span>
                           <span className="text-slate-400">{autoScrollTranscript ? "On" : "Off"}</span>
                         </button>

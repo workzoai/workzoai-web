@@ -1,85 +1,57 @@
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
 
-function LegalShell({ eyebrow, title, children }: { eyebrow: string; title: string; children: React.ReactNode }) {
-  return (
-    <main className="min-h-screen bg-[#050b14] px-5 py-8 text-white">
-      <div className="mx-auto max-w-4xl">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white">
-          <ArrowLeft className="h-4 w-4" />
-          Back to WorkZo AI
-        </Link>
-        <section className="mt-8 rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
-          <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-blue-400/10 text-blue-200">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">{eyebrow}</p>
-              <h1 className="mt-1 text-3xl font-black sm:text-4xl">{title}</h1>
-            </div>
-          </div>
-          <div className="mt-7 space-y-6 text-sm leading-7 text-slate-300">{children}</div>
-        </section>
-      </div>
-    </main>
-  );
-}
-
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h2 className="text-xl font-black text-white">{title}</h2>
-      <div className="mt-2 space-y-2">{children}</div>
-    </section>
-  );
-}
-
-export const metadata = { title: "Privacy Policy | WorkZo AI" };
+const sections = [
+  {
+    title: "1. What WorkZo AI does",
+    body: "WorkZo AI is an interview preparation product. Users may upload or paste CV content, job descriptions, and interview answers so the app can generate practice questions, feedback, reports, and coaching suggestions.",
+  },
+  {
+    title: "2. Data we may collect",
+    body: "We may process account details, email address, uploaded CV text, job descriptions, interview transcripts, selected recruiter settings, usage events, error logs, device/browser metadata, and payment status when billing is enabled.",
+  },
+  {
+    title: "3. Why we process data",
+    body: "We process data to provide the app, personalize interview practice, generate reports, improve product reliability, prevent abuse, provide support, and comply with legal obligations.",
+  },
+  {
+    title: "4. AI processing",
+    body: "WorkZo AI may send CV text, job descriptions, and interview answers to AI service providers to generate questions and feedback. Users should not upload sensitive information that is not needed for interview preparation.",
+  },
+  {
+    title: "5. Storage and retention",
+    body: "During beta, some data may be stored in your browser and/or WorkZo AI systems to support interview history, usage limits, reports, and debugging. You can contact us to request deletion of your data.",
+  },
+  {
+    title: "6. Analytics and error tracking",
+    body: "We may collect product analytics and technical error reports to understand failures, improve stability, and protect the service. These logs may include page path, browser metadata, timestamps, and error details.",
+  },
+  {
+    title: "7. Your rights",
+    body: "Depending on your location, including the EU/EEA, you may have rights to access, correct, delete, restrict, or object to processing of your personal data. Contact support@workzoai.com for requests.",
+  },
+  {
+    title: "8. Contact",
+    body: "For privacy questions or deletion requests, contact support@workzoai.com.",
+  },
+];
 
 export default function PrivacyPage() {
   return (
-    <LegalShell eyebrow="Legal" title="Privacy Policy">
-      <p className="text-slate-400">Last updated: June 2, 2026</p>
-
-      <Block title="1. What WorkZo AI does">
-        <p>WorkZo AI helps users prepare for interviews using CV content, job descriptions, interview transcripts, recruiter-style feedback, analytics, and saved session history.</p>
-      </Block>
-
-      <Block title="2. Information we may process">
-        <p>Depending on how you use WorkZo AI, we may process:</p>
-        <ul className="list-disc space-y-1 pl-5">
-          <li>Account information such as email address and authentication status.</li>
-          <li>CV, resume, profile, role, company, country, and job description content you provide.</li>
-          <li>Interview transcript, score, feedback, trust timeline, weakest-answer analysis, and session history.</li>
-          <li>Product analytics such as pages viewed, interview started, interview completed, results viewed, recovery usage, and failure events.</li>
-          <li>Technical information such as browser, device type, error logs, and approximate environment information.</li>
-        </ul>
-      </Block>
-
-      <Block title="3. CV and interview data">
-        <p>CV text, job descriptions, and interview transcripts are used to generate interview practice, feedback, scoring, and recruiter-style follow-up questions. Do not upload information you do not want processed for these purposes.</p>
-      </Block>
-
-      <Block title="4. Local storage">
-        <p>WorkZo AI may use browser local storage to support recovery, saved interview state, founder analytics, preferences, and beta testing reliability. Clearing browser storage may remove local recovery data.</p>
-      </Block>
-
-      <Block title="5. Third-party providers">
-        <p>WorkZo AI may use trusted third-party services for authentication, database storage, analytics, voice infrastructure, AI processing, error monitoring, and payments when payment features are introduced.</p>
-      </Block>
-
-      <Block title="6. Data deletion">
-        <p>You can contact us to request deletion of account-related data. Some technical logs may remain for a limited time where required for security, debugging, legal, or abuse prevention purposes.</p>
-      </Block>
-
-      <Block title="7. Important disclaimer">
-        <p>WorkZo AI is an interview preparation tool. It does not guarantee job interviews, employment, job offers, visa outcomes, career outcomes, recruiter decisions, or hiring results.</p>
-      </Block>
-
-      <Block title="8. Contact">
-        <p>For privacy questions, contact: <a className="text-blue-300 hover:text-blue-200" href="mailto:support@workzoai.com">support@workzoai.com</a></p>
-      </Block>
-    </LegalShell>
+    <main className="min-h-screen bg-[#050a12] px-5 py-10 text-white">
+      <div className="mx-auto max-w-4xl">
+        <Link href="/" className="text-sm font-bold text-slate-400 hover:text-white">← Back home</Link>
+        <p className="mt-10 text-xs font-black uppercase tracking-[0.28em] text-cyan-200">Legal</p>
+        <h1 className="mt-3 text-4xl font-black tracking-[-0.04em] sm:text-5xl">Privacy Policy</h1>
+        <p className="mt-4 text-sm leading-7 text-slate-300">Last updated: June 2026. This page is written for WorkZo AI beta users and should be reviewed by a legal professional before full public launch.</p>
+        <div className="mt-8 space-y-4">
+          {sections.map((section) => (
+            <section key={section.title} className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+              <h2 className="text-lg font-black">{section.title}</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-300">{section.body}</p>
+            </section>
+          ))}
+        </div>
+      </div>
+    </main>
   );
 }

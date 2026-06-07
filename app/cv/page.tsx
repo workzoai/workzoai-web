@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Copy, Download, FileText, Printer, Sparkles } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle2, Copy, Download, FileText, Gauge, Printer, Sparkles, Target } from "lucide-react";
 import {
   buildResumeJson,
   generateImprovedCv,
@@ -21,6 +21,8 @@ import {
 } from "@/lib/workzoInterviewSetup";
 import type { ResumeProfile } from "@/lib/workzoResumeParser";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
+import { buildPhaseAInsights } from "@/lib/workzoCareerSuitePhaseA";
+import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
 
 const templates: Array<{ id: CvTemplate; label: string; description: string }> = [
   { id: "ats", label: "ATS Clean", description: "Strict, single-column, recruiter-safe layout." },
@@ -95,6 +97,12 @@ export default function CvWorkspacePage() {
     return output;
   }, [resumeInput]);
   const htmlPreview = useMemo(() => generateResumeHtml(resumeInput), [resumeInput]);
+
+  const phaseA = useMemo(() => buildPhaseAInsights({ cvText, jobDescription, targetRole, targetMarket }), [cvText, jobDescription, targetRole, targetMarket]);
+  const phaseB = useMemo(
+    () => buildPhaseBInsights({ cvText, jobDescription, targetRole, targetMarket }),
+    [cvText, jobDescription, targetRole, targetMarket],
+  );
 
 
   useEffect(() => {
@@ -259,6 +267,127 @@ export default function CvWorkspacePage() {
                 placeholder="Upload a CV during onboarding or paste CV text here."
               />
             </label>
+          </div>
+
+
+          <div className="rounded-[2rem] border border-cyan-300/15 bg-cyan-400/[0.045] p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">Recruiter 6-second scan</p>
+                <h2 className="mt-2 text-xl font-black">{phaseA.recruiterScan.decision}</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{phaseA.recruiterScan.firstImpression}</p>
+              </div>
+              <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-cyan-300/20 bg-black/25 text-center">
+                <p className="text-2xl font-black text-cyan-100">{phaseA.readinessScore}</p>
+                <p className="-mt-2 text-[10px] font-black text-slate-500">READY</p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.06] p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-black text-emerald-200"><CheckCircle2 className="h-4 w-4" /> What works</div>
+                <div className="space-y-2">
+                  {phaseA.recruiterScan.strengths.map((item) => <p key={item} className="text-sm leading-6 text-slate-300">• {item}</p>)}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-amber-300/15 bg-amber-400/[0.06] p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-black text-amber-200"><AlertTriangle className="h-4 w-4" /> Recruiter concerns</div>
+                <div className="space-y-2">
+                  {phaseA.recruiterScan.concerns.map((item) => <p key={item} className="text-sm leading-6 text-slate-300">• {item}</p>)}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400"><Gauge className="h-4 w-4" /> Current</div>
+                <p className="mt-2 text-2xl font-black">{phaseA.interviewProbability.current}%</p>
+                <p className="mt-1 text-xs text-slate-500">Interview probability estimate</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400"><Target className="h-4 w-4" /> After CV fix</div>
+                <p className="mt-2 text-2xl font-black text-blue-100">{phaseA.interviewProbability.afterCvFix}%</p>
+                <p className="mt-1 text-xs text-slate-500">If missing proof is added</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400"><Sparkles className="h-4 w-4" /> After prep</div>
+                <p className="mt-2 text-2xl font-black text-emerald-200">{phaseA.interviewProbability.afterInterviewPrep}%</p>
+                <p className="mt-1 text-xs text-slate-500">With interview stories ready</p>
+              </div>
+            </div>
+          </div>
+
+
+          <div className="rounded-[2rem] border border-blue-300/15 bg-blue-500/[0.045] p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-200">Phase 2 intelligence</p>
+                <h2 className="mt-2 text-xl font-black">{phaseB.companyDNA.label}</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{phaseB.companyDNA.description}</p>
+              </div>
+              <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-blue-300/20 bg-black/25 text-center">
+                <p className="text-2xl font-black text-blue-100">{phaseB.trustAudit.overall}</p>
+                <p className="-mt-2 text-[10px] font-black text-slate-500">TRUST</p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-sm font-black text-blue-100">Company DNA rules</p>
+                <div className="mt-3 space-y-3">
+                  {phaseB.companyDNA.dimensions.map((item) => (
+                    <div key={item.label}>
+                      <div className="mb-1 flex justify-between text-xs font-black">
+                        <span className="text-slate-300">{item.label}</span>
+                        <span className="text-blue-100">{item.score}% / {item.target}%</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                        <div className="h-full rounded-full bg-blue-400" style={{ width: `${item.score}%` }} />
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">{item.note}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-sm font-black text-emerald-200">Trust audit</p>
+                <div className="mt-3 space-y-2">
+                  {phaseB.trustAudit.dimensions.map((item) => (
+                    <p key={item.label} className="text-sm leading-6 text-slate-300">
+                      <span className="font-black text-white">{item.label}:</span> {item.score}% <span className={item.delta >= 0 ? "text-emerald-300" : "text-amber-300"}>({item.delta >= 0 ? "+" : ""}{item.delta})</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-sm font-black text-white">Evidence engine</p>
+              <p className="mt-2 text-sm leading-6 text-slate-400">{phaseB.evidenceEngine.summary}</p>
+              <div className="mt-4 space-y-3">
+                {phaseB.evidenceEngine.items.slice(0, 4).map((item) => (
+                  <div key={item.text} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-black text-white">{item.score}% evidence</p>
+                      <p className="text-xs text-slate-400">
+                        {item.ownership ? "✓ Ownership" : "⚠ Ownership"} · {item.metric ? "✓ Metric" : "⚠ Metric"} · {item.result ? "✓ Result" : "⚠ Result"}
+                      </p>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">{item.text}</p>
+                    <p className="mt-2 text-xs leading-5 text-blue-100">Recruiter hears: {item.recruiterHeard}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.06] p-4">
+              <p className="text-sm font-black text-emerald-200">Top 10% rewrite target</p>
+              <p className="mt-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Current weak line</p>
+              <p className="mt-1 text-sm leading-6 text-slate-300">{phaseB.top10Rewrite.weakestLine}</p>
+              <p className="mt-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Elite version</p>
+              <p className="mt-1 text-sm leading-6 text-emerald-50">{phaseB.top10Rewrite.eliteLine}</p>
+            </div>
           </div>
 
           <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-5">
