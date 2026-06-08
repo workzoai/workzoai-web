@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -17,6 +17,8 @@ import {
   Zap,
 } from "lucide-react";
 import WorkZoFooter from "@/components/WorkZoFooter";
+import AuthNavButton from "@/components/auth/AuthNavButton";
+import { getWorkZoDisplayPrice } from "@/lib/workzoLocalizedPricing";
 
 const trustItems = [
   "CV + job based practice",
@@ -256,6 +258,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export default function LandingPage() {
+  const localizedPrice = useMemo(() => getWorkZoDisplayPrice(), []);
   const glowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -306,10 +309,10 @@ export default function LandingPage() {
               <div className="invisible absolute left-0 top-full z-50 mt-4 w-72 translate-y-2 rounded-2xl border border-white/10 bg-[#071120]/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
                 {[
                   ["Real Interview AI", "/features/interview-practice", "See how recruiter-style practice works."],
-                  ["Improve CV", "/features/improve-cv", "Learn how Premium CV coaching works."],
-                  ["Cover Letter", "/features/cover-letter", "Preview tailored letter intelligence."],
-                  ["Job Assist", "/features/job-assist", "Understand job readiness and role prep."],
-                  ["Results Report", "/features/results-intelligence", "Explore trust, score, and weak-answer reports."],
+                  ["Improve CV", "/features/improve-cv", "View CV optimization details before upgrading."],
+                  ["Cover Letter", "/features/cover-letter", "See how tailored letters are generated."],
+                  ["Job Assist", "/features/job-assist", "Understand role-preparation tools."],
+                  ["Results Report", "/features/results-intelligence", "Preview trust, score, and weak-answer reports."],
                 ].map(([title, href, text]) => (
                   <Link
                     key={title}
@@ -358,10 +361,7 @@ export default function LandingPage() {
             </div>
           </nav>
 
-          <Link href="/pricing?intent=interview" className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-black text-white backdrop-blur transition hover:bg-white/20">
-            Login
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <AuthNavButton />
         </header>
 
         <div className="mx-auto max-w-7xl px-4 pb-20 pt-14 sm:px-6 lg:px-8 lg:pb-24 lg:pt-20">
@@ -505,14 +505,14 @@ export default function LandingPage() {
             <h3 className="mt-3 text-3xl font-black text-white">Unlock AI Video Recruiter</h3>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <span className="text-lg font-black text-white/40 line-through decoration-2">
-                €29.99/month
+                {localizedPrice.regular}/month
               </span>
               <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-200">
                 Opening offer
               </span>
             </div>
             <p className="mt-2 text-5xl font-black">
-              €14.99<span className="text-xl text-white/50">/month</span>
+              {localizedPrice.opening}<span className="text-xl text-white/50">/month</span>
             </p>
             <p className="mt-2 text-sm font-black text-emerald-300">
               Save 50% as an early WorkZo AI user.
