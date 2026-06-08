@@ -7,6 +7,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Gift,
+  Loader2,
   ShieldCheck,
   Sparkles,
   Tag,
@@ -27,15 +28,14 @@ type PromoState = {
 
 const PREMIUM_REGULAR_PRICE = "€29.99";
 const PREMIUM_OPENING_PRICE = "€14.99";
-const CHECKOUT_ENDPOINT = "/api/stripe/create-checkout-session";
 
 const VALID_PROMOS: Record<string, { message: string; discountLabel: string }> = {
   EARLYACCESS: {
-    message: "Early access code applied. Your discount will be carried into checkout when payments are enabled.",
+    message: "Early access code applied. Your discount will be carried into checkout.",
     discountLabel: "Early access discount",
   },
   WORKZOEARLY: {
-    message: "WorkZo early-user code applied. Your discount will be carried into checkout when payments are enabled.",
+    message: "WorkZo early-user code applied. Your discount will be carried into checkout.",
     discountLabel: "Early-user discount",
   },
   FOUNDERFRIEND: {
@@ -60,6 +60,40 @@ const premiumFeatures = [
   "Cover Letter Generator",
   "Job Assist",
 ];
+
+function readStoredPromo(validPromo?: PromoState) {
+  if (validPromo?.valid) return validPromo.code;
+  if (typeof window === "undefined") return "";
+
+  try {
+    const raw = window.localStorage.getItem("workzo_promo_code");
+    if (!raw) return "";
+    const parsed = JSON.parse(raw) as { code?: string };
+    return typeof parsed.code === "string" ? parsed.code : "";
+  } catch {
+    return "";
+  }
+}
+
+function savePendingCheckout(promoCode: string, status: string) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      "workzo_pending_checkout",
+      JSON.stringify({
+        plan: "premium",
+        source: "pricing",
+        next: "/billing/checkout?plan=premium",
+        regularPrice: `${PREMIUM_REGULAR_PRICE}/month`,
+        openingOfferPrice: `${PREMIUM_OPENING_PRICE}/month`,
+        promoCode,
+        status,
+        createdAt: new Date().toISOString(),
+      }),
+    );
+  } catch {}
+}
 
 export default function PricingPage() {
   const [promoInput, setPromoInput] = useState("");
@@ -94,7 +128,7 @@ export default function PricingPage() {
       setPromo({
         code: normalizedPromo,
         valid: false,
-        message: "This promo code is not valid for the opening offer.",
+        message: "This promo code is not valid.",
         discountLabel: "",
       });
       return;
@@ -139,59 +173,53 @@ export default function PricingPage() {
     }
   }
 
-  async function choosePremiumBeforeStripe() {
+  async function choosePremium() {
     if (checkoutLoading) return;
 
     recordWorkZoUpgradeClick();
     setCheckoutError("");
     setCheckoutLoading(true);
 
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(
-        "workzo_pending_checkout",
-        JSON.stringify({
-          plan: "premium",
-          source: "pricing",
-          next: "/onboarding",
-          regularPrice: `${PREMIUM_REGULAR_PRICE}/month`,
-          openingOfferPrice: `${PREMIUM_OPENING_PRICE}/month`,
-          promoCode: promo.valid ? promo.code : "",
-          promoLabel: promo.valid ? promo.discountLabel : "",
-          status: "checkout_started",
-          createdAt: new Date().toISOString(),
-        }),
-      );
-    }
+    const promoCode = readStoredPromo(promo);
+    savePendingCheckout(promoCode, "checkout_started");
 
     try {
-      const response = await fetch(CHECKOUT_ENDPOINT, {
+      const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          promoCode: promo.valid ? promo.code : "",
-          successPath: "/billing/success",
-          cancelPath: "/billing/cancel",
+          plan: "premium",
+          source: "pricing",
+          promoCode,
         }),
       });
 
-      if (response.status === 401) {
-        if (typeof window !== "undefined") {
-          window.location.href = "/login?redirect=/pricing?plan=premium";
-        }
+      if (response.status === 401 || response.status === 403) {
+        savePendingCheckout(promoCode, "login_required");
+        window.location.href = "/login?redirect=/billing/checkout?plan=premium";
         return;
       }
 
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data?.url) {
-        throw new Error(data?.error || "Could not start checkout.");
+      const data = await response.json().catch(() => ({})) as {
+        url?: string;
+        checkoutUrl?: string;
+        sessionUrl?: string;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Could not create checkout session.");
       }
 
-      if (typeof window !== "undefined") {
-        window.location.href = data.url;
+      const checkoutUrl = data.url || data.checkoutUrl || data.sessionUrl;
+      if (!checkoutUrl) {
+        throw new Error("Stripe checkout URL was not returned.");
       }
+
+      window.location.href = checkoutUrl;
     } catch (error) {
-      setCheckoutError(error instanceof Error ? error.message : "Could not start checkout.");
       setCheckoutLoading(false);
+      setCheckoutError(error instanceof Error ? error.message : "Checkout failed. Please try again.");
     }
   }
 
@@ -321,21 +349,22 @@ export default function PricingPage() {
                 </li>
               ))}
             </ul>
-            <button
-              type="button"
-              onClick={choosePremiumBeforeStripe}
-              disabled={checkoutLoading}
-              className="mt-8 inline-flex items-center gap-2 self-start rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {checkoutLoading ? "Opening checkout..." : "Upgrade to Premium"}
-              <ArrowRight className="h-4 w-4" />
-            </button>
 
             {checkoutError ? (
-              <p className="mt-3 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm font-bold text-rose-200">
+              <p className="mt-5 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm font-bold text-rose-100">
                 {checkoutError}
               </p>
             ) : null}
+
+            <button
+              type="button"
+              onClick={choosePremium}
+              disabled={checkoutLoading}
+              className="mt-8 inline-flex items-center gap-2 self-start rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+              {checkoutLoading ? "Connecting to Stripe…" : "Upgrade to Premium"}
+            </button>
           </div>
         </section>
       </div>
