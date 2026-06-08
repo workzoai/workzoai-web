@@ -1,119 +1,119 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { ArrowLeft, ArrowRight, Mail, ShieldCheck, Sparkles } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Loader2,
+  LockKeyhole,
+  Mail,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 
-const SAFE_REDIRECT_PREFIXES = [
-  "/dashboard",
-  "/history",
-  "/results",
-  "/settings",
-  "/pricing",
-  "/onboarding",
-  "/interview",
-];
+type LoginStatus = "idle" | "loading" | "sent" | "error";
 
-function normalizeRedirect(value: string | null) {
+function sanitizeRedirect(value: string | null) {
   if (!value) return "/dashboard";
 
   try {
-    const decoded = decodeURIComponent(value).trim();
+    const decoded = decodeURIComponent(value);
     if (!decoded.startsWith("/") || decoded.startsWith("//")) return "/dashboard";
-    if (decoded.includes("http://") || decoded.includes("https://")) return "/dashboard";
-
-    const pathOnly = decoded.split("?")[0] || "/dashboard";
-    const allowed = SAFE_REDIRECT_PREFIXES.some(
-      (prefix) => pathOnly === prefix || pathOnly.startsWith(`${prefix}/`),
-    );
-
-    return allowed ? decoded : "/dashboard";
+    return decoded;
   } catch {
-    return "/dashboard";
+    if (!value.startsWith("/") || value.startsWith("//")) return "/dashboard";
+    return value;
   }
 }
 
-function getSafeRedirectFromLocation() {
-  if (typeof window === "undefined") return "/dashboard";
-  const params = new URLSearchParams(window.location.search);
-  return normalizeRedirect(params.get("redirect") || params.get("next"));
-}
+function LoginContent() {
+  const searchParams = useSearchParams();
+  const redirect = sanitizeRedirect(searchParams.get("redirect") || searchParams.get("next"));
+  const error = searchParams.get("error");
+  const isPremiumCheckout = redirect.startsWith("/billing/checkout") || searchParams.get("plan") === "premium";
 
-function getAuthRedirectUrl() {
-  if (typeof window === "undefined") return "/dashboard";
-  const origin = window.location.origin;
-  return `${origin}${getSafeRedirectFromLocation()}`;
-}
-
-export default function LoginPage() {
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState("");
-  const [loading, setLoading] = useState<"google" | "email" | null>(null);
+  const [status, setStatus] = useState<LoginStatus>(error ? "error" : "idle");
+  const [message, setMessage] = useState(
+    error ? "Login could not be completed. Please try again." : "",
+  );
 
-  async function sendMagicLink() {
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) {
-      setStatus("Enter your email address first.");
-      return;
-    }
+  const callbackUrl = useMemo(() => {
+    if (typeof window === "undefined") return undefined;
+    const url = new URL("/auth/callback", window.location.origin);
+    url.searchParams.set("redirect", redirect);
+    return url.toString();
+  }, [redirect]);
 
-    setStatus("");
-    setLoading("email");
+  async function signInWithEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setStatus("loading");
+    setMessage("");
 
     try {
       const supabase = createSupabaseBrowserClient();
       const { error } = await supabase.auth.signInWithOtp({
-        email: trimmedEmail,
+        email,
         options: {
-          emailRedirectTo: getAuthRedirectUrl(),
+          emailRedirectTo: callbackUrl,
         },
       });
 
       if (error) throw error;
-      setStatus("Magic link sent. Check your email and open the link on this device.");
+      setStatus("sent");
+      setMessage(
+        isPremiumCheckout
+          ? "Check your email. After login, WorkZo will continue directly to Stripe checkout."
+          : "Check your email for the secure login link.",
+      );
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not send magic link.");
-    } finally {
-      setLoading(null);
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Could not send login link.");
     }
   }
 
-  async function continueWithGoogle() {
-    setStatus("");
-    setLoading("google");
+  async function signInWithGoogle() {
+    setStatus("loading");
+    setMessage("");
 
     try {
       const supabase = createSupabaseBrowserClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: getAuthRedirectUrl(),
+          redirectTo: callbackUrl,
         },
       });
 
       if (error) throw error;
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Google sign in failed.");
-      setLoading(null);
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Could not start Google login.");
     }
   }
 
   return (
-    <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
-      <div className="mx-auto max-w-6xl">
-        <header className="flex items-center justify-between gap-4">
+    <main className="min-h-screen bg-[#050b14] text-white">
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.18),transparent_34%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_34%),linear-gradient(180deg,#050b14_0%,#08111f_55%,#050b14_100%)]" />
+
+      {!isPremiumCheckout ? (
+        <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
           <Link href="/" className="inline-flex items-center gap-2 text-sm font-bold text-slate-300 hover:text-white">
             <ArrowLeft className="h-4 w-4" />
             Back to home
           </Link>
 
-          <Link href="/demo" className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
-            Try Demo
+          <Link href="/pricing?intent=interview" className="rounded-xl border border-white/10 px-4 py-2 text-sm font-black text-slate-200 hover:bg-white/[0.06]">
+            Try free interview
           </Link>
         </header>
+      ) : null}
 
-        <section className="mt-20 grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+      <section className={isPremiumCheckout ? "grid min-h-screen place-items-center px-5 py-8" : "mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8 lg:py-20"}>
+        {!isPremiumCheckout ? (
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-black uppercase tracking-[0.2em] text-cyan-100">
               <ShieldCheck className="h-4 w-4" />
@@ -125,93 +125,91 @@ export default function LoginPage() {
             </h1>
 
             <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-              Sign in to keep your reports, recruiter feedback, and practice history. You can still start a free interview without signing in.
+              Sign in to keep your reports, recruiter feedback, practice history, and Premium access in one account.
             </p>
+          </div>
+        ) : null}
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/pricing?intent=interview"
-                className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 px-7 text-sm font-black text-white shadow-[0_18px_48px_rgba(37,99,235,0.24)]"
-              >
-                Continue as Guest
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-
-              <Link
-                href="/pricing?intent=interview"
-                className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-white/10 px-7 text-sm font-black text-slate-200 hover:bg-white/10"
-              >
-                Start Free Interview
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
+        <div className="w-full max-w-xl rounded-[2rem] border border-white/10 bg-white/[0.04] p-7 shadow-2xl shadow-black/30">
+          <div className="grid h-16 w-16 place-items-center rounded-3xl bg-blue-500/15 text-blue-200">
+            {isPremiumCheckout ? <LockKeyhole className="h-8 w-8" /> : <ShieldCheck className="h-8 w-8" />}
           </div>
 
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-7">
-            <div className="grid h-16 w-16 place-items-center rounded-3xl bg-blue-500/15 text-blue-200">
-              <ShieldCheck className="h-8 w-8" />
-            </div>
+          <p className="mt-6 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-cyan-100">
+            <Sparkles className="h-3.5 w-3.5" />
+            {isPremiumCheckout ? "Premium checkout" : "Secure sign in"}
+          </p>
 
-            <h2 className="mt-6 text-3xl font-black">Sign in</h2>
-            <p className="mt-3 text-base leading-7 text-slate-300">
-              Use a magic link or Google. No password needed.
-            </p>
+          <h1 className="mt-4 text-3xl font-black leading-tight sm:text-4xl">
+            {isPremiumCheckout ? "Sign in to continue to Stripe." : "Sign in to WorkZo AI"}
+          </h1>
 
-            <button
-              type="button"
-              onClick={continueWithGoogle}
-              disabled={loading !== null}
-              className="mt-7 h-12 w-full rounded-2xl border border-white/10 bg-white/5 text-sm font-black text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading === "google" ? "Opening Google..." : "Continue with Google"}
-            </button>
+          <p className="mt-3 text-base leading-7 text-slate-300">
+            {isPremiumCheckout
+              ? "Create or access your account first. After Google login or magic-link login, WorkZo will open Stripe checkout automatically."
+              : "Use Google or a magic link. No password needed."}
+          </p>
 
-            <div className="my-7 flex items-center gap-4">
-              <div className="h-px flex-1 bg-white/10" />
-              <span className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">or</span>
-              <div className="h-px flex-1 bg-white/10" />
-            </div>
+          <button
+            type="button"
+            onClick={signInWithGoogle}
+            disabled={status === "loading"}
+            className="mt-7 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 text-sm font-black text-slate-950 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {status === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+            Continue with Google
+          </button>
 
+          <div className="my-7 flex items-center gap-4">
+            <div className="h-px flex-1 bg-white/10" />
+            <span className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">or</span>
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+
+          <form onSubmit={signInWithEmail}>
             <label className="text-sm font-black text-slate-200">
               Email address
               <input
+                type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="you@example.com"
-                type="email"
-                autoComplete="email"
                 className="mt-3 h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 text-base text-white outline-none placeholder:text-slate-500 focus:border-blue-300/50"
               />
             </label>
 
             <button
-              type="button"
-              onClick={sendMagicLink}
-              disabled={!email.trim() || loading !== null}
-              className="mt-4 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-500 px-5 text-sm font-black text-white hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+              type="submit"
+              disabled={!email.trim() || status === "loading"}
+              className="mt-4 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-500 px-5 text-sm font-black text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Mail className="h-4 w-4" />
-              {loading === "email" ? "Sending..." : "Send magic link"}
+              {status === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+              Send magic link
             </button>
+          </form>
 
-            {status ? (
-              <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-200">
-                {status}
-              </p>
-            ) : null}
+          {message ? (
+            <p className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-bold ${status === "error" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"}`}>
+              {message}
+            </p>
+          ) : null}
 
-            <div className="mt-6 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4">
-              <p className="flex items-center gap-2 text-sm font-black text-amber-100">
-                <Sparkles className="h-4 w-4" />
-                Launch-safe auth
-              </p>
-              <p className="mt-2 text-sm leading-6 text-amber-50/90">
-                Login is optional before the interview. It is mainly for saving history and progress.
-              </p>
-            </div>
-          </div>
-        </section>
-      </div>
+          {isPremiumCheckout ? (
+            <Link href="/pricing" className="mt-5 inline-flex items-center gap-2 text-sm font-black text-slate-400 hover:text-white">
+              <ArrowLeft className="h-4 w-4" />
+              Back to pricing
+            </Link>
+          ) : null}
+        </div>
+      </section>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-[#050b14] text-white" />}>
+      <LoginContent />
+    </Suspense>
   );
 }
