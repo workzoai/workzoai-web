@@ -23,13 +23,19 @@ function readPromoCode() {
   }
 }
 
+function saveAfterLoginCookie() {
+  if (typeof document === "undefined") return;
+  document.cookie = `workzo_after_login=${encodeURIComponent("/billing/checkout?plan=premium")}; Max-Age=900; Path=/; SameSite=Lax`;
+}
+
 export default function BillingCheckoutPage() {
   const [state, setState] = useState<CheckoutState>("loading");
   const [message, setMessage] = useState("Preparing secure checkout…");
 
   const loginRedirect = useMemo(() => {
-    if (typeof window === "undefined") return "/login?redirect=/billing/checkout?plan=premium";
-    return `/login?redirect=${encodeURIComponent(safeRedirectPath(`${window.location.pathname}${window.location.search || ""}`))}`;
+    if (typeof window === "undefined") return "/login?redirect=/billing/checkout?plan=premium&checkout=1&plan=premium";
+    const target = safeRedirectPath(`${window.location.pathname}${window.location.search || ""}`);
+    return `/login?redirect=${encodeURIComponent(target)}&checkout=1&plan=premium`;
   }, []);
 
   useEffect(() => {
@@ -44,11 +50,7 @@ export default function BillingCheckoutPage() {
         const response = await fetch("/api/stripe/create-checkout-session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            plan: "premium",
-            source: "billing_checkout_page",
-            promoCode,
-          }),
+          body: JSON.stringify({ plan: "premium", source: "billing_checkout_page", promoCode }),
         });
 
         if (cancelled) return;
@@ -57,15 +59,9 @@ export default function BillingCheckoutPage() {
           try {
             window.localStorage.setItem(
               "workzo_pending_checkout",
-              JSON.stringify({
-                plan: "premium",
-                source: "billing_checkout_page",
-                next: "/billing/checkout?plan=premium",
-                promoCode,
-                status: "login_required",
-                createdAt: new Date().toISOString(),
-              }),
+              JSON.stringify({ plan: "premium", source: "billing_checkout_page", next: "/billing/checkout?plan=premium", promoCode, status: "login_required", createdAt: new Date().toISOString() }),
             );
+            saveAfterLoginCookie();
           } catch {}
 
           setState("login_required");
@@ -74,21 +70,11 @@ export default function BillingCheckoutPage() {
           return;
         }
 
-        const data = await response.json().catch(() => ({})) as {
-          url?: string;
-          checkoutUrl?: string;
-          sessionUrl?: string;
-          error?: string;
-        };
-
-        if (!response.ok) {
-          throw new Error(data.error || "Could not create Stripe checkout session.");
-        }
+        const data = await response.json().catch(() => ({})) as { url?: string; checkoutUrl?: string; sessionUrl?: string; error?: string };
+        if (!response.ok) throw new Error(data.error || "Could not create Stripe checkout session.");
 
         const checkoutUrl = data.url || data.checkoutUrl || data.sessionUrl;
-        if (!checkoutUrl) {
-          throw new Error("Stripe checkout URL was not returned by the server.");
-        }
+        if (!checkoutUrl) throw new Error("Stripe checkout URL was not returned by the server.");
 
         setState("redirecting");
         setMessage("Redirecting to Stripe…");
@@ -101,7 +87,6 @@ export default function BillingCheckoutPage() {
     }
 
     void startCheckout();
-
     return () => {
       cancelled = true;
     };
@@ -120,10 +105,7 @@ export default function BillingCheckoutPage() {
             {state === "error" ? <LockKeyhole className="h-8 w-8" /> : <ShieldCheck className="h-8 w-8" />}
           </div>
 
-          <h1 className="mt-6 text-3xl font-black sm:text-4xl">
-            {state === "error" ? "Checkout needs attention" : "Connecting to Premium checkout"}
-          </h1>
-
+          <h1 className="mt-6 text-3xl font-black sm:text-4xl">{state === "error" ? "Checkout needs attention" : "Connecting to Premium checkout"}</h1>
           <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-slate-300">{message}</p>
 
           {state === "loading" || state === "redirecting" ? (
@@ -135,11 +117,7 @@ export default function BillingCheckoutPage() {
 
           {state === "error" ? (
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white hover:bg-blue-400"
-              >
+              <button type="button" onClick={() => window.location.reload()} className="rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white hover:bg-blue-400">
                 Try again
               </button>
               <Link href="/pricing" className="rounded-2xl border border-white/10 px-6 py-3 text-sm font-black text-slate-200 hover:bg-white/10">

@@ -3,15 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useMemo, useState } from "react";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Loader2,
-  LockKeyhole,
-  Mail,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, LockKeyhole, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 
 type LoginStatus = "idle" | "loading" | "sent" | "error";
@@ -29,17 +21,28 @@ function sanitizeRedirect(value: string | null) {
   }
 }
 
+function writeAfterLoginCookie(redirect: string) {
+  if (typeof document === "undefined") return;
+  const safe = sanitizeRedirect(redirect);
+  document.cookie = `workzo_after_login=${encodeURIComponent(safe)}; Max-Age=900; Path=/; SameSite=Lax`;
+}
+
 function LoginContent() {
   const searchParams = useSearchParams();
-  const redirect = sanitizeRedirect(searchParams.get("redirect") || searchParams.get("next"));
+  const redirect = sanitizeRedirect(
+    searchParams.get("redirect") ||
+      searchParams.get("next") ||
+      (searchParams.get("plan") === "premium" ? "/billing/checkout?plan=premium" : null),
+  );
   const error = searchParams.get("error");
-  const isPremiumCheckout = redirect.startsWith("/billing/checkout") || searchParams.get("plan") === "premium";
+  const isPremiumCheckout =
+    redirect.startsWith("/billing/checkout") ||
+    searchParams.get("checkout") === "1" ||
+    searchParams.get("plan") === "premium";
 
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<LoginStatus>(error ? "error" : "idle");
-  const [message, setMessage] = useState(
-    error ? "Login could not be completed. Please try again." : "",
-  );
+  const [message, setMessage] = useState(error ? "Login could not be completed. Please try again." : "");
 
   const callbackUrl = useMemo(() => {
     if (typeof window === "undefined") return undefined;
@@ -52,14 +55,13 @@ function LoginContent() {
     event.preventDefault();
     setStatus("loading");
     setMessage("");
+    writeAfterLoginCookie(redirect);
 
     try {
       const supabase = createSupabaseBrowserClient();
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: {
-          emailRedirectTo: callbackUrl,
-        },
+        options: { emailRedirectTo: callbackUrl },
       });
 
       if (error) throw error;
@@ -78,16 +80,14 @@ function LoginContent() {
   async function signInWithGoogle() {
     setStatus("loading");
     setMessage("");
+    writeAfterLoginCookie(redirect);
 
     try {
       const supabase = createSupabaseBrowserClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: callbackUrl,
-        },
+        options: { redirectTo: callbackUrl },
       });
-
       if (error) throw error;
     } catch (error) {
       setStatus("error");
@@ -119,14 +119,8 @@ function LoginContent() {
               <ShieldCheck className="h-4 w-4" />
               Optional account
             </div>
-
-            <h1 className="mt-6 max-w-2xl text-5xl font-black tracking-tight sm:text-6xl">
-              Save your interview progress.
-            </h1>
-
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-              Sign in to keep your reports, recruiter feedback, practice history, and Premium access in one account.
-            </p>
+            <h1 className="mt-6 max-w-2xl text-5xl font-black tracking-tight sm:text-6xl">Save your interview progress.</h1>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">Sign in to keep your reports, recruiter feedback, practice history, and Premium access in one account.</p>
           </div>
         ) : null}
 
@@ -146,7 +140,7 @@ function LoginContent() {
 
           <p className="mt-3 text-base leading-7 text-slate-300">
             {isPremiumCheckout
-              ? "Create or access your account first. After Google login or magic-link login, WorkZo will open Stripe checkout automatically."
+              ? "After Google login or magic-link login, WorkZo will open Stripe checkout automatically."
               : "Use Google or a magic link. No password needed."}
           </p>
 
@@ -189,9 +183,7 @@ function LoginContent() {
           </form>
 
           {message ? (
-            <p className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-bold ${status === "error" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"}`}>
-              {message}
-            </p>
+            <p className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-bold ${status === "error" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"}`}>{message}</p>
           ) : null}
 
           {isPremiumCheckout ? (

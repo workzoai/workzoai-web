@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -27,6 +27,8 @@ import {
   resetWorkZoTestingUsage,
   setWorkZoCurrentPlan,
 } from "@/lib/workzoUsageTracker";
+import { getWorkZoDisplayPrice } from "@/lib/workzoLocalizedPricing";
+import AuthNavButton from "@/components/auth/AuthNavButton";
 
 type PromoState = {
   code: string;
@@ -62,7 +64,7 @@ const freeFeatures = [
   "Weakest Answer analysis",
 ];
 
-const premiumFeatures: { label: string; icon: React.ReactNode }[] = [
+const premiumFeatures: { label: string; icon: ReactNode }[] = [
   { label: "Unlimited AI interviews", icon: <Zap className="h-4 w-4" /> },
   { label: "Full recruiter reports", icon: <FileText className="h-4 w-4" /> },
   { label: "Trust Timeline", icon: <BarChart2 className="h-4 w-4" /> },
@@ -105,10 +107,15 @@ function savePendingCheckout(promoCode: string, status: string) {
         createdAt: new Date().toISOString(),
       }),
     );
+
+    document.cookie = `workzo_after_login=${encodeURIComponent(
+      "/billing/checkout?plan=premium",
+    )}; Max-Age=900; Path=/; SameSite=Lax`;
   } catch {}
 }
 
 export default function PricingPage() {
+  const localizedPrice = useMemo(() => getWorkZoDisplayPrice(), []);
   const [promoInput, setPromoInput] = useState("");
   const [promo, setPromo] = useState<PromoState>({
     code: "",
@@ -129,16 +136,34 @@ export default function PricingPage() {
       setPromo({ code: "", valid: false, message: "Enter a promo code.", discountLabel: "" });
       return;
     }
+
     const match = VALID_PROMOS[normalizedPromo];
+
     if (!match) {
-      setPromo({ code: normalizedPromo, valid: false, message: "This promo code is not valid.", discountLabel: "" });
+      setPromo({
+        code: normalizedPromo,
+        valid: false,
+        message: "This promo code is not valid.",
+        discountLabel: "",
+      });
       return;
     }
-    setPromo({ code: normalizedPromo, valid: true, message: match.message, discountLabel: match.discountLabel });
+
+    setPromo({
+      code: normalizedPromo,
+      valid: true,
+      message: match.message,
+      discountLabel: match.discountLabel,
+    });
+
     if (typeof window !== "undefined") {
       window.localStorage.setItem(
         "workzo_promo_code",
-        JSON.stringify({ code: normalizedPromo, discountLabel: match.discountLabel, createdAt: new Date().toISOString() }),
+        JSON.stringify({
+          code: normalizedPromo,
+          discountLabel: match.discountLabel,
+          createdAt: new Date().toISOString(),
+        }),
       );
     }
   }
@@ -147,88 +172,129 @@ export default function PricingPage() {
     disableWorkZoFounderTestMode();
     setWorkZoCurrentPlan("free");
     resetWorkZoTestingUsage();
+
     if (typeof window !== "undefined") {
       window.localStorage.setItem(
         "workzo_selected_plan_intent",
-        JSON.stringify({ plan: "free", source: "pricing", next: "/onboarding", createdAt: new Date().toISOString() }),
+        JSON.stringify({
+          plan: "free",
+          source: "pricing",
+          next: "/onboarding",
+          createdAt: new Date().toISOString(),
+        }),
       );
+
       window.location.href = "/onboarding";
     }
   }
 
   async function choosePremium() {
     if (checkoutLoading) return;
+
     recordWorkZoUpgradeClick();
     setCheckoutError("");
     setCheckoutLoading(true);
+
     const promoCode = readStoredPromo(promo);
     savePendingCheckout(promoCode, "checkout_started");
+
     try {
       const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan: "premium", source: "pricing", promoCode }),
       });
+
       if (response.status === 401 || response.status === 403) {
         savePendingCheckout(promoCode, "login_required");
-        window.location.href = "/login?redirect=/billing/checkout?plan=premium";
+        window.location.href = `/login?redirect=${encodeURIComponent(
+          "/billing/checkout?plan=premium",
+        )}&checkout=1&plan=premium`;
         return;
       }
-      const data = await response.json().catch(() => ({})) as {
-        url?: string; checkoutUrl?: string; sessionUrl?: string; error?: string;
+
+      const data = (await response.json().catch(() => ({}))) as {
+        url?: string;
+        checkoutUrl?: string;
+        sessionUrl?: string;
+        error?: string;
       };
+
       if (!response.ok) throw new Error(data.error || "Could not create checkout session.");
+
       const checkoutUrl = data.url || data.checkoutUrl || data.sessionUrl;
       if (!checkoutUrl) throw new Error("Stripe checkout URL was not returned.");
+
       window.location.href = checkoutUrl;
     } catch (error) {
-      setCheckoutLoading(false);
       setCheckoutError(error instanceof Error ? error.message : "Checkout failed. Please try again.");
+      setCheckoutLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen px-4 py-8 text-white sm:px-6 lg:px-8" style={{ background: "oklch(0.13 0.04 260)" }}>
-      {/* Ambient background glow */}
-      <div className="pointer-events-none fixed inset-0 -z-10"
+    <main
+      className="min-h-screen px-4 py-8 text-white sm:px-6 lg:px-8"
+      style={{ background: "oklch(0.13 0.04 260)" }}
+    >
+      <div
+        className="pointer-events-none fixed inset-0 -z-10"
         style={{
-          background: "radial-gradient(ellipse 80% 50% at 50% -10%, color-mix(in oklab, oklch(0.55 0.22 265) 25%, transparent), transparent), radial-gradient(ellipse 60% 40% at 90% 100%, color-mix(in oklab, oklch(0.85 0.17 200) 12%, transparent), transparent)"
+          background:
+            "radial-gradient(ellipse 80% 50% at 50% -10%, color-mix(in oklab, oklch(0.55 0.22 265) 25%, transparent), transparent), radial-gradient(ellipse 60% 40% at 90% 100%, color-mix(in oklab, oklch(0.85 0.17 200) 12%, transparent), transparent)",
         }}
       />
 
       <div className="mx-auto max-w-7xl">
-        {/* Back nav */}
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-black text-white/50 transition hover:text-white">
-          <ArrowLeft className="h-4 w-4" />
-          Back home
-        </Link>
+        <div className="flex items-center justify-between gap-4">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-black text-white/50 transition hover:text-white">
+            <ArrowLeft className="h-4 w-4" />
+            Back home
+          </Link>
+          <AuthNavButton />
+        </div>
 
-        {/* ── Hero: heading left / promo right ── */}
         <div className="mt-10 grid items-start gap-8 lg:grid-cols-[1fr_420px]">
-          {/* Left: heading */}
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em]"
-              style={{ borderColor: "oklch(1 0 0 / 12%)", background: "oklch(1 0 0 / 6%)", color: "oklch(0.85 0.17 200)" }}>
+            <div
+              className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em]"
+              style={{
+                borderColor: "oklch(1 0 0 / 12%)",
+                background: "oklch(1 0 0 / 6%)",
+                color: "oklch(0.85 0.17 200)",
+              }}
+            >
               <Sparkles className="h-3 w-3" />
               Founding member pricing
             </div>
+
             <h1 className="mt-5 text-5xl font-black leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl">
-              Start free.<br />
-              <span style={{ color: "oklch(0.65 0.04 260)" }}>Upgrade when you need</span><br />
+              Start free.
+              <br />
+              <span style={{ color: "oklch(0.65 0.04 260)" }}>Upgrade when you need</span>
+              <br />
               deeper coaching.
             </h1>
+
             <p className="mt-5 max-w-xl text-base leading-7" style={{ color: "oklch(0.7 0.03 256)" }}>
-              Practice with a realistic AI recruiter first. Unlock full reports, recruiter memory, video interviews, and job preparation tools when you are ready.
+              Practice with a realistic AI recruiter first. Unlock full reports, recruiter memory, video interviews,
+              and job preparation tools when you are ready.
             </p>
           </div>
 
-          {/* Right: promo card */}
-          <div className="rounded-2xl border p-5 backdrop-blur-sm"
-            style={{ background: "oklch(0.18 0.04 260)", borderColor: "oklch(1 0 0 / 8%)" }}>
+          <div
+            className="rounded-2xl border p-5 backdrop-blur-sm"
+            style={{ background: "oklch(0.18 0.04 260)", borderColor: "oklch(1 0 0 / 8%)" }}
+          >
             <div className="flex items-start gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
-                style={{ background: "color-mix(in oklab, oklch(0.85 0.17 200) 15%, transparent)", color: "oklch(0.85 0.17 200)" }}>
-                <Tag className="h-4.5 w-4.5" />
+              <div
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
+                style={{
+                  background: "color-mix(in oklab, oklch(0.85 0.17 200) 15%, transparent)",
+                  color: "oklch(0.85 0.17 200)",
+                }}
+              >
+                <Tag className="h-4 w-4" />
               </div>
               <div>
                 <p className="text-sm font-black text-white">Have a promo code?</p>
@@ -237,13 +303,14 @@ export default function PricingPage() {
                 </p>
               </div>
             </div>
+
             <div className="mt-4 flex gap-2">
               <input
                 value={promoInput}
-                onChange={(e) => setPromoInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && applyPromo()}
+                onChange={(event) => setPromoInput(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && applyPromo()}
                 placeholder="Enter promo code"
-                className="min-h-11 flex-1 rounded-xl border px-4 text-sm font-semibold text-white outline-none placeholder:text-white/30 focus:border-[oklch(0.85_0.17_200)/50] transition"
+                className="min-h-11 flex-1 rounded-xl border px-4 text-sm font-semibold text-white outline-none placeholder:text-white/30 transition focus:border-[oklch(0.85_0.17_200)/50]"
                 style={{ background: "oklch(1 0 0 / 6%)", borderColor: "oklch(1 0 0 / 10%)" }}
               />
               <button
@@ -255,6 +322,7 @@ export default function PricingPage() {
                 Apply
               </button>
             </div>
+
             {promo.message ? (
               <p className={`mt-3 text-xs font-bold ${promo.valid ? "text-emerald-300" : "text-rose-300"}`}>
                 {promo.message}
@@ -263,73 +331,99 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* ── Pricing cards: Premium left (featured), Free right ── */}
         <div className="mt-10 grid gap-4 lg:grid-cols-[3fr_2fr]">
-
-          {/* PREMIUM card */}
-          <div className="relative flex flex-col overflow-hidden rounded-[2rem] border p-8 backdrop-blur-sm"
+          <div
+            className="relative flex flex-col overflow-hidden rounded-[2rem] border p-8 backdrop-blur-sm"
             style={{
               background: "oklch(0.17 0.05 265)",
               borderColor: "color-mix(in oklab, oklch(0.55 0.22 265) 35%, transparent)",
-              boxShadow: "0 0 60px color-mix(in oklab, oklch(0.55 0.22 265) 12%, transparent)"
-            }}>
-            {/* Subtle inner glow top */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-px"
-              style={{ background: "linear-gradient(90deg, transparent, oklch(0.55 0.22 265 / 0.5), transparent)" }} />
+              boxShadow: "0 0 60px color-mix(in oklab, oklch(0.55 0.22 265) 12%, transparent)",
+            }}
+          >
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 h-px"
+              style={{ background: "linear-gradient(90deg, transparent, oklch(0.55 0.22 265 / 0.5), transparent)" }}
+            />
 
-            {/* Header row */}
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[11px] font-black uppercase tracking-[0.20em]"
-                style={{ color: "oklch(0.75 0.15 250)" }}>
+              <span
+                className="text-[11px] font-black uppercase tracking-[0.20em]"
+                style={{ color: "oklch(0.75 0.15 250)" }}
+              >
                 Premium
               </span>
-              <span className="rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.14em]"
-                style={{ background: "color-mix(in oklab, oklch(0.78 0.18 160) 15%, transparent)", color: "oklch(0.78 0.18 160)", border: "1px solid color-mix(in oklab, oklch(0.78 0.18 160) 30%, transparent)" }}>
+              <span
+                className="rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.14em]"
+                style={{
+                  background: "color-mix(in oklab, oklch(0.78 0.18 160) 15%, transparent)",
+                  color: "oklch(0.78 0.18 160)",
+                  border: "1px solid color-mix(in oklab, oklch(0.78 0.18 160) 30%, transparent)",
+                }}
+              >
                 Founding Member
               </span>
             </div>
 
-            {/* Title with icon */}
             <div className="mt-3 flex items-center gap-3">
-              <div className="grid h-9 w-9 place-items-center rounded-xl"
-                style={{ background: "color-mix(in oklab, oklch(0.55 0.22 265) 25%, transparent)", color: "oklch(0.75 0.15 250)" }}>
-                <Video className="h-4.5 w-4.5" />
+              <div
+                className="grid h-9 w-9 place-items-center rounded-xl"
+                style={{
+                  background: "color-mix(in oklab, oklch(0.55 0.22 265) 25%, transparent)",
+                  color: "oklch(0.75 0.15 250)",
+                }}
+              >
+                <Video className="h-4 w-4" />
               </div>
               <h2 className="text-2xl font-black text-white sm:text-3xl">Unlock Full Recruiter Intelligence</h2>
             </div>
 
-            {/* Pricing */}
             <div className="mt-5 flex flex-wrap items-baseline gap-3">
-              <span className="text-5xl font-black text-white sm:text-6xl">{PREMIUM_OPENING_PRICE}</span>
-              <span className="text-base font-semibold" style={{ color: "oklch(0.7 0.03 256)" }}>/mo</span>
-              <span className="text-sm font-bold line-through decoration-2" style={{ color: "oklch(0.55 0.04 260)" }}>
-                {PREMIUM_REGULAR_PRICE}
+              <span className="text-5xl font-black text-white sm:text-6xl">{localizedPrice.opening}</span>
+              <span className="text-base font-semibold" style={{ color: "oklch(0.7 0.03 256)" }}>
+                /mo
               </span>
-              <span className="rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase tracking-[0.12em]"
-                style={{ background: "color-mix(in oklab, oklch(0.78 0.18 160) 15%, transparent)", color: "oklch(0.78 0.18 160)", border: "1px solid color-mix(in oklab, oklch(0.78 0.18 160) 25%, transparent)" }}>
-                SAVE 50%
+              <span className="text-sm font-bold line-through decoration-2" style={{ color: "oklch(0.55 0.04 260)" }}>
+                {localizedPrice.regular}
+              </span>
+              <span
+                className="rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase tracking-[0.12em]"
+                style={{
+                  background: "color-mix(in oklab, oklch(0.78 0.18 160) 15%, transparent)",
+                  color: "oklch(0.78 0.18 160)",
+                  border: "1px solid color-mix(in oklab, oklch(0.78 0.18 160) 25%, transparent)",
+                }}
+              >
+                Save 50%
               </span>
             </div>
+
             <p className="mt-1.5 text-sm font-black" style={{ color: "oklch(0.78 0.18 160)" }}>
               Early-user launch price.
             </p>
-            <p className="mt-2 text-sm" style={{ color: "oklch(0.7 0.03 256)" }}>
+            <p className="mt-1 text-xs leading-5 text-slate-400">
+              Detected pricing: {localizedPrice.countryHint} · {localizedPrice.currency}. {localizedPrice.billingNote}
+            </p>
+            <p className="mt-3 text-sm" style={{ color: "oklch(0.7 0.03 256)" }}>
               Everything you need to prepare for real interviews.
             </p>
 
             {promo.valid ? (
-              <p className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full border px-3 py-1 text-xs font-black text-emerald-200"
-                style={{ borderColor: "oklch(0.78 0.18 160 / 0.25)", background: "oklch(0.78 0.18 160 / 0.08)" }}>
+              <p
+                className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full border px-3 py-1 text-xs font-black text-emerald-200"
+                style={{ borderColor: "oklch(0.78 0.18 160 / 0.25)", background: "oklch(0.78 0.18 160 / 0.08)" }}
+              >
                 <Gift className="h-3 w-3" />
                 {promo.discountLabel} applied
               </p>
             ) : null}
 
-            {/* Feature grid */}
-            <div className="mt-6 grid grid-cols-2 gap-2.5">
+            <div className="mt-6 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {premiumFeatures.map((item) => (
-                <div key={item.label} className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5"
-                  style={{ background: "oklch(1 0 0 / 5%)", border: "1px solid oklch(1 0 0 / 6%)" }}>
+                <div
+                  key={item.label}
+                  className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5"
+                  style={{ background: "oklch(1 0 0 / 5%)", border: "1px solid oklch(1 0 0 / 6%)" }}
+                >
                   <span style={{ color: "oklch(0.75 0.15 250)" }}>{item.icon}</span>
                   <span className="text-xs font-semibold text-white/80">{item.label}</span>
                 </div>
@@ -342,7 +436,6 @@ export default function PricingPage() {
               </p>
             ) : null}
 
-            {/* CTA */}
             <button
               type="button"
               onClick={choosePremium}
@@ -350,30 +443,31 @@ export default function PricingPage() {
               className="mt-7 inline-flex items-center gap-2 self-start rounded-2xl px-7 py-3.5 text-sm font-black text-white transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
               style={{
                 background: "linear-gradient(135deg, oklch(0.55 0.22 265), oklch(0.45 0.20 280))",
-                boxShadow: "0 14px 40px oklch(0.55 0.22 265 / 0.28)"
+                boxShadow: "0 14px 40px oklch(0.55 0.22 265 / 0.28)",
               }}
             >
               {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-              {checkoutLoading ? "Connecting to Stripe…" : "Upgrade to Premium"}
+              {checkoutLoading ? "Connecting…" : "Upgrade to Premium"}
             </button>
           </div>
 
-          {/* FREE card */}
-          <div className="flex flex-col rounded-[2rem] border p-8 backdrop-blur-sm"
-            style={{
-              background: "oklch(0.18 0.04 260)",
-              borderColor: "oklch(1 0 0 / 8%)"
-            }}>
-            <span className="text-[11px] font-black uppercase tracking-[0.20em]"
-              style={{ color: "oklch(0.78 0.18 160)" }}>
+          <div
+            className="flex flex-col rounded-[2rem] border p-8 backdrop-blur-sm"
+            style={{ background: "oklch(0.18 0.04 260)", borderColor: "oklch(1 0 0 / 8%)" }}
+          >
+            <span className="text-[11px] font-black uppercase tracking-[0.20em]" style={{ color: "oklch(0.78 0.18 160)" }}>
               Free
             </span>
 
-            {/* Title with icon */}
             <div className="mt-3 flex items-start gap-3">
-              <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl"
-                style={{ background: "color-mix(in oklab, oklch(0.78 0.18 160) 15%, transparent)", color: "oklch(0.78 0.18 160)" }}>
-                <Mic className="h-4.5 w-4.5" />
+              <div
+                className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl"
+                style={{
+                  background: "color-mix(in oklab, oklch(0.78 0.18 160) 15%, transparent)",
+                  color: "oklch(0.78 0.18 160)",
+                }}
+              >
+                <Mic className="h-4 w-4" />
               </div>
               <h2 className="text-2xl font-black text-white sm:text-3xl">2 Free AI Voice Interviews</h2>
             </div>
@@ -382,7 +476,6 @@ export default function PricingPage() {
               Experience realistic recruiter interviews with AI voice before upgrading.
             </p>
 
-            {/* Features */}
             <ul className="mt-5 space-y-2.5">
               {freeFeatures.map((item) => (
                 <li key={item} className="flex items-center gap-2.5 text-sm text-white/80">
