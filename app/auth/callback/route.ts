@@ -1,10 +1,7 @@
-import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { createSupabaseServerClient } from "@/utils/supabase/server";
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-
-function sanitizeRedirect(value: string | null | undefined) {
+function sanitizeRedirect(value: string | null) {
   if (!value) return "/dashboard";
 
   try {
@@ -17,62 +14,54 @@ function sanitizeRedirect(value: string | null | undefined) {
   }
 }
 
-function buildRedirectUrl(request: NextRequest, redirectPath: string) {
-  const safe = sanitizeRedirect(redirectPath);
-  const url = request.nextUrl.clone();
-  const [pathname, ...searchParts] = safe.split("?");
-  url.pathname = pathname || "/dashboard";
-  url.search = searchParts.length ? `?${searchParts.join("?")}` : "";
-  return url;
+function readAfterLoginCookie(request: Request) {
+  const cookieHeader = request.headers.get("cookie") || "";
+  const match = cookieHeader.match(/(?:^|;\\s*)workzo_after_login=([^;]+)/);
+
+  if (!match?.[1]) return null;
+
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const cookieRedirect = request.cookies.get("workzo_after_login")?.value;
-  const redirectTo = sanitizeRedirect(
-    requestUrl.searchParams.get("redirect") ||
-      requestUrl.searchParams.get("next") ||
-      cookieRedirect ||
-      "/dashboard",
-  );
+  const error = requestUrl.searchParams.get("error");
+  const redirectParam = requestUrl.searchParams.get("redirect");
+  const cookieRedirect = readAfterLoginCookie(request);
 
-  if (!code) {
-    const errorUrl = buildRedirectUrl(request, "/login?error=missing_code");
-    return NextResponse.redirect(errorUrl);
+  const redirectPath = sanitizeRedirect(redirectParam || cookieRedirect || "/dashboard");
+  const loginErrorUrl = new URL("/login?error=auth_callback_failed", requestUrl.origin);
+
+  if (error || !code) {
+    return NextResponse.redirect(loginErrorUrl);
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  try {
+    const supabase = createSupabaseServerClient();
+    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    const errorUrl = buildRedirectUrl(request, "/login?error=missing_supabase_env");
-    return NextResponse.redirect(errorUrl);
+    if (exchangeError) {
+      console.error("Supabase auth callback exchange failed:", exchangeError.message);
+      return NextResponse.redirect(loginErrorUrl);
+    }
+
+    const destination = new URL(redirectPath, requestUrl.origin);
+    const response = NextResponse.redirect(destination);
+
+    response.cookies.set("workzo_after_login", "", {
+      path: "/",
+      maxAge: 0,
+      sameSite: "lax",
+    });
+
+    return response;
+  } catch (callbackError) {
+    console.error("WorkZo auth callback failed:", callbackError);
+    return NextResponse.redirect(loginErrorUrl);
   }
-
-  const responseUrl = buildRedirectUrl(request, redirectTo);
-  const response = NextResponse.redirect(responseUrl);
-
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
-        });
-      },
-    },
-  });
-
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-  response.cookies.delete("workzo_after_login");
-
-  if (error) {
-    const errorUrl = buildRedirectUrl(request, "/login?error=session_exchange_failed");
-    return NextResponse.redirect(errorUrl);
-  }
-
-  return response;
 }

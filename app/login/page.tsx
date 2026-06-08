@@ -21,6 +21,16 @@ function sanitizeRedirect(value: string | null) {
   }
 }
 
+function getSafeOrigin() {
+  if (typeof window !== "undefined") return window.location.origin;
+
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://workzoai.com"
+  ).replace(/\/$/, "");
+}
+
 function writeAfterLoginCookie(redirect: string) {
   if (typeof document === "undefined") return;
   const safe = sanitizeRedirect(redirect);
@@ -45,8 +55,7 @@ function LoginContent() {
   const [message, setMessage] = useState(error ? "Login could not be completed. Please try again." : "");
 
   const callbackUrl = useMemo(() => {
-    if (typeof window === "undefined") return undefined;
-    const url = new URL("/auth/callback", window.location.origin);
+    const url = new URL("/auth/callback", getSafeOrigin());
     url.searchParams.set("redirect", redirect);
     return url.toString();
   }, [redirect]);
@@ -86,8 +95,15 @@ function LoginContent() {
       const supabase = createSupabaseBrowserClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: callbackUrl },
+        options: {
+          redirectTo: callbackUrl,
+          queryParams: {
+            access_type: "offline",
+            prompt: "select_account",
+          },
+        },
       });
+
       if (error) throw error;
     } catch (error) {
       setStatus("error");
