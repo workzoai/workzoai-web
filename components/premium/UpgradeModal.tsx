@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { X, CheckCircle2, Sparkles, Gift } from "lucide-react";
 import { getWorkZoPlanUpgradeCopy } from "@/lib/workzoPlanLimits";
 import { recordWorkZoUpgradeClick } from "@/lib/workzoUsageTracker";
@@ -13,21 +14,57 @@ type UpgradeModalProps = {
 
 const PREMIUM_REGULAR_PRICE = "€29.99";
 const PREMIUM_OPENING_PRICE = "€14.99";
+const CHECKOUT_ENDPOINT = "/api/stripe/create-checkout-session";
 
 export default function UpgradeModal({ open, feature = "premium", onClose, onUpgrade }: UpgradeModalProps) {
   if (!open) return null;
 
   const copy = getWorkZoPlanUpgradeCopy(feature);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
 
-  function handleUpgradeClick() {
+  async function handleUpgradeClick() {
+    if (checkoutLoading) return;
+
     recordWorkZoUpgradeClick();
+    setCheckoutError("");
+
     if (onUpgrade) {
       onUpgrade();
       return;
     }
 
-    if (typeof window !== "undefined") {
-      window.location.href = "/pricing?plan=premium&intent=upgrade";
+    setCheckoutLoading(true);
+
+    try {
+      const response = await fetch(CHECKOUT_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          successPath: "/billing/success",
+          cancelPath: "/billing/cancel",
+          feature,
+        }),
+      });
+
+      if (response.status === 401) {
+        if (typeof window !== "undefined") {
+          window.location.href = "/login?redirect=/pricing?plan=premium";
+        }
+        return;
+      }
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.url) {
+        throw new Error(data?.error || "Could not start checkout.");
+      }
+
+      if (typeof window !== "undefined") {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : "Could not start checkout.");
+      setCheckoutLoading(false);
     }
   }
 
@@ -98,13 +135,20 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
           </div>
         </div>
 
+        {checkoutError ? (
+          <div className="mx-7 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm font-bold text-rose-200">
+            {checkoutError}
+          </div>
+        ) : null}
+
         <div className="flex flex-col gap-3 border-t border-white/10 p-7 sm:flex-row">
           <button
             type="button"
             onClick={handleUpgradeClick}
-            className="flex-1 rounded-2xl bg-blue-500 px-5 py-4 text-base font-black text-white transition hover:bg-blue-400"
+            disabled={checkoutLoading}
+            className="flex-1 rounded-2xl bg-blue-500 px-5 py-4 text-base font-black text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Get Premium Opening Offer
+            {checkoutLoading ? "Opening checkout..." : "Get Premium Opening Offer"}
           </button>
           <button
             type="button"

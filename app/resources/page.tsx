@@ -1,121 +1,56 @@
-"use client";
-
 import Link from "next/link";
-import {
-  ArrowLeft,
-  ArrowRight,
-  BookOpen,
-  Briefcase,
-  CheckCircle2,
-  FileText,
-  Mic,
-  Sparkles,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, HelpCircle, Map, Newspaper, ShieldCheck, UserRound } from "lucide-react";
 
 const resources = [
-  {
-    title: "Interview Tips",
-    description:
-      "Learn how to answer behavioral questions with clear examples, metrics, and ownership.",
-    icon: Mic,
-    items: ["Use STAR structure", "Prepare measurable impact", "Practice follow-up questions"],
-  },
-  {
-    title: "CV Tips",
-    description:
-      "Make your CV easier for recruiters to understand and align it with the target role.",
-    icon: FileText,
-    items: ["Match your CV to the job", "Use action verbs", "Add numbers where possible"],
-  },
-  {
-    title: "Job Search Tips",
-    description:
-      "Understand the role before applying and prepare for what recruiters are likely to ask.",
-    icon: Briefcase,
-    items: ["Read the JD carefully", "Identify skill gaps", "Prepare role-specific stories"],
-  },
+  { title: "About WorkZo AI", text: "Read the founder story and why WorkZo exists.", href: "/about", icon: UserRound },
+  { title: "FAQ", text: "Common questions about interviews, reports, privacy, and plans.", href: "/faq", icon: HelpCircle },
+  { title: "Help Center", text: "Get support for login, CV upload, interviews, and results.", href: "/help", icon: BookOpen },
+  { title: "Roadmap", text: "See what is planned next for WorkZo AI.", href: "/roadmap", icon: Map },
+  { title: "Changelog", text: "Follow product updates and fixes.", href: "/changelog", icon: Newspaper },
+  { title: "Privacy & Legal", text: "Review privacy, terms, cookies, disclaimer, and data deletion.", href: "/legal/privacy", icon: ShieldCheck },
 ];
+
+export const metadata = {
+  title: "Resources | WorkZo AI",
+  description: "WorkZo AI resources, help, FAQ, roadmap, legal pages, and product updates.",
+};
 
 export default function ResourcesPage() {
   return (
-    <main className="min-h-screen bg-[#050b14] text-white">
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.18),transparent_34%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_34%),linear-gradient(180deg,#050b14_0%,#08111f_55%,#050b14_100%)]" />
-
-      <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-bold text-slate-300 hover:text-white">
+    <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
+      <div className="mx-auto max-w-6xl">
+        <Link href="/" className="inline-flex items-center gap-2 text-sm font-black text-slate-300 hover:text-white">
           <ArrowLeft className="h-4 w-4" />
-          Back to home
+          Back home
         </Link>
 
-        <Link href="/demo" className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-black">
-          Try Demo
-        </Link>
-      </header>
-
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-20">
-        <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-blue-200">
-            <BookOpen className="h-3.5 w-3.5" />
-            Resources
-          </div>
-
-          <h1 className="mt-6 text-4xl font-black tracking-tight sm:text-6xl">
-            Practical interview prep resources.
-          </h1>
-
-          <p className="mt-5 text-lg leading-8 text-slate-300">
-            Simple guides to help you prepare stronger answers before using Real Interview AI.
+        <section className="mt-10 text-center">
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-cyan-200">Resources</p>
+          <h1 className="mt-4 text-4xl font-black tracking-[-0.04em] sm:text-6xl">Everything you need to understand WorkZo AI.</h1>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-300">
+            Product information, support, legal pages, updates, and launch resources in one place.
           </p>
-        </div>
+        </section>
 
-        <div className="mt-10 grid gap-5 lg:grid-cols-3">
-          {resources.map((resource) => {
-            const Icon = resource.icon;
+        <section className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {resources.map((item) => {
+            const Icon = item.icon;
             return (
-              <section key={resource.title} className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-6">
-                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-400/10 text-blue-200">
+              <Link key={item.href} href={item.href} className="group rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 transition hover:-translate-y-1 hover:border-blue-300/30 hover:bg-white/[0.07]">
+                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-500/10 text-blue-200">
                   <Icon className="h-6 w-6" />
                 </div>
-
-                <h2 className="mt-5 text-2xl font-black">{resource.title}</h2>
-                <p className="mt-3 leading-7 text-slate-300">{resource.description}</p>
-
-                <div className="mt-5 space-y-3">
-                  {resource.items.map((item) => (
-                    <div key={item} className="flex items-center gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-300" />
-                      <span className="text-sm text-slate-200">{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
+                <h2 className="mt-5 text-xl font-black">{item.title}</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-400">{item.text}</p>
+                <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-blue-200 group-hover:text-blue-100">
+                  Open
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+              </Link>
             );
           })}
-        </div>
-
-        <section className="mt-10 rounded-[2rem] border border-violet-300/20 bg-violet-400/[0.07] p-6 sm:p-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-violet-200">
-                <Sparkles className="h-4 w-4" />
-                Best next step
-              </div>
-              <h2 className="mt-3 text-3xl font-black">Practice with a realistic AI recruiter.</h2>
-              <p className="mt-3 max-w-2xl leading-7 text-slate-300">
-                Reading tips helps, but practicing follow-up questions makes the biggest difference.
-              </p>
-            </div>
-
-            <Link
-              href="/onboarding"
-              className="inline-flex w-fit items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 px-6 py-4 text-base font-black"
-            >
-              Start Free Interview
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </div>
         </section>
-      </section>
+      </div>
     </main>
   );
 }

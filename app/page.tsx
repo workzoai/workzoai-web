@@ -305,11 +305,11 @@ export default function LandingPage() {
 
               <div className="invisible absolute left-0 top-full z-50 mt-4 w-72 translate-y-2 rounded-2xl border border-white/10 bg-[#071120]/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
                 {[
-                  ["Real Interview AI", "/interview", "Practice with recruiter-style follow-ups."],
-                  ["Improve CV", "/cv", "Turn your CV into a stronger role match."],
-                  ["Cover Letter", "/cover-letter", "Generate tailored application letters."],
-                  ["Find Jobs", "/jobs", "Search roles and prepare before applying."],
-                  ["Results Report", "/results", "Review trust, score, and weak answers."],
+                  ["Real Interview AI", "/features/interview-practice", "See how recruiter-style practice works."],
+                  ["Improve CV", "/features/improve-cv", "Learn how Premium CV coaching works."],
+                  ["Cover Letter", "/features/cover-letter", "Preview tailored letter intelligence."],
+                  ["Job Assist", "/features/job-assist", "Understand job readiness and role prep."],
+                  ["Results Report", "/features/results-intelligence", "Explore trust, score, and weak-answer reports."],
                 ].map(([title, href, text]) => (
                   <Link
                     key={title}

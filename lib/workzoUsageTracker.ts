@@ -1,5 +1,6 @@
 "use client";
 
+import { hasWorkZoAnalyticsConsent } from "@/lib/workzoPrivacyConsent";
 import { getWorkZoPlanLimits, normalizeWorkZoPlan, type WorkZoPlanType } from "@/lib/workzoPlanLimits";
 
 export type WorkZoUsageState = {
@@ -51,6 +52,11 @@ function normalizeUsage(value: Partial<WorkZoUsageState> | null): WorkZoUsageSta
 
 async function sendUsageEvent(eventName: string, metadata: Record<string, unknown> = {}) {
   if (typeof window === "undefined") return;
+
+  // Privacy rule: keep essential local usage limits working, but do not send
+  // analytics/telemetry to the server unless the user has allowed analytics cookies.
+  if (!hasWorkZoAnalyticsConsent()) return;
+
   try {
     await fetch("/api/db/usage-event", {
       method: "POST",

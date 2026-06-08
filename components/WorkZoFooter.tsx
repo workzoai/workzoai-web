@@ -3,10 +3,10 @@ import Link from "next/link";
 const productLinks = [
   { label: "Features", href: "/#features" },
   { label: "Pricing", href: "/pricing" },
-  { label: "Interview Practice", href: "/onboarding" },
-  { label: "Improve CV", href: "/cv" },
-  { label: "Cover Letter", href: "/cover-letter" },
-  { label: "Job Assist", href: "/jobs" },
+  { label: "Interview Practice", href: "/features/interview-practice" },
+  { label: "Improve CV", href: "/features/improve-cv" },
+  { label: "Cover Letter", href: "/features/cover-letter" },
+  { label: "Job Assist", href: "/features/job-assist" },
 ];
 
 const resourceLinks = [
@@ -15,6 +15,7 @@ const resourceLinks = [
   { label: "Help Center", href: "/help" },
   { label: "Roadmap", href: "/roadmap" },
   { label: "Changelog", href: "/changelog" },
+  { label: "System Status", href: "/status" },
 ];
 
 const legalLinks = [
@@ -23,6 +24,7 @@ const legalLinks = [
   { label: "Cookies", href: "/legal/cookies" },
   { label: "Disclaimer", href: "/legal/disclaimer" },
   { label: "Impressum", href: "/legal/impressum" },
+  { label: "Delete My Data", href: "/legal/delete-data" },
 ];
 
 const supportLinks = [

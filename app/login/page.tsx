@@ -5,44 +5,97 @@ import { useState } from "react";
 import { ArrowLeft, ArrowRight, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 
+const SAFE_REDIRECT_PREFIXES = [
+  "/dashboard",
+  "/history",
+  "/results",
+  "/settings",
+  "/pricing",
+  "/onboarding",
+  "/interview",
+];
+
+function normalizeRedirect(value: string | null) {
+  if (!value) return "/dashboard";
+
+  try {
+    const decoded = decodeURIComponent(value).trim();
+    if (!decoded.startsWith("/") || decoded.startsWith("//")) return "/dashboard";
+    if (decoded.includes("http://") || decoded.includes("https://")) return "/dashboard";
+
+    const pathOnly = decoded.split("?")[0] || "/dashboard";
+    const allowed = SAFE_REDIRECT_PREFIXES.some(
+      (prefix) => pathOnly === prefix || pathOnly.startsWith(`${prefix}/`),
+    );
+
+    return allowed ? decoded : "/dashboard";
+  } catch {
+    return "/dashboard";
+  }
+}
+
+function getSafeRedirectFromLocation() {
+  if (typeof window === "undefined") return "/dashboard";
+  const params = new URLSearchParams(window.location.search);
+  return normalizeRedirect(params.get("redirect") || params.get("next"));
+}
+
+function getAuthRedirectUrl() {
+  if (typeof window === "undefined") return "/dashboard";
+  const origin = window.location.origin;
+  return `${origin}${getSafeRedirectFromLocation()}`;
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState<"google" | "email" | null>(null);
 
   async function sendMagicLink() {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setStatus("Enter your email address first.");
+      return;
+    }
+
     setStatus("");
+    setLoading("email");
 
     try {
       const supabase = createSupabaseBrowserClient();
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-
       const { error } = await supabase.auth.signInWithOtp({
-        email,
+        email: trimmedEmail,
         options: {
-          emailRedirectTo: `${origin}/dashboard`,
+          emailRedirectTo: getAuthRedirectUrl(),
         },
       });
 
       if (error) throw error;
-      setStatus("Magic link sent. Check your email.");
+      setStatus("Magic link sent. Check your email and open the link on this device.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not send magic link.");
+    } finally {
+      setLoading(null);
     }
   }
 
   async function continueWithGoogle() {
+    setStatus("");
+    setLoading("google");
+
     try {
       const supabase = createSupabaseBrowserClient();
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-
-      await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${origin}/dashboard`,
+          redirectTo: getAuthRedirectUrl(),
         },
       });
+
+      if (error) throw error;
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Google sign in failed.");
+      setLoading(null);
     }
   }
 
@@ -67,7 +120,7 @@ export default function LoginPage() {
               Optional account
             </div>
 
-            <h1 className="mt-6 max-w-2xl text-6xl font-black tracking-tight">
+            <h1 className="mt-6 max-w-2xl text-5xl font-black tracking-tight sm:text-6xl">
               Save your interview progress.
             </h1>
 
@@ -107,9 +160,10 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={continueWithGoogle}
-              className="mt-7 h-12 w-full rounded-2xl border border-white/10 bg-white/5 text-sm font-black text-white hover:bg-white/10"
+              disabled={loading !== null}
+              className="mt-7 h-12 w-full rounded-2xl border border-white/10 bg-white/5 text-sm font-black text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Continue with Google
+              {loading === "google" ? "Opening Google..." : "Continue with Google"}
             </button>
 
             <div className="my-7 flex items-center gap-4">
@@ -124,6 +178,8 @@ export default function LoginPage() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="you@example.com"
+                type="email"
+                autoComplete="email"
                 className="mt-3 h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 text-base text-white outline-none placeholder:text-slate-500 focus:border-blue-300/50"
               />
             </label>
@@ -131,11 +187,11 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={sendMagicLink}
-              disabled={!email.trim()}
+              disabled={!email.trim() || loading !== null}
               className="mt-4 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-500 px-5 text-sm font-black text-white hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Mail className="h-4 w-4" />
-              Send magic link
+              {loading === "email" ? "Sending..." : "Send magic link"}
             </button>
 
             {status ? (

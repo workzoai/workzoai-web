@@ -1,6 +1,32 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const protectedRoutes = [
+  "/dashboard",
+  "/history",
+  "/settings",
+  "/results",
+  "/cv",
+  "/cover-letter",
+  "/jobs",
+];
+
+function isProtectedPath(pathname: string) {
+  return protectedRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
+function isAuthPath(pathname: string) {
+  return pathname === "/login" || pathname.startsWith("/login/");
+}
+
+function safeRedirectPath(request: NextRequest) {
+  const pathname = request.nextUrl.pathname || "/dashboard";
+  const search = request.nextUrl.search || "";
+  if (!pathname.startsWith("/")) return "/dashboard";
+  if (pathname.startsWith("//")) return "/dashboard";
+  return `${pathname}${search}`;
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -30,13 +56,22 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const protectedRoutes = ["/settings"];
-  const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route));
+  const pathname = request.nextUrl.pathname;
+  const protectedPath = isProtectedPath(pathname);
 
-  if (isProtectedRoute && !user) {
+  if (protectedPath && !user) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
-    redirectUrl.searchParams.set("redirect", request.nextUrl.pathname);
+    redirectUrl.search = "";
+    redirectUrl.searchParams.set("redirect", safeRedirectPath(request));
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (isAuthPath(pathname) && user) {
+    const redirectParam = request.nextUrl.searchParams.get("redirect") || request.nextUrl.searchParams.get("next") || "/dashboard";
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = redirectParam.startsWith("/") && !redirectParam.startsWith("//") ? redirectParam.split("?")[0] : "/dashboard";
+    redirectUrl.search = redirectParam.includes("?") ? `?${redirectParam.split("?").slice(1).join("?")}` : "";
     return NextResponse.redirect(redirectUrl);
   }
 

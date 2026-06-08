@@ -27,6 +27,7 @@ type PromoState = {
 
 const PREMIUM_REGULAR_PRICE = "€29.99";
 const PREMIUM_OPENING_PRICE = "€14.99";
+const CHECKOUT_ENDPOINT = "/api/stripe/create-checkout-session";
 
 const VALID_PROMOS: Record<string, { message: string; discountLabel: string }> = {
   EARLYACCESS: {
@@ -68,6 +69,8 @@ export default function PricingPage() {
     message: "",
     discountLabel: "",
   });
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
 
   const normalizedPromo = useMemo(
     () => promoInput.trim().toUpperCase().replace(/\s+/g, ""),
@@ -91,7 +94,7 @@ export default function PricingPage() {
       setPromo({
         code: normalizedPromo,
         valid: false,
-        message: "This promo code is not valid.",
+        message: "This promo code is not valid for the opening offer.",
         discountLabel: "",
       });
       return;
@@ -136,8 +139,12 @@ export default function PricingPage() {
     }
   }
 
-  function choosePremiumBeforeStripe() {
+  async function choosePremiumBeforeStripe() {
+    if (checkoutLoading) return;
+
     recordWorkZoUpgradeClick();
+    setCheckoutError("");
+    setCheckoutLoading(true);
 
     if (typeof window !== "undefined") {
       window.localStorage.setItem(
@@ -150,12 +157,41 @@ export default function PricingPage() {
           openingOfferPrice: `${PREMIUM_OPENING_PRICE}/month`,
           promoCode: promo.valid ? promo.code : "",
           promoLabel: promo.valid ? promo.discountLabel : "",
-          status: "stripe_not_connected_yet",
+          status: "checkout_started",
           createdAt: new Date().toISOString(),
         }),
       );
+    }
 
-      window.location.href = "/login?next=/pricing&plan=premium";
+    try {
+      const response = await fetch(CHECKOUT_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          promoCode: promo.valid ? promo.code : "",
+          successPath: "/billing/success",
+          cancelPath: "/billing/cancel",
+        }),
+      });
+
+      if (response.status === 401) {
+        if (typeof window !== "undefined") {
+          window.location.href = "/login?redirect=/pricing?plan=premium";
+        }
+        return;
+      }
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.url) {
+        throw new Error(data?.error || "Could not start checkout.");
+      }
+
+      if (typeof window !== "undefined") {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : "Could not start checkout.");
+      setCheckoutLoading(false);
     }
   }
 
@@ -191,7 +227,7 @@ export default function PricingPage() {
             <div className="flex-1">
               <p className="text-sm font-black text-white">Have a promo code?</p>
               <p className="mt-1 text-xs leading-5 text-slate-400">
-                Enter your code here. It will be saved and used when Premium checkout is connected.
+                Enter your code here. It will be saved and used during Premium checkout.
               </p>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                 <input
@@ -288,11 +324,18 @@ export default function PricingPage() {
             <button
               type="button"
               onClick={choosePremiumBeforeStripe}
-              className="mt-8 inline-flex items-center gap-2 self-start rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] hover:bg-blue-400"
+              disabled={checkoutLoading}
+              className="mt-8 inline-flex items-center gap-2 self-start rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Upgrade to Premium
+              {checkoutLoading ? "Opening checkout..." : "Upgrade to Premium"}
               <ArrowRight className="h-4 w-4" />
             </button>
+
+            {checkoutError ? (
+              <p className="mt-3 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm font-bold text-rose-200">
+                {checkoutError}
+              </p>
+            ) : null}
           </div>
         </section>
       </div>

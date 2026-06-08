@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import LegacyStoragePrivacyCleanup from "@/components/privacy/LegacyStoragePrivacyCleanup";
+import CookieConsentBanner from "@/components/privacy/CookieConsentBanner";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://workzoai.com"),
@@ -47,7 +48,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body><LegacyStoragePrivacyCleanup />{children}</body>
+      <body>
+        <LegacyStoragePrivacyCleanup />
+        {children}
+        <CookieConsentBanner />
+      </body>
     </html>
   );
 }
