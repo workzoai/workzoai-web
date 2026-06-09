@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2, LockKeyhole, ShieldCheck } from "lucide-react";
+import { normalizeWorkZoBillingCycle, normalizeWorkZoPlan } from "@/lib/workzoPlanLimits";
+
 
 type CheckoutState = "loading" | "redirecting" | "login_required" | "error";
 
@@ -23,20 +26,24 @@ function readPromoCode() {
   }
 }
 
-function saveAfterLoginCookie() {
+function saveAfterLoginCookie(target: string) {
   if (typeof document === "undefined") return;
-  document.cookie = `workzo_after_login=${encodeURIComponent("/billing/checkout?plan=premium")}; Max-Age=900; Path=/; SameSite=Lax`;
+  document.cookie = `workzo_after_login=${encodeURIComponent(target)}; Max-Age=900; Path=/; SameSite=Lax`;
 }
 
-export default function BillingCheckoutPage() {
+function BillingCheckoutContent() {
+  const searchParams = useSearchParams();
+  const plan = normalizeWorkZoPlan(searchParams.get("plan") || "premium");
+  const billingCycle = normalizeWorkZoBillingCycle(searchParams.get("billing") || searchParams.get("cycle") || "monthly");
   const [state, setState] = useState<CheckoutState>("loading");
   const [message, setMessage] = useState("Preparing secure checkout…");
 
+  const checkoutPath = `/billing/checkout?plan=${plan}&billing=${billingCycle}`;
   const loginRedirect = useMemo(() => {
-    if (typeof window === "undefined") return "/login?redirect=/billing/checkout?plan=premium&checkout=1&plan=premium";
+    if (typeof window === "undefined") return `/login?redirect=${encodeURIComponent(checkoutPath)}&checkout=1&plan=${plan}&billing=${billingCycle}`;
     const target = safeRedirectPath(`${window.location.pathname}${window.location.search || ""}`);
-    return `/login?redirect=${encodeURIComponent(target)}&checkout=1&plan=premium`;
-  }, []);
+    return `/login?redirect=${encodeURIComponent(target)}&checkout=1&plan=${plan}&billing=${billingCycle}`;
+  }, [billingCycle, checkoutPath, plan]);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,7 +57,7 @@ export default function BillingCheckoutPage() {
         const response = await fetch("/api/stripe/create-checkout-session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ plan: "premium", source: "billing_checkout_page", promoCode }),
+          body: JSON.stringify({ plan, billingCycle, source: "billing_checkout_page", promoCode }),
         });
 
         if (cancelled) return;
@@ -59,9 +66,9 @@ export default function BillingCheckoutPage() {
           try {
             window.localStorage.setItem(
               "workzo_pending_checkout",
-              JSON.stringify({ plan: "premium", source: "billing_checkout_page", next: "/billing/checkout?plan=premium", promoCode, status: "login_required", createdAt: new Date().toISOString() }),
+              JSON.stringify({ plan, billingCycle, source: "billing_checkout_page", next: checkoutPath, promoCode, status: "login_required", createdAt: new Date().toISOString() }),
             );
-            saveAfterLoginCookie();
+            saveAfterLoginCookie(checkoutPath);
           } catch {}
 
           setState("login_required");
@@ -90,7 +97,7 @@ export default function BillingCheckoutPage() {
     return () => {
       cancelled = true;
     };
-  }, [loginRedirect]);
+  }, [billingCycle, checkoutPath, loginRedirect, plan]);
 
   return (
     <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
@@ -105,7 +112,7 @@ export default function BillingCheckoutPage() {
             {state === "error" ? <LockKeyhole className="h-8 w-8" /> : <ShieldCheck className="h-8 w-8" />}
           </div>
 
-          <h1 className="mt-6 text-3xl font-black sm:text-4xl">{state === "error" ? "Checkout needs attention" : "Connecting to Premium checkout"}</h1>
+          <h1 className="mt-6 text-3xl font-black sm:text-4xl">{state === "error" ? "Checkout needs attention" : "Connecting to secure checkout"}</h1>
           <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-slate-300">{message}</p>
 
           {state === "loading" || state === "redirecting" ? (
@@ -128,5 +135,30 @@ export default function BillingCheckoutPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+
+export default function BillingCheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
+          <div className="mx-auto max-w-3xl">
+            <section className="mt-16 rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 text-center shadow-2xl shadow-black/20">
+              <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-blue-500/15 text-blue-200">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+              <h1 className="mt-6 text-3xl font-black sm:text-4xl">Preparing checkout</h1>
+              <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-slate-300">
+                Please wait while WorkZo AI prepares your secure checkout.
+              </p>
+            </section>
+          </div>
+        </main>
+      }
+    >
+      <BillingCheckoutContent />
+    </Suspense>
   );
 }

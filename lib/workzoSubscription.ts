@@ -1,8 +1,23 @@
 import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { normalizeStripeSubscriptionStatus } from "@/lib/workzoStripe";
+import {
+  getWorkZoBillingCycleFromStripePriceId,
+  getWorkZoPlanFromStripePriceId,
+  normalizeStripeSubscriptionStatus,
+} from "@/lib/workzoStripe";
+import {
+  normalizeWorkZoBillingCycle,
+  normalizeWorkZoPlan,
+  type WorkZoBillingCycle,
+  type WorkZoPlanType,
+} from "@/lib/workzoPlanLimits";
 
-export type WorkZoSubscriptionStatus = "free" | "premium" | "cancelled" | "past_due" | "expired";
+export type WorkZoSubscriptionStatus =
+  | "free"
+  | "premium"
+  | "cancelled"
+  | "past_due"
+  | "expired";
 
 export type WorkZoSubscriptionRecord = {
   id?: string;
@@ -10,7 +25,9 @@ export type WorkZoSubscriptionRecord = {
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
   stripe_price_id?: string | null;
-  plan: "free" | "premium";
+  plan: WorkZoPlanType;
+  plan_tier?: WorkZoPlanType | null;
+  billing_cycle?: WorkZoBillingCycle | null;
   status: WorkZoSubscriptionStatus;
   current_period_end?: string | null;
   created_at?: string | null;
@@ -34,6 +51,11 @@ function createServiceClient() {
 
 export function isWorkZoPremiumStatus(status?: string | null) {
   return status === "premium";
+}
+
+export function isWorkZoPaidPlan(plan?: string | null) {
+  const normalized = normalizeWorkZoPlan(plan);
+  return normalized === "premium" || normalized === "premium_pro";
 }
 
 export async function getCurrentWorkZoUserSubscription(): Promise<WorkZoSubscriptionRecord | null> {
@@ -81,10 +103,22 @@ export async function upsertWorkZoSubscription(input: {
   stripePriceId?: string | null;
   stripeStatus?: string | null;
   currentPeriodEnd?: number | null;
+  plan?: WorkZoPlanType | string | null;
+  billingCycle?: WorkZoBillingCycle | string | null;
 }) {
   const supabase = createServiceClient();
   const status = normalizeStripeSubscriptionStatus(input.stripeStatus);
-  const plan = status === "premium" ? "premium" : "free";
+  const pricePlan = input.stripePriceId
+    ? getWorkZoPlanFromStripePriceId(input.stripePriceId)
+    : "free";
+
+  const plan = status === "premium"
+    ? normalizeWorkZoPlan(input.plan || pricePlan)
+    : "free";
+
+  const billingCycle = normalizeWorkZoBillingCycle(
+    input.billingCycle || getWorkZoBillingCycleFromStripePriceId(input.stripePriceId),
+  );
 
   const payload: WorkZoSubscriptionRecord = {
     user_id: input.userId,
@@ -92,6 +126,8 @@ export async function upsertWorkZoSubscription(input: {
     stripe_subscription_id: input.stripeSubscriptionId || null,
     stripe_price_id: input.stripePriceId || null,
     plan,
+    plan_tier: plan,
+    billing_cycle: billingCycle,
     status,
     current_period_end: input.currentPeriodEnd
       ? new Date(input.currentPeriodEnd * 1000).toISOString()
@@ -117,6 +153,7 @@ export async function markWorkZoSubscriptionCancelled(input: {
 
   let query = supabase.from(WORKZO_SUBSCRIPTIONS_TABLE).update({
     plan: "free",
+    plan_tier: "free",
     status: "cancelled",
     updated_at: new Date().toISOString(),
   });

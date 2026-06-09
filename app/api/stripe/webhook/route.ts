@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { createWorkZoStripeClient, getWorkZoStripeConfig } from "@/lib/workzoStripe";
+import {
+  createWorkZoStripeClient,
+  getWorkZoStripeConfig,
+  getWorkZoBillingCycleFromStripePriceId,
+  getWorkZoPlanFromStripePriceId,
+} from "@/lib/workzoStripe";
 import {
   getWorkZoUserIdByStripeCustomer,
   markWorkZoSubscriptionCancelled,
   upsertWorkZoSubscription,
 } from "@/lib/workzoSubscription";
+import {
+  normalizeWorkZoBillingCycle,
+  normalizeWorkZoPlan,
+  type WorkZoBillingCycle,
+  type WorkZoPlanType,
+} from "@/lib/workzoPlanLimits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,9 +46,35 @@ function getSubscriptionId(value: string | Stripe.Subscription | null | undefine
   return value.id || null;
 }
 
+function getFirstSubscriptionPriceId(subscription: StripeSubscriptionRuntime) {
+  return subscription.items.data[0]?.price?.id || null;
+}
+
+function getPlanFromMetadataOrPrice(input: {
+  metadata?: Stripe.Metadata | null;
+  priceId?: string | null;
+}): WorkZoPlanType {
+  const metadataPlan = input.metadata?.plan_tier || input.metadata?.plan;
+  if (metadataPlan) return normalizeWorkZoPlan(metadataPlan);
+  return getWorkZoPlanFromStripePriceId(input.priceId);
+}
+
+function getBillingCycleFromMetadataOrPrice(input: {
+  metadata?: Stripe.Metadata | null;
+  priceId?: string | null;
+}): WorkZoBillingCycle {
+  const metadataCycle = input.metadata?.billing_cycle || input.metadata?.billingCycle;
+  if (metadataCycle) return normalizeWorkZoBillingCycle(metadataCycle);
+  return getWorkZoBillingCycleFromStripePriceId(input.priceId);
+}
+
 async function syncSubscription(subscriptionInput: Stripe.Subscription) {
   const subscription = subscriptionInput as StripeSubscriptionRuntime;
   const customerId = getCustomerId(subscription.customer);
+  const priceId = getFirstSubscriptionPriceId(subscription);
+  const plan = getPlanFromMetadataOrPrice({ metadata: subscription.metadata, priceId });
+  const billingCycle = getBillingCycleFromMetadataOrPrice({ metadata: subscription.metadata, priceId });
+
   const userId =
     typeof subscription.metadata?.workzo_user_id === "string" && subscription.metadata.workzo_user_id
       ? subscription.metadata.workzo_user_id
@@ -49,6 +86,9 @@ async function syncSubscription(subscriptionInput: Stripe.Subscription) {
     console.warn("workzo_stripe_webhook_missing_user", {
       subscriptionId: subscription.id,
       customerId,
+      priceId,
+      plan,
+      billingCycle,
     });
     return;
   }
@@ -57,12 +97,14 @@ async function syncSubscription(subscriptionInput: Stripe.Subscription) {
     userId,
     stripeCustomerId: customerId,
     stripeSubscriptionId: subscription.id,
-    stripePriceId: subscription.items.data[0]?.price?.id || null,
+    stripePriceId: priceId,
     stripeStatus: subscription.status,
     currentPeriodEnd:
       typeof subscription.current_period_end === "number"
         ? subscription.current_period_end
         : null,
+    plan,
+    billingCycle,
   });
 }
 
@@ -92,13 +134,19 @@ export async function POST(request: Request) {
         const userId = session.client_reference_id || session.metadata?.workzo_user_id || null;
         const customerId = getCustomerId(session.customer);
         const subscriptionId = getSubscriptionId(session.subscription);
+        const priceId = typeof session.metadata?.stripe_price_id === "string" ? session.metadata.stripe_price_id : null;
+        const plan = getPlanFromMetadataOrPrice({ metadata: session.metadata, priceId });
+        const billingCycle = getBillingCycleFromMetadataOrPrice({ metadata: session.metadata, priceId });
 
         if (userId && customerId) {
           await upsertWorkZoSubscription({
             userId,
             stripeCustomerId: customerId,
             stripeSubscriptionId: subscriptionId,
+            stripePriceId: priceId,
             stripeStatus: session.payment_status === "paid" ? "active" : "incomplete",
+            plan,
+            billingCycle,
           });
         }
         break;

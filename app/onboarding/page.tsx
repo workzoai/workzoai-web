@@ -42,6 +42,8 @@ import {
 import BetaPrivacyNotice from "@/components/BetaPrivacyNotice";
 import { trackWorkZoLaunchEvent } from "@/lib/workzoLaunchAnalytics";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
+import { getWorkZoCurrentPlan } from "@/lib/workzoUsageTracker";
+import { isWorkZoPlanAtLeast, type WorkZoPlanType } from "@/lib/workzoPlanLimits";
 
 type Market = "Global" | "Germany" | "US" | "UK" | "India" | "Netherlands";
 type CompanyStyle =
@@ -54,7 +56,12 @@ type RecruiterKey =
   | "friendly_hr"
   | "analytical_hiring_manager"
   | "startup_recruiter"
-  | "german_corporate";
+  | "german_corporate"
+  | "standard_recruiter"
+  | "startup_founder"
+  | "executive_recruiter"
+  | "technical_lead"
+  | "faang_interviewer";
 
 type InterviewLanguage =
   | "English"
@@ -123,7 +130,17 @@ const recruiters: {
   avatar: string;
   quote: string;
   description: string;
+  requiredPlan: WorkZoPlanType;
 }[] = [
+  {
+    key: "standard_recruiter",
+    name: "Standard",
+    role: "Standard Recruiter",
+    avatar: "🤖",
+    quote: "Let’s run a clear, useful practice interview.",
+    description: "Basic interview flow for Free users.",
+    requiredPlan: "free",
+  },
   {
     key: "friendly_hr",
     name: "Sarah",
@@ -131,6 +148,7 @@ const recruiters: {
     avatar: "👩🏻‍💼",
     quote: "I'd love to understand how you work with people.",
     description: "Warm, supportive, and communication-focused.",
+    requiredPlan: "premium",
   },
   {
     key: "analytical_hiring_manager",
@@ -139,6 +157,7 @@ const recruiters: {
     avatar: "👨🏻‍💼",
     quote: "Can you prove the business impact behind that answer?",
     description: "Evidence-driven and focused on measurable impact.",
+    requiredPlan: "premium",
   },
   {
     key: "startup_recruiter",
@@ -147,6 +166,7 @@ const recruiters: {
     avatar: "👩🏽‍💼",
     quote: "What did YOU specifically own in that project?",
     description: "Fast-paced, practical, and ownership-focused.",
+    requiredPlan: "premium",
   },
   {
     key: "german_corporate",
@@ -155,6 +175,43 @@ const recruiters: {
     avatar: "👨🏼‍💼",
     quote: "Please keep the answer concise and relevant.",
     description: "Structured, professional, and process-oriented.",
+    requiredPlan: "premium",
+  },
+  {
+    key: "startup_founder",
+    name: "Alex",
+    role: "Startup Founder",
+    avatar: "🚀",
+    quote: "Can you create impact without waiting for perfect structure?",
+    description: "High-ownership, speed-focused, and ambiguity-driven.",
+    requiredPlan: "premium_pro",
+  },
+  {
+    key: "executive_recruiter",
+    name: "Maya",
+    role: "Executive Recruiter",
+    avatar: "⭐",
+    quote: "What leadership signal would make me confidently recommend you?",
+    description: "Senior, strategic, and focused on leadership maturity.",
+    requiredPlan: "premium_pro",
+  },
+  {
+    key: "technical_lead",
+    name: "Arjun",
+    role: "Technical Lead",
+    avatar: "🧠",
+    quote: "Walk me through the trade-offs behind your decision.",
+    description: "Technical depth, systems thinking, and decision quality.",
+    requiredPlan: "premium_pro",
+  },
+  {
+    key: "faang_interviewer",
+    name: "Rachel",
+    role: "FAANG Interviewer",
+    avatar: "🏢",
+    quote: "Give me scale, structure, trade-offs, and measurable impact.",
+    description: "Big-tech style pressure, structure, and evidence checks.",
+    requiredPlan: "premium_pro",
   },
 ];
 
@@ -219,6 +276,11 @@ function normalizeRecruiterKey(value?: unknown): RecruiterKey {
   const raw = value.trim().toLowerCase();
   const key = raw.replace(/·/g, " ").replace(/-/g, "_").replace(/\s+/g, "_");
 
+  if (key === "standard_recruiter" || raw.includes("standard")) return "standard_recruiter";
+  if (key === "startup_founder" || raw.includes("founder")) return "startup_founder";
+  if (key === "executive_recruiter" || raw.includes("executive")) return "executive_recruiter";
+  if (key === "technical_lead" || raw.includes("technical lead")) return "technical_lead";
+  if (key === "faang_interviewer" || raw.includes("faang")) return "faang_interviewer";
   if (key === "friendly_hr" || raw.includes("sarah")) return "friendly_hr";
   if (key === "analytical_hiring_manager" || raw.includes("daniel"))
     return "analytical_hiring_manager";
@@ -553,8 +615,9 @@ export default function OnboardingPage() {
       (setup.recruiterStyle as CompanyStyle) ||
       "Realistic",
   );
+  const [currentPlan] = useState<WorkZoPlanType>(() => typeof window !== "undefined" ? getWorkZoCurrentPlan() : "free");
   const [recruiter, setRecruiter] = useState<RecruiterKey>(
-    normalizeRecruiterKey(setup.recruiterPersonality),
+    normalizeRecruiterKey(setup.recruiterPersonality || (currentPlan === "free" ? "standard_recruiter" : "friendly_hr")),
   );
   const [interviewLanguage, setInterviewLanguage] = useState<InterviewLanguage>(
     normalizeInterviewLanguage(setup.language),
@@ -1578,46 +1641,63 @@ export default function OnboardingPage() {
                       </span>
                     </div>
 
-                    <div className="mt-3 grid gap-2 md:grid-cols-2">
-                      {recruiters.map((item) => (
-                        <button
-                          key={item.key}
-                          onClick={() => setRecruiter(item.key)}
-                          className={cn(
-                            "relative rounded-[24px] border p-3 text-left transition active:scale-[0.99]",
-                            recruiter === item.key
-                              ? "border-cyan-300/45 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.14)]"
-                              : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06]",
-                          )}
-                        >
-                          {recruiter === item.key && (
-                            <span className="absolute right-3 top-3 rounded-full border border-cyan-300/25 bg-cyan-400/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-200">
-                              ✓ Selected
-                            </span>
-                          )}
-                          <div className="flex items-start gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/8 text-lg">
-                              {item.avatar}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <h3 className="text-base font-black leading-5">
-                                  {item.name}
-                                </h3>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      {recruiters.map((item) => {
+                        const allowed = isWorkZoPlanAtLeast(currentPlan, item.requiredPlan);
+                        const selected = recruiter === item.key;
+
+                        return (
+                          <button
+                            key={item.key}
+                            onClick={() =>
+                              allowed
+                                ? setRecruiter(item.key)
+                                : router.push(`/pricing?plan=${item.requiredPlan}&intent=recruiter`)
+                            }
+                            className={cn(
+                              "relative rounded-[24px] border p-4 text-left transition active:scale-[0.99]",
+                              !allowed && "opacity-60",
+                              selected
+                                ? "border-cyan-300/45 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.14)]"
+                                : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06]",
+                            )}
+                          >
+                            {selected && (
+                              <span className="absolute right-3 top-3 rounded-full border border-cyan-300/25 bg-cyan-400/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-200">
+                                ✓ Selected
+                              </span>
+                            )}
+
+                            {!allowed && (
+                              <span className="absolute right-3 top-12 rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-300">
+                                {item.requiredPlan === "premium_pro" ? "Pro" : "Premium"}
+                              </span>
+                            )}
+
+                            <div className="flex items-start gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/8 text-lg">
+                                {item.avatar}
                               </div>
-                              <p className="mt-0.5 text-xs font-bold text-slate-400">
-                                {item.role}
-                              </p>
-                              <p className="mt-2 text-sm leading-5 text-slate-300">
-                                {item.description}
-                              </p>
-                              <p className="mt-3 border-l border-cyan-300/20 pl-3 text-xs italic leading-5 text-slate-400">
-                                “{item.quote}”
-                              </p>
+                              <div className="min-w-0 flex-1 pr-20">
+                                <div className="flex items-center gap-2">
+                                  <h3 className="text-base font-black leading-5">
+                                    {item.name}
+                                  </h3>
+                                </div>
+                                <p className="mt-0.5 text-xs font-bold text-slate-400">
+                                  {item.role}
+                                </p>
+                                <p className="mt-2 text-sm leading-5 text-slate-300">
+                                  {item.description}
+                                </p>
+                                <p className="mt-3 border-l border-cyan-300/20 pl-3 text-xs italic leading-5 text-slate-400">
+                                  “{item.quote}”
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        );
+                      })}
                     </div>
                   </section>
                 </div>

@@ -1,20 +1,91 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createWorkZoStripeClient, getWorkZoAbsoluteUrl, getWorkZoStripeConfig } from "@/lib/workzoStripe";
-import { getCurrentWorkZoUserSubscription, upsertWorkZoSubscription } from "@/lib/workzoSubscription";
+import {
+  createWorkZoStripeClient,
+  getWorkZoAbsoluteUrl,
+  getWorkZoStripePriceId,
+} from "@/lib/workzoStripe";
+import {
+  getCurrentWorkZoUserSubscription,
+  upsertWorkZoSubscription,
+} from "@/lib/workzoSubscription";
+import {
+  getWorkZoPlanLimits,
+  normalizeWorkZoBillingCycle,
+  normalizeWorkZoPlan,
+  type WorkZoBillingCycle,
+  type WorkZoPlanType,
+} from "@/lib/workzoPlanLimits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type CheckoutBody = {
+  plan?: unknown;
+  planTier?: unknown;
+  billing?: unknown;
+  billingCycle?: unknown;
+  cycle?: unknown;
+  successPath?: unknown;
+  cancelPath?: unknown;
+  promoCode?: unknown;
+  feature?: unknown;
+  source?: unknown;
+};
+
 function safePath(value: unknown, fallback: string) {
-  const text = typeof value === "string" ? value : "";
+  const text = typeof value === "string" ? value.trim() : "";
   if (!text || !text.startsWith("/") || text.startsWith("//")) return fallback;
   return text;
 }
 
+function safeMetadataValue(value: unknown) {
+  if (typeof value !== "string") return "";
+  return value.slice(0, 450);
+}
+
+function buildPlanMetadata(input: {
+  userId: string;
+  plan: WorkZoPlanType;
+  billingCycle: WorkZoBillingCycle;
+  priceId: string;
+  promoCode?: unknown;
+  feature?: unknown;
+  source?: unknown;
+}) {
+  const limits = getWorkZoPlanLimits(input.plan);
+
+  return {
+    workzo_user_id: input.userId,
+    product: "workzo_ai",
+    plan: input.plan,
+    plan_tier: input.plan,
+    billing_cycle: input.billingCycle,
+    stripe_price_id: input.priceId,
+    promo_code: safeMetadataValue(input.promoCode),
+    feature: safeMetadataValue(input.feature) || input.plan,
+    source: safeMetadataValue(input.source) || "workzo_checkout",
+    voice_interviews_per_month: String(limits.voiceInterviewsPerMonth),
+    unlimited_voice_interviews: String(limits.unlimitedVoiceInterviews),
+    tavus_minutes_per_month: String(limits.tavusMinutesPerMonth),
+    video_recruiter: String(limits.videoRecruiter),
+  };
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
+    const body = (await request.json().catch(() => ({}))) as CheckoutBody;
+    const plan = normalizeWorkZoPlan(body.plan || body.planTier || "premium");
+    const billingCycle = normalizeWorkZoBillingCycle(
+      body.billingCycle || body.billing || body.cycle || "monthly",
+    );
+
+    if (plan === "free") {
+      return NextResponse.json(
+        { error: "Free plan does not require checkout." },
+        { status: 400 },
+      );
+    }
 
     const supabase = await createSupabaseServerClient();
     const {
@@ -22,12 +93,24 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Please sign in before upgrading." }, { status: 401 });
+      return NextResponse.json(
+        { error: "Please sign in before upgrading." },
+        { status: 401 },
+      );
     }
 
     const stripe = createWorkZoStripeClient();
-    const config = getWorkZoStripeConfig();
     const existing = await getCurrentWorkZoUserSubscription();
+    const priceId = getWorkZoStripePriceId(plan, billingCycle);
+    const planMetadata = buildPlanMetadata({
+      userId: user.id,
+      plan,
+      billingCycle,
+      priceId,
+      promoCode: body.promoCode,
+      feature: body.feature,
+      source: body.source,
+    });
 
     let customerId = existing?.stripe_customer_id || undefined;
 
@@ -39,11 +122,16 @@ export async function POST(request: Request) {
           product: "workzo_ai",
         },
       });
+
       customerId = customer.id;
+
       await upsertWorkZoSubscription({
         userId: user.id,
         stripeCustomerId: customer.id,
         stripeStatus: "incomplete",
+        plan,
+        billingCycle,
+        stripePriceId: priceId,
       });
     }
 
@@ -55,7 +143,7 @@ export async function POST(request: Request) {
       customer: customerId,
       line_items: [
         {
-          price: config.premiumMonthlyPriceId,
+          price: priceId,
           quantity: 1,
         },
       ],
@@ -63,20 +151,19 @@ export async function POST(request: Request) {
       cancel_url: getWorkZoAbsoluteUrl(cancelPath),
       allow_promotion_codes: true,
       client_reference_id: user.id,
-      metadata: {
-        workzo_user_id: user.id,
-        promo_code: typeof body.promoCode === "string" ? body.promoCode : "",
-        feature: typeof body.feature === "string" ? body.feature : "premium",
-      },
+      metadata: planMetadata,
       subscription_data: {
-        metadata: {
-          workzo_user_id: user.id,
-          product: "workzo_ai",
-        },
+        metadata: planMetadata,
       },
     });
 
-    return NextResponse.json({ ok: true, url: session.url });
+    return NextResponse.json({
+      ok: true,
+      url: session.url,
+      plan,
+      billingCycle,
+      priceId,
+    });
   } catch (error) {
     console.error("workzo_stripe_checkout_error", error);
     return NextResponse.json(

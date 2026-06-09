@@ -208,6 +208,10 @@ export type UnifiedRecruiterInput = {
   recruiterState?: string | null;
 };
 
+// ============================================================
+// SECTION: Core utilities
+// ============================================================
+
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
 
@@ -216,12 +220,15 @@ function cleanText(value: unknown) {
 }
 
 
-
 // Phase 1.5 semantic recovery for noisy speech-to-text.
 // This is intentionally conservative: it only adds recovered context when nearby
 // words already show a customer-support/router/Wi-Fi situation. It does not
 // rewrite the user's answer for display; it gives the recruiter brain a cleaner
 // analysis input so a valid spoken example is not rejected as vague.
+// ============================================================
+// SECTION: Speech-to-text recovery
+// ============================================================
+
 function recoverNoisySpokenTranscript(textRaw: string) {
   let text = cleanText(textRaw);
   if (!text) return text;
@@ -342,6 +349,10 @@ function extractRoleFromJobDescription(jobDescription: string) {
 
   return match?.[0] || "";
 }
+
+// ============================================================
+// SECTION: CV / evidence profile extraction
+// ============================================================
 
 function buildEvidenceProfile(
   cvTextRaw: string,
@@ -533,15 +544,12 @@ function overlapScore(answer: string, evidence: string[]) {
   return hits;
 }
 
-function extractJobSkillsFromText(text: string) {
-  return unique(extractSkillClaims(text), 18);
-}
 
 function findMissingJobSkills(cvText: string, jobDescription: string) {
   const cvSkills = new Set(
     extractSkillClaims(cvText).map((skill) => skill.toLowerCase()),
   );
-  return extractJobSkillsFromText(jobDescription)
+  return unique(extractSkillClaims(jobDescription), 18)
     .filter((skill) => !cvSkills.has(skill.toLowerCase()))
     .slice(0, 4);
 }
@@ -827,6 +835,10 @@ function scoreAnswerMemory(text: string) {
   return score;
 }
 
+// ============================================================
+// SECTION: Recruiter memory — build & update
+// ============================================================
+
 function buildRecruiterMemoryProfile(
   transcript: TranscriptItem[] | undefined,
   profile: CandidateEvidenceProfile,
@@ -984,6 +996,10 @@ function buildRecruiterMemoryProfile(
     summary,
   };
 }
+
+// ============================================================
+// SECTION: Contradiction & CV conflict detection
+// ============================================================
 
 function detectMeaningContradiction(
   answer: string,
@@ -1185,6 +1201,10 @@ function updateMemoryAfterDecision(
 
   return { memory: next, events };
 }
+
+// ============================================================
+// SECTION: Rapport & social handling
+// ============================================================
 
 function recruiterDisplayNameFromSetup(setup?: UnifiedRecruiterInput["setup"]) {
   const raw = cleanText(setup?.recruiterPersonality).toLowerCase();
@@ -1391,55 +1411,9 @@ function prependSocialAcknowledgementIfNeeded(
   };
 }
 
-function extractStickyMemorySignals(answer: string) {
-  const text = cleanText(answer).toLowerCase();
-  const signals: string[] = [];
-  if (
-    /\btechnical support|support engineer|customer support|ticket|troubleshoot|resolved issues?\b/i.test(
-      text,
-    )
-  ) {
-    signals.push("Technical support background");
-  }
-  if (
-    /\bcustomer|client|customer-facing|customer facing|rapport|relationship|satisfaction|csat|repeat customer|customers came back|asked for me\b/i.test(
-      text,
-    )
-  ) {
-    signals.push("Customer-facing experience and satisfaction focus");
-  }
-  if (
-    /\bcustomer success|success manager|retention|onboarding|renewal|account health|relationship management\b/i.test(
-      text,
-    )
-  ) {
-    signals.push("Motivation toward Customer Success responsibilities");
-  }
-  if (
-    /\b(language|grammar|english|german|communication)\b.*\b(weakness|improve|develop|better|challenge)|\bweakness\b.*\b(language|grammar|english|german|communication)\b/i.test(
-      text,
-    )
-  ) {
-    signals.push("Language/communication development area");
-  }
-  if (
-    /\bgermany|moved to germany|learned german|learn the language|quick learner|learn quickly|adapted\b/i.test(
-      text,
-    )
-  ) {
-    signals.push(
-      "Adaptability and quick learning after moving/learning language",
-    );
-  }
-  if (
-    /\b(fix|resolve|resolved|as soon as possible|faster|quickly|reduced|improved)\b.*\b(issue|customer|ticket|problem)\b/i.test(
-      text,
-    )
-  ) {
-    signals.push("Fast issue-resolution mindset");
-  }
-  return unique(signals, 8);
-}
+// ============================================================
+// SECTION: Intent classification (heuristic)
+// ============================================================
 
 function inferIntentHeuristically(answer: string): CandidateIntent {
   const lower = answer.toLowerCase();
@@ -1636,6 +1610,10 @@ function answerLikelyAddressesQuestion(
 
   return answer.split(/\s+/).length >= 12;
 }
+
+// ============================================================
+// SECTION: Outcome & answer quality signals
+// ============================================================
 
 function hasQualitativeOutcome(answer: string) {
   const lower = cleanText(answer).toLowerCase();
@@ -2014,14 +1992,6 @@ function sameFollowupIntentRepeated(
   return count >= minimum;
 }
 
-function shouldForceDecisionTopicTransition(
-  input: UnifiedRecruiterInput,
-  answer: string,
-) {
-  return (
-    wasLastRecruiterAskingForDecision(input) && answeredDecisionFollowUp(answer)
-  );
-}
 
 function repeatedRecruiterLineRisk(
   input: UnifiedRecruiterInput,
@@ -2041,6 +2011,10 @@ function repeatedRecruiterLineRisk(
         normalizedNext.includes(line.slice(0, 58))),
   );
 }
+
+// ============================================================
+// SECTION: Interview stage progression
+// ============================================================
 
 function buildHumanProgressionQuestion(
   input: UnifiedRecruiterInput,
@@ -2148,39 +2122,6 @@ function detectQuestionKind(
   return "behavioral";
 }
 
-function detectCandidateSignals(answer: string) {
-  const text = cleanText(answer).toLowerCase();
-  return {
-    hasSupport:
-      /support|technical support|customer support|helpdesk|ticket|issue|resolve|troubleshoot/.test(
-        text,
-      ),
-    hasCustomer:
-      /customer|client|user|stakeholder|csat|satisfaction|rapport|relationship|trust|convinc|understand|explained?|wrap|rapple|returned|asked for me|repeat/.test(
-        text,
-      ),
-    hasLearning:
-      /learn|quick learner|germany|german|language|adapt|new tool|new product|training/.test(
-        text,
-      ),
-    hasWeaknessLanguage:
-      /weakness|language|grammar|communication|german|english|improve my/.test(
-        text,
-      ),
-    hasRoleFit:
-      /customer success|customer service|relationship|retention|onboarding|renewal|support|customer-facing|customer facing|customer trust|build trust|convinc|make.*understand|explain.*customer/.test(
-        text,
-      ),
-    hasSpecificExample:
-      /for example|one time|once|situation|when|case|customer|ticket|project|issue/.test(
-        text,
-      ),
-    hasQualitativeResult: hasQualitativeOutcome(answer),
-    hasQuantResult: hasQuantitativeOutcome(answer),
-    wordCount: text.split(/\s+/).filter(Boolean).length,
-  };
-}
-
 
 function isCustomerSuccessShortBackgroundAnswer(answer: string, targetRole: string, input?: UnifiedRecruiterInput) {
   const text = cleanText(answer).toLowerCase();
@@ -2204,6 +2145,10 @@ function isCustomerSuccessShortBackgroundAnswer(answer: string, targetRole: stri
 
   return hasCustomerSignal && (hasMotivationSignal || hasTransferableSkillSignal || wordCount >= 6);
 }
+
+// ============================================================
+// SECTION: Customer Success conversation builders
+// ============================================================
 
 function buildCustomerSuccessDepthQuestion(input: UnifiedRecruiterInput, answer: string, targetRole: string) {
   const text = cleanText(answer).toLowerCase();
@@ -2391,7 +2336,7 @@ function humanTransition(
   answer: string,
 ) {
   const stage = detectQuestionKind(input.currentQuestion || "");
-  const signals = detectCandidateSignals(answer);
+  const signals = deriveAnswerQualitySignals(answer);
   const targetRole = firstNonEmpty(
     input.setup?.targetRole,
     extractRoleFromJobDescription(cleanText(input.setup?.jobDescription)),
@@ -2496,6 +2441,10 @@ function shouldAvoidImpactDemand(input: UnifiedRecruiterInput) {
   // Do not demand metrics immediately before rapport and role motivation are established.
   return stage === "background" || stage === "role_fit" || stage === "weakness";
 }
+
+// ============================================================
+// SECTION: Fallback heuristic decision
+// ============================================================
 
 function detectCVConflict(answer: string, profile: CandidateEvidenceProfile) {
   const lower = answer.toLowerCase();
@@ -3011,6 +2960,10 @@ function buildFallbackDecision(
   });
 }
 
+// ============================================================
+// SECTION: Psychological & cinematic derivations
+// ============================================================
+
 function deriveLivePressure(
   psychology: UnifiedRecruiterPsychology,
   state: UnifiedRecruiterDecision["recruiterState"],
@@ -3099,7 +3052,7 @@ function deriveRecruiterMemoryInsight(
     decision.intent === "possible_exaggeration" ||
     decision.intent === "nonsense"
   ) {
-    recallMode = "credibility_watch" as any;
+    recallMode = "credibility_watch";
   } else if (
     openDoubt &&
     (decision.recruiterState === "skeptical" || decision.trustDelta < 0)
@@ -3787,6 +3740,10 @@ function deriveHonestFeedback(
   };
 }
 
+// ============================================================
+// SECTION: LLM system prompt
+// ============================================================
+
 function buildSystemPrompt(
   input: UnifiedRecruiterInput,
   cvRead: CandidateEvidenceProfile,
@@ -4088,6 +4045,41 @@ Return JSON only with this exact shape:
 `.trim();
 }
 
+// ---------------------------------------------------------------------------
+// Typed helpers for safe access to raw LLM JSON output in normalizeDecision.
+// Avoids the need for (raw.x as any).y throughout.
+// ---------------------------------------------------------------------------
+type RawObj = Record<string, unknown>;
+function rStr(obj: unknown, key: string): string {
+  if (!obj || typeof obj !== "object") return "";
+  return cleanText((obj as RawObj)[key]);
+}
+function rNum(obj: unknown, key: string, fallback: number): number {
+  if (!obj || typeof obj !== "object") return fallback;
+  const v = (obj as RawObj)[key];
+  return typeof v === "number" || typeof v === "string" ? Number(v) : fallback;
+}
+function rBool(obj: unknown, key: string): boolean {
+  if (!obj || typeof obj !== "object") return false;
+  return Boolean((obj as RawObj)[key]);
+}
+function rEnum<T extends string>(obj: unknown, key: string, valid: readonly T[], fallback: T): T {
+  if (!obj || typeof obj !== "object") return fallback;
+  const v = (obj as RawObj)[key];
+  return typeof v === "string" && (valid as readonly string[]).includes(v) ? v as T : fallback;
+}
+function rStrArr(obj: unknown, key: string): string[] {
+  if (!obj || typeof obj !== "object") return [];
+  const arr = (obj as RawObj)[key];
+  if (!Array.isArray(arr)) return [];
+  return arr.map((item: unknown) => cleanText(item)).filter(Boolean);
+}
+
+
+// ============================================================
+// SECTION: LLM output normalisation
+// ============================================================
+
 function normalizeDecision(
   raw: Partial<UnifiedRecruiterDecision>,
   fallback: UnifiedRecruiterDecision,
@@ -4224,23 +4216,14 @@ function normalizeDecision(
     recruiterState,
     intent,
   );
-  const rawPressure = raw.pressure || {};
-  const pressureLabel = ["low", "moderate", "high", "intense"].includes(
-    (rawPressure as any).label,
-  )
-    ? ((rawPressure as any).label as "low" | "moderate" | "high" | "intense")
-    : fallbackPressure.label;
+  const rawPressure = raw.pressure;
+  const PRESSURE_LABELS = ["low", "moderate", "high", "intense"] as const;
+  const pressureLabel = rEnum(rawPressure, "label", PRESSURE_LABELS, fallbackPressure.label);
   const pressure = {
-    level: clamp(
-      Number((rawPressure as any).level ?? fallbackPressure.level),
-      12,
-      96,
-    ),
+    level: clamp(rNum(rawPressure, "level", fallbackPressure.level), 12, 96),
     label: pressureLabel,
-    reason: cleanText((rawPressure as any).reason) || fallbackPressure.reason,
-    behaviorShift:
-      cleanText((rawPressure as any).behaviorShift) ||
-      fallbackPressure.behaviorShift,
+    reason: rStr(rawPressure, "reason") || fallbackPressure.reason,
+    behaviorShift: rStr(rawPressure, "behaviorShift") || fallbackPressure.behaviorShift,
   };
   const derivedForFeedback = {
     intent,
@@ -4273,315 +4256,79 @@ function normalizeDecision(
       ? (raw.memoryEvents as RecruiterMemoryEvent[]).slice(0, 6)
       : fallback.memoryEvents || [],
     pressure,
-    honestFeedback: {
-      ...deriveHonestFeedback(derivedForFeedback),
-      ...(raw.honestFeedback && typeof raw.honestFeedback === "object"
-        ? {
-            headline:
-              cleanText((raw.honestFeedback as any).headline) ||
-              deriveHonestFeedback(derivedForFeedback).headline,
-            recruiterRead:
-              cleanText((raw.honestFeedback as any).recruiterRead) ||
-              deriveHonestFeedback(derivedForFeedback).recruiterRead,
-            risk:
-              cleanText((raw.honestFeedback as any).risk) ||
-              deriveHonestFeedback(derivedForFeedback).risk,
-            nextFix:
-              cleanText((raw.honestFeedback as any).nextFix) ||
-              deriveHonestFeedback(derivedForFeedback).nextFix,
-          }
-        : {}),
-    },
-    recruiterMemoryInsight:
-      raw.recruiterMemoryInsight &&
-      typeof raw.recruiterMemoryInsight === "object"
-        ? {
-            ...deriveRecruiterMemoryInsight(fallback.recruiterMemory!, {
-              intent,
-              recruiterState,
-              trustDelta,
-              shouldCountAsAnswer,
-              concern,
-              correction,
-            }),
-            recallMode: [
-              "none",
-              "subtle_callback",
-              "active_doubt",
-              "recovery_moment",
-              "credibility_watch",
-            ].includes((raw.recruiterMemoryInsight as any).recallMode)
-              ? (raw.recruiterMemoryInsight as any).recallMode
-              : deriveRecruiterMemoryInsight(fallback.recruiterMemory!, {
-                  intent,
-                  recruiterState,
-                  trustDelta,
-                  shouldCountAsAnswer,
-                  concern,
-                  correction,
-                }).recallMode,
-            callbackLine:
-              cleanText((raw.recruiterMemoryInsight as any).callbackLine) ||
-              deriveRecruiterMemoryInsight(fallback.recruiterMemory!, {
-                intent,
-                recruiterState,
-                trustDelta,
-                shouldCountAsAnswer,
-                concern,
-                correction,
-              }).callbackLine,
-            rememberedSignal:
-              cleanText((raw.recruiterMemoryInsight as any).rememberedSignal) ||
-              deriveRecruiterMemoryInsight(fallback.recruiterMemory!, {
-                intent,
-                recruiterState,
-                trustDelta,
-                shouldCountAsAnswer,
-                concern,
-                correction,
-              }).rememberedSignal,
-            openDoubt:
-              cleanText((raw.recruiterMemoryInsight as any).openDoubt) ||
-              deriveRecruiterMemoryInsight(fallback.recruiterMemory!, {
-                intent,
-                recruiterState,
-                trustDelta,
-                shouldCountAsAnswer,
-                concern,
-                correction,
-              }).openDoubt,
-            strongestMoment:
-              cleanText((raw.recruiterMemoryInsight as any).strongestMoment) ||
-              deriveRecruiterMemoryInsight(fallback.recruiterMemory!, {
-                intent,
-                recruiterState,
-                trustDelta,
-                shouldCountAsAnswer,
-                concern,
-                correction,
-              }).strongestMoment,
-            weakestMoment:
-              cleanText((raw.recruiterMemoryInsight as any).weakestMoment) ||
-              deriveRecruiterMemoryInsight(fallback.recruiterMemory!, {
-                intent,
-                recruiterState,
-                trustDelta,
-                shouldCountAsAnswer,
-                concern,
-                correction,
-              }).weakestMoment,
-          }
-        : deriveRecruiterMemoryInsight(fallback.recruiterMemory!, {
-            intent,
-            recruiterState,
-            trustDelta,
-            shouldCountAsAnswer,
-            concern,
-            correction,
-          }),
-    livePressureSimulation:
-      raw.livePressureSimulation &&
-      typeof raw.livePressureSimulation === "object"
-        ? {
-            ...deriveLivePressureSimulation(
-              psychology,
-              recruiterState,
-              intent,
-              {
-                level: clamp(
-                  Number((rawPressure as any).level ?? fallbackPressure.level),
-                  12,
-                  96,
-                ),
-                label: pressureLabel,
-                reason:
-                  cleanText((rawPressure as any).reason) ||
-                  fallbackPressure.reason,
-                behaviorShift:
-                  cleanText((rawPressure as any).behaviorShift) ||
-                  fallbackPressure.behaviorShift,
-              },
-            ),
-            pressureMode: [
-              "calm",
-              "focused",
-              "tightening",
-              "direct",
-              "recovery",
-            ].includes((raw.livePressureSimulation as any).pressureMode)
-              ? (raw.livePressureSimulation as any).pressureMode
-              : deriveLivePressureSimulation(
-                  psychology,
-                  recruiterState,
-                  intent,
-                  fallbackPressure,
-                ).pressureMode,
-            pacingCue:
-              cleanText((raw.livePressureSimulation as any).pacingCue) ||
-              deriveLivePressureSimulation(
-                psychology,
-                recruiterState,
-                intent,
-                fallbackPressure,
-              ).pacingCue,
-            warmthCue:
-              cleanText((raw.livePressureSimulation as any).warmthCue) ||
-              deriveLivePressureSimulation(
-                psychology,
-                recruiterState,
-                intent,
-                fallbackPressure,
-              ).warmthCue,
-            silenceCue:
-              cleanText((raw.livePressureSimulation as any).silenceCue) ||
-              deriveLivePressureSimulation(
-                psychology,
-                recruiterState,
-                intent,
-                fallbackPressure,
-              ).silenceCue,
-            nextFollowUpStyle:
-              cleanText(
-                (raw.livePressureSimulation as any).nextFollowUpStyle,
-              ) ||
-              deriveLivePressureSimulation(
-                psychology,
-                recruiterState,
-                intent,
-                fallbackPressure,
-              ).nextFollowUpStyle,
-            interruptionRisk: ["rare", "possible", "likely"].includes(
-              (raw.livePressureSimulation as any).interruptionRisk,
-            )
-              ? (raw.livePressureSimulation as any).interruptionRisk
-              : deriveLivePressureSimulation(
-                  psychology,
-                  recruiterState,
-                  intent,
-                  fallbackPressure,
-                ).interruptionRisk,
-          }
-        : deriveLivePressureSimulation(psychology, recruiterState, intent, {
-            level: clamp(
-              Number((rawPressure as any).level ?? fallbackPressure.level),
-              12,
-              96,
-            ),
-            label: pressureLabel,
-            reason:
-              cleanText((rawPressure as any).reason) || fallbackPressure.reason,
-            behaviorShift:
-              cleanText((rawPressure as any).behaviorShift) ||
-              fallbackPressure.behaviorShift,
-          }),
-    marketExpectation:
-      raw.marketExpectation && typeof raw.marketExpectation === "object"
-        ? {
-            ...deriveMarketExpectation({
-              answer: "",
-              currentQuestion: "",
-              setup: {},
-            }),
-            market:
-              cleanText((raw.marketExpectation as any).market) ||
-              deriveMarketExpectation({
-                answer: "",
-                currentQuestion: "",
-                setup: {},
-              }).market,
-            interviewerStyle:
-              cleanText((raw.marketExpectation as any).interviewerStyle) ||
-              deriveMarketExpectation({
-                answer: "",
-                currentQuestion: "",
-                setup: {},
-              }).interviewerStyle,
-            evaluatesFor: Array.isArray(
-              (raw.marketExpectation as any).evaluatesFor,
-            )
-              ? (raw.marketExpectation as any).evaluatesFor
-                  .map((item: unknown) => cleanText(item))
-                  .filter(Boolean)
-                  .slice(0, 10)
-              : deriveMarketExpectation({
-                  answer: "",
-                  currentQuestion: "",
-                  setup: {},
-                }).evaluatesFor,
-            warningSignals: Array.isArray(
-              (raw.marketExpectation as any).warningSignals,
-            )
-              ? (raw.marketExpectation as any).warningSignals
-                  .map((item: unknown) => cleanText(item))
-                  .filter(Boolean)
-                  .slice(0, 10)
-              : deriveMarketExpectation({
-                  answer: "",
-                  currentQuestion: "",
-                  setup: {},
-                }).warningSignals,
-            followUpBias:
-              cleanText((raw.marketExpectation as any).followUpBias) ||
-              deriveMarketExpectation({
-                answer: "",
-                currentQuestion: "",
-                setup: {},
-              }).followUpBias,
-          }
-        : fallback.marketExpectation ||
-          deriveMarketExpectation({
-            answer: "",
-            currentQuestion: "",
-            setup: {},
-          }),
-    humanImperfection:
-      raw.humanImperfection && typeof raw.humanImperfection === "object"
-        ? {
-            mode: [
-              "none",
-              "brief_pause",
-              "misunderstanding",
-              "topic_drift",
-              "revisit_later",
-              "impatient_shortening",
-            ].includes((raw.humanImperfection as any).mode)
-              ? (raw.humanImperfection as any).mode
-              : (
-                  fallback.humanImperfection ||
-                  deriveHumanImperfection(
-                    { answer: "", currentQuestion: "", transcript: [] },
-                    { intent, recruiterState, trustDelta, shouldCountAsAnswer },
-                    fallback.recruiterMemory!,
-                  )
-                ).mode,
-            cue:
-              cleanText((raw.humanImperfection as any).cue) ||
-              (
-                fallback.humanImperfection ||
-                deriveHumanImperfection(
-                  { answer: "", currentQuestion: "", transcript: [] },
-                  { intent, recruiterState, trustDelta, shouldCountAsAnswer },
-                  fallback.recruiterMemory!,
-                )
-              ).cue,
-            naturalLine:
-              cleanText((raw.humanImperfection as any).naturalLine) ||
-              (
-                fallback.humanImperfection ||
-                deriveHumanImperfection(
-                  { answer: "", currentQuestion: "", transcript: [] },
-                  { intent, recruiterState, trustDelta, shouldCountAsAnswer },
-                  fallback.recruiterMemory!,
-                )
-              ).naturalLine,
-            shouldUse: Boolean((raw.humanImperfection as any).shouldUse),
-          }
-        : fallback.humanImperfection ||
-          deriveHumanImperfection(
-            { answer: "", currentQuestion: "", transcript: [] },
-            { intent, recruiterState, trustDelta, shouldCountAsAnswer },
-            fallback.recruiterMemory!,
-          ),
+    honestFeedback: (() => {
+      const base = deriveHonestFeedback(derivedForFeedback);
+      const rh = raw.honestFeedback && typeof raw.honestFeedback === "object" ? raw.honestFeedback : null;
+      return {
+        headline: rStr(rh, "headline") || base.headline,
+        recruiterRead: rStr(rh, "recruiterRead") || base.recruiterRead,
+        risk: rStr(rh, "risk") || base.risk,
+        nextFix: rStr(rh, "nextFix") || base.nextFix,
+      };
+    })(),
+    recruiterMemoryInsight: (() => {
+      const base = deriveRecruiterMemoryInsight(fallback.recruiterMemory!, {
+        intent, recruiterState, trustDelta, shouldCountAsAnswer, concern, correction,
+      });
+      const ri = raw.recruiterMemoryInsight && typeof raw.recruiterMemoryInsight === "object"
+        ? raw.recruiterMemoryInsight : null;
+      const RECALL_MODES = ["none", "subtle_callback", "active_doubt", "recovery_moment", "credibility_watch"] as const;
+      return {
+        recallMode: rEnum(ri, "recallMode", RECALL_MODES, base.recallMode),
+        callbackLine: rStr(ri, "callbackLine") || base.callbackLine,
+        rememberedSignal: rStr(ri, "rememberedSignal") || base.rememberedSignal,
+        openDoubt: rStr(ri, "openDoubt") || base.openDoubt,
+        strongestMoment: rStr(ri, "strongestMoment") || base.strongestMoment,
+        weakestMoment: rStr(ri, "weakestMoment") || base.weakestMoment,
+      };
+    })(),
+
+    livePressureSimulation: (() => {
+      const base = deriveLivePressureSimulation(psychology, recruiterState, intent, pressure);
+      const rl = raw.livePressureSimulation && typeof raw.livePressureSimulation === "object"
+        ? raw.livePressureSimulation : null;
+      const PRESSURE_MODES = ["calm", "focused", "tightening", "direct", "recovery"] as const;
+      const INTERRUPT_RISKS = ["rare", "possible", "likely"] as const;
+      return {
+        pressureMode: rEnum(rl, "pressureMode", PRESSURE_MODES, base.pressureMode),
+        pacingCue: rStr(rl, "pacingCue") || base.pacingCue,
+        warmthCue: rStr(rl, "warmthCue") || base.warmthCue,
+        silenceCue: rStr(rl, "silenceCue") || base.silenceCue,
+        nextFollowUpStyle: rStr(rl, "nextFollowUpStyle") || base.nextFollowUpStyle,
+        interruptionRisk: rEnum(rl, "interruptionRisk", INTERRUPT_RISKS, base.interruptionRisk),
+      };
+    })(),
+
+    marketExpectation: (() => {
+      const base = fallback.marketExpectation || deriveMarketExpectation({ answer: "", currentQuestion: "", setup: {} });
+      const rm = raw.marketExpectation && typeof raw.marketExpectation === "object"
+        ? raw.marketExpectation : null;
+      if (!rm) return base;
+      return {
+        market: rStr(rm, "market") || base.market,
+        interviewerStyle: rStr(rm, "interviewerStyle") || base.interviewerStyle,
+        evaluatesFor: rStrArr(rm, "evaluatesFor").length ? rStrArr(rm, "evaluatesFor").slice(0, 10) : base.evaluatesFor,
+        warningSignals: rStrArr(rm, "warningSignals").length ? rStrArr(rm, "warningSignals").slice(0, 10) : base.warningSignals,
+        followUpBias: rStr(rm, "followUpBias") || base.followUpBias,
+      };
+    })(),
+
+    humanImperfection: (() => {
+      const base = fallback.humanImperfection || deriveHumanImperfection(
+        { answer: "", currentQuestion: "", transcript: [] },
+        { intent, recruiterState, trustDelta, shouldCountAsAnswer },
+        fallback.recruiterMemory!,
+      );
+      const rh = raw.humanImperfection && typeof raw.humanImperfection === "object"
+        ? raw.humanImperfection : null;
+      const HI_MODES = ["none", "brief_pause", "misunderstanding", "topic_drift", "revisit_later", "impatient_shortening"] as const;
+      return {
+        mode: rEnum(rh, "mode", HI_MODES, base.mode),
+        cue: rStr(rh, "cue") || base.cue,
+        naturalLine: rStr(rh, "naturalLine") || base.naturalLine,
+        shouldUse: rh ? rBool(rh, "shouldUse") : base.shouldUse,
+      };
+    })(),
   };
 }
 
@@ -4597,6 +4344,10 @@ function uniqueMemoryEvents(events: RecruiterMemoryEvent[]) {
   }
   return out;
 }
+
+// ============================================================
+// SECTION: Post-decision guards & anti-loop layer
+// ============================================================
 
 function applyNaturalConversationGuard(
   input: UnifiedRecruiterInput,
@@ -4726,7 +4477,7 @@ function applyNaturalConversationGuard(
 
   // If the recruiter asked a decision/trade-off follow-up and the candidate answered it,
   // accept the answer and move to a deeper human follow-up instead of repeating the same question.
-  if (shouldForceDecisionTopicTransition(input, answer)) {
+  if (wasLastRecruiterAskingForDecision(input) && answeredDecisionFollowUp(answer)) {
     const cvRead =
       decision.cvRead ||
       buildEvidenceProfile(
@@ -5053,6 +4804,10 @@ function applyNaturalConversationGuard(
   return decision;
 }
 
+// ============================================================
+// SECTION: Behavioural realism layer
+// ============================================================
+
 function deriveAnswerQualitySignals(answerRaw: string) {
   const answer = cleanText(answerRaw);
   const lower = answer.toLowerCase();
@@ -5083,6 +4838,16 @@ function deriveAnswerQualitySignals(answerRaw: string) {
     /\b(i checked|i asked|i explained|i guided|i created|i changed|i analyzed|i coordinated|i followed up|i documented|i trained|i escalated|i solved|i fixed|i supported|i worked with)\b/i.test(
       lower,
     );
+  // Extended signals (previously in detectCandidateSignals, merged here)
+  const hasSupport = /support|technical support|customer support|helpdesk|ticket|issue|resolve|troubleshoot/.test(lower);
+  const hasCustomer = /customer|client|user|stakeholder|csat|satisfaction|rapport|relationship|trust|convinc|understand|explained?|wrap|rapple|returned|asked for me|repeat/.test(lower);
+  const hasLearning = /learn|quick learner|germany|german|language|adapt|new tool|new product|training/.test(lower);
+  const hasWeaknessLanguage = /weakness|language|grammar|communication|german|english|improve my/.test(lower);
+  const hasRoleFit = /customer success|customer service|relationship|retention|onboarding|renewal|support|customer-facing|customer facing|customer trust|build trust|convinc|make.*understand|explain.*customer/.test(lower);
+  const hasSpecificExample = /for example|one time|once|situation|when|case|customer|ticket|project|issue/.test(lower);
+  const hasQualitativeResult = hasQualitativeOutcome(answer);
+  const hasQuantResult = hasQuantitativeOutcome(answer);
+
   return {
     wordCount,
     hasOwnership,
@@ -5092,6 +4857,14 @@ function deriveAnswerQualitySignals(answerRaw: string) {
     roleBridge,
     hasSituation,
     hasAction,
+    hasSupport,
+    hasCustomer,
+    hasLearning,
+    hasWeaknessLanguage,
+    hasRoleFit,
+    hasSpecificExample,
+    hasQualitativeResult,
+    hasQuantResult,
   };
 }
 
@@ -5557,6 +5330,10 @@ function applyPhase15TrustPressure(
     feedback: decision.feedback ? `${decision.feedback} ${moodLine}` : moodLine,
   });
 }
+
+// ============================================================
+// SECTION: Public entry point
+// ============================================================
 
 export async function decideUnifiedRecruiterResponse(
   input: UnifiedRecruiterInput,

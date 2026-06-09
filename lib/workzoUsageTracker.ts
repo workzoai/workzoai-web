@@ -1,7 +1,11 @@
 "use client";
 
 import { hasWorkZoAnalyticsConsent } from "@/lib/workzoPrivacyConsent";
-import { getWorkZoPlanLimits, normalizeWorkZoPlan, type WorkZoPlanType } from "@/lib/workzoPlanLimits";
+import {
+  getWorkZoPlanLimits,
+  normalizeWorkZoPlan,
+  type WorkZoPlanType,
+} from "@/lib/workzoPlanLimits";
 
 export type WorkZoUsageState = {
   monthKey: string;
@@ -52,9 +56,6 @@ function normalizeUsage(value: Partial<WorkZoUsageState> | null): WorkZoUsageSta
 
 async function sendUsageEvent(eventName: string, metadata: Record<string, unknown> = {}) {
   if (typeof window === "undefined") return;
-
-  // Privacy rule: keep essential local usage limits working, but do not send
-  // analytics/telemetry to the server unless the user has allowed analytics cookies.
   if (!hasWorkZoAnalyticsConsent()) return;
 
   try {
@@ -85,7 +86,7 @@ export function enableWorkZoFounderTestMode() {
   try {
     window.localStorage.setItem(WORKZO_TEST_MODE_KEY, "1");
     window.localStorage.setItem(WORKZO_TEST_LIMIT_OVERRIDE_KEY, "999");
-    window.localStorage.setItem(WORKZO_PLAN_KEY, "premium");
+    window.localStorage.setItem(WORKZO_PLAN_KEY, "premium_pro");
   } catch {}
 }
 
@@ -117,7 +118,8 @@ export function getWorkZoCurrentPlan(): WorkZoPlanType {
       window.localStorage.getItem(WORKZO_PLAN_KEY) ||
       window.localStorage.getItem("workzo_plan") ||
       window.localStorage.getItem("workzoPlan") ||
-      window.localStorage.getItem("workzo_subscription_plan");
+      window.localStorage.getItem("workzo_subscription_plan") ||
+      window.localStorage.getItem("workzo_plan_tier");
     if (direct) return normalizeWorkZoPlan(direct);
 
     const rawSubscription =
@@ -127,7 +129,7 @@ export function getWorkZoCurrentPlan(): WorkZoPlanType {
 
     if (rawSubscription) {
       const parsed = JSON.parse(rawSubscription) as Record<string, unknown>;
-      return normalizeWorkZoPlan(parsed.plan || parsed.tier || parsed.status);
+      return normalizeWorkZoPlan(parsed.plan || parsed.plan_tier || parsed.tier || parsed.status);
     }
   } catch {}
   return "free";
@@ -136,7 +138,7 @@ export function getWorkZoCurrentPlan(): WorkZoPlanType {
 export function setWorkZoCurrentPlan(plan: WorkZoPlanType) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(WORKZO_PLAN_KEY, plan);
+    window.localStorage.setItem(WORKZO_PLAN_KEY, normalizeWorkZoPlan(plan));
   } catch {}
 }
 
@@ -173,6 +175,7 @@ function getEffectiveInterviewLimit(plan: WorkZoPlanType) {
       return 999;
     }
   }
+  if (limits.unlimitedVoiceInterviews) return 999999;
   return limits.interviewsPerMonth;
 }
 
@@ -181,7 +184,14 @@ export function checkWorkZoInterviewAllowed(plan = getWorkZoCurrentPlan()) {
   const usage = readWorkZoUsage();
   const used = usage.interviewsStarted;
   const limit = getEffectiveInterviewLimit(normalizedPlan);
-  return { allowed: used < limit, reason: used < limit ? "ok" : "freeLimit", remaining: Math.max(0, limit - used), limit, used };
+  return {
+    allowed: used < limit,
+    reason: used < limit ? "ok" : "interview_limit_reached",
+    remaining: Math.max(0, limit - used),
+    limit,
+    used,
+    plan: normalizedPlan,
+  };
 }
 
 export function checkWorkZoTavusAllowed(plan = getWorkZoCurrentPlan()) {
@@ -190,19 +200,15 @@ export function checkWorkZoTavusAllowed(plan = getWorkZoCurrentPlan()) {
   const limits = getWorkZoPlanLimits(normalizedPlan);
 
   if (isWorkZoFounderTestMode()) {
-    return { allowed: true, reason: "test_mode", remaining: 999, limit: 999, used: usage.tavusInterviewsStarted };
+    return { allowed: true, reason: "test_mode", remaining: 999, limit: 999, used: usage.tavusInterviewsStarted, minutesRemaining: 999, minutesLimit: 999, minutesUsed: usage.tavusMinutesUsed, plan: normalizedPlan };
   }
 
   if (!limits.tavus) {
-    return { allowed: false, reason: "video_recruiter_locked", remaining: 0, limit: limits.tavusInterviewsPerMonth, used: usage.tavusInterviewsStarted };
-  }
-
-  if (usage.tavusInterviewsStarted >= limits.tavusInterviewsPerMonth) {
-    return { allowed: false, reason: "video_recruiter_interview_limit", remaining: 0, limit: limits.tavusInterviewsPerMonth, used: usage.tavusInterviewsStarted };
+    return { allowed: false, reason: "video_recruiter_locked", remaining: 0, limit: limits.tavusInterviewsPerMonth, used: usage.tavusInterviewsStarted, minutesRemaining: 0, minutesLimit: limits.tavusMinutesPerMonth, minutesUsed: usage.tavusMinutesUsed, plan: normalizedPlan };
   }
 
   if (usage.tavusMinutesUsed >= limits.tavusMinutesPerMonth) {
-    return { allowed: false, reason: "video_recruiter_minutes_limit", remaining: 0, limit: limits.tavusMinutesPerMonth, used: usage.tavusMinutesUsed };
+    return { allowed: false, reason: "video_recruiter_minutes_limit", remaining: 0, limit: limits.tavusInterviewsPerMonth, used: usage.tavusInterviewsStarted, minutesRemaining: 0, minutesLimit: limits.tavusMinutesPerMonth, minutesUsed: usage.tavusMinutesUsed, plan: normalizedPlan };
   }
 
   return {
@@ -211,6 +217,10 @@ export function checkWorkZoTavusAllowed(plan = getWorkZoCurrentPlan()) {
     remaining: Math.max(0, limits.tavusInterviewsPerMonth - usage.tavusInterviewsStarted),
     limit: limits.tavusInterviewsPerMonth,
     used: usage.tavusInterviewsStarted,
+    minutesRemaining: Math.max(0, limits.tavusMinutesPerMonth - usage.tavusMinutesUsed),
+    minutesLimit: limits.tavusMinutesPerMonth,
+    minutesUsed: usage.tavusMinutesUsed,
+    plan: normalizedPlan,
   };
 }
 
@@ -239,8 +249,9 @@ export function recordWorkZoTavusInterviewStarted() {
 }
 
 export function recordWorkZoTavusMinutes(minutes: number) {
-  const next = updateWorkZoUsage((usage) => ({ ...usage, tavusMinutesUsed: usage.tavusMinutesUsed + Math.max(0, minutes) }));
-  void sendUsageEvent("video_recruiter_minutes_used", { minutes, usage: next, testMode: isWorkZoFounderTestMode() });
+  const safeMinutes = Math.max(0, Math.ceil(Number(minutes) || 0));
+  const next = updateWorkZoUsage((usage) => ({ ...usage, tavusMinutesUsed: usage.tavusMinutesUsed + safeMinutes }));
+  void sendUsageEvent("video_recruiter_minutes_used", { minutes: safeMinutes, usage: next, testMode: isWorkZoFounderTestMode() });
   return next;
 }
 
@@ -255,13 +266,17 @@ export function getWorkZoUsageSummary(plan = getWorkZoCurrentPlan()) {
   const usage = readWorkZoUsage();
   const limits = getWorkZoPlanLimits(normalizedPlan);
   const interviewLimit = getEffectiveInterviewLimit(normalizedPlan);
+  const tavusAllowed = checkWorkZoTavusAllowed(normalizedPlan);
+
   return {
     plan: normalizedPlan,
-    limits: { ...limits, interviewsPerMonth: interviewLimit },
+    limits: { ...limits, interviewsPerMonth: interviewLimit, voiceInterviewsPerMonth: interviewLimit },
     usage,
     testMode: isWorkZoFounderTestMode(),
     interviewsRemaining: Math.max(0, interviewLimit - usage.interviewsStarted),
-    tavusInterviewsRemaining: isWorkZoFounderTestMode() ? 999 : Math.max(0, limits.tavusInterviewsPerMonth - usage.tavusInterviewsStarted),
-    tavusMinutesRemaining: isWorkZoFounderTestMode() ? 999 : Math.max(0, limits.tavusMinutesPerMonth - usage.tavusMinutesUsed),
+    tavusInterviewsRemaining: tavusAllowed.remaining,
+    tavusMinutesRemaining: tavusAllowed.minutesRemaining,
+    tavusMinutesUsed: usage.tavusMinutesUsed,
+    tavusMinutesLimit: limits.tavusMinutesPerMonth,
   };
 }

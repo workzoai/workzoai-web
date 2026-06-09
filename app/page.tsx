@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import WorkZoFooter from "@/components/WorkZoFooter";
 import AuthNavButton from "@/components/auth/AuthNavButton";
-import { getWorkZoDisplayPrice } from "@/lib/workzoLocalizedPricing";
+import { getWorkZoDisplayPrices } from "@/lib/workzoLocalizedPricing";
 
 const trustItems = [
   "CV + job based practice",
@@ -272,7 +272,7 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
 }
 
 export default function LandingPage() {
-  const localizedPrice = useMemo(() => getWorkZoDisplayPrice(), []);
+  const localizedPlans = useMemo(() => getWorkZoDisplayPrices("monthly"), []);
   const glowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -755,71 +755,115 @@ export default function LandingPage() {
 
       {/* ── Pricing ── */}
       <section className="px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-2">
-          <div className="flex flex-col rounded-[2rem] border border-emerald-300/20 bg-emerald-400/[0.06] p-8 backdrop-blur-sm">
-            <p className="text-sm font-black uppercase tracking-[0.20em] text-emerald-300">Free</p>
-            <h3 className="mt-3 text-3xl font-black">2 Free AI Voice Interviews</h3>
-            <p className="mt-3 text-white/60">
-              Experience realistic recruiter interviews with AI voice before upgrading.
+        <div className="mx-auto max-w-7xl">
+          <div className="mx-auto max-w-3xl text-center">
+            <SectionLabel>Pricing</SectionLabel>
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+              Start free. Upgrade when you need deeper support.
+            </h2>
+            <p className="mt-4 text-base leading-7 text-slate-300">
+              Free lets you try the interview engine. Premium unlocks complete preparation. Premium Pro adds AI Career Coach and Live AI Recruiter minutes.
             </p>
-            <ul className="mt-5 space-y-2">
-              {[
-                "2 full AI voice interviews",
-                "CV + job aware interview",
-                "Dynamic recruiter follow-ups",
-                "Interview score preview",
-              ].map((item) => (
-                <li key={item} className="flex items-center gap-2 text-sm text-white/80">
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />{item}
-                </li>
-              ))}
-            </ul>
-            <Link href="/pricing?intent=interview" className="mt-8 inline-flex items-center gap-2 self-start rounded-2xl bg-white px-6 py-3 text-sm font-black text-slate-900 shadow-lg transition hover:scale-[1.02] hover:bg-blue-50">
-              Start Free Interview
-              <ArrowRight className="h-4 w-4" />
-            </Link>
           </div>
 
-          <div className="flex flex-col rounded-[2rem] border border-blue-300/25 bg-blue-500/[0.08] p-8 backdrop-blur-sm">
-            <p className="text-sm font-black uppercase tracking-[0.20em] text-blue-200">Premium</p>
-            <h3 className="mt-3 text-3xl font-black text-white">Unlock AI Video Recruiter</h3>
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <span className="text-lg font-black text-white/40 line-through decoration-2">
-                {localizedPrice.regular}/month
-              </span>
-              <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-200">
-                Opening offer
-              </span>
+          <div className="mt-10 grid gap-5 lg:grid-cols-3">
+            <div className="flex flex-col rounded-[2rem] border border-emerald-300/20 bg-emerald-400/[0.06] p-7 backdrop-blur-sm">
+              <p className="text-sm font-black uppercase tracking-[0.20em] text-emerald-300">Free</p>
+              <h3 className="mt-3 text-2xl font-black">Try WorkZo AI</h3>
+              <p className="mt-4 text-5xl font-black">{localizedPlans.free.amount}</p>
+              <p className="mt-3 min-h-[48px] text-sm leading-6 text-white/60">
+                Try realistic voice interview practice before upgrading.
+              </p>
+              <ul className="mt-5 space-y-2.5">
+                {[
+                  "2 Voice AI Interviews / month",
+                  "Recruiter intelligence trial",
+                  "Realistic follow-up questions",
+                  "Basic interview report",
+                  "Limited interview history",
+                ].map((item) => (
+                  <li key={item} className="flex items-center gap-2 text-sm text-white/80">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />{item}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/pricing?intent=interview" className="mt-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-black text-slate-900 shadow-lg transition hover:scale-[1.02] hover:bg-blue-50">
+                Start Free
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
-            <p className="mt-2 text-5xl font-black">
-              {localizedPrice.opening}<span className="text-xl text-white/50">/month</span>
-            </p>
-            <p className="mt-2 text-sm font-black text-emerald-300">
-              Save 50% as an early WorkZo AI user.
-            </p>
-            <p className="mt-4 text-white/60">
-              Practice with realistic AI recruiter avatars, full interview reports, recruiter memory,
-              CV tools, and job preparation features.
-            </p>
-            <ul className="mt-5 space-y-2">
-              {[
-                "25 interviews/month",
-                "AI Video Recruiter",
-                "Full interview reports",
-                "Interview history",
-                "Improve CV",
-                "Cover Letter Generator",
-                "Job Assist",
-              ].map((item) => (
-                <li key={item} className="flex items-center gap-2 text-sm text-white/80">
-                  <ShieldCheck className="h-4 w-4 shrink-0 text-blue-200" />{item}
-                </li>
-              ))}
-            </ul>
-            <Link href="/pricing?intent=upgrade" className="mt-8 inline-flex items-center gap-2 self-start rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] hover:bg-blue-400">
-              Upgrade to Premium
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+
+            <div className="relative flex flex-col rounded-[2rem] border border-blue-300/25 bg-blue-500/[0.10] p-7 shadow-2xl shadow-blue-950/20 backdrop-blur-sm">
+              <div className="absolute right-5 top-5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">
+                Most Popular
+              </div>
+              <p className="text-sm font-black uppercase tracking-[0.20em] text-blue-200">Premium</p>
+              <h3 className="mt-3 pr-24 text-2xl font-black text-white">Complete Preparation</h3>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <span className="text-lg font-black text-white/40 line-through decoration-2">{localizedPlans.premium.regular}</span>
+                <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-200">Launch offer</span>
+              </div>
+              <p className="mt-2 text-5xl font-black">
+                {localizedPlans.premium.amount}<span className="text-xl text-white/50">/month</span>
+              </p>
+              <p className="mt-3 min-h-[48px] text-sm leading-6 text-white/60">
+                50 voice interviews, CV improvement, cover letters, Job Assist, Career Brain, and advanced reports.
+              </p>
+              <ul className="mt-5 space-y-2.5">
+                {[
+                  "50 Voice AI Interviews / month",
+                  "Advanced recruiter intelligence",
+                  "CV Improvement + ATS Optimization",
+                  "Cover Letter Generator",
+                  "Job Assist",
+                  "Career Brain + performance tracking",
+                ].map((item) => (
+                  <li key={item} className="flex items-center gap-2 text-sm text-white/80">
+                    <ShieldCheck className="h-4 w-4 shrink-0 text-blue-200" />{item}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/pricing?plan=premium" className="mt-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] hover:bg-blue-400">
+                Choose Premium
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="relative flex flex-col rounded-[2rem] border border-violet-300/25 bg-violet-500/[0.10] p-7 shadow-2xl shadow-violet-950/20 backdrop-blur-sm">
+              <div className="absolute right-5 top-5 rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-violet-100">
+                Best Experience
+              </div>
+              <p className="text-sm font-black uppercase tracking-[0.20em] text-violet-200">Premium Pro</p>
+              <h3 className="mt-3 pr-24 text-2xl font-black text-white">AI Career Coach + Live Recruiter</h3>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <span className="text-lg font-black text-white/40 line-through decoration-2">{localizedPlans.premiumPro.regular}</span>
+                <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-200">Launch offer</span>
+              </div>
+              <p className="mt-2 text-5xl font-black">
+                {localizedPlans.premiumPro.amount}<span className="text-xl text-white/50">/month</span>
+              </p>
+              <p className="mt-3 min-h-[48px] text-sm leading-6 text-white/60">
+                Full career support with unlimited voice interviews and 60 Live AI Recruiter minutes per month.
+              </p>
+              <ul className="mt-5 space-y-2.5">
+                {[
+                  "Everything in Premium",
+                  "Unlimited Voice AI Interviews",
+                  "60 Live AI Recruiter Minutes / month",
+                  "Live AI Video Recruiter",
+                  "Premium recruiter personas",
+                  "AI Career Coach + roadmaps",
+                ].map((item) => (
+                  <li key={item} className="flex items-center gap-2 text-sm text-white/80">
+                    <Sparkles className="h-4 w-4 shrink-0 text-violet-200" />{item}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/pricing?plan=premium_pro" className="mt-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition hover:scale-[1.02] hover:bg-violet-400">
+                Choose Premium Pro
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>
