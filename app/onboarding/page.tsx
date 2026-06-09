@@ -679,42 +679,49 @@ export default function OnboardingPage() {
     visualReadinessByStep[step] || readiness,
   );
 
+  const cvReady = Boolean((manualCv || setup.cvText || "").trim()) && !uploading && aiCvStructuringStatus !== "structuring";
+  const roleReady = Boolean(role.trim());
+  const preferencesReady = Boolean(market && companyStyle && recruiter && interviewLanguage);
+  const jdReady = Boolean(jobDescription.trim());
+
   const currentStepLabel =
     steps.find((item) => item.id === step)?.label || "Setup";
+
+  const recruiterFirstName = recruiterLabel(recruiter).split(" ·")[0].trim();
 
   const setupGuideContent: Record<
     number,
     { title: string; description: string; summary: string }
   > = {
     1: {
-      title: "WorkZo is understanding your experience.",
+      title: `${recruiterFirstName} is building your interview.`,
       description:
         "Add your CV first. The recruiter will use your real background instead of asking generic practice questions.",
-      summary: `Your CV context is being prepared for ${recruiterLabel(recruiter)}.`,
+      summary: `${recruiterFirstName} will interview you as a ${recruiters.find((r) => r.key === normalizeRecruiterKey(recruiter))?.role ?? "Hiring Manager"}.`,
     },
     2: {
-      title: "Interview questions are adapting to your role.",
+      title: `${recruiterFirstName} is preparing role-specific questions.`,
       description:
         "Add a target role or job description so WorkZo can ask sharper, role-specific follow-ups.",
-      summary: `You are shaping this interview around ${role.trim() || "your target role"}.`,
+      summary: `${recruiterFirstName} will tailor every question to ${role.trim() || "your target role"}.`,
     },
     3: {
-      title: "Recruiter behavior is being calibrated.",
+      title: `${recruiterFirstName} is calibrating interview pressure.`,
       description:
         "Market, company style, and recruiter personality quietly shape the pressure, tone, and expectations.",
-      summary: `You are choosing ${recruiterLabel(recruiter)} with a ${companyStyle.toLowerCase()} interview style in ${interviewLanguage}.`,
+      summary: `${recruiterFirstName} will run a ${companyStyle.toLowerCase()} interview in ${interviewLanguage}.`,
     },
     4: {
-      title: "Pressure and follow-up logic are prepared.",
+      title: `${recruiterFirstName} has your interview ready.`,
       description:
         "Review the setup once. WorkZo will use this context to simulate a more realistic recruiter conversation.",
-      summary: `You are preparing a realistic interview with ${recruiterLabel(recruiter)}.`,
+      summary: `${recruiterFirstName} will interview you for ${role.trim() || "your target role"}.`,
     },
     5: {
-      title: "Your interview runtime is ready.",
+      title: `${recruiterFirstName} is waiting in the interview room.`,
       description:
         "Start when ready. You can still return and edit your setup before practicing again.",
-      summary: `Your interview room is ready with ${recruiterLabel(recruiter)}.`,
+      summary: `${recruiterFirstName} will interview you for ${role.trim() || "your target role"}.`,
     },
   };
 
@@ -1196,7 +1203,7 @@ export default function OnboardingPage() {
             <span className="font-black">Onboarding</span>
           </Link>
 
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="relative hidden items-center gap-3 rounded-full border border-white/[0.055] bg-white/[0.03] px-4 py-2 md:flex">
             {steps.map((item, index) => {
               const complete = step > item.id;
               const active = step === item.id;
@@ -1227,7 +1234,7 @@ export default function OnboardingPage() {
                     {item.label}
                   </span>
                   {index !== steps.length - 1 && (
-                    <span className="h-px w-12 bg-white/12" />
+                    <span className="h-px w-8 bg-white/[0.08]" />
                   )}
                 </div>
               );
@@ -1265,19 +1272,17 @@ export default function OnboardingPage() {
             <div className="flex-1 overflow-hidden p-4 pb-28 xl:p-5">
               {step === 1 && (
                 <div className="flex min-h-[520px] flex-col">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/18 text-blue-200">
-                      <Upload className="h-6 w-6" />
+                  <div className="flex items-center gap-3 border-b border-white/[0.07] pb-4 mb-5">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/18 text-blue-200">
+                      <Upload className="h-5 w-5" />
                     </div>
-                    <div>
-                      <h1 className="text-3xl font-black tracking-tight">
-                        Upload your CV
-                      </h1>
-                      <p className="mt-1 text-sm text-slate-400">
-                        WorkZo reads your real experience before asking
-                        questions.
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-300/70">Step 1 of 5</p>
+                      <h1 className="mt-0.5 text-2xl font-black leading-none tracking-tight">Upload your CV</h1>
                     </div>
+                    <p className="hidden max-w-[200px] text-right text-xs leading-5 text-slate-500 sm:block">
+                      WorkZo reads your real experience before asking questions.
+                    </p>
                   </div>
 
                   {/* Upload zone — shown only when no file selected yet */}
@@ -1288,10 +1293,14 @@ export default function OnboardingPage() {
                         <p className="mt-3 text-lg font-black text-white">Reading CV...</p>
                       </div>
                     ) : (
-                      <label className="mt-4 flex h-[138px] shrink-0 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-blue-300/30 bg-blue-500/8 p-5 text-center transition hover:bg-blue-500/12">
-                        <Upload className="h-8 w-8 text-blue-200" />
-                        <p className="mt-3 text-lg font-black">Choose CV file</p>
-                        <p className="mt-1.5 text-sm text-slate-400">PDF, DOCX, or TXT. Manual paste is available below.</p>
+                      <label className="flex min-h-[160px] shrink-0 cursor-pointer flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-blue-300/25 bg-gradient-to-b from-blue-500/[0.07] to-blue-500/[0.03] p-8 text-center transition hover:border-blue-300/40 hover:bg-blue-500/10">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/20 text-blue-200">
+                          <Upload className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <p className="text-base font-black text-white">Drop your CV here</p>
+                          <p className="mt-1 text-sm text-slate-400">PDF, DOCX, or TXT · or click to browse</p>
+                        </div>
                         <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleCvUpload} className="hidden" />
                       </label>
                     )
@@ -1331,13 +1340,22 @@ export default function OnboardingPage() {
                         {/* File info */}
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-black text-white">{fileName}</p>
-                          <p className={cn(
-                            "mt-0.5 text-xs font-bold",
-                            uploading || aiCvStructuringStatus === "structuring" ? "text-blue-300" :
-                            aiCvStructuringStatus === "fallback" ? "text-amber-300" :
-                            uploadError ? "text-red-300" :
-                            "text-emerald-300"
+                          <span className={cn(
+                            "mt-1 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em]",
+                            uploading || aiCvStructuringStatus === "structuring"
+                              ? "border-blue-300/20 bg-blue-500/10 text-blue-300"
+                              : aiCvStructuringStatus === "fallback"
+                              ? "border-amber-300/20 bg-amber-500/10 text-amber-300"
+                              : uploadError
+                              ? "border-red-300/20 bg-red-500/10 text-red-300"
+                              : "border-emerald-300/20 bg-emerald-500/10 text-emerald-300"
                           )}>
+                            <span className={cn(
+                              "h-1.5 w-1.5 rounded-full",
+                              uploading || aiCvStructuringStatus === "structuring" ? "animate-pulse bg-blue-300" :
+                              aiCvStructuringStatus === "fallback" ? "bg-amber-300" :
+                              uploadError ? "bg-red-300" : "bg-emerald-300"
+                            )} />
                             {uploading
                               ? "Reading file..."
                               : aiCvStructuringStatus === "structuring"
@@ -1349,7 +1367,7 @@ export default function OnboardingPage() {
                               : manualCv
                               ? "CV extracted · ready"
                               : "Waiting for text..."}
-                          </p>
+                          </span>
                         </div>
 
                         {/* Change / Remove file buttons */}
@@ -1376,8 +1394,8 @@ export default function OnboardingPage() {
 
                       {/* Character count bar — shown when text is ready */}
                       {!uploading && manualCv && aiCvStructuringStatus !== "structuring" && (
-                        <div className="border-t border-white/8 px-4 pb-4 pt-3">
-                          <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                        <div className="flex items-center gap-3 border-t border-white/[0.06] px-4 py-3">
+                          <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-white/10">
                             <div
                               className={cn(
                                 "h-full rounded-full transition-all duration-700",
@@ -1386,8 +1404,8 @@ export default function OnboardingPage() {
                               style={{ width: `${Math.min(100, Math.round((manualCv.length / 3000) * 100))}%` }}
                             />
                           </div>
-                          <p className="mt-1.5 text-xs text-slate-500">
-                            {manualCv.length.toLocaleString()} characters · ~{Math.round(manualCv.length / 5).toLocaleString()} words extracted
+                          <p className="shrink-0 tabular-nums text-xs text-slate-500">
+                            {manualCv.length.toLocaleString()} chars · ~{Math.round(manualCv.length / 5).toLocaleString()} words
                           </p>
                         </div>
                       )}
@@ -1460,70 +1478,72 @@ export default function OnboardingPage() {
 
               {step === 2 && (
                 <div className="flex min-h-[360px] flex-col">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/16 text-cyan-200">
-                      <Briefcase className="h-6 w-6" />
+                  <div className="flex items-center gap-3 border-b border-white/[0.07] pb-4 mb-5">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/16 text-cyan-200">
+                      <Briefcase className="h-5 w-5" />
                     </div>
-                    <div>
-                      <h1 className="text-3xl font-black tracking-tight">
-                        Choose your target role
-                      </h1>
-                      <p className="mt-1 text-sm text-slate-400">
-                        Questions adapt to the role and job description.
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-300/70">Step 2 of 5</p>
+                      <h1 className="mt-0.5 text-2xl font-black leading-none tracking-tight">Choose your target role</h1>
                     </div>
+                    <p className="hidden max-w-[200px] text-right text-xs leading-5 text-slate-500 sm:block">
+                      Questions adapt to the role and job description.
+                    </p>
                   </div>
 
-                  <div className="mt-5 shrink-0">
-                    <label className="text-xs font-black uppercase tracking-[0.28em] text-slate-500">
+                  <div className="shrink-0 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
+                    <label className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-500">
                       Target role
                     </label>
                     <input
                       value={role}
                       onChange={(event) => setRole(event.target.value)}
                       placeholder="Example: Customer Success Manager"
-                      className="mt-3 h-14 w-full rounded-3xl border border-white/10 bg-[#050b16] px-5 text-lg font-bold text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
+                      className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-[#050b16] px-5 text-base font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/40"
                     />
                   </div>
 
-                  <div className="mt-5 min-h-0 flex-1">
-                    <label className="text-xs font-black uppercase tracking-[0.28em] text-slate-500">
-                      Job description
-                    </label>
+                  <div className="mt-4 flex min-h-0 flex-1 flex-col rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-500">
+                        Job description
+                      </label>
+                      <span className="tabular-nums text-[10px] text-slate-600">
+                        {jobDescription.length > 0 ? `${jobDescription.length.toLocaleString()} chars` : "optional"}
+                      </span>
+                    </div>
                     <textarea
                       value={jobDescription}
                       onChange={(event) =>
                         setJobDescription(event.target.value)
                       }
                       placeholder="Paste the job description here so the recruiter can ask job-specific follow-ups..."
-                      className="mt-3 h-[calc(100%-32px)] w-full resize-none rounded-3xl border border-white/10 bg-[#050b16] p-5 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
+                      className="mt-3 min-h-0 flex-1 w-full resize-none rounded-2xl border border-white/10 bg-[#050b16] p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/40"
                     />
+                    <p className="mt-2 flex items-center gap-1.5 text-[11px] leading-5 text-slate-500">
+                      <Sparkles className="h-3 w-3 shrink-0 text-cyan-400/60" />
+                      Tip: Paste the full job post for the most realistic questions.
+                    </p>
                   </div>
                 </div>
               )}
 
               {step === 3 && (
                 <div className="flex min-h-[560px] flex-col xl:h-full xl:min-h-0">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-500/14 text-indigo-200">
-                      <Globe2 className="h-6 w-6" />
+                  <div className="flex items-center gap-3 border-b border-white/[0.07] pb-4 mb-5">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/14 text-indigo-200">
+                      <Globe2 className="h-5 w-5" />
                     </div>
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300/80">
-                        One decision at a time
-                      </p>
-                      <h1 className="mt-1 text-3xl font-black tracking-tight">
-                        Choose interview style
-                      </h1>
-                      <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-                        Pick the market, company style, and recruiter
-                        personality. WorkZo will adapt the interview behavior
-                        quietly in the background.
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-indigo-300/70">Step 3 of 5</p>
+                      <h1 className="mt-0.5 text-2xl font-black leading-none tracking-tight">Choose interview style</h1>
                     </div>
+                    <p className="hidden max-w-[200px] text-right text-xs leading-5 text-slate-500 sm:block">
+                      Market, style, and recruiter shape the pressure and tone.
+                    </p>
                   </div>
 
-                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <div className="mt-0 grid gap-3 md:grid-cols-2">
                     <section className="rounded-[26px] border border-white/10 bg-black/18 p-4">
                       <p className="text-xs font-black uppercase tracking-[0.26em] text-slate-500">
                         Target market
@@ -1536,7 +1556,7 @@ export default function OnboardingPage() {
                             className={cn(
                               "rounded-2xl border px-3 py-3 text-sm font-black transition active:scale-[0.98]",
                               market === item.label
-                                ? "border-cyan-300/40 bg-cyan-400/14 text-white shadow-[0_0_24px_rgba(14,165,233,0.16)]"
+                                ? "border-cyan-300/40 bg-cyan-400/14 text-white shadow-[0_0_28px_rgba(14,165,233,0.22)] ring-1 ring-cyan-300/20"
                                 : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.07]",
                             )}
                           >
@@ -1559,7 +1579,7 @@ export default function OnboardingPage() {
                             className={cn(
                               "rounded-2xl border px-3 py-3 text-sm font-black transition active:scale-[0.98]",
                               companyStyle === item
-                                ? "border-violet-300/40 bg-violet-400/14 text-white shadow-[0_0_24px_rgba(139,92,246,0.16)]"
+                                ? "border-violet-300/40 bg-violet-400/14 text-white shadow-[0_0_28px_rgba(139,92,246,0.22)] ring-1 ring-violet-300/20"
                                 : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.07]",
                             )}
                           >
@@ -1594,7 +1614,7 @@ export default function OnboardingPage() {
                           className={cn(
                             "rounded-2xl border px-3 py-3 text-left transition active:scale-[0.98]",
                             interviewLanguage === item.label
-                              ? "border-blue-300/45 bg-blue-400/14 text-white shadow-[0_0_24px_rgba(59,130,246,0.16)]"
+                              ? "border-blue-300/45 bg-blue-400/14 text-white shadow-[0_0_28px_rgba(59,130,246,0.22)] ring-1 ring-blue-300/20"
                               : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.07]",
                           )}
                         >
@@ -1624,46 +1644,57 @@ export default function OnboardingPage() {
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                       {recruiters.map((item) => {
                         const allowed = isWorkZoPlanAtLeast(currentPlan, item.requiredPlan);
+                        const selected = recruiter === item.key;
 
                         return (
                           <button
-                          key={item.key}
-                          onClick={() => allowed ? setRecruiter(item.key) : router.push(`/pricing?plan=${item.requiredPlan}&intent=recruiter`)}
-                          className={cn(
-                            "relative rounded-[24px] border p-4 text-left transition active:scale-[0.99]",
-                            !allowed && "opacity-60",
-                            recruiter === item.key
-                              ? "border-cyan-300/45 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.14)]"
-                              : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06]",
-                          )}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/8 text-lg">
-                              {item.avatar}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <h3 className="text-base font-black leading-5">
-                                  {item.name}
-                                </h3>
-                                {recruiter === item.key && (
-                                  <span className="rounded-full bg-cyan-300/14 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">Selected</span>
-                                )}
-                                {!allowed && (
-                                  <span className="rounded-full bg-white/8 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{item.requiredPlan === "premium_pro" ? "Pro" : "Premium"}</span>
-                                )}
+                            key={item.key}
+                            onClick={() =>
+                              allowed
+                                ? setRecruiter(item.key)
+                                : router.push(`/pricing?plan=${item.requiredPlan}&intent=recruiter`)
+                            }
+                            className={cn(
+                              "relative rounded-[24px] border p-4 text-left transition active:scale-[0.99]",
+                              !allowed && "opacity-60",
+                              selected
+                                ? "border-cyan-300/45 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.14)]"
+                                : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06]",
+                            )}
+                          >
+                            {selected && (
+                              <span className="absolute right-3 top-3 rounded-full border border-cyan-300/25 bg-cyan-400/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-200">
+                                ✓ Selected
+                              </span>
+                            )}
+
+                            {!allowed && (
+                              <span className="absolute right-3 top-12 rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-300">
+                                {item.requiredPlan === "premium_pro" ? "Pro" : "Premium"}
+                              </span>
+                            )}
+
+                            <div className="flex items-start gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/8 text-lg">
+                                {item.avatar}
                               </div>
-                              <p className="mt-0.5 text-xs font-bold text-slate-400">
-                                {item.role}
-                              </p>
-                              <p className="mt-2 text-sm leading-5 text-slate-300">
-                                {item.description}
-                              </p>
-                              <p className="mt-3 border-l border-cyan-300/20 pl-3 text-xs italic leading-5 text-slate-400">
-                                “{item.quote}”
-                              </p>
+                              <div className="min-w-0 flex-1 pr-20">
+                                <div className="flex items-center gap-2">
+                                  <h3 className="text-base font-black leading-5">
+                                    {item.name}
+                                  </h3>
+                                </div>
+                                <p className="mt-0.5 text-xs font-bold text-slate-400">
+                                  {item.role}
+                                </p>
+                                <p className="mt-2 text-sm leading-5 text-slate-300">
+                                  {item.description}
+                                </p>
+                                <p className="mt-3 border-l border-cyan-300/20 pl-3 text-xs italic leading-5 text-slate-400">
+                                  “{item.quote}”
+                                </p>
+                              </div>
                             </div>
-                          </div>
                           </button>
                         );
                       })}
@@ -1674,80 +1705,75 @@ export default function OnboardingPage() {
 
               {step === 4 && (
                 <div className="flex min-h-[360px] flex-col">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/16 text-emerald-200">
-                      <ShieldCheck className="h-6 w-6" />
+                  <div className="flex items-center gap-3 border-b border-white/[0.07] pb-4 mb-5">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/16 text-emerald-200">
+                      <ShieldCheck className="h-5 w-5" />
                     </div>
-                    <div>
-                      <h1 className="text-3xl font-black tracking-tight">
-                        Preview your setup
-                      </h1>
-                      <p className="mt-1 text-sm text-slate-400">
-                        Check the recruiter context before entering the room.
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-300/70">Step 4 of 5</p>
+                      <h1 className="mt-0.5 text-2xl font-black leading-none tracking-tight">Preview your setup</h1>
+                    </div>
+                    <p className="hidden max-w-[200px] text-right text-xs leading-5 text-slate-500 sm:block">
+                      Check the recruiter context before entering the room.
+                    </p>
+                  </div>
+
+                  {/* Group 1: Interview Setup */}
+                  <div>
+                    <p className="mb-2 text-[10px] font-black uppercase tracking-[0.26em] text-slate-600">
+                      Interview Setup
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {([
+                        { label: "CV Status", value: manualCv || setup.cvText ? "CV ready" : "Missing", Icon: FileText, color: "text-blue-300" },
+                        { label: "Target Role", value: compactText(role, "General Role"), Icon: Briefcase, color: "text-cyan-300" },
+                        { label: "Market", value: market, Icon: Globe2, color: "text-cyan-300" },
+                        { label: "Company Style", value: companyStyle, Icon: Building2, color: "text-violet-300" },
+                      ] as (PreviewCard & { color: string })[]).map(({ label, value, Icon, color }) => (
+                        <div key={label} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                          <Icon className={cn("h-4 w-4 shrink-0", color)} />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-600">{label}</p>
+                            <p className="mt-0.5 truncate text-sm font-black">{value}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                    {(
-                      [
-                        {
-                          label: "CV Status",
-                          value:
-                            manualCv || setup.cvText ? "CV ready" : "Missing",
-                          Icon: FileText,
-                        },
-                        {
-                          label: "Target Role",
-                          value: compactText(role, "General Role"),
-                          Icon: Briefcase,
-                        },
-                        { label: "Market", value: market, Icon: Globe2 },
-                        {
-                          label: "Company Style",
-                          value: companyStyle,
-                          Icon: Building2,
-                        },
-                        {
-                          label: "Recruiter",
-                          value: recruiterLabel(recruiter),
-                          Icon: UserRound,
-                        },
-                        {
-                          label: "Interview Language",
-                          value: interviewLanguage,
-                          Icon: Globe2,
-                        },
-                        {
-                          label: "Readiness",
-                          value: `${readiness}%`,
-                          Icon: Sparkles,
-                        },
-                      ] satisfies PreviewCard[]
-                    ).map(({ label, value, Icon }) => (
-                      <div
-                        key={label}
-                        className="rounded-3xl border border-white/10 bg-black/20 p-4"
-                      >
-                        <Icon className="h-5 w-5 text-blue-200" />
-                        <p className="mt-3 text-xs font-black uppercase tracking-[0.24em] text-slate-500">
-                          {label}
-                        </p>
-                        <p className="mt-2 text-lg font-black">{value}</p>
-                      </div>
-                    ))}
+                  {/* Group 2: Recruiter Config */}
+                  <div className="mt-3">
+                    <p className="mb-2 text-[10px] font-black uppercase tracking-[0.26em] text-slate-600">
+                      Recruiter Config
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {([
+                        { label: "Recruiter", value: recruiterLabel(recruiter), Icon: UserRound, color: "text-emerald-300" },
+                        { label: "Interview Language", value: interviewLanguage, Icon: Globe2, color: "text-blue-300" },
+                      ] as (PreviewCard & { color: string })[]).map(({ label, value, Icon, color }) => (
+                        <div key={label} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                          <Icon className={cn("h-4 w-4 shrink-0", color)} />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-600">{label}</p>
+                            <p className="mt-0.5 truncate text-sm font-black">{value}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="mt-4 rounded-3xl border border-white/10 bg-[#050b16] p-4">
+                  {/* Readiness: standalone highlighted card */}
+                  <div className="mt-4 rounded-3xl border border-emerald-300/25 bg-gradient-to-br from-emerald-500/[0.07] via-[#050b16] to-[#050b16] p-4 shadow-[0_0_30px_rgba(52,211,153,0.10)]">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-bold text-slate-300">
-                        Simulation readiness
-                      </p>
-                      <p className="text-sm font-black">{readiness}%</p>
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-emerald-300" />
+                        <p className="text-sm font-bold text-slate-300">Simulation readiness</p>
+                      </div>
+                      <p className="text-2xl font-black text-emerald-300 tabular-nums">{readiness}%</p>
                     </div>
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-300"
+                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-300 transition-all duration-500"
                         style={{ width: `${visualReadiness}%` }}
                       />
                     </div>
@@ -1762,12 +1788,49 @@ export default function OnboardingPage() {
               {step === 5 && (
                 <div className="flex h-full flex-col justify-center">
                   <div className="mx-auto max-w-xl text-center">
+                    {/* Summary chips */}
+                    <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
+                      {role.trim() && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/20 bg-cyan-400/8 px-3 py-1.5 text-xs font-black text-cyan-200">
+                          <Briefcase className="h-3 w-3" />
+                          {role.trim().length > 28 ? `${role.trim().slice(0, 28)}…` : role.trim()}
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-300/20 bg-violet-400/8 px-3 py-1.5 text-xs font-black text-violet-200">
+                        <Globe2 className="h-3 w-3" />
+                        {market}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/8 px-3 py-1.5 text-xs font-black text-emerald-200">
+                        <UserRound className="h-3 w-3" />
+                        {recruiterLabel(recruiter)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-blue-300/20 bg-blue-400/8 px-3 py-1.5 text-xs font-black text-blue-200">
+                        {interviewLanguage}
+                      </span>
+                    </div>
+
                     <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-r from-blue-500 to-cyan-400 shadow-[0_0_50px_rgba(14,165,233,0.28)]">
                       <Mic className="h-8 w-8" />
                     </div>
-                    <h1 className="mt-6 text-4xl font-black tracking-tight">
-                      Your interview room is ready
-                    </h1>
+
+                    {role.trim() ? (
+                      <>
+                        <p className="mt-6 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+                          You&apos;re set up for:
+                        </p>
+                        <h1 className="mt-2 text-3xl font-black tracking-tight">
+                          <span className="bg-gradient-to-r from-blue-300 to-cyan-300 bg-clip-text text-transparent">
+                            {role.trim().length > 40 ? `${role.trim().slice(0, 40)}…` : role.trim()}
+                          </span>
+                          <span className="mt-1 block text-xl font-black text-white">interview room is ready</span>
+                        </h1>
+                      </>
+                    ) : (
+                      <h1 className="mt-6 text-4xl font-black tracking-tight">
+                        Your interview room is ready
+                      </h1>
+                    )}
+
                     <p className="mt-4 text-base leading-7 text-slate-400">
                       WorkZo will simulate a real recruiter using your CV, role,
                       target market, company style, selected language, pressure logic, and memory.
@@ -1785,7 +1848,7 @@ export default function OnboardingPage() {
               )}
             </div>
 
-            <div className="flex h-[54px] shrink-0 items-center justify-between border-t border-white/10 bg-gradient-to-r from-white/[0.02] via-blue-500/5 to-indigo-500/8 px-5 backdrop-blur-xl">
+            <div className="flex h-[58px] shrink-0 items-center justify-between border-t border-white/10 bg-gradient-to-r from-white/[0.02] via-blue-500/5 to-indigo-500/8 px-5 backdrop-blur-xl">
               <button
                 onClick={back}
                 disabled={step === 1}
@@ -1848,84 +1911,137 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
+              {/* ── Readiness checklist ── */}
               <div className="relative z-10 mt-6 rounded-[26px] border border-white/[0.065] bg-black/16 p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/12 text-blue-200">
-                      <Radar className="h-6 w-6" />
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/12 text-blue-200">
+                      <Radar className="h-4.5 w-4.5" />
                     </div>
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
-                        Readiness
-                      </p>
-                      <p className="mt-1 text-2xl font-black">
-                        {visualReadiness}%
-                      </p>
-                    </div>
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
+                      Interview Readiness
+                    </p>
                   </div>
-                  <span className="rounded-full border border-emerald-300/15 bg-emerald-400/8 px-3 py-1.5 text-xs font-black text-emerald-200">
+                  <span className="rounded-full border border-emerald-300/15 bg-emerald-400/8 px-2.5 py-1 text-[10px] font-black text-emerald-200">
                     Auto-saved
                   </span>
                 </div>
 
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                <div className="space-y-2">
+                  {([
+                    { label: "CV Uploaded", done: cvReady, detail: cvReady ? "Resume loaded into recruiter memory" : "Upload your CV to continue" },
+                    { label: "Role Selected", done: roleReady, detail: roleReady ? `Preparing questions for ${role.trim().length > 30 ? `${role.trim().slice(0, 30)}…` : role.trim()}` : "Enter your target role" },
+                    { label: "Preferences Set", done: preferencesReady, detail: preferencesReady ? `${companyStyle} style · ${interviewLanguage}` : "Choose market, style, and recruiter" },
+                    { label: "JD Added", done: jdReady, detail: jdReady ? "Role requirements mapped to questions" : "Optional — adds role-specific depth" },
+                  ]).map(({ label, done, detail }) => (
+                    <div key={label} className={cn(
+                      "flex items-start gap-2.5 rounded-2xl border px-3 py-2.5 transition-all duration-300",
+                      done
+                        ? "border-emerald-300/20 bg-emerald-500/[0.07]"
+                        : "border-white/[0.06] bg-white/[0.025]"
+                    )}>
+                      <span className={cn(
+                        "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-black",
+                        done ? "bg-emerald-400 text-black" : "bg-white/10 text-slate-500"
+                      )}>
+                        {done ? "✓" : "○"}
+                      </span>
+                      <div className="min-w-0">
+                        <p className={cn("text-xs font-black", done ? "text-white" : "text-slate-500")}>{label}</p>
+                        <p className={cn("mt-0.5 text-[10px] leading-4", done ? "text-emerald-200/70" : "text-slate-600")}>{detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-300 to-emerald-300 transition-all duration-500"
                     style={{ width: `${readiness}%` }}
                   />
                 </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {analysisSignals.slice(0, 4).map((signal, index) => {
-                    const active =
-                      index === 0 ||
-                      readiness >= 50 ||
-                      (readiness >= 25 && index < 3) ||
-                      (readiness >= 75 && index < 4);
-
-                    return (
-                      <span
-                        key={signal}
-                        className={cn(
-                          "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold",
-                          active
-                            ? "border-emerald-300/12 bg-emerald-400/8 text-emerald-100"
-                            : "border-white/[0.06] bg-white/[0.03] text-slate-500",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-2 w-2 rounded-full",
-                            active ? "bg-emerald-300" : "bg-slate-600",
-                          )}
-                        />
-                        {signal}
-                      </span>
-                    );
-                  })}
-                </div>
+                <p className="mt-1.5 text-right text-[10px] tabular-nums text-slate-600">{[cvReady, roleReady, preferencesReady, jdReady].filter(Boolean).length} / 4 complete</p>
               </div>
 
-              <div className="relative z-10 mt-4 rounded-[26px] border border-white/[0.065] bg-white/[0.026] p-4">
+              {/* ── Setup summary ── */}
+              <div className="relative z-10 mt-3 rounded-[26px] border border-white/[0.065] bg-white/[0.026] p-4">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-500/12 text-blue-200">
-                    <Sparkles className="h-5 w-5" />
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-500/12 text-blue-200">
+                    <Sparkles className="h-4 w-4" />
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
-                      Setup summary
+                      Recruiter context
                     </p>
-                    <p className="mt-1 text-sm font-black leading-6 text-white">
+                    <p className="mt-1 text-sm font-black leading-5 text-white">
                       {guide.summary}
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">
-                      Current step: {currentStepLabel}
-                    </p>
+                    <p className="mt-2 text-xs text-slate-500">Questions will reference:</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {(["Experience", "Skills", "Projects", ...(jdReady ? ["Job Requirements"] : [])]).map((item) => (
+                        <span key={item} className="inline-flex items-center gap-1 rounded-full border border-emerald-300/15 bg-emerald-400/8 px-2 py-0.5 text-[10px] font-black text-emerald-200">
+                          ✓ {item}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex items-center gap-1.5">
+                      {steps.map((item) => (
+                        <div
+                          key={item.id}
+                          className={cn(
+                            "h-1.5 rounded-full transition-all duration-300",
+                            item.id < step ? "w-4 bg-emerald-400/60" :
+                            item.id === step ? "w-5 bg-blue-400" : "w-1.5 bg-white/15"
+                          )}
+                        />
+                      ))}
+                      <span className="ml-1 text-[10px] font-bold text-slate-600">Step {step} of 5</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="relative z-10 mt-auto pt-3">
+              {/* ── Interview preview ── */}
+              <div className="relative z-10 mt-3 overflow-hidden rounded-[26px] border border-blue-300/[0.12] bg-blue-500/[0.05] p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-300/70">Interview Preview</p>
+                <div className="mt-3 rounded-2xl border border-white/[0.08] bg-black/20 px-3.5 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-200/70">{recruiterFirstName}:</p>
+                  <p className="mt-1.5 text-sm font-semibold leading-5 text-white/80">
+                    {role.trim()
+                      ? `"Tell me about a time you had to solve a difficult problem in your ${role.trim().length > 25 ? `${role.trim().slice(0, 25)}…` : role.trim()} work."`
+                      : `"Tell me about a project where you solved a difficult problem."`}
+                  </p>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2">
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">Difficulty</p>
+                    <p className="mt-0.5 text-xs font-black text-amber-300">Medium</p>
+                  </div>
+                  <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2">
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">Duration</p>
+                    <p className="mt-0.5 text-xs font-black text-slate-300">15–20 min</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Social proof + privacy ── */}
+              <div className="relative z-10 mt-auto pt-3 space-y-2">
+                <div className="flex items-center justify-center gap-4 rounded-[20px] border border-white/[0.055] bg-white/[0.02] px-4 py-2.5">
+                  <div className="text-center">
+                    <p className="text-sm font-black text-white">500+</p>
+                    <p className="text-[10px] text-slate-600">AI interviews</p>
+                  </div>
+                  <div className="h-6 w-px bg-white/10" />
+                  <div className="text-center">
+                    <p className="text-sm font-black text-white">10+</p>
+                    <p className="text-[10px] text-slate-600">Countries</p>
+                  </div>
+                  <div className="h-6 w-px bg-white/10" />
+                  <div className="text-center">
+                    <p className="text-sm font-black text-white">4</p>
+                    <p className="text-[10px] text-slate-600">Recruiters</p>
+                  </div>
+                </div>
                 <div className="flex items-start gap-3 rounded-[22px] border border-emerald-300/10 bg-emerald-400/[0.055] px-4 py-3 text-xs font-bold leading-5 text-emerald-100/90">
                   <Lock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-200" />
                   <span>
