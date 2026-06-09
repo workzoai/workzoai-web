@@ -2320,7 +2320,7 @@ export default function InterviewPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const marker = "__workzoKrispConsoleFilterInstalled";
+    const marker = "__workzoConsoleNoiseFilterInstalled";
     const scopedWindow = window as unknown as Window & { [key: string]: unknown };
 
     if (scopedWindow[marker]) return;
@@ -2330,23 +2330,27 @@ export default function InterviewPage() {
 
     console.error = (...args: unknown[]) => {
       const message = args
-        .map((arg) => {
-          if (arg instanceof Error) return arg.message;
-          if (typeof arg === "string") return arg;
+        .map((item) => {
+          if (typeof item === "string") return item;
+          if (item instanceof Error) return item.message;
           try {
-            return JSON.stringify(arg);
+            return JSON.stringify(item);
           } catch {
             return "";
           }
         })
         .join(" ");
 
-      if (
+      const harmlessKrispNoise =
         message.includes("Error unloading krisp processor") ||
-        message.includes("WASM_OR_WORKER_NOT_READY")
-      ) {
-        return;
-      }
+        message.includes("WASM_OR_WORKER_NOT_READY");
+
+      const harmlessMeetingEnded =
+        /meeting ended/i.test(message) ||
+        /meeting has ended/i.test(message) ||
+        /due to ejection/i.test(message);
+
+      if (harmlessKrispNoise || harmlessMeetingEnded) return;
 
       originalError(...args);
     };

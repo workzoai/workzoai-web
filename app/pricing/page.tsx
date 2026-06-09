@@ -400,9 +400,6 @@ export default function PricingPage() {
             <p className="mt-1.5 text-sm font-black" style={{ color: "oklch(0.78 0.18 160)" }}>
               Early-user launch price.
             </p>
-            <p className="mt-1 text-xs leading-5 text-slate-400">
-              Detected pricing: {localizedPrice.countryHint} · {localizedPrice.currency}. {localizedPrice.billingNote}
-            </p>
             <p className="mt-3 text-sm" style={{ color: "oklch(0.7 0.03 256)" }}>
               Everything you need to prepare for real interviews.
             </p>
