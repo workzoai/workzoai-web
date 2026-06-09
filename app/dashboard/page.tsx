@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import WorkOBotFloating from "@/components/WorkOBotFloating";
+
 import {
   ArrowRight,
   BarChart3,
@@ -326,9 +328,18 @@ function SidebarContent({
             {botOpen ? "Close assistant" : "Open assistant"}
           </button>
           {botOpen && (
-            <p className="mt-2 rounded-lg bg-white/5 px-3 py-2 text-[11px] leading-5 text-cyan-100">
-              Work-O-Bot is coming soon. You&apos;ll be able to ask career questions, get CV tips, and prep for interviews here.
-            </p>
+            <div className="mt-2 rounded-lg bg-white/5 px-3 py-2">
+              <p className="text-[11px] leading-5 text-cyan-100">
+                Work-O-Bot is ready. Ask career questions, improve your CV, prepare interview answers, or plan your next job move.
+              </p>
+              <Link
+                href="/copilot"
+                onClick={onNavClick}
+                className="mt-2 inline-flex text-[11px] font-black text-cyan-300 hover:text-cyan-100"
+              >
+                Open full assistant →
+              </Link>
+            </div>
           )}
         </div>
 
@@ -636,6 +647,8 @@ export default function DashboardPage() {
           </footer>
         </section>
       </div>
+
+      <WorkOBotFloating contextLabel="Career assistant" initialMode="career" />
     </main>
   );
 }

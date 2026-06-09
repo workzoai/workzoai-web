@@ -178,10 +178,21 @@ export default function WorkOBotFloating({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode,
-          action: mode === "interview" ? "magic" : "magic",
-          prompt,
-          question: prompt,
-          answer: prompt,
+          action:
+            mode === "interview"
+              ? "magic"
+              : mode === "cv"
+                ? "cv_improve"
+                : mode === "jobs"
+                  ? "find_jobs_strategy"
+                  : mode === "cover_letter"
+                    ? "cover_letter"
+                    : mode === "message"
+                      ? "linkedin_message"
+                      : "career_chat",
+          message: prompt,
+          question: mode === "interview" ? prompt : "",
+          answer: mode === "interview" ? prompt : "",
           cvText: setup.cvText || "",
           jobDescription: setup.jobDescription || "",
           targetRole,
@@ -207,7 +218,7 @@ export default function WorkOBotFloating({
       const fallback =
         error instanceof Error ? error.message : "Work-O-Bot could not respond.";
       setOutput(
-        `${fallback}\n\nTry opening the full copilot page, or check that /api/copilot is deployed with OPENAI_API_KEY.`,
+        `${fallback}\n\nTry opening the full copilot page, or check that /api/copilot is deployed with OPENROUTER_API_KEY.`,
       );
     } finally {
       setLoading(false);
