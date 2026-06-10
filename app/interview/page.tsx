@@ -3368,6 +3368,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
         return;
       }
 
+      setPremiumVoiceError("Could not connect voice. Check your connection and try again.");
       setStatus("idle");
       return;
     }
@@ -3604,9 +3605,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#050b14] text-white lg:h-screen lg:overflow-hidden">
+    <main className="min-h-screen overflow-x-hidden text-white lg:h-screen lg:overflow-hidden" style={{background: 'radial-gradient(ellipse 90% 50% at 50% -5%, rgba(59,130,246,0.07), transparent 60%), radial-gradient(ellipse 60% 40% at 90% 55%, rgba(139,92,246,0.05), transparent 55%), #050816'}}>
 <section className="grid min-h-screen grid-rows-[64px_1fr] lg:h-full lg:min-h-0 lg:grid-rows-[70px_1fr]">
-        <header className="flex items-center justify-between gap-2 border-b border-white/10 px-3 sm:px-5">
+        <header className="flex items-center justify-between gap-2 border-b border-white/[0.08] bg-[#050816]/70 px-3 backdrop-blur-xl sm:px-5">
           <div className="flex min-w-0 items-center gap-2 sm:gap-5">
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <button
@@ -4023,10 +4024,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
           </section>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-3 overflow-x-hidden p-3 pb-24 lg:min-h-0 lg:grid-cols-[1fr_368px] lg:overflow-hidden lg:p-4">
-          <div className="grid gap-3 lg:min-h-0 lg:grid-rows-[69vh_18vh]">
-            <section className="relative h-[260px] overflow-hidden rounded-2xl border border-white/10 bg-[#0b1527] sm:h-[390px] lg:h-auto">
-              <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-blue-500/20 blur-3xl" />
+        <div className="grid grid-cols-1 gap-3 overflow-x-hidden p-3 pb-24 lg:min-h-0 lg:grid-cols-[1fr_500px] lg:overflow-hidden lg:p-4">
+          <div className="grid gap-3 lg:min-h-0 lg:grid-rows-[62vh_24vh]">
+            <section className="relative h-[260px] overflow-hidden rounded-2xl border border-white/[0.09] bg-[#060d1a] sm:h-[390px] lg:h-auto" style={{boxShadow: status === "recruiter-speaking" ? '0 0 0 1px rgba(59,130,246,0.25), 0 0 60px rgba(59,130,246,0.08)' : status === "listening" ? '0 0 0 1px rgba(52,211,153,0.2), 0 0 50px rgba(52,211,153,0.06)' : 'none'}}>
+              {/* ambient glow */}
+              <div className="pointer-events-none absolute inset-x-[12%] bottom-0 top-[15%] rounded-full blur-3xl" style={{background: status === "recruiter-speaking" ? 'rgba(59,130,246,0.14)' : status === "listening" ? 'rgba(52,211,153,0.10)' : 'rgba(59,130,246,0.10)'}} />
+
+              {/* recruiter image */}
               <div className="absolute inset-0">
                 <Image
                   src={setup.recruiterImage}
@@ -4034,285 +4038,358 @@ const [questionIndex, setQuestionIndex] = useState(0);
                   fill
                   priority
                   sizes="(max-width: 1024px) 100vw, 850px"
-                  className="object-cover"
-                  style={{ objectPosition: recruiterImagePosition }}
+                  className="object-cover transition-all duration-500"
+                  style={{ objectPosition: recruiterImagePosition, filter: status === "thinking" ? "brightness(0.9) saturate(0.85)" : "brightness(1) saturate(1)" }}
                 />
               </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/10 to-black/0" />
 
-              <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-lg border border-emerald-400/50 bg-emerald-400/10 px-4 py-2 text-sm font-bold text-emerald-300">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.9)]" /> {status === "recruiter-speaking" ? "SPEAKING" : status === "listening" ? "LISTENING" : status === "thinking" ? "THINKING" : "LIVE"}
+              {/* gradient overlay */}
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#050816]/90 via-[#050816]/[0.12] to-transparent" />
+
+              {/* speaking pulse border */}
+              {status === "recruiter-speaking" && (
+                <div className="pointer-events-none absolute inset-0 rounded-2xl" style={{boxShadow: '0 0 0 2px rgba(59,130,246,0.35) inset, 0 0 80px rgba(59,130,246,0.12) inset'}} />
+              )}
+
+              {/* status badge */}
+              <div className={`absolute left-5 top-5 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-black uppercase tracking-widest backdrop-blur-xl ${
+                status === "recruiter-speaking" ? "border-blue-400/40 bg-blue-400/10 text-blue-300" :
+                status === "listening"          ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300" :
+                status === "thinking"           ? "border-violet-400/40 bg-violet-400/10 text-violet-300" :
+                                                  "border-emerald-400/40 bg-emerald-400/10 text-emerald-300"
+              }`}>
+                <span className={`inline-block h-2 w-2 animate-pulse rounded-full ${
+                  status === "recruiter-speaking" ? "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.9)]" :
+                  status === "listening"          ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" :
+                  status === "thinking"           ? "bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.9)]" :
+                                                    "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]"
+                }`} />
+                {status === "recruiter-speaking" ? "Speaking" : status === "listening" ? "Listening" : status === "thinking" ? "Thinking" : "Live"}
               </div>
 
               {premiumVoiceError ? (
-                <div className="absolute right-4 top-5 hidden max-w-[320px] rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100 lg:block">
+                <div className="absolute right-4 top-5 hidden max-w-[320px] rounded-xl border border-amber-300/20 bg-[#050816]/80 px-3 py-2 text-xs leading-5 text-amber-100 backdrop-blur-xl lg:block">
                   {premiumVoiceError}
                 </div>
               ) : null}
 
-              <div className="absolute bottom-4 left-3 max-w-[145px] sm:bottom-5 sm:left-5 sm:max-w-none">
-                <div className="flex items-center gap-2 text-lg font-black">
+              {/* name card */}
+              <div className="absolute bottom-20 left-4 max-w-[160px] sm:bottom-24 sm:left-5 sm:max-w-none">
+                <div className="flex items-center gap-2 text-lg font-black drop-shadow-md">
                   {setup.recruiterName}
                   <CheckCircle2 className="h-5 w-5 fill-blue-500 text-blue-500" />
                 </div>
-                <p className="mt-1 truncate text-xs text-white/80 sm:text-sm">{setup.recruiterTitle}</p>
-                <p className="mt-2 text-xs font-bold text-emerald-200">
+                <p className="mt-1 truncate text-sm text-white/70">{setup.recruiterTitle}</p>
+                <span className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-[11px] font-bold backdrop-blur-md ${recruiterStatusTone(recruiterSignal, scoreReady)}`}>
                   {scoreReady ? recruiterStatus : "Ready for first answer"}
-                </p>
+                </span>
               </div>
 
-              <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2 sm:bottom-5 sm:gap-4">
+              {/* floating controls */}
+              <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/[0.12] bg-[#050816]/65 px-5 py-3 shadow-2xl backdrop-blur-xl">
                 <button
+                  type="button"
                   onClick={toggleMic}
-                  className={`grid h-10 w-10 place-items-center rounded-full sm:h-14 sm:w-14 shadow-2xl ${
-                    status === "listening" ? "bg-blue-500 text-white" : "bg-white text-slate-950"
+                  className={`grid h-11 w-11 place-items-center rounded-full shadow-lg transition-all duration-150 hover:scale-105 active:scale-95 ${
+                    status === "listening"
+                      ? "bg-blue-500 text-white shadow-blue-500/30"
+                      : "border border-white/15 bg-white/8 text-white hover:bg-white/15"
                   }`}
                 >
-                  {status === "listening" ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+                  {status === "listening" ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsOpen(true)}
-                  className="grid h-10 w-10 place-items-center rounded-full sm:h-14 sm:w-14 bg-white text-slate-950 shadow-2xl sm:h-14 sm:w-14"
+                  className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-white/8 text-white shadow-lg transition-all duration-150 hover:scale-105 hover:bg-white/15 active:scale-95"
                   aria-label="Interview settings"
                 >
-                  <Settings className="h-6 w-6" />
+                  <Settings className="h-5 w-5" />
                 </button>
                 <button
+                  type="button"
                   onClick={endInterview}
-                  className="grid h-10 w-10 place-items-center rounded-full sm:h-14 sm:w-14 bg-red-500 text-white shadow-2xl sm:h-14 sm:w-14"
+                  className="grid h-11 w-11 place-items-center rounded-full bg-red-500 text-white shadow-lg shadow-red-500/25 transition-all duration-150 hover:scale-105 hover:bg-red-400 active:scale-95"
                 >
-                  <PhoneOff className="h-6 w-6" />
+                  <PhoneOff className="h-5 w-5" />
                 </button>
               </div>
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-[#0b1527]/95 lg:min-h-0">
+            <section className="rounded-2xl border border-white/[0.08] bg-[#060d1a]/90 backdrop-blur-sm lg:min-h-0">
               <button
                 type="button"
                 onClick={() => setShowTranscript((value) => !value)}
-                className="flex h-12 w-full items-center justify-between border-b border-white/10 px-5 text-left"
+                className="flex h-12 w-full items-center justify-between border-b border-white/[0.07] px-5 text-left"
                 aria-expanded={showTranscript}
               >
                 <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-black">Live Transcript</h2>
-                  <span className="h-2 w-2 rounded-full bg-red-400" />
-                  <span className="text-base text-white leading-7 font-medium">{transcriptMessageCount} message{transcriptMessageCount === 1 ? "" : "s"}</span>
+                  <h2 className="text-sm font-black tracking-wide">Live Transcript</h2>
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.8)]" />
+                  <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[11px] font-black text-slate-400">
+                    {transcriptMessageCount} {transcriptMessageCount === 1 ? "msg" : "msgs"}
+                  </span>
                 </div>
-                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-black text-blue-200 lg:hidden">
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-black text-blue-300 lg:hidden">
                   {showTranscript ? "Collapse" : "Expand"}
                 </span>
               </button>
 
               {showTranscript || (typeof window !== "undefined" && window.innerWidth >= 1024) ? (
                 <>
-                  <div className="hidden h-10 items-center justify-end border-b border-white/10 px-5 sm:flex">
-                    <div className="flex items-center gap-3 text-base text-white leading-7 font-medium">
+                  <div className="hidden h-9 items-center justify-end border-b border-white/[0.07] px-5 sm:flex">
+                    <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-400">
                       Auto-scroll
                       <button
                         type="button"
                         onClick={() => setAutoScrollTranscript((value) => !value)}
-                        className={`relative h-5 w-9 rounded-full ${autoScrollTranscript ? "bg-blue-500" : "bg-white/15"}`}
+                        className={`relative h-5 w-9 rounded-full transition-colors ${autoScrollTranscript ? "bg-blue-500" : "bg-white/15"}`}
                       >
-                        <span className={`absolute top-1 h-3 w-3 rounded-full bg-white transition ${autoScrollTranscript ? "right-1" : "left-1"}`} />
+                        <span className={`absolute top-1 h-3 w-3 rounded-full bg-white transition-all ${autoScrollTranscript ? "right-1" : "left-1"}`} />
                       </button>
                     </div>
                   </div>
 
-                  <div className="overflow-hidden px-4 py-1 lg:h-[calc(100%-114px)] lg:max-h-none">
+                  <div className="overflow-y-auto px-4 py-3 lg:h-[calc(100%-108px)] lg:max-h-none workzo-hide-scrollbar">
                     {visibleTranscriptItems.length || interimText ? (
-                      <div className="divide-y divide-white/8">
-                        {visibleTranscriptItems.map((line) => (
-                          <div
-                            key={line.id}
-                            className="grid grid-cols-[80px_150px_1fr] gap-3 py-1 text-sm max-sm:grid-cols-1 max-sm:gap-1 max-sm:py-3"
-                          >
-                            <span className="text-slate-400">{line.time}</span>
-                            <span
-                              className={`font-semibold ${
-                                line.role === "candidate"
-                                  ? "text-blue-300"
-                                  : line.role === "recruiter"
-                                    ? "text-violet-300"
-                                    : "text-slate-400"
-                              }`}
-                            >
-                              {line.speaker}
-                            </span>
-                            <span className="leading-6 text-slate-100 max-sm:line-clamp-none sm:line-clamp-2">{line.text}</span>
-                          </div>
-                        ))}
+                      <div className="flex flex-col gap-3">
+                        {visibleTranscriptItems.map((line) => {
+                          if (line.role === "system") {
+                            return (
+                              <div key={line.id} className="text-center text-[11px] text-slate-500 py-0.5">
+                                {line.text}
+                              </div>
+                            );
+                          }
+                          const isRecruiter = line.role === "recruiter";
+                          return (
+                            <div key={line.id} className={`flex gap-2.5 ${isRecruiter ? "" : "flex-row-reverse"}`}>
+                              <div className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[11px] font-black ${
+                                isRecruiter ? "bg-blue-500/15 text-blue-300" : "bg-violet-500/15 text-violet-300"
+                              }`}>
+                                {isRecruiter ? (setup.recruiterName?.[0] ?? "R") : "Y"}
+                              </div>
+                              <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed text-slate-100 ${
+                                isRecruiter
+                                  ? "rounded-tl-sm border border-white/[0.07] bg-white/[0.06]"
+                                  : "rounded-tr-sm border border-violet-500/15 bg-violet-500/10"
+                              }`}>
+                                {line.text}
+                              </div>
+                            </div>
+                          );
+                        })}
 
                         {interimText ? (
-                          <div className="grid grid-cols-[80px_150px_1fr] gap-3 py-1 text-sm opacity-70 max-sm:grid-cols-1 max-sm:gap-1">
-                            <span className="text-slate-400">listening</span>
-                            <span className="font-semibold text-blue-300">You</span>
-                            <span className="leading-6 text-slate-100">{interimText}</span>
+                          <div className="flex flex-row-reverse gap-2.5 opacity-55">
+                            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-500/15 text-[11px] font-black text-violet-300">Y</div>
+                            <div className="max-w-[78%] rounded-2xl rounded-tr-sm border border-violet-500/15 bg-violet-500/10 px-4 py-2.5 text-sm leading-relaxed text-slate-100">
+                              {interimText}
+                            </div>
                           </div>
                         ) : null}
 
                         <div ref={transcriptEndRef} />
                       </div>
                     ) : (
-                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-base leading-6 text-white leading-7 font-medium">
-                        <p className="font-bold text-slate-100">Interview transcript will appear here.</p>
-                        <p className="mt-1">The recruiter will ask the first question after you press Start.</p>
+                      <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
+                        <p className="text-sm font-bold text-slate-200">Transcript will appear here.</p>
+                        <p className="mt-1 text-xs text-slate-500">The recruiter will ask the first question after you press Start.</p>
                         <div ref={transcriptEndRef} />
                       </div>
                     )}
                   </div>
 
-                  <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-t border-white/10 px-4 py-1.5 text-xs text-slate-400 sm:px-5">
-                    <span>Transcript is AI-generated and may not be 100% accurate.</span>
-                    <button onClick={() => setTranscript([])} className="hover:text-white">
-                      Clear Transcript
+                  <div className="flex min-h-8 flex-wrap items-center justify-between gap-2 border-t border-white/[0.07] px-4 py-1.5 text-[11px] text-slate-500 sm:px-5">
+                    <span>AI-generated · may not be 100% accurate</span>
+                    <button onClick={() => setTranscript([])} className="transition hover:text-slate-300">
+                      Clear
                     </button>
                   </div>
                 </>
               ) : (
-                <div className="px-4 py-3 text-base text-white sm:px-5 leading-7 font-medium">
-                  Transcript will appear here as the recruiter and candidate speak.
+                <div className="px-5 py-3 text-sm text-slate-400">
+                  Transcript will appear here as the interview progresses.
                 </div>
               )}
             </section>
           </div>
 
-          <aside className="grid gap-3 lg:min-h-0 lg:grid-rows-[190px_270px_82px]">
-            <section className="rounded-2xl border border-white/10 bg-[#0b1527] p-3.5">
-              <h2 className="text-base font-black">Interview Score</h2>
-              <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className={`grid h-[78px] w-[78px] place-items-center rounded-full border-[7px] bg-[#07111f] transition-all duration-500 ${scoreFlash === "up" ? "border-emerald-400 shadow-[0_0_0_10px_rgba(52,211,153,0.18)]" : scoreFlash === "down" ? "border-amber-400 shadow-[0_0_0_10px_rgba(251,191,36,0.18)]" : "border-blue-500 shadow-[0_0_0_10px_rgba(124,58,237,0.2)]"}`}>
-                  <div className="text-center">
-                    {scoreReady ? (
-                      <>
-                        <div className="text-2xl font-black">{recruiterSignal.overall}</div>
-                        <div className="text-xs text-slate-300">/100</div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-sm font-black uppercase tracking-[0.14em] text-blue-100">Ready</div>
-                        <div className="text-[10px] text-slate-400">first answer</div>
-                      
-      <UpgradeModal
-        open={upgradeModalOpen}
-        feature={upgradeModalFeature}
-        onClose={closeUpgradeModal}
-        onUpgrade={handleUpgradeInterest}
-      />
-</>
-                    )}
-                    {scoreFlash ? (
-                      <div className={`mt-1 text-[10px] font-black uppercase ${scoreFlash === "up" ? "text-emerald-300" : "text-amber-300"}`}>
-                        {scoreFlash === "up" ? "improved" : "check proof"}
-                      </div>
-                    ) : null}
+          <aside className="flex flex-col gap-2 lg:min-h-0 lg:h-[calc(100vh-102px)] lg:overflow-y-auto workzo-hide-scrollbar">
+
+            {/* ── Live Copilot Panel ── */}
+            <section style={{ display: showCopilot ? undefined : "none" }} className="rounded-2xl border border-white/[0.09] bg-[#0b1120] p-4">
+              {/* header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-base font-black text-white">Live Copilot</h2>
+                  <span className="rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-violet-300">Beta</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCopilot((v) => !v)}
+                  className={`relative h-6 w-11 rounded-full transition-colors ${showCopilot ? "bg-blue-500" : "bg-white/15"}`}
+                  aria-label="Toggle copilot"
+                >
+                  <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all ${showCopilot ? "right-1" : "left-1"}`} />
+                </button>
+              </div>
+
+              {/* mood block */}
+              <div className="mt-3 border-t border-white/[0.07] pt-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Recruiter mood</p>
+                <p className={`mt-1.5 text-xl font-black tracking-tight ${recruiterMoodColor(recruiterSignal.mood)}`}>
+                  {scoreReady ? recruiterSignal.mood : "Waiting"}
+                </p>
+                <div className="mt-2.5 space-y-2">
+                  {/* trust bar */}
+                  <div className="grid grid-cols-[52px_1fr_36px] items-center gap-2.5">
+                    <span className="text-xs text-slate-400">Trust</span>
+                    <div className="h-[5px] overflow-hidden rounded-full bg-white/[0.07]">
+                      <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all duration-700" style={{ width: `${scoreReady ? recruiterSignal.trust : 0}%` }} />
+                    </div>
+                    <span className="text-right text-xs font-black text-slate-300">
+                      {scoreReady ? (recruiterSignal.trust >= 70 ? "High" : recruiterSignal.trust >= 45 ? "Med" : "Low") : "—"}
+                    </span>
+                  </div>
+                  {/* interest bar */}
+                  <div className="grid grid-cols-[52px_1fr_36px] items-center gap-2.5">
+                    <span className="text-xs text-slate-400">Interest</span>
+                    <div className="h-[5px] overflow-hidden rounded-full bg-white/[0.07]">
+                      <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all duration-700" style={{ width: `${scoreReady ? recruiterSignal.interest : 0}%` }} />
+                    </div>
+                    <span className="text-right text-xs font-black text-slate-300">
+                      {scoreReady ? (recruiterSignal.interest >= 70 ? "High" : recruiterSignal.interest >= 45 ? "Med" : "Low") : "—"}
+                    </span>
                   </div>
                 </div>
-
-                <div className="w-full min-w-0 flex-1 space-y-2">
-                  {scoreItems.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <div key={item.label} className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className={`grid h-6 w-6 place-items-center rounded-lg ${toneClass(item.tone)}`}>
-                            <Icon className="h-4 w-4" />
-                          </span>
-                          <span className="text-sm">{item.label}</span>
-                        </div>
-                        <span className="text-xs text-slate-200">{item.value}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <p className="mt-2 text-xs text-slate-300">
-                <span className="text-emerald-300">●</span> Overall Performance:{" "}
-                <span className={`font-bold ${recruiterMoodColor(recruiterSignal.mood)}`}>{scoreReady ? recruiterSignal.mood : "Waiting"}</span>
-              </p>
-            </section>
-
-            <section style={{ display: showCopilot ? undefined : "none" }} className="rounded-2xl border border-white/10 bg-[#0b1527] p-3.5 overflow-hidden">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-black text-blue-300">
-                  Live Copilot{" "}
-                  <span className="ml-2 rounded-full bg-violet-400/15 px-2 py-1 text-xs text-violet-200">
-                    Beta
-                  </span>
-                </h2>
-                <span className="relative h-6 w-11 rounded-full bg-blue-500">
-                  <span className="absolute right-1 top-1 h-4 w-4 rounded-full bg-white" />
-                </span>
               </div>
 
-              <div className="mt-3 grid grid-cols-[1fr_auto] gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Recruiter mood</p>
-                  <p className={`mt-1 text-base font-black ${recruiterMoodColor(recruiterSignal.mood)}`}>
-                    {scoreReady ? recruiterSignal.mood : "Waiting"}
-                  </p>
-                </div>
-                <div className="text-right text-xs text-slate-300">
-                  <p>Trust <span className="font-bold text-white">{scoreReady ? recruiterSignal.trust : "—"}</span></p>
-                  <p>Interest <span className="font-bold text-white">{scoreReady ? recruiterSignal.interest : "—"}</span></p>
-                </div>
-              </div>
-
-              <div className="mt-3 space-y-2">
-                <div className="rounded-xl border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-1.5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200">Say next</p>
-                  <p className="mt-1 line-clamp-1 text-[13px] leading-5 text-slate-100">
+              {/* say next block */}
+              <div className="mt-3 border-t border-white/[0.07] pt-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Say next</p>
+                <div className="mt-2 rounded-xl border border-violet-500/20 bg-violet-500/[0.08] px-3.5 py-2.5" style={{borderLeftWidth: '3px', borderLeftColor: 'rgba(139,92,246,0.55)'}}>
+                  <p className="text-sm font-semibold leading-[1.5] text-slate-100">
                     {scoreReady
                       ? recruiterSignal.trust < 60
                         ? "Clarify the claim first, then give one verified example."
-                        : "Use one real example and state the result."
-                      : "Answer the recruiter with one clear, role-relevant example."}
+                        : "Lead with the result, then explain how you got there in one or two steps."
+                      : "Answer with one clear, role-relevant example."}
                   </p>
                 </div>
+              </div>
 
-                <div className="rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-1.5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200">Recruiter concern</p>
-                  <p className="mt-1 line-clamp-1 text-[13px] leading-5 text-slate-100">
-                    {scoreReady ? recruiterSignal.concern : "The recruiter is waiting for evidence, ownership, and impact."}
-                  </p>
-                </div>
+              {/* watch for block */}
+              <div className="mt-3 border-t border-white/[0.07] pt-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Watch for</p>
+                <p className="mt-1.5 text-sm leading-[1.55] text-slate-400">
+                  {scoreReady
+                    ? recruiterSignal.concern
+                    : <>The recruiter is waiting for <span className="font-bold text-amber-400">evidence</span>, ownership, and measurable impact.</>}
+                </p>
               </div>
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-[#0b1527] p-4">
+            {/* ── Score Panel ── */}
+            <section className="rounded-2xl border border-white/[0.09] bg-[#0b1120] p-4">
+              <UpgradeModal
+                open={upgradeModalOpen}
+                feature={upgradeModalFeature}
+                onClose={closeUpgradeModal}
+                onUpgrade={handleUpgradeInterest}
+              />
+              {/* header row */}
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-base font-black text-white">Interview score</h2>
+                <div className="flex items-center gap-3">
+                  <span className={`rounded-lg px-2.5 py-1 text-xs font-black ${
+                    scoreReady
+                      ? recruiterSignal.overall >= 80 ? "bg-emerald-400/10 text-emerald-300"
+                      : recruiterSignal.overall >= 65 ? "bg-blue-400/10 text-blue-300"
+                      : "bg-amber-400/10 text-amber-300"
+                      : "bg-white/5 text-slate-500"
+                  }`}>
+                    {scoreReady ? (recruiterSignal.overall >= 80 ? "On track" : recruiterSignal.overall >= 65 ? "Building" : "Needs work") : "Waiting"}
+                  </span>
+                  {scoreReady ? (
+                    <div className="flex items-baseline gap-1">
+                      <span className={`text-3xl font-black tracking-tight transition-all duration-300 ${scoreFlash === "up" ? "text-emerald-300" : scoreFlash === "down" ? "text-amber-300" : "text-white"}`}>
+                        {(recruiterSignal.overall / 10).toFixed(1)}
+                      </span>
+                      <span className="text-sm text-slate-500">/10</span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* metric rows */}
+              <div className="mt-3 space-y-2.5">
+                {scoreItems.map((item) => {
+                  const numericVal = scoreReady
+                    ? item.tone === "emerald" ? recruiterSignal.confidence
+                    : item.tone === "blue"   ? recruiterSignal.clarity
+                    : item.tone === "violet" ? recruiterSignal.relevance
+                    : recruiterSignal.communication
+                    : 0;
+                  const isPending = !scoreReady || numericVal === 0;
+                  return (
+                    <div key={item.label} className={isPending && item.tone === "orange" ? "opacity-45" : ""}>
+                      <div className="mb-1.5 flex items-center justify-between gap-2">
+                        <span className={`text-sm ${isPending && item.tone === "orange" ? "text-slate-500" : "text-slate-300"}`}>{item.label}</span>
+                        <span className="text-xs font-black text-slate-300">{item.value}</span>
+                      </div>
+                      <div className="h-[5px] overflow-hidden rounded-full bg-white/[0.07]">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all duration-700"
+                          style={{ width: `${numericVal}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* ── Progress Panel ── */}
+            <section className="rounded-2xl border border-white/[0.09] bg-[#0b1120] p-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-black">Interview Progress</h2>
-                <span className="text-base text-white leading-7 font-medium">
-                  Question {visibleQuestionNumber} of 12
-                </span>
+                <h2 className="text-base font-black text-white">
+                  Question {visibleQuestionNumber > 0 ? visibleQuestionNumber : 0} of 12
+                </h2>
+                <span className="text-sm font-black text-slate-400">{progress}%</span>
               </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500"
-                  style={{ width: `${progress}%` }}
-                />
+              <div className="mt-3 flex gap-1">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-[6px] flex-1 rounded-full transition-all duration-500 ${
+                      i < visibleQuestionNumber - 1
+                        ? "bg-cyan-400"
+                        : i === visibleQuestionNumber - 1
+                          ? "bg-gradient-to-r from-cyan-400 to-blue-500"
+                          : "bg-white/[0.08]"
+                    }`}
+                  />
+                ))}
               </div>
-              <div className="mt-1.5 flex items-center justify-between gap-3">
-                <p className="text-xs text-slate-300">{progress}% Completed</p>
-                {interviewComplete ? (
-                  <Link
-                    href="/results"
-                    onClick={() => saveInterviewResult("paused")}
-                    className="rounded-lg bg-emerald-500/15 px-2.5 py-1 text-xs font-black text-emerald-200"
-                  >
-                    View Results
-                  </Link>
-                ) : null}
-              </div>
+              {interviewComplete ? (
+                <Link
+                  href="/results"
+                  onClick={() => saveInterviewResult("paused")}
+                  className="mt-3 block rounded-xl bg-gradient-to-r from-emerald-500/15 to-blue-500/15 px-3 py-2 text-center text-xs font-black text-emerald-300 ring-1 ring-emerald-500/20 transition hover:from-emerald-500/25 hover:to-blue-500/25"
+                >
+                  View Results →
+                </Link>
+              ) : null}
             </section>
           </aside>
         </div>
 
         {showCopilot && status !== "idle" ? (
-          <div className="fixed bottom-20 left-3 right-3 z-40 rounded-2xl border border-blue-300/20 bg-[#07111f]/95 px-4 py-3 shadow-2xl backdrop-blur-xl lg:hidden">
+          <div className="fixed bottom-20 left-3 right-3 z-40 rounded-2xl border border-violet-500/20 bg-[#060d1a]/95 px-4 py-3 shadow-2xl backdrop-blur-xl lg:hidden">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">Live Copilot</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-300">Live Copilot</p>
                 <p className={`truncate text-sm font-black ${recruiterMoodColor(recruiterSignal.mood)}`}>
                   {scoreReady ? recruiterSignal.mood : "Waiting"}
                 </p>

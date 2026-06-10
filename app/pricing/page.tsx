@@ -91,24 +91,27 @@ const PLAN_CARDS: PlanCard[] = [
 ];
 
 const comparisonRows = [
-  { label: "Voice AI Interviews", free: "2/mo", premium: "50/mo", premiumPro: "Unlimited" },
-  { label: "Recruiter Intelligence", free: "Trial", premium: "Advanced", premiumPro: "Advanced" },
-  { label: "Follow-up Questions", free: "Basic", premium: "Realistic", premiumPro: "Deep + pressure" },
-  { label: "Interview Reports", free: "Basic", premium: "Advanced", premiumPro: "Advanced + replay" },
-  { label: "Interview History", free: "Limited", premium: "Unlimited", premiumPro: "Unlimited" },
-  { label: "CV Improvement", free: "—", premium: "Included", premiumPro: "Included" },
-  { label: "Cover Letter Generator", free: "—", premium: "Included", premiumPro: "Included" },
-  { label: "Job Assist", free: "—", premium: "Included", premiumPro: "Included" },
-  { label: "ATS Optimization", free: "—", premium: "Included", premiumPro: "Included" },
-  { label: "Career Brain", free: "—", premium: "Included", premiumPro: "Enhanced" },
-  { label: "Performance Tracking", free: "—", premium: "Included", premiumPro: "Advanced" },
-  { label: "Live AI Video Recruiter", free: "—", premium: "—", premiumPro: "Included" },
-  { label: "Live AI Recruiter Minutes", free: "—", premium: "—", premiumPro: "60/mo" },
-  { label: "Premium Recruiter Personas", free: "—", premium: "—", premiumPro: "Included" },
-  { label: "AI Career Coach", free: "—", premium: "—", premiumPro: "Included" },
-  { label: "Career Roadmaps", free: "—", premium: "—", premiumPro: "30/60/90 day" },
-  { label: "Replay Intelligence", free: "—", premium: "—", premiumPro: "Included" },
-  { label: "Priority AI Models", free: "—", premium: "—", premiumPro: "Included" },
+  { label: "Voice AI Interviews", free: "2 / mo", premium: "50 / mo", premiumPro: "Unlimited", section: "interview" },
+  { label: "Recruiter Intelligence", free: "Trial", premium: "Advanced", premiumPro: "Advanced", section: "interview" },
+  { label: "Follow-up Questions", free: "Basic", premium: "Realistic", premiumPro: "Deep + pressure", section: "interview" },
+  { label: "Interview Reports", free: "Basic", premium: "Advanced", premiumPro: "Advanced + Replay", section: "interview" },
+  { label: "Interview History", free: "Limited", premium: "Unlimited", premiumPro: "Unlimited", section: "interview" },
+  { label: "Improve CV", free: "—", premium: "Included", premiumPro: "Included", section: "application" },
+  { label: "ATS Optimization", free: "—", premium: "Included", premiumPro: "Included", section: "application" },
+  { label: "Cover Letter Generator", free: "—", premium: "Included", premiumPro: "Included", section: "application" },
+  { label: "Job Assist", free: "—", premium: "Included", premiumPro: "Included", section: "application" },
+  { label: "Career Brain", free: "—", premium: "Included", premiumPro: "Enhanced", section: "application" },
+  { label: "Performance Tracking", free: "—", premium: "Included", premiumPro: "Advanced", section: "tracking" },
+  { label: "Hiring Readiness", free: "—", premium: "Included", premiumPro: "Included", section: "tracking" },
+  { label: "Tavus Live AI Recruiter", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
+  { label: "Live AI Recruiter Minutes", free: "—", premium: "—", premiumPro: "60 / mo", section: "pro" },
+  { label: "Premium Recruiter Personas", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
+  { label: "AI Career Coach", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
+  { label: "Career Roadmaps", free: "—", premium: "—", premiumPro: "30 / 60 / 90 day", section: "pro" },
+  { label: "Replay Intelligence", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
+  { label: "Personalized Coaching Memory", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
+  { label: "Interview Probability Forecasting", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
+  { label: "Priority AI Models", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
 ];
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -274,7 +277,7 @@ export default function PricingPage() {
             Choose how deeply WorkZo AI supports your job search.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-300">
-            Free lets you try the interview engine. Premium unlocks complete preparation. Premium Pro adds AI Career Coach, premium personas, and Live AI Recruiter minutes.
+            Free lets you try the interview experience. Premium is the complete interview preparation platform. Premium Pro is your personal AI career coach and growth system.
           </p>
 
           <div className="mx-auto mt-8 inline-flex rounded-2xl border border-white/10 bg-black/30 p-1">
@@ -319,44 +322,75 @@ export default function PricingPage() {
           </div>
         </section>
 
-        <section className="mt-12 grid gap-5 lg:grid-cols-3">
+        <section className="mt-12 grid items-start gap-5 lg:grid-cols-3">
           {PLAN_CARDS.map((card) => {
             const plan = WORKZO_PLAN_LIMITS[card.id];
             const isPremium = card.id === "premium";
             const isPro = card.id === "premium_pro";
+            const maxIncluded = isPremium ? 12 : isPro ? 13 : 6;
+            const maxNotIncluded = isPremium ? 5 : 3;
             return (
               <div
                 key={card.id}
                 className={cn(
-                  "relative flex flex-col rounded-[2rem] border p-6 backdrop-blur-sm",
-                  isPremium && "border-blue-300/30 bg-blue-500/[0.10] shadow-2xl shadow-blue-950/20",
+                  "relative flex flex-col rounded-[2rem] border backdrop-blur-sm",
+                  isPremium
+                    ? "border-blue-400/40 bg-blue-500/[0.12] p-8 shadow-[0_0_80px_rgba(59,130,246,0.18)] lg:-mt-6 lg:pb-10 lg:pt-10"
+                    : "p-6",
                   isPro && "border-violet-300/30 bg-violet-500/[0.10] shadow-2xl shadow-violet-950/20",
                   card.id === "free" && "border-emerald-300/20 bg-emerald-400/[0.06]",
                 )}
               >
                 {plan.badge ? (
-                  <div className="absolute right-5 top-5 rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white/80">
+                  <div className={cn(
+                    "absolute right-5 top-5 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]",
+                    isPremium
+                      ? "border-blue-300/40 bg-blue-400/15 text-blue-200"
+                      : isPro
+                        ? "border-violet-300/30 bg-violet-400/10 text-violet-200"
+                        : "border-white/10 bg-white/8 text-white/80"
+                  )}>
                     {plan.badge}
                   </div>
                 ) : null}
 
                 <div className="flex items-center gap-3 pr-28">
-                  <div className={cn("grid h-11 w-11 place-items-center rounded-2xl", isPro ? "bg-violet-400/15 text-violet-200" : isPremium ? "bg-blue-400/15 text-blue-200" : "bg-emerald-400/15 text-emerald-200")}>{card.icon}</div>
+                  <div className={cn(
+                    "grid place-items-center rounded-2xl",
+                    isPremium ? "h-13 w-13 bg-blue-400/20 text-blue-200" : "h-11 w-11",
+                    isPro ? "bg-violet-400/15 text-violet-200" : !isPremium ? "bg-emerald-400/15 text-emerald-200" : "",
+                  )}
+                    style={isPremium ? {height: "52px", width: "52px"} : undefined}
+                  >{card.icon}</div>
                   <div>
-                    <p className="text-xs font-black uppercase tracking-[0.20em] text-white/45">{plan.label}</p>
-                    <h2 className="text-xl font-black text-white">{plan.shortLabel}</h2>
+                    <p className={cn("font-black uppercase tracking-[0.20em]", isPremium ? "text-xs text-blue-300/70" : "text-xs text-white/45")}>{plan.label}</p>
+                    <h2 className={cn("font-black text-white", isPremium ? "text-2xl" : "text-xl")}>{plan.shortLabel}</h2>
                   </div>
                 </div>
 
                 <PriceLine plan={card.id} billingCycle={billingCycle} />
 
-                <p className="mt-4 min-h-[48px] text-sm leading-6 text-slate-300">{plan.description}</p>
+                <p className={cn("mt-4 leading-6 text-slate-300", isPremium ? "text-sm min-h-[56px]" : "text-sm min-h-[48px]")}>{plan.description}</p>
                 <p className="mt-2 text-xs font-black uppercase tracking-[0.16em] text-white/40">Best for: {plan.bestFor}</p>
 
+                {isPremium && (
+                  <div className="mt-4 rounded-2xl border border-blue-300/20 bg-blue-500/[0.08] px-4 py-3">
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-300">Interview preparation platform</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">Prepare for interviews, improve your applications, and track progress — everything in one place.</p>
+                  </div>
+                )}
+
+                {isPro && (
+                  <div className="mt-4 rounded-2xl border border-violet-300/20 bg-violet-500/[0.08] px-4 py-3">
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-300">Personal AI career coach</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">Not just interview prep — a full career acceleration system with coaching, roadmaps, and Live AI Recruiter.</p>
+                  </div>
+                )}
+
                 <div className="mt-6 space-y-2.5">
-                  {plan.included.slice(0, card.id === "premium_pro" ? 10 : 8).map((item) => (
+                  {plan.included.slice(0, maxIncluded).map((item) => (
                     <div key={item} className="flex gap-2.5 text-sm leading-5 text-slate-100">
-                      <CheckCircle2 className={cn("mt-0.5 h-4 w-4 shrink-0", isPro ? "text-violet-200" : isPremium ? "text-blue-200" : "text-emerald-300")} />
+                      <CheckCircle2 className={cn("mt-0.5 h-4 w-4 shrink-0", isPro ? "text-violet-300" : isPremium ? "text-blue-300" : "text-emerald-300")} />
                       <span>{item}</span>
                     </div>
                   ))}
@@ -364,7 +398,7 @@ export default function PricingPage() {
 
                 {plan.notIncluded.length ? (
                   <div className="mt-5 space-y-2 border-t border-white/10 pt-4">
-                    {plan.notIncluded.slice(0, 4).map((item) => (
+                    {plan.notIncluded.slice(0, maxNotIncluded).map((item) => (
                       <div key={item} className="flex gap-2.5 text-xs leading-5 text-slate-500">
                         <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                         <span>{item}</span>
@@ -373,11 +407,17 @@ export default function PricingPage() {
                   </div>
                 ) : null}
 
+                <div className="flex-1" />
+
                 <button
                   type="button"
                   onClick={() => choosePlan(card.id)}
                   disabled={Boolean(checkoutLoading)}
-                  className={cn("mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60", card.buttonClass)}
+                  className={cn(
+                    "mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60",
+                    isPremium ? "py-4" : "py-3.5",
+                    card.buttonClass,
+                  )}
                 >
                   {checkoutLoading === card.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                   {card.id === "free" ? "Start Free" : checkoutLoading === card.id ? "Connecting…" : `Choose ${plan.label}`}
@@ -420,13 +460,47 @@ export default function PricingPage() {
 
         <section className="mt-10 grid gap-4 md:grid-cols-3">
           {[
-            { icon: <Mic className="h-5 w-5" />, title: "Free", text: "Try the voice interview experience and basic recruiter feedback." },
-            { icon: <FileText className="h-5 w-5" />, title: "Premium", text: "Prepare, improve your applications, and track interview performance." },
-            { icon: <Video className="h-5 w-5" />, title: "Premium Pro", text: "Add Live AI Recruiter, AI Career Coach, roadmaps, premium personas, and replay intelligence." },
+            {
+              icon: <Mic className="h-5 w-5" />,
+              accent: "emerald",
+              title: "Free",
+              subtitle: "Try the experience",
+              text: "Try 2 voice interviews, see recruiter intelligence in action, and get a basic interview report before committing.",
+            },
+            {
+              icon: <BrainCircuit className="h-5 w-5" />,
+              accent: "blue",
+              title: "Premium",
+              subtitle: "Interview preparation platform",
+              text: "Prepare fully for every interview. Improve your CV, generate cover letters, use Career Brain, and track your performance over time.",
+            },
+            {
+              icon: <Sparkles className="h-5 w-5" />,
+              accent: "violet",
+              title: "Premium Pro",
+              subtitle: "Personal AI career coach",
+              text: "Go beyond interview prep. Get a Live AI Recruiter, AI Career Coach, career roadmaps, replay intelligence, and a personalized coaching system that grows with you.",
+            },
           ].map((item) => (
-            <div key={item.title} className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/8 text-blue-100">{item.icon}</div>
-              <h3 className="mt-4 text-lg font-black">{item.title}</h3>
+            <div key={item.title} className={cn(
+              "rounded-3xl border p-6",
+              item.accent === "blue" ? "border-blue-300/20 bg-blue-500/[0.05]" :
+              item.accent === "violet" ? "border-violet-300/20 bg-violet-500/[0.05]" :
+              "border-white/10 bg-white/[0.03]"
+            )}>
+              <div className={cn(
+                "grid h-11 w-11 place-items-center rounded-2xl",
+                item.accent === "blue" ? "bg-blue-400/15 text-blue-200" :
+                item.accent === "violet" ? "bg-violet-400/15 text-violet-200" :
+                "bg-emerald-400/15 text-emerald-200"
+              )}>{item.icon}</div>
+              <p className={cn(
+                "mt-4 text-[10px] font-black uppercase tracking-[0.18em]",
+                item.accent === "blue" ? "text-blue-300" :
+                item.accent === "violet" ? "text-violet-300" :
+                "text-emerald-300"
+              )}>{item.subtitle}</p>
+              <h3 className="mt-1 text-lg font-black">{item.title}</h3>
               <p className="mt-2 text-sm leading-6 text-slate-400">{item.text}</p>
             </div>
           ))}
