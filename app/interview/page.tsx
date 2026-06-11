@@ -2815,7 +2815,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
       const nextEmoMem = updateWorkZoEmotionalMemory(emotionalMemoryRef.current, answer);
       emotionalMemoryRef.current = nextEmoMem;
       setEmotionalMemory(nextEmoMem);
-
       setStatus("thinking");
 
       // Live interruption engine — recruiter can cut off rambling answers
@@ -2897,7 +2896,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
         window.setTimeout(() => startListening(), 650);
         return;
       }
-
       // ── ElevenLabs tier-2 voice (better than browser, lighter than Vapi) ──
       if (audioEnabled && typeof window !== "undefined") {
         try {
@@ -3556,6 +3554,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
         setStatus("listening");
         return;
       }
+
 
       // Vapi failed for Pro user — fall back to browser voice automatically
       addTranscript({

@@ -1551,6 +1551,15 @@ export default function OnboardingPage() {
                                 <p className="mt-2 text-sm leading-5 text-slate-300">{item.description}</p>
                                 <p className="mt-3 border-l border-violet-300/20 pl-3 text-xs italic leading-5 text-slate-400">"{item.quote}"</p>
                               </div>
+                              <p className="mt-0.5 text-xs font-bold text-slate-400">
+                                {item.role}
+                              </p>
+                              <p className="mt-2 text-sm leading-5 text-slate-300">
+                                {item.description}
+                              </p>
+                              <p className="mt-3 border-l border-cyan-300/20 pl-3 text-xs italic leading-5 text-slate-400">
+                                “{item.quote}”
+                              </p>
                             </div>
                           </button>
                         ))}

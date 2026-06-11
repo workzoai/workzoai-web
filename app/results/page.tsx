@@ -47,6 +47,7 @@ type TranscriptTurn = {
 type StoredResult = {
   plan?: string;
   isPremium?: boolean;
+  fillerWordCount?: number;
   overallScore?: number;
   communicationScore?: number;
   confidenceScore?: number;
@@ -119,6 +120,7 @@ type RichReport = {
   durationLabel: string;
   answersCount: number;
   averageWpm: number;
+  fillerWordCount: number;
   recruiterName: string;
   roleLabel: string;
   companyLabel: string;
@@ -569,6 +571,7 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
     durationLabel: formatDuration(durationSeconds),
     answersCount,
     averageWpm,
+    fillerWordCount: numberOr(result.fillerWordCount, 0),
     recruiterName,
     roleLabel,
     companyLabel,
@@ -1005,7 +1008,10 @@ export default function ResultsPage() {
                 <h2 className="flex items-center gap-3 text-2xl font-black"><ShieldCheck className="h-6 w-6 text-emerald-300" />Sentiment snapshot</h2>
                 <p className="mt-4 text-base leading-8 text-slate-200">You showed useful role fit, but the recruiter still needs sharper metrics, ownership, or structure.</p>
                 <div className="mt-6 grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Avg. pace</p><p className="mt-2 text-2xl font-black">{report.averageWpm || "—"} WPM</p></div>
+                  <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Speaking pace</p><p className="mt-2 text-2xl font-black">{report.averageWpm || "—"} <span className="text-base text-slate-400">WPM</span></p><p className="mt-1 text-xs text-slate-500">{report.averageWpm ? (report.averageWpm >= 110 && report.averageWpm <= 170 ? "Good pace" : report.averageWpm < 110 ? "Too slow" : "Too fast") : "Not measured"}</p></div>
+                  {(result.fillerWordCount ?? 0) >= 0 && (
+                    <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Filler words</p><p className="mt-2 text-2xl font-black">{result.fillerWordCount ?? 0}</p><p className="mt-1 text-xs text-slate-500">{(result.fillerWordCount ?? 0) === 0 ? "None detected" : (result.fillerWordCount ?? 0) <= 3 ? "Low — good" : (result.fillerWordCount ?? 0) <= 8 ? "Moderate" : "High — work on this"}</p></div>
+                  )}
                   <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Duration</p><p className="mt-2 text-2xl font-black">{report.durationLabel}</p></div>
                   <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Answers</p><p className="mt-2 text-2xl font-black">{report.answersCount}</p></div>
                 </div>
