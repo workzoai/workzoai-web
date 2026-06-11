@@ -10,7 +10,7 @@ export default function TermsPage() {
           WorkZo AI provides interview preparation support and AI-generated feedback. It does not guarantee job offers, hiring outcomes, or professional career decisions.
         </p>
         <p className="mt-4 leading-7 text-slate-300">
-          By using the beta, you agree to validate outputs yourself and avoid submitting sensitive or confidential information.
+          By using WorkZo AI, you agree to validate outputs yourself and avoid submitting sensitive or confidential information.
         </p>
       </section>
     </main>

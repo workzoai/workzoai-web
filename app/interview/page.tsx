@@ -35,11 +35,19 @@ import {
   getWorkZoCurrentPlan,
   recordWorkZoInterviewStarted,
   recordWorkZoTavusInterviewStarted,
-  recordWorkZoTavusMinutes,
-  getWorkZoUsageSummary,
 } from "@/lib/workzoUsageTracker";
 import { getWorkZoPlanLimits } from "@/lib/workzoPlanLimits";
 import { buildWorkZoRecruiterReplyV2 } from "@/lib/workzoRecruiterIntelligenceV2";
+import { shouldInterruptLive } from "@/lib/liveInterruptionEngine";
+import {
+  getWorkZoLiveReaction,
+  decideWorkZoInterruption,
+  updateWorkZoEmotionalMemory,
+  createWorkZoEmotionalMemory,
+  type WorkZoEmotionalMemory,
+  type WorkZoRecruiterVisualState,
+} from "@/lib/workzoPremiumExperienceEngine";
+import { detectShareableMoment } from "@/lib/shareableMoments";
 
 import {
   buildWorkZoVapiVariableValues,
@@ -168,11 +176,6 @@ type InterviewSetup = {
   language: string;
   cvText?: string;
   jobDescription?: string;
-  resumeProfile?: {
-    basics?: {
-      name?: string;
-    };
-  };
 };
 
 const recruiterProfiles: Record<
@@ -275,7 +278,6 @@ const initialTranscript: TranscriptItem[] = [
 ];
 
 function MessageIcon() {
-
   return (
     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
@@ -1158,75 +1160,11 @@ function extractRoleClaims(answer: string) {
   return Array.from(roles);
 }
 
-// Extract degree/qualification claims from candidate answer
-function extractDegreeClaims(answer: string): string[] {
-  const claims: string[] = [];
-  const degreePatterns = [
-    /\b(bachelor(?:'s)?(?:\s+(?:of|in)\s+[\w\s]+)?)/gi,
-    /\b(master(?:'s)?(?:\s+(?:of|in)\s+[\w\s]+)?)/gi,
-    /\b(phd|doctorate|mba|b\.?sc|m\.?sc|b\.?eng|m\.?eng|bsc|msc)\b/gi,
-    /\b(diploma\s+in\s+[\w\s]+)/gi,
-  ];
-  for (const pattern of degreePatterns) {
-    const matches = answer.match(pattern);
-    if (matches) {
-      for (const m of matches) {
-        const clean = m.trim().replace(/\s+/g, " ");
-        if (clean.length > 2) claims.push(clean);
-      }
-    }
-  }
-  return [...new Set(claims)];
-}
-
-// Extract university/institution claims from candidate answer
-function extractInstitutionClaims(answer: string): string[] {
-  const institutions: string[] = [];
-  // Known prestigious institutions that are frequently fabricated
-  const knownInstitutions = [
-    "harvard", "oxford", "cambridge", "mit", "stanford", "yale", "princeton",
-    "columbia", "imperial college", "lse", "ucl", "university of", "tu ",
-    "technical university", "rwth", "eth zurich", "tu berlin", "tu munich",
-    "lmu", "fu berlin", "hhu", "goethe university",
-  ];
-  const lower = answer.toLowerCase();
-  for (const inst of knownInstitutions) {
-    if (lower.includes(inst)) {
-      // Extract the full institution name around the keyword
-      const idx = lower.indexOf(inst);
-      const fragment = answer.slice(Math.max(0, idx), Math.min(answer.length, idx + 60)).split(/[,\n.;]/)[0]?.trim();
-      if (fragment) institutions.push(fragment);
-    }
-  }
-  return [...new Set(institutions)];
-}
-
-// Extract project/product name claims from candidate answer
-function extractProjectClaims(answer: string): string[] {
-  // Match things like "I built X", "I created X", "my project X", "called X", "named X"
-  const matches: string[] = [];
-  const patterns = [
-    /\b(?:built|created|developed|launched|shipped|deployed|architected|designed)\s+(?:a\s+)?([A-Z][\w\s-]{2,30})/g,
-    /\b(?:project|product|platform|system|tool|app|dashboard)\s+(?:called|named)\s+([A-Z][\w\s-]{2,30})/gi,
-  ];
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(answer)) !== null) {
-      const name = match[1]?.trim();
-      if (name && name.length >= 3 && /[A-Z]/.test(name[0] ?? "")) {
-        matches.push(name);
-      }
-    }
-  }
-  return [...new Set(matches)];
-}
-
 function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
   const evidence = normalizedEvidenceText(setup);
   if (!evidence) return "";
 
   const lower = answer.toLowerCase();
-  const cvText = (setup.cvText || "").toLowerCase();
 
   if (
     /\b(i lied|i made that up|i made it up|not true|wasn't true|that is false|i exaggerated|sorry.*lie|i just lied|i was lying|fake)\b/i.test(
@@ -1236,27 +1174,6 @@ function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
     return "The candidate admitted the claim is false or exaggerated.";
   }
 
-  // ── Name check: candidate claims to be someone not on the CV ──────────────
-  const setupName = (setup.candidateName || setup.resumeProfile?.basics?.name || "").toLowerCase().trim();
-  if (setupName && setupName.length >= 2) {
-    // If candidate introduces themselves with a clearly different full name
-    const introMatch = answer.match(/\bmy name is ([A-Z][a-zA-Z]+ [A-Z][a-zA-Z]+)/i);
-    if (introMatch) {
-      const claimedName = introMatch[1]?.toLowerCase().trim() ?? "";
-      const firstWord = setupName.split(" ")[0] ?? "";
-      const lastWord = setupName.split(" ").pop() ?? "";
-      if (
-        claimedName.length > 3 &&
-        !claimedName.includes(firstWord) &&
-        !claimedName.includes(lastWord) &&
-        !setupName.includes(claimedName.split(" ")[0] ?? "")
-      ) {
-        return `The name "${introMatch[1]}" does not appear to match the CV on file.`;
-      }
-    }
-  }
-
-  // ── Company check ─────────────────────────────────────────────────────────
   const companyClaims = extractCompanyClaims(answer);
   for (const company of companyClaims) {
     if (!evidenceIncludesClaim(evidence, company)) {
@@ -1264,7 +1181,6 @@ function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
     }
   }
 
-  // ── Role/title check ──────────────────────────────────────────────────────
   const roleClaims = extractRoleClaims(answer);
   for (const role of roleClaims) {
     if (!evidenceIncludesClaim(evidence, role)) {
@@ -1272,53 +1188,32 @@ function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
     }
   }
 
-  // ── Years of experience check ─────────────────────────────────────────────
   const yearsClaim = extractYearsClaim(answer);
   if (yearsClaim) {
     const directDigit = new RegExp(`\\b${yearsClaim}\\s*(?:\\+?\\s*)?(?:years?|yrs?)\\b`, "i");
     const wordMap: Record<number, string> = {
-      1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
-      6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten",
-      11: "eleven", 12: "twelve", 13: "thirteen", 14: "fourteen", 15: "fifteen",
+      1: "one",
+      2: "two",
+      3: "three",
+      4: "four",
+      5: "five",
+      6: "six",
+      7: "seven",
+      8: "eight",
+      9: "nine",
+      10: "ten",
+      11: "eleven",
+      12: "twelve",
+      13: "thirteen",
+      14: "fourteen",
+      15: "fifteen",
     };
+
     const word = wordMap[yearsClaim];
     const directWord = word ? new RegExp(`\\b${word}\\s+(?:years?|yrs?)\\b`, "i") : null;
+
     if (!directDigit.test(evidence) && !(directWord && directWord.test(evidence))) {
       return `${yearsClaim} years of experience is not verified in the CV.`;
-    }
-  }
-
-  // ── Education / degree check ──────────────────────────────────────────────
-  const degreeClaims = extractDegreeClaims(answer);
-  for (const degree of degreeClaims) {
-    const degreeKeyword = degree.replace(/\s+/g, "\\s+");
-    const degreeRegex = new RegExp(degreeKeyword, "i");
-    if (!degreeRegex.test(cvText)) {
-      return `A "${degree}" qualification was mentioned but is not visible in the CV.`;
-    }
-  }
-
-  // ── Institution check ─────────────────────────────────────────────────────
-  const institutionClaims = extractInstitutionClaims(answer);
-  for (const inst of institutionClaims) {
-    const keyword = inst.split(" ")[0]?.toLowerCase() ?? "";
-    if (keyword.length > 3 && !cvText.includes(keyword)) {
-      return `The institution "${inst}" is not visible in the CV. Can you clarify your educational background?`;
-    }
-  }
-
-  // ── Named project / product check ────────────────────────────────────────
-  // Only flag proper-noun project names that are clearly invented (not generic words)
-  const projectClaims = extractProjectClaims(answer);
-  const genericWords = new Set(["the", "a", "an", "new", "old", "big", "small", "first", "this", "that", "internal", "external", "customer", "system", "platform", "tool"]);
-  for (const project of projectClaims) {
-    const projectLower = project.toLowerCase();
-    const firstWord = projectLower.split(" ")[0] ?? "";
-    if (!genericWords.has(firstWord) && project.length > 4 && !cvText.includes(projectLower)) {
-      // Soft check only — don't challenge unless it's a very specific name
-      if (/[A-Z]{2,}|[A-Z][a-z]+[A-Z]/.test(project)) { // CamelCase or ALL CAPS = likely a product name
-        return `The project or product "${project}" is not mentioned in the CV. Is this experience you can verify?`;
-      }
     }
   }
 
@@ -2493,11 +2388,6 @@ export default function InterviewPage() {
   const [status, setStatus] = useState<InterviewStatus>("idle");
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [premiumVoiceEnabled, setPremiumVoiceEnabled] = useState(true);
-  // Tavus minute tracking — shows timer in top-right and auto-falls back to Voice AI when exhausted
-  const [tavusMinutesRemaining, setTavusMinutesRemaining] = useState<number | null>(null);
-  const [tavusAutoFallbackTriggered, setTavusAutoFallbackTriggered] = useState(false);
-  const tavusSessionStartRef = useRef<number | null>(null);
-  const tavusTimerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [premiumVoiceStatus, setPremiumVoiceStatus] = useState<PremiumVoiceStatus>("idle");
   const [premiumVoiceError, setPremiumVoiceError] = useState("");
   const [recruiterSignal, setRecruiterSignal] = useState<RecruiterSignalState>(defaultRecruiterSignal);
@@ -2542,6 +2432,12 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const [voiceSpeed, setVoiceSpeed] = useState(0.84);
   const [copilotAggressiveness, setCopilotAggressiveness] = useState<"Low" | "Medium" | "High">("Medium");
   const [recoverySnapshot, setRecoverySnapshot] = useState<WorkZoInterviewSnapshot | null>(null);
+  // Orphaned engines now wired
+  const [emotionalMemory, setEmotionalMemory] = useState<WorkZoEmotionalMemory>(createWorkZoEmotionalMemory);
+  const [recruiterVisualState, setRecruiterVisualState] = useState<WorkZoRecruiterVisualState>("waiting");
+  const [fillerWordCount, setFillerWordCount] = useState(0);
+  const [shareableMoment, setShareableMoment] = useState<{ title: string; text: string; category: string } | null>(null);
+  const emotionalMemoryRef = useRef<WorkZoEmotionalMemory>(createWorkZoEmotionalMemory());
   const [recoveryNoticeDismissed, setRecoveryNoticeDismissed] = useState(false);
   const [recoveredSessionReady, setRecoveredSessionReady] = useState(false);
   const [premiumUnlocked, setPremiumUnlocked] = useState(false);
@@ -2885,10 +2781,14 @@ const [questionIndex, setQuestionIndex] = useState(0);
       });
 
       applyRecruiterSignalUpdate(answer);
-
       setStatus("thinking");
 
-      const reply = enforceRuntimeLanguageForReply(setupRef.current, buildRecruiterReply(answer, questionIndexRef.current, setupRef.current, recruiterMemoryRef.current));
+      // Live interruption engine — recruiter can cut off rambling answers
+      const interruptDecision = decideWorkZoInterruption(answer);
+      const baseReply = interruptDecision.shouldInterrupt
+        ? interruptDecision.line
+        : buildRecruiterReply(answer, questionIndexRef.current, setupRef.current, recruiterMemoryRef.current);
+      const reply = enforceRuntimeLanguageForReply(setupRef.current, baseReply);
 
       window.setTimeout(() => {
         if (stopRequestedRef.current) return;
@@ -2934,6 +2834,39 @@ const [questionIndex, setQuestionIndex] = useState(0);
       if (!audioEnabled || typeof window === "undefined" || !window.speechSynthesis) {
         window.setTimeout(() => startListening(), 650);
         return;
+      }
+
+      // ── ElevenLabs tier-2 voice (better than browser, lighter than Vapi) ──
+      if (audioEnabled && typeof window !== "undefined") {
+        try {
+          const el11Res = await fetch("/api/elevenlabs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text,
+              recruiterId: activeSetup.recruiterId,
+              recruiterName: activeSetup.recruiterId,
+            }),
+          });
+          if (el11Res.ok) {
+            const audioBlob = await el11Res.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            setStatus("recruiter-speaking");
+            audio.onended = () => {
+              URL.revokeObjectURL(audioUrl);
+              if (!stopRequestedRef.current) window.setTimeout(() => startListening(), 280);
+            };
+            audio.onerror = () => {
+              URL.revokeObjectURL(audioUrl);
+              // Fall through to browser TTS below
+            };
+            await audio.play().catch(() => null);
+            if (!audio.paused) return; // ElevenLabs is playing — skip browser TTS
+          }
+        } catch {
+          // ElevenLabs unavailable — fall through to browser TTS
+        }
       }
 
       try {
@@ -2990,6 +2923,32 @@ const [questionIndex, setQuestionIndex] = useState(0);
         return updated;
       });
 
+      // ── Wire orphaned engines ─────────────────────────────────────────────
+      // 1. Recruiter visual state + emotional memory
+      const reaction = getWorkZoLiveReaction(answer);
+      setRecruiterVisualState(reaction.visualState);
+      setEmotionalMemory((prev) => {
+        const updated = updateWorkZoEmotionalMemory(prev, answer);
+        emotionalMemoryRef.current = updated;
+        return updated;
+      });
+
+      // 2. Filler word counter
+      const fillers = (answer.match(/(um+|uh+|like|you know|sort of|kind of|basically|literally|right\?|so\.\.\.)/gi) || []).length;
+      if (fillers > 0) setFillerWordCount((c) => c + fillers);
+
+      // 3. Shareable moment detection
+      const contradiction = extractUnsupportedClaimReason(answer, setupRef.current);
+      const moment = detectShareableMoment({
+        wowMoment: contradiction ? { shouldTrigger: true, line: contradiction, emotionalTag: "contradiction" } : undefined,
+        trust: next.trust,
+        pressure: next.overall < 50 ? 80 : 20,
+        contradiction: contradiction || undefined,
+      });
+      if (moment.shouldHighlight) {
+        setShareableMoment({ title: moment.shareTitle, text: moment.shareText, category: moment.category });
+      }
+
       setScoreReady(true);
 
       const answerQuality = classifyAnswerQuality(answer, setupRef.current);
@@ -3010,7 +2969,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
   }, [scoreReady]);
 
   const stopPremiumVoice = useCallback(() => {
-    stopTavusTimer();
     vapiConnectedRef.current = false;
     vapiStartingRef.current = false;
 
@@ -3034,53 +2992,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
     // Transcript-only AI voice path for now.
     // Browser/local interview logic remains the scoring source, so AI voice instability cannot break scoring.
     if (!answer.trim()) return;
-  }, []);
-
-  // Start the Tavus minute countdown timer — called when Vapi/Tavus voice is confirmed connected
-  const startTavusTimer = useCallback(() => {
-    const summary = getWorkZoUsageSummary();
-    const remaining = summary?.tavusMinutesRemaining ?? null;
-    setTavusMinutesRemaining(remaining);
-    if (remaining === null) return;
-
-    tavusSessionStartRef.current = Date.now();
-    if (tavusTimerIntervalRef.current) clearInterval(tavusTimerIntervalRef.current);
-
-    tavusTimerIntervalRef.current = setInterval(() => {
-      const elapsed = (Date.now() - (tavusSessionStartRef.current ?? Date.now())) / 60000;
-      const newRemaining = Math.max(0, (remaining ?? 0) - elapsed);
-      setTavusMinutesRemaining(Math.floor(newRemaining));
-
-      if (newRemaining <= 0 && !tavusAutoFallbackTriggered) {
-        setTavusAutoFallbackTriggered(true);
-        clearInterval(tavusTimerIntervalRef.current!);
-        // Record the minutes used
-        const minutesUsed = Math.ceil(elapsed);
-        recordWorkZoTavusMinutes(minutesUsed);
-        // Add system message notifying candidate
-        addTranscript({
-          role: "system",
-          speaker: "System",
-          text: "You have reached your monthly Live AI Recruiter limit. The interview will continue using Voice AI mode.",
-        });
-        // Stop Vapi/Tavus and fall back to browser voice
-        stopPremiumVoice();
-        void startBrowserFallbackInterview(setupRef.current);
-      }
-    }, 10000); // check every 10 seconds
-  }, [addTranscript, stopPremiumVoice, tavusAutoFallbackTriggered]);
-
-  const stopTavusTimer = useCallback(() => {
-    if (tavusTimerIntervalRef.current) {
-      clearInterval(tavusTimerIntervalRef.current);
-      tavusTimerIntervalRef.current = null;
-    }
-    if (tavusSessionStartRef.current !== null) {
-      const elapsed = (Date.now() - tavusSessionStartRef.current) / 60000;
-      const minutesUsed = Math.ceil(elapsed);
-      if (minutesUsed > 0) recordWorkZoTavusMinutes(minutesUsed);
-      tavusSessionStartRef.current = null;
-    }
   }, []);
 
   const startBrowserFallbackInterview = useCallback(
@@ -3129,9 +3040,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
   const startPremiumVoice = useCallback(
     async (activeSetup: InterviewSetup) => {
-    // startPremiumVoice = VAPI voice interviews (Premium+).
-    // Tavus video is a separate Premium Pro feature — do NOT gate VAPI with a Tavus check.
-    if (vapiStartingRef.current || vapiConnectedRef.current) return true;
+    // Vapi = voice interviews for Premium+. Tavus = video for Pro only. Never mix these checks.
+      if (vapiStartingRef.current || vapiConnectedRef.current) return true;
 
       // Reset stale client/call state first, then mark this new AI voice start attempt.
       stopPremiumVoice();
@@ -3181,11 +3091,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
             recruiter: activeSetup.recruiterName,
           }, "high");
           setPremiumVoiceStatus("failed");
-          setPremiumVoiceError("Premium voice could not connect. Switching to browser voice.");
+          setPremiumVoiceError("Voice failed. Switching to browser voice.");
           stopPremiumVoice();
-          if (!vapiFallbackStartedRef.current) {
-            void startBrowserFallbackInterview(activeSetup);
-          }
+          if (!vapiFallbackStartedRef.current) void startBrowserFallbackInterview(activeSetup);
         };
 
         client.on?.("call-start", () => {
@@ -3350,11 +3258,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
                   recruiter: activeSetup.recruiterName,
                 }, "high");
                 setPremiumVoiceStatus("failed");
-                setPremiumVoiceError("Voice connection timed out. Switching to browser voice.");
+                setPremiumVoiceError("Voice timed out. Switching to browser voice.");
                 stopPremiumVoice();
-                if (!vapiFallbackStartedRef.current) {
-                  void startBrowserFallbackInterview(activeSetup);
-                }
+                if (!vapiFallbackStartedRef.current) void startBrowserFallbackInterview(activeSetup);
               }
             }, 18000);
           }
@@ -3397,6 +3303,20 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
   const startInterview = useCallback(async () => {
     stopRequestedRef.current = false;
+
+    // ── Free plan interview limit check ──────────────────────────────────────
+    const interviewCheck = checkWorkZoInterviewAllowed();
+    if (!interviewCheck.allowed) {
+      openUpgradeModal("interview_limit");
+      addTranscript({
+        role: "system",
+        speaker: "System",
+        text: `You have used all ${interviewCheck.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
+      });
+      return;
+    }
+    // Record this interview start so the usage counter increments correctly
+    recordWorkZoInterviewStarted();
 
     const restoredSnapshot = recoveredSessionRef.current;
 
@@ -3521,6 +3441,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
     setRecruiterSignal(defaultRecruiterSignal);
     setRecruiterMemory(defaultRecruiterMemory);
     recruiterMemoryRef.current = defaultRecruiterMemory;
+    // Reset orphaned engine state
+    const freshMemory = createWorkZoEmotionalMemory();
+    setEmotionalMemory(freshMemory);
+    emotionalMemoryRef.current = freshMemory;
+    setRecruiterVisualState("waiting");
+    setFillerWordCount(0);
+    setShareableMoment(null);
 
     if (premiumVoiceEnabledRef.current && audioEnabledRef.current) {
       const startedPremiumVoice = await startPremiumVoice(freshSetup);
@@ -3535,7 +3462,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
         return;
       }
 
-      // Vapi failed or not configured — fall back to browser voice automatically.
+      // Vapi not available — start browser voice fallback automatically
       startBrowserFallbackInterview(freshSetup);
       return;
     }
@@ -3555,6 +3482,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
       persistCandidatePatterns(recruiterMemoryRef.current, setupRef.current);
 
+      // Calculate speaking pace (WPM)
+      const candidateWords = finalTranscript
+        .filter((item) => item.role === "candidate")
+        .reduce((acc, item) => acc + item.text.trim().split(/\s+/).filter(Boolean).length, 0);
+      const durationMins = elapsed > 0 ? elapsed / 60 : 1;
+      const averageWpm = Math.round(candidateWords / durationMins);
+
       const session = {
         id: `workzo-${Date.now()}`,
         savedAt: new Date().toISOString(),
@@ -3566,6 +3500,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
         recruiterTitle: setupRef.current.recruiterTitle,
         companyStyle: detectCompanyInterviewStyle(setupRef.current),
         durationSeconds: elapsed,
+        averageWpm,
+        fillerWordCount,
         score: finalScore,
         transcript: finalTranscript,
         memory: recruiterMemoryRef.current,
@@ -3582,6 +3518,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
           patterns: recruiterMemoryRef.current.patterns,
           answerQuality: answerQuality.summary,
           verdict: verdict.decision,
+          averageWpm,
+          fillerWordCount,
         },
       };
 
@@ -3772,7 +3710,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
   }
 
   return (
-    <main className={`min-h-screen overflow-x-hidden bg-[#04080f] text-white lg:h-screen lg:overflow-hidden${false ? " text-lg" : ""}`}>
+    <main className="min-h-screen overflow-x-hidden bg-[#050b14] text-white lg:h-screen lg:overflow-hidden">
 <section className="grid min-h-screen grid-rows-[64px_1fr] lg:h-full lg:min-h-0 lg:grid-rows-[70px_1fr]">
         <header className="flex items-center justify-between gap-2 border-b border-white/10 px-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-2 sm:gap-5">
@@ -4022,15 +3960,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
                       <section
               style={{ display: showCopilot ? undefined : "none" }}
-              className="border-b border-white/[0.06] bg-transparent p-3.5 overflow-visible"
+              className="rounded-2xl border border-white/10 bg-[#0b1527] p-3.5 overflow-visible"
             >
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-black text-blue-300">
-                  Live Copilot{" "}
-                  <span className="ml-2 rounded-full bg-violet-400/15 px-2 py-1 text-[10px] text-violet-200">
-                    Beta
-                  </span>
-                </h2>
+<h2 className="text-base font-black text-blue-300">Live Copilot</h2>
                 <button
                   type="button"
                   onClick={() => setShowCopilot((value) => !value)}
@@ -4159,6 +4092,31 @@ const [questionIndex, setQuestionIndex] = useState(0);
           </div>
         </header>
 
+        {shareableMoment && status !== "idle" ? (
+          <div className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-2xl border border-violet-300/20 bg-violet-500/[0.08] px-4 py-2.5 lg:mx-4">
+            <div className="min-w-0">
+              <p className="text-xs font-black text-violet-200">{shareableMoment.title}</p>
+              <p className="mt-0.5 truncate text-xs text-slate-400">{shareableMoment.text}</p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof navigator !== "undefined" && navigator.share) {
+                    void navigator.share({ title: shareableMoment.title, text: `${shareableMoment.text} — Practice interview on WorkZo AI` });
+                  } else if (typeof navigator !== "undefined") {
+                    void navigator.clipboard.writeText(`${shareableMoment.text} — Practice interview on WorkZo AI`);
+                  }
+                }}
+                className="rounded-xl bg-violet-500 px-3 py-1.5 text-xs font-black text-white hover:bg-violet-400"
+              >
+                Share
+              </button>
+              <button type="button" onClick={() => setShareableMoment(null)} className="text-slate-400 hover:text-white text-xs px-2">✕</button>
+            </div>
+          </div>
+        ) : null}
+
         {recoverySnapshot && !recoveryNoticeDismissed && status === "idle" ? (
           <section className="mx-3 mt-3 rounded-2xl border border-amber-300/25 bg-amber-400/10 p-4 text-amber-50 lg:mx-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -4191,9 +4149,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
           </section>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-3 overflow-x-hidden p-3 pb-24 lg:min-h-0 lg:grid-cols-[1fr_340px] lg:overflow-hidden lg:p-0 lg:gap-0">
-          <div className="grid gap-0 lg:min-h-0 lg:grid-rows-[1fr_auto]">
-            <section className="relative h-[260px] overflow-hidden bg-[#080e1a] sm:h-[390px] lg:h-auto lg:rounded-none">
+        <div className="grid grid-cols-1 gap-3 overflow-x-hidden p-3 pb-24 lg:min-h-0 lg:grid-cols-[1fr_368px] lg:overflow-hidden lg:p-4">
+          <div className="grid gap-3 lg:min-h-0 lg:grid-rows-[69vh_18vh]">
+            <section className="relative h-[260px] overflow-hidden rounded-2xl border border-white/10 bg-[#0b1527] sm:h-[390px] lg:h-auto">
               <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-blue-500/20 blur-3xl" />
               <div className="absolute inset-0">
                 <Image
@@ -4208,13 +4166,25 @@ const [questionIndex, setQuestionIndex] = useState(0);
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/10 to-black/0" />
 
-              {tavusMinutesRemaining !== null && (
-                <div className="absolute right-5 top-5 inline-flex items-center gap-2 rounded-full border border-violet-300/30 bg-black/50 px-3 py-1.5 text-xs font-black text-violet-200 backdrop-blur-sm shadow-lg">
-                  <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
-                  Live AI Recruiter · {tavusMinutesRemaining} min remaining
+              {/* Recruiter visual state overlay — powered by workzoPremiumExperienceEngine */}
+              {recruiterVisualState !== "waiting" && recruiterVisualState !== "listening" && status !== "idle" && (
+                <div className={`absolute left-1/2 top-[28%] -translate-x-1/2 rounded-full border px-4 py-1.5 text-xs font-black backdrop-blur-sm transition-all duration-500 ${
+                  recruiterVisualState === "skeptical" ? "border-amber-300/30 bg-amber-400/20 text-amber-200" :
+                  recruiterVisualState === "interested" ? "border-emerald-300/30 bg-emerald-400/20 text-emerald-200" :
+                  recruiterVisualState === "interrupting" ? "border-red-300/40 bg-red-500/25 text-red-200 animate-pulse" :
+                  recruiterVisualState === "typing_notes" ? "border-blue-300/30 bg-blue-400/20 text-blue-200" :
+                  recruiterVisualState === "thinking" ? "border-slate-300/20 bg-slate-400/15 text-slate-300" :
+                  "border-white/10 bg-black/30 text-slate-300"
+                }`}>
+                  {recruiterVisualState === "skeptical" && "🤔 Sceptical"}
+                  {recruiterVisualState === "interested" && "✓ Interested"}
+                  {recruiterVisualState === "interrupting" && "✋ Hold on"}
+                  {recruiterVisualState === "typing_notes" && "📝 Taking notes"}
+                  {recruiterVisualState === "thinking" && "Thinking..."}
                 </div>
               )}
-              <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full border border-emerald-400/50 bg-black/40 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-emerald-300 backdrop-blur-sm shadow-lg">
+
+              <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-lg border border-emerald-400/50 bg-emerald-400/10 px-4 py-2 text-sm font-bold text-emerald-300">
                 <span className="inline-block h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.9)]" /> {status === "recruiter-speaking" ? "SPEAKING" : status === "listening" ? "LISTENING" : status === "thinking" ? "THINKING" : "LIVE"}
               </div>
 
@@ -4223,23 +4193,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
                   {premiumVoiceError}
                 </div>
               ) : null}
-
-              {/* Candidate self-view tile — Zoom/Meet style PiP */}
-              <div className="absolute bottom-4 right-3 sm:bottom-5 sm:right-5">
-                <div className="relative h-16 w-20 overflow-hidden rounded-xl border border-white/20 bg-[#0a1628] shadow-xl sm:h-20 sm:w-28">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-700 text-slate-300">
-                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg>
-                      </div>
-                      <p className="text-[9px] font-black text-white/50">You</p>
-                    </div>
-                  </div>
-                  {status === "listening" && (
-                    <div className="absolute inset-0 rounded-xl border-2 border-blue-400 animate-pulse" />
-                  )}
-                </div>
-              </div>
 
               <div className="absolute bottom-4 left-3 max-w-[145px] sm:bottom-5 sm:left-5 sm:max-w-none">
                 <div className="flex items-center gap-2 text-lg font-black">
@@ -4278,7 +4231,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
               </div>
             </section>
 
-            <section className="border-t border-white/[0.06] bg-[#05090f]/95 backdrop-blur-sm lg:min-h-0 lg:rounded-none">
+            <section className="rounded-2xl border border-white/10 bg-[#0b1527]/95 lg:min-h-0">
               <button
                 type="button"
                 onClick={() => setShowTranscript((value) => !value)}
@@ -4369,7 +4322,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
           </div>
 
           <aside className="grid gap-3 lg:min-h-0 lg:grid-rows-[190px_270px_82px]">
-            <section className="border-b border-white/[0.06] bg-transparent p-3.5">
+            <section className="rounded-2xl border border-white/10 bg-[#0b1527] p-3.5">
               <h2 className="text-base font-black">Interview Score</h2>
               <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className={`grid h-[78px] w-[78px] place-items-center rounded-full border-[7px] bg-[#07111f] transition-all duration-500 ${scoreFlash === "up" ? "border-emerald-400 shadow-[0_0_0_10px_rgba(52,211,153,0.18)]" : scoreFlash === "down" ? "border-amber-400 shadow-[0_0_0_10px_rgba(251,191,36,0.18)]" : "border-blue-500 shadow-[0_0_0_10px_rgba(124,58,237,0.2)]"}`}>
@@ -4383,7 +4336,14 @@ const [questionIndex, setQuestionIndex] = useState(0);
                       <>
                         <div className="text-sm font-black uppercase tracking-[0.14em] text-blue-100">Ready</div>
                         <div className="text-[10px] text-slate-400">first answer</div>
-                      </>
+                      
+      <UpgradeModal
+        open={upgradeModalOpen}
+        feature={upgradeModalFeature}
+        onClose={closeUpgradeModal}
+        onUpgrade={handleUpgradeInterest}
+      />
+</>
                     )}
                     {scoreFlash ? (
                       <div className={`mt-1 text-[10px] font-black uppercase ${scoreFlash === "up" ? "text-emerald-300" : "text-amber-300"}`}>
@@ -4416,14 +4376,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
               </p>
             </section>
 
-            <section style={{ display: showCopilot ? undefined : "none" }} className="border-b border-white/[0.06] bg-transparent p-3.5 overflow-hidden">
+            <section style={{ display: showCopilot ? undefined : "none" }} className="rounded-2xl border border-white/10 bg-[#0b1527] p-3.5 overflow-hidden">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-black text-blue-300">
-                  Live Copilot{" "}
-                  <span className="ml-2 rounded-full bg-violet-400/15 px-2 py-1 text-xs text-violet-200">
-                    Beta
-                  </span>
-                </h2>
+<h2 className="text-lg font-black text-blue-300">Live Copilot</h2>
                 <span className="relative h-6 w-11 rounded-full bg-blue-500">
                   <span className="absolute right-1 top-1 h-4 w-4 rounded-full bg-white" />
                 </span>
@@ -4441,6 +4396,15 @@ const [questionIndex, setQuestionIndex] = useState(0);
                   <p>Interest <span className="font-bold text-white">{scoreReady ? recruiterSignal.interest : "—"}</span></p>
                 </div>
               </div>
+
+              {fillerWordCount > 0 && (
+                <div className="mb-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-1.5">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200">Filler words</p>
+                  <p className="mt-0.5 text-[13px] leading-5 text-slate-100">
+                    {fillerWordCount} filler word{fillerWordCount === 1 ? "" : "s"} detected (um, uh, like, you know). Reduce these to sound more confident.
+                  </p>
+                </div>
+              )}
 
               <div className="mt-3 space-y-2">
                 <div className="rounded-xl border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-1.5">
@@ -4463,7 +4427,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
               </div>
             </section>
 
-            <section className="border-b border-white/[0.06] bg-transparent p-4">
+            <section className="rounded-2xl border border-white/10 bg-[#0b1527] p-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-black">Interview Progress</h2>
                 <span className="text-base text-white leading-7 font-medium">
@@ -4493,7 +4457,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
         </div>
 
         {showCopilot && status !== "idle" ? (
-          <div className="fixed bottom-20 left-0 right-0 z-40 border-t border-blue-300/10 bg-[#04080f]/95 px-4 py-3 shadow-2xl backdrop-blur-xl lg:hidden">
+          <div className="fixed bottom-20 left-3 right-3 z-40 rounded-2xl border border-blue-300/20 bg-[#07111f]/95 px-4 py-3 shadow-2xl backdrop-blur-xl lg:hidden">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">Live Copilot</p>
@@ -4509,12 +4473,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
           </div>
         ) : null}
       </section>
-      <UpgradeModal
-        open={upgradeModalOpen}
-        feature={upgradeModalFeature}
-        onClose={closeUpgradeModal}
-        onUpgrade={handleUpgradeInterest}
-      />
     </main>
   );
 }

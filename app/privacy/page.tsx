@@ -7,7 +7,7 @@ export default function PrivacyPage() {
         <Link href="/" className="text-sm text-blue-300">← Back to home</Link>
         <h1 className="mt-6 text-3xl font-black">Privacy</h1>
         <p className="mt-4 leading-7 text-slate-300">
-          WorkZo AI is currently in beta. Interview setup and results may be stored locally in your browser to support the product experience.
+          WorkZo AI stores interview setup and results locally in your browser to support the product experience.
         </p>
         <p className="mt-4 leading-7 text-slate-300">
           Do not upload sensitive personal information. Always review AI-generated feedback before using it for real-world decisions.
