@@ -39,6 +39,7 @@ import {
 
 import PrivacyNotice from "@/components/BetaPrivacyNotice";
 import { trackWorkZoLaunchEvent } from "@/lib/workzoLaunchAnalytics";
+import { getWorkZoCurrentPlan } from "@/lib/workzoUsageTracker";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 
 type Market = "Global" | "Germany" | "US" | "UK" | "India" | "Netherlands";
@@ -52,7 +53,14 @@ type RecruiterKey =
   | "friendly_hr"
   | "analytical_hiring_manager"
   | "startup_recruiter"
-  | "german_corporate";
+  | "german_corporate"
+  | "faang_hiring_manager"
+  | "startup_founder"
+  | "consulting_partner"
+  | "sales_director"
+  | "product_leader"
+  | "executive_recruiter"
+  | "enterprise_recruiter";
 
 type InterviewLanguage =
   | "English"
@@ -156,6 +164,23 @@ const recruiters: {
   },
 ];
 
+const proRecruiters: {
+  key: RecruiterKey;
+  name: string;
+  role: string;
+  avatar: string;
+  quote: string;
+  description: string;
+}[] = [
+  { key: "faang_hiring_manager", name: "Alex Chen", role: "FAANG Hiring Manager", avatar: "👨🏻‍💻", quote: "Walk me through the exact trade-off you made and how you measured success.", description: "Technical, systematic, and expects structured thinking with data. Probes every assumption." },
+  { key: "startup_founder", name: "Zoe Park", role: "Startup Founder", avatar: "👩🏻‍🚀", quote: "What broke, what did you own, and what would you do differently at 10x scale?", description: "Moves fast, hates buzzwords, rewards radical ownership. Expects you to talk about failure honestly." },
+  { key: "consulting_partner", name: "James Harrington", role: "Consulting Partner", avatar: "👨🏻‍💼", quote: "Structure your answer. Situation, what was at stake, and your recommendation.", description: "Case-style pressure, frameworks, and structured delivery. Will redirect a rambling answer." },
+  { key: "sales_director", name: "Marcus Webb", role: "Sales Director", avatar: "👨🏾‍💼", quote: "Give me a number. Revenue impact, quota attainment, deal size — be specific.", description: "Numbers-first, commercial mindset. Will push you to quantify everything." },
+  { key: "product_leader", name: "Aisha Patel", role: "Product Leader", avatar: "👩🏾‍💼", quote: "How did you decide what NOT to build, and what was the user evidence?", description: "User empathy, prioritisation, and cross-functional influence. Expects product sense." },
+  { key: "executive_recruiter", name: "Victoria Stern", role: "Executive Recruiter", avatar: "👩🏼‍💼", quote: "What would your last manager say is your biggest development area? Be honest.", description: "Senior-level strategic questioning. Expects board-ready communication and leadership narrative." },
+  { key: "enterprise_recruiter", name: "David Kimura", role: "Enterprise Recruiter", avatar: "👨🏻‍💼", quote: "How did you manage stakeholders at different levels? Give me a cross-functional example.", description: "Process, governance, and stakeholder management. Structured answers with clear escalation." },
+];
+
 const interviewLanguages: { label: InterviewLanguage; nativeLabel: string; hint: string }[] = [
   { label: "English", nativeLabel: "English", hint: "Global interview practice" },
   { label: "German", nativeLabel: "Deutsch", hint: "Formal German-style practice" },
@@ -229,6 +254,13 @@ function normalizeRecruiterKey(value?: unknown): RecruiterKey {
   ) {
     return "german_corporate";
   }
+  if (key === "faang_hiring_manager" || raw.includes("faang") || raw.includes("alex chen")) return "faang_hiring_manager";
+  if (key === "startup_founder" || (raw.includes("founder") && !raw.includes("startup_recruiter"))) return "startup_founder";
+  if (key === "consulting_partner" || raw.includes("consulting_partner") || raw.includes("harrington")) return "consulting_partner";
+  if (key === "sales_director" || raw.includes("sales_director") || raw.includes("marcus webb")) return "sales_director";
+  if (key === "product_leader" || raw.includes("product_leader") || raw.includes("aisha")) return "product_leader";
+  if (key === "executive_recruiter" || raw.includes("executive_recruiter") || raw.includes("victoria stern")) return "executive_recruiter";
+  if (key === "enterprise_recruiter" || raw.includes("enterprise_recruiter") || raw.includes("kimura")) return "enterprise_recruiter";
 
   return "analytical_hiring_manager";
 }
@@ -544,6 +576,10 @@ export default function OnboardingPage() {
   const [recruiter, setRecruiter] = useState<RecruiterKey>(
     normalizeRecruiterKey(setup.recruiterPersonality),
   );
+  const [isProUser] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return getWorkZoCurrentPlan() === "premium_pro";
+  });
   const [interviewLanguage, setInterviewLanguage] = useState<InterviewLanguage>(
     normalizeInterviewLanguage(setup.language),
   );
@@ -1162,8 +1198,7 @@ export default function OnboardingPage() {
                         Upload your CV
                       </h1>
                       <p className="mt-1 text-sm text-slate-400">
-                        WorkZo reads your real experience before asking
-                        questions.
+                        WorkZo reads your real experience before asking questions.
                       </p>
                     </div>
                   </div>
@@ -1171,7 +1206,7 @@ export default function OnboardingPage() {
                   <label className="mt-4 flex h-[138px] shrink-0 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-blue-300/30 bg-blue-500/8 p-5 text-center transition hover:bg-blue-500/12">
                     <Upload className="h-8 w-8 text-blue-200" />
                     <p className="mt-3 text-lg font-black">
-                      {uploading ? "Reading CV..." : "Choose CV file"}
+                      {uploading ? "Reading your CV…" : "Click to upload your CV"}
                     </p>
                     <p className="mt-1.5 text-sm text-slate-400">
                       PDF, DOCX, or TXT. Manual paste is available below.
@@ -1212,10 +1247,10 @@ export default function OnboardingPage() {
                   {aiCvStructuringStatus !== "idle" && (
                     <div className="mt-3 rounded-2xl border border-blue-300/15 bg-blue-500/8 px-4 py-3 text-xs font-bold leading-5 text-blue-100">
                       {aiCvStructuringStatus === "structuring"
-                        ? "AI CV structuring is cleaning the CV layout globally..."
+                        ? "Reading and structuring your CV…"
                         : aiCvStructuringStatus === "ready"
-                          ? "AI-structured CV profile ready. Please review extracted details before continuing."
-                          : "AI CV structuring was unavailable, so WorkZo used the local parser fallback."}
+                          ? "CV profile ready. Review the extracted details below."
+                          : "CV parsed using local extraction. Review the details below."}
                     </div>
                   )}
 
@@ -1223,11 +1258,10 @@ export default function OnboardingPage() {
 
                   <details className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-4">
                     <summary className="cursor-pointer text-sm font-black text-slate-200">
-                      Paste or edit raw CV text
+                      Paste or edit CV text manually
                     </summary>
                     <p className="mt-2 text-xs leading-5 text-slate-500">
-                      Use this only when the upload misses something. The main
-                      preview above stays clean and structured.
+                      Use this if the upload missed something important.
                     </p>
                     <textarea
                       value={manualCv}
@@ -1466,6 +1500,67 @@ export default function OnboardingPage() {
                         </button>
                       ))}
                     </div>
+
+                    {/* Premium Pro Personas */}
+                    <div className="mt-5">
+                      <div className="mb-3 flex items-center gap-3">
+                        <div className="h-px flex-1 bg-white/[0.07]" />
+                        <span className="rounded-full border border-violet-300/20 bg-violet-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-violet-200">
+                          Premium Pro personas
+                        </span>
+                        <div className="h-px flex-1 bg-white/[0.07]" />
+                      </div>
+                      {!isProUser && (
+                        <p className="mb-3 text-xs leading-5 text-slate-500">
+                          These high-pressure personas are exclusive to Premium Pro.
+                        </p>
+                      )}
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {proRecruiters.map((item) => (
+                          <button
+                            key={item.key}
+                            type="button"
+                            disabled={!isProUser}
+                            onClick={() => { if (isProUser) setRecruiter(item.key); }}
+                            className={cn(
+                              "relative rounded-[24px] border p-4 text-left transition",
+                              !isProUser
+                                ? "cursor-not-allowed border-white/[0.05] bg-white/[0.01] opacity-50"
+                                : recruiter === item.key
+                                ? "border-violet-300/45 bg-violet-500/10 shadow-[0_0_30px_rgba(139,92,246,0.14)]"
+                                : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06] active:scale-[0.99]",
+                            )}
+                          >
+                            {!isProUser && (
+                              <div className="absolute right-3 top-3 rounded-full border border-violet-300/20 bg-violet-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-violet-300">
+                                Pro
+                              </div>
+                            )}
+                            <div className="flex items-start gap-3">
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/[0.06] text-lg">
+                                {item.avatar}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <h3 className="text-base font-black leading-5">{item.name}</h3>
+                                  {recruiter === item.key && isProUser && (
+                                    <span className="rounded-full bg-violet-300/14 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-violet-200">Selected</span>
+                                  )}
+                                </div>
+                                <p className="mt-0.5 text-xs font-bold text-slate-400">{item.role}</p>
+                                <p className="mt-2 text-sm leading-5 text-slate-300">{item.description}</p>
+                                <p className="mt-3 border-l border-violet-300/20 pl-3 text-xs italic leading-5 text-slate-400">"{item.quote}"</p>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      {!isProUser && (
+                        <a href="/pricing?plan=premium_pro&intent=personas" className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-violet-500 px-4 py-2.5 text-sm font-black text-white hover:bg-violet-400">
+                          Unlock Premium Pro personas
+                        </a>
+                      )}
+                    </div>
                   </section>
                 </div>
               )}
@@ -1481,7 +1576,7 @@ export default function OnboardingPage() {
                         Preview your setup
                       </h1>
                       <p className="mt-1 text-sm text-slate-400">
-                        Check the recruiter context before entering the room.
+                        Review your setup before entering the interview room.
                       </p>
                     </div>
                   </div>
@@ -1516,11 +1611,7 @@ export default function OnboardingPage() {
                           value: interviewLanguage,
                           Icon: Globe2,
                         },
-                        {
-                          label: "Readiness",
-                          value: `${readiness}%`,
-                          Icon: Sparkles,
-                        },
+
                       ] satisfies PreviewCard[]
                     ).map(({ label, value, Icon }) => (
                       <div
@@ -1604,11 +1695,11 @@ export default function OnboardingPage() {
                 <button
                   onClick={() => {
                     persistFast();
-                    router.push("/dashboard");
+                    router.push("/interview");
                   }}
                   className="inline-flex h-10 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-5 text-sm font-black text-white shadow-[0_10px_28px_rgba(37,99,235,0.26)] transition hover:scale-[1.02] xl:h-11 xl:px-6"
                 >
-                  Go to Dashboard
+                  Start interview
                   <ChevronRight className="h-4 w-4" />
                 </button>
               )}

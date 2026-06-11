@@ -47,7 +47,6 @@ type TranscriptTurn = {
 type StoredResult = {
   plan?: string;
   isPremium?: boolean;
-  fillerWordCount?: number;
   overallScore?: number;
   communicationScore?: number;
   confidenceScore?: number;
@@ -120,7 +119,6 @@ type RichReport = {
   durationLabel: string;
   answersCount: number;
   averageWpm: number;
-  fillerWordCount: number;
   recruiterName: string;
   roleLabel: string;
   companyLabel: string;
@@ -571,7 +569,6 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
     durationLabel: formatDuration(durationSeconds),
     answersCount,
     averageWpm,
-    fillerWordCount: numberOr(result.fillerWordCount, 0),
     recruiterName,
     roleLabel,
     companyLabel,
@@ -873,6 +870,20 @@ export default function ResultsPage() {
     }
   }, [result]);
 
+  const isProPlan = useMemo(() => {
+    try {
+      const currentPlan = getWorkZoCurrentPlan();
+
+      return (
+        currentPlan === "premium_pro" ||
+        String(result.plan || "").toLowerCase() === "premium_pro" ||
+        String(result.plan || "").toLowerCase() === "pro"
+      );
+    } catch {
+      return false;
+    }
+  }, [result]);
+
   const report = useMemo(() => buildRichReport(result, isPremium), [result, isPremium]);
   const phaseB = useMemo(
     () => buildPhaseBInsights({
@@ -895,11 +906,11 @@ export default function ResultsPage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
             <ArrowLeft className="h-4 w-4" />
-            Back home
+            Dashboard
           </Link>
 
           <div className="flex items-center gap-3">
-            <PremiumUsageBadge compact={false} label={isPremium ? "Premium report" : "Free report"} />
+            <PremiumUsageBadge compact={false} label={isProPlan ? "Premium Pro report" : isPremium ? "Premium report" : "Free report"} />
             <Link href="/pricing" className="rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400">
               {isPremium ? "Manage plan" : "Upgrade"}
             </Link>
@@ -942,7 +953,7 @@ export default function ResultsPage() {
         <section className="mt-6 rounded-[2rem] border border-blue-300/15 bg-blue-500/[0.045] p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-200">Phase 2 diagnostic layer</p>
+              <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-200">Deep analysis</p>
               <h2 className="mt-2 text-2xl font-black">{phaseB.companyDNA.label}</h2>
               <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">{phaseB.companyDNA.description}</p>
             </div>
@@ -994,10 +1005,7 @@ export default function ResultsPage() {
                 <h2 className="flex items-center gap-3 text-2xl font-black"><ShieldCheck className="h-6 w-6 text-emerald-300" />Sentiment snapshot</h2>
                 <p className="mt-4 text-base leading-8 text-slate-200">You showed useful role fit, but the recruiter still needs sharper metrics, ownership, or structure.</p>
                 <div className="mt-6 grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Speaking pace</p><p className="mt-2 text-2xl font-black">{report.averageWpm || "—"} <span className="text-base text-slate-400">WPM</span></p><p className="mt-1 text-xs text-slate-500">{report.averageWpm ? (report.averageWpm >= 110 && report.averageWpm <= 170 ? "Good pace" : report.averageWpm < 110 ? "Too slow" : "Too fast") : "Not measured"}</p></div>
-                  {(result.fillerWordCount ?? 0) >= 0 && (
-                    <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Filler words</p><p className="mt-2 text-2xl font-black">{result.fillerWordCount ?? 0}</p><p className="mt-1 text-xs text-slate-500">{(result.fillerWordCount ?? 0) === 0 ? "None detected" : (result.fillerWordCount ?? 0) <= 3 ? "Low — good" : (result.fillerWordCount ?? 0) <= 8 ? "Moderate" : "High — work on this"}</p></div>
-                  )}
+                  <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Avg. pace</p><p className="mt-2 text-2xl font-black">{report.averageWpm || "—"} WPM</p></div>
                   <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Duration</p><p className="mt-2 text-2xl font-black">{report.durationLabel}</p></div>
                   <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Answers</p><p className="mt-2 text-2xl font-black">{report.answersCount}</p></div>
                 </div>
@@ -1011,11 +1019,11 @@ export default function ResultsPage() {
 
             <section className="mt-6 grid gap-5 lg:grid-cols-2">
               <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><CheckCircle2 className="h-6 w-6 text-emerald-300" />Strengths</h2>
+                <h2 className="flex items-center gap-3 text-2xl font-black"><CheckCircle2 className="h-5 w-5 text-emerald-300" />Strengths</h2>
                 <div className="mt-5 space-y-3">{report.strengths.map((item) => <p key={item} className="rounded-2xl bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-50">{item}</p>)}</div>
               </div>
               <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><Target className="h-6 w-6 text-blue-300" />Improvements</h2>
+                <h2 className="flex items-center gap-3 text-2xl font-black"><Target className="h-5 w-5 text-blue-300" />Improvements</h2>
                 <div className="mt-5 space-y-3">{report.improvements.map((item) => <p key={item} className="rounded-2xl bg-blue-400/10 p-4 text-sm leading-6 text-blue-50">{item}</p>)}</div>
               </div>
             </section>
@@ -1044,14 +1052,14 @@ export default function ResultsPage() {
           <>
             <section className="mt-6 grid gap-5 lg:grid-cols-2">
               <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><BarChart3 className="h-6 w-6 text-cyan-300" />Benchmarking & Company DNA</h2>
+                <h2 className="flex items-center gap-3 text-2xl font-black"><BarChart3 className="h-6 w-6 text-cyan-300" />Benchmarking and company DNA</h2>
                 <p className="mt-4 text-base leading-8 text-slate-300">{report.companyDNA.description}</p>
                 <div className="mt-5 rounded-2xl bg-blue-400/10 p-4 text-sm font-black text-blue-100">{report.companyDNA.label}</div>
                 <div className="mt-6 space-y-5">{report.companyDNA.dimensions.map((item) => <Bar key={item.label} label={item.label} value={item.score} target={item.target} note={item.note} />)}</div>
               </div>
 
               <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><ShieldCheck className="h-6 w-6 text-amber-200" />Trust & Integrity Audit</h2>
+                <h2 className="flex items-center gap-3 text-2xl font-black"><ShieldCheck className="h-6 w-6 text-amber-200" />Trust and integrity audit</h2>
                 <div className="mt-6 space-y-5">
                   <Bar label="Credibility" value={report.trustScore} note="Evidence, consistency, and recruiter confidence." />
                   <Bar label="Evidence Quality" value={report.evidenceQuality} note="Metrics, ownership, and result clarity." />
@@ -1069,7 +1077,7 @@ export default function ResultsPage() {
             </section>
 
             <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-              <h2 className="flex items-center gap-3 text-2xl font-black"><TrendingUp className="h-6 w-6 text-blue-300" />Top 10% Candidate Overlay</h2>
+              <h2 className="flex items-center gap-3 text-2xl font-black"><TrendingUp className="h-6 w-6 text-blue-300" />Top 10% candidate overlay</h2>
               <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 {report.benchmark.map((item) => (
                   <div key={item.label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -1086,7 +1094,7 @@ export default function ResultsPage() {
 
             <section className="mt-6 grid gap-5 lg:grid-cols-2">
               <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><Flag className="h-6 w-6 text-rose-300" />Red Flags & Evidence Requests</h2>
+                <h2 className="flex items-center gap-3 text-2xl font-black"><Flag className="h-6 w-6 text-rose-300" />Red flags and evidence requests</h2>
                 <div className="mt-6 space-y-3">
                   {report.redFlags.length ? report.redFlags.map((item) => <p key={item} className="rounded-2xl bg-rose-400/10 p-4 text-sm leading-6 text-rose-50">{item}</p>) : (
                     <div className="space-y-3">
@@ -1101,7 +1109,7 @@ export default function ResultsPage() {
               </div>
 
               <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><Wand2 className="h-6 w-6 text-violet-300" />Improvement Roadmap</h2>
+                <h2 className="flex items-center gap-3 text-2xl font-black"><Wand2 className="h-6 w-6 text-violet-300" />Improvement roadmap</h2>
                 <div className="mt-6 space-y-4">
                   {report.improvementPlan.map((item) => (
                     <div key={item.priority} className="rounded-2xl bg-violet-400/10 p-4">
@@ -1115,24 +1123,21 @@ export default function ResultsPage() {
             </section>
 
             <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-              <h2 className="flex items-center gap-3 text-2xl font-black"><Eye className="h-6 w-6 text-blue-300" />Audio & Presentation Timeline Analysis</h2>
-              <p className="mt-4 text-sm leading-7 text-slate-300">WorkZo currently estimates delivery risk from transcript length and filler words. Real audio/camera analysis can be connected later without changing this report structure.</p>
-              <div className="mt-6 grid gap-4 md:grid-cols-3">
+              <h2 className="flex items-center gap-3 text-2xl font-black"><Eye className="h-6 w-6 text-blue-300" />Delivery signals</h2>
+              <p className="mt-2 text-sm leading-7 text-slate-400">Estimated from transcript length, word count, and filler word detection.</p>
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
                 {report.audioSignals.map((item) => (
                   <div key={item.label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <p className="font-black text-white">{item.label}</p>
-                    <p className="mt-3 text-3xl font-black">{item.value}</p>
-                    <p className={cn("mt-2 text-xs font-black uppercase", item.risk === "high" ? "text-rose-300" : item.risk === "medium" ? "text-amber-300" : "text-emerald-300")}>{item.risk} risk</p>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
+                    <p className="mt-2 text-3xl font-black text-white">{item.value}</p>
+                    <p className={cn("mt-2 text-xs font-black uppercase tracking-[0.14em]", item.risk === "high" ? "text-rose-300" : item.risk === "medium" ? "text-amber-300" : "text-emerald-300")}>{item.risk} risk</p>
                   </div>
                 ))}
-              </div>
-              <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-7 text-slate-300">
-                Presence & eye-contact metrics are not captured yet. This section is ready for future camera signals, but it does not pretend to analyze video that was not recorded.
               </div>
             </section>
 
             <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-              <h2 className="flex items-center gap-3 text-2xl font-black"><MessageSquareText className="h-6 w-6 text-cyan-300" />Interactive Transcript & Coaching Debrief</h2>
+              <h2 className="flex items-center gap-3 text-2xl font-black"><MessageSquareText className="h-6 w-6 text-cyan-300" />Answer-by-answer coaching debrief</h2>
               <div className="mt-6 space-y-4">
                 {report.answerInsights.map((item, index) => <TranscriptCard key={item.id} item={item} index={index} />)}
               </div>
@@ -1147,10 +1152,38 @@ export default function ResultsPage() {
         <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-black text-white">Next best action</p>
+              <p className="font-black text-white">What to do next</p>
               <p className="mt-2 text-sm leading-6 text-slate-400">Retry the interview using the improvement roadmap and compare your next score.</p>
+
+              {/* Shareable moment card — viral mechanic */}
+              {mounted && (() => {
+                try {
+                  const raw = window.localStorage.getItem("workzo_shareable_moment");
+                  if (!raw) return null;
+                  const moment = JSON.parse(raw) as { shouldHighlight: boolean; shareTitle: string; shareText: string; category: string };
+                  if (!moment.shouldHighlight) return null;
+                  return (
+                    <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-500/[0.07] p-5">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">Memorable moment</p>
+                      <h3 className="mt-2 text-lg font-black text-white">{moment.shareTitle}</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">{moment.shareText}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const text = `${moment.shareTitle}: "${moment.shareText}" — practiced with WorkZo AI`;
+                          if (navigator.share) { void navigator.share({ title: "WorkZo AI Interview Moment", text }); }
+                          else { void navigator.clipboard.writeText(text); }
+                        }}
+                        className="mt-4 inline-flex items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-black text-cyan-200 hover:bg-cyan-400/20"
+                      >
+                        Share this moment
+                      </button>
+                    </div>
+                  );
+                } catch { return null; }
+              })()}
             </div>
-            <Link href="/interview" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 hover:bg-slate-200">
+            <Link href="/onboarding" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 hover:bg-slate-200">
               <RefreshCcw className="h-4 w-4" /> Retry interview
             </Link>
           </div>

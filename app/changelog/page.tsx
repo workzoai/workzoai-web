@@ -1,127 +1,139 @@
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Sparkles, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles, Zap } from "lucide-react";
 import WorkZoFooter from "@/components/WorkZoFooter";
 
 export const metadata = {
   title: "Changelog | WorkZo AI",
-  description: "WorkZo AI product updates — new features, improvements, and fixes.",
+  description: "WorkZo AI product updates — new features, intelligence upgrades, and fixes.",
 };
 
 const changes = [
   {
     version: "v1.4",
+    label: "Latest",
+    labelStyle: "border-emerald-300/20 bg-emerald-400/10 text-emerald-200",
     title: "Intelligence and voice fully wired",
     date: "June 2026",
-    highlight: true,
+    highlights: ["Recruiter interrupts live", "Visual emotional states", "Filler word counter"],
     items: [
-      "Recruiter interruption engine — cuts off rambling answers mid-sentence",
-      "Recruiter visual states — Sceptical, Interested, Hold on, Taking notes overlays",
-      "Filler word counter — um, uh, like, you know tracked live in copilot panel",
-      "ElevenLabs per-recruiter voice — Sarah, Daniel, Priya, Markus each have a distinct voice",
-      "Shareable contradiction moments — when AI catches a false claim, share the moment",
-      "Free plan correctly limited to 2 interviews per month with usage counter",
-      "Vapi voice fixed for Premium plan — was incorrectly requiring Premium Pro",
-      "All browser TTS fallback paths wired for every Vapi failure scenario",
+      "Recruiter interruption engine — cuts off rambling answers mid-sentence in real time",
+      "Recruiter visual states — Sceptical, Interested, Interrupting, Typing notes overlays on the recruiter panel",
+      "Live filler word counter — um, uh, like, you know tracked during listening with copilot alert",
+      "Emotional memory engine — tracks vague answers and missing metrics across answers with pattern callbacks",
+      "ElevenLabs per-recruiter voice — Sarah, Daniel, Priya, Markus each have a distinct voice (tier-2 fallback)",
+      "Company simulation engine — adapts question pressure to startup, corporate, consulting, or Big Tech mode",
+      "Shareable interview moments — contradiction caught and trust recovery detected for social sharing",
     ],
   },
   {
     version: "v1.3",
-    title: "Premium Pro career platform",
+    label: "Personas",
+    labelStyle: "border-violet-300/20 bg-violet-400/10 text-violet-200",
+    title: "7 Premium Pro personas launched",
     date: "May 2026",
-    highlight: false,
+    highlights: ["FAANG HM", "Consulting Partner", "Executive Recruiter"],
     items: [
-      "7 Premium Pro recruiter personas — FAANG, Startup Founder, Consulting Partner, Sales Director, Product Leader, Executive, Enterprise",
-      "AI Career Coach weekly priorities on dashboard and results",
-      "30/60/90 day career roadmaps from session history",
-      "Replay intelligence — best answer, weakest answer, trust drops",
-      "Progress tracking charts for Premium users (Score, Trust, Evidence, Ownership)",
-      "Performance tracking section on results page for Premium+",
-      "Tavus 60-minute timer with auto-fallback to Voice AI when limit hit",
-      "Plan gating properly enforced across all API routes",
+      "Alex Chen — FAANG Hiring Manager (data-driven, probes every assumption)",
+      "Zoe Park — Startup Founder (ownership, failure, scale pressure)",
+      "James Harrington — Consulting Partner (case-style, structured delivery)",
+      "Marcus Webb — Sales Director (numbers-first, commercial instincts)",
+      "Aisha Patel — Product Leader (user empathy, prioritisation, trade-offs)",
+      "Victoria Stern — Executive Recruiter (board-ready communication, leadership narrative)",
+      "David Kimura — Enterprise Recruiter (stakeholder management, governance, escalation)",
+      "All 7 gated to Premium Pro — standard users see them locked in onboarding",
     ],
   },
   {
     version: "v1.2",
-    title: "Application tools and job preparation",
+    label: "Platform",
+    labelStyle: "border-blue-300/20 bg-blue-400/10 text-blue-200",
+    title: "Full platform launch — billing, auth, tools",
     date: "April 2026",
-    highlight: false,
+    highlights: ["Stripe billing", "Supabase auth", "CV + Cover Letter + Jobs"],
     items: [
-      "ATS keyword gap analysis — JD vs CV matched/partial/missing with score",
-      "AI cover letter generation from CV + JD via Anthropic API",
-      "Job fit analysis per job card with fit score, match reasons, gaps",
-      "Likely interview questions generator from actual JD + CV",
-      "History page with plan-based limits — free users see 3 most recent",
-      "workzo_plan cookie set on checkout — API rate limiting now works correctly",
-    ],
-  },
-  {
-    version: "v1.1",
-    title: "Claim verification and trust system",
-    date: "March 2026",
-    highlight: false,
-    items: [
-      "CV claim verification — company, role, years, degree, institution, project all checked against CV",
-      "Trust timeline per question with reason — shown on results page",
-      "Cross-session Career Brain — recruiter memory seeds from previous sessions",
-      "7-language support — English, German, Dutch, French, Spanish, Italian, Portuguese",
-      "Live copilot with real-time coaching during interview",
-      "Session snapshot recovery — resume interview after page refresh",
+      "Stripe billing — Free / Premium (€19.99) / Premium Pro (€39.99) with monthly and annual cycles",
+      "Supabase auth — email magic link and Google OAuth with secure session handling",
+      "Improve CV page — ATS keyword gap analysis, matched/partial/missing chips, score",
+      "Cover Letter generator — Anthropic API, CV+JD-aware, 350-word limit, no generic filler",
+      "Job Assist — per-job AI fit score, match reasons, gaps, interview tip, 7 likely questions",
+      "Interview history — plan-gated (free: 3 sessions, premium+: unlimited)",
+      "workzo_plan cookie wired to checkout — API rate limits now correctly enforced per plan",
     ],
   },
   {
     version: "v1.0",
-    title: "Core interview platform launch",
-    date: "February 2026",
-    highlight: false,
+    label: "Core",
+    labelStyle: "border-slate-300/20 bg-slate-400/10 text-slate-200",
+    title: "Core intelligence and voice",
+    date: "March 2026",
+    highlights: ["Trust timeline", "Claim verification", "Vapi + browser voice"],
     items: [
-      "Vapi voice interview with 4 recruiter personas",
-      "CV and JD-aware questions and follow-ups",
-      "Recruiter intelligence V2 engine",
-      "Stripe billing — Free, Premium €19.99, Premium Pro €39.99",
-      "Supabase auth — magic link and Google OAuth",
-      "Interview results with verdict, weakest moment, answer quality",
-      "Dashboard, history, onboarding, and pricing pages",
+      "CV claim verification — challenges wrong company names, roles, years, degrees, institutions in real time",
+      "Trust score timeline per question with exact reason — unique across all prep tools",
+      "Cross-session Career Brain memory — recruiter remembers your patterns across sessions",
+      "Vapi voice integration with 4 recruiter assistant IDs and CV/JD variable injection",
+      "Browser TTS fallback — auto-triggers when Vapi fails, times out, or is not configured",
+      "Anti-hallucination grounding — CV and JD treated as verified facts, unsupported claims challenged",
+      "7-language support: English, German, Dutch, French, Spanish, Italian, Portuguese",
+      "Premium Pro suite panel — AI coach, 30/60/90 roadmaps, SmallTrend charts, replay intelligence",
     ],
   },
 ];
 
 export default function ChangelogPage() {
   return (
-    <main className="min-h-screen bg-[#050a12] text-white">
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.1),transparent_34%)]" />
+    <main className="min-h-screen bg-[#04080f] text-white">
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,rgba(34,211,238,0.07),transparent_55%)]" />
 
-      <div className="mx-auto max-w-4xl px-5 py-8 sm:px-6 lg:px-8">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-bold text-slate-300 hover:text-white">
-          <ArrowLeft className="h-4 w-4" /> Back to WorkZo AI
+      <div className="mx-auto max-w-4xl px-5 py-12 sm:px-6 lg:px-8">
+        <Link href="/" className="inline-flex items-center gap-2 text-sm font-black text-slate-400 transition hover:text-white">
+          <ArrowLeft className="h-4 w-4" /> Back home
         </Link>
 
-        <section className="mt-10 rounded-[2rem] border border-white/10 bg-white/[0.03] p-8">
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-300/20 bg-blue-400/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-200">
-            <Sparkles className="h-4 w-4" /> Product updates
+        <header className="mt-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
+            <Sparkles className="h-3.5 w-3.5" /> Product updates
           </div>
           <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-5xl">Changelog</h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
-            Every significant improvement to WorkZo AI, in reverse chronological order.
+          <p className="mt-4 max-w-xl text-base leading-7 text-slate-400">
+            A full record of every feature, intelligence upgrade, and improvement shipped to WorkZo AI.
           </p>
-        </section>
+        </header>
 
-        <section className="mt-8 space-y-6">
-          {changes.map((change) => (
-            <article key={change.version} className={`rounded-[2rem] border p-6 sm:p-8 ${change.highlight ? "border-blue-300/20 bg-blue-500/[0.06]" : "border-white/[0.07] bg-white/[0.03]"}`}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-3">
-                    {change.highlight && <Zap className="h-5 w-5 text-blue-300" />}
-                    <span className={`text-sm font-black ${change.highlight ? "text-blue-300" : "text-slate-400"}`}>{change.version}</span>
-                  </div>
-                  <h2 className="mt-1 text-2xl font-black">{change.title}</h2>
-                </div>
-                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-bold text-slate-400">{change.date}</span>
+        <div className="mt-12 space-y-12">
+          {changes.map((change, idx) => (
+            <article key={change.version} className="relative pl-8">
+              {idx < changes.length - 1 && (
+                <div className="absolute left-3 top-8 h-full w-px bg-white/[0.07]" />
+              )}
+              <div className="absolute left-0 top-1.5 grid h-6 w-6 place-items-center rounded-full border border-blue-400/30 bg-blue-500/10">
+                <div className="h-2 w-2 rounded-full bg-blue-400" />
               </div>
 
-              <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${change.labelStyle}`}>
+                  {change.label}
+                </span>
+                <span className="text-xs font-bold text-slate-500">{change.version}</span>
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-bold text-slate-400">
+                  {change.date}
+                </span>
+              </div>
+
+              <h2 className="mt-3 text-2xl font-black">{change.title}</h2>
+
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {change.highlights.map((h) => (
+                  <span key={h} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-bold text-slate-300">
+                    <Zap className="h-3 w-3 text-amber-300" />
+                    {h}
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-2.5">
                 {change.items.map((item) => (
-                  <div key={item} className="flex items-start gap-3 text-sm text-slate-300">
+                  <div key={item} className="flex items-start gap-3 text-sm leading-5 text-slate-300">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
                     {item}
                   </div>
@@ -129,9 +141,21 @@ export default function ChangelogPage() {
               </div>
             </article>
           ))}
-        </section>
-      </div>
+        </div>
 
+        <div className="mt-14 rounded-[2rem] border border-blue-300/20 bg-blue-500/[0.07] p-7">
+          <h2 className="text-xl font-black">Try the latest version</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300">Every improvement above is live. Start a free interview and see the intelligence in action.</p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400">
+              Start free interview <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link href="/roadmap" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
+              View roadmap
+            </Link>
+          </div>
+        </div>
+      </div>
       <WorkZoFooter />
     </main>
   );

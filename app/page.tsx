@@ -127,7 +127,7 @@ const COMPARISON_ROWS = [
   ["Recruiter Trust Analysis", "Live trust score per answer with a timeline showing why it dropped", "Not available"],
   ["Dynamic Follow-Ups", "Recruiter reacts to your specific answer — not a fixed script", "Preset question order"],
   ["Weakest Answer Detection", "Flags your lowest-scoring answer with a specific, actionable fix", "Not available"],
-  ["Recruiter Personalities", "4 distinct styles: sceptical, fast-paced, culture-focused, executive", "Not available"],
+  ["Recruiter Personalities", "11 recruiter personas — 4 standard, 7 Premium Pro", "Not available"],
   ["Trust Timeline", "Visual graph of recruiter confidence question by question", "Not available"],
   ["Improvement Plan", "Specific metrics, ownership, and structure fixes tied to your session", "Generic tips"],
 ];
@@ -350,7 +350,7 @@ function DemoSection() {
     <section className="px-4 py-20 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl">
         <div className="mx-auto max-w-3xl text-center">
-          <SectionLabel>See it in action</SectionLabel>
+          <SectionLabel>How it works</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
             Watch a live practice session
           </h2>
@@ -779,10 +779,10 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {[
-              ["500+", "AI Interviews Practiced"],
-              ["74", "Avg Trust Score Improvement"],
-              ["10+", "Countries Represented"],
-              ["4", "AI Recruiter Personas"],
+              ["500+", "AI interviews practiced"],
+              ["74", "Avg. trust improvement"],
+              ["10+", "Countries"],
+              ["11", "AI Recruiter Personas"],
             ].map(([number, label]) => (
               <div key={label} className="rounded-2xl border border-white/[0.10] bg-black/20 p-6 text-center backdrop-blur-sm">
                 <p className="text-4xl font-black text-white">{number}</p>
@@ -800,9 +800,9 @@ export default function LandingPage() {
       <section id="how" className="px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl">
           <div className="text-center">
-            <SectionLabel>See it in action</SectionLabel>
+            <SectionLabel>How it works</SectionLabel>
             <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-              See How WorkZo Works
+              How WorkZo AI works
             </h2>
             <p className="mt-4 text-lg leading-8 text-white/60">
               A realistic recruiter conversation with live trust analysis.
@@ -874,7 +874,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>The problem</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-            Why Good Candidates Still Get Rejected
+            Why strong candidates still get rejected
           </h2>
           <p className="mt-4 text-lg leading-8 text-white/60">
             Most candidates are rejected for communication problems, not technical ability.
@@ -930,7 +930,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>Your report</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-            See What Happens After Every Interview
+            What your report shows after every interview
           </h2>
           <p className="mt-4 text-lg leading-8 text-white/60">
             WorkZo shows exactly where recruiter confidence increased or dropped.
@@ -1026,7 +1026,7 @@ export default function LandingPage() {
 
           <div className="mt-8 text-center">
             <Link
-              href="/pricing?intent=interview"
+              href="/onboarding"
               className="inline-flex items-center gap-2 rounded-2xl bg-white px-7 py-4 text-base font-black text-slate-900 shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-blue-50"
             >
               Start Your Interview
@@ -1067,7 +1067,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>The difference</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-            Built For Real Interviews
+            Built for real interviews
           </h2>
         </div>
 
@@ -1112,7 +1112,7 @@ export default function LandingPage() {
           <div className="mx-auto max-w-3xl text-center">
             <SectionLabel>Pricing</SectionLabel>
             <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-              Start free. Upgrade when you need deeper support.
+              Start free. Upgrade when you need more.
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-300">
               Free lets you try the interview engine. Premium unlocks complete preparation. Premium Pro adds AI Career Coach and Live AI Recruiter minutes.
@@ -1235,7 +1235,7 @@ export default function LandingPage() {
           <div className="mb-10 text-center">
             <SectionLabel>FAQ</SectionLabel>
             <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-              Common Questions
+              Common questions
             </h2>
           </div>
           <div className="space-y-2">
@@ -1245,7 +1245,7 @@ export default function LandingPage() {
               ["What does the trust score measure?", "Recruiter confidence in your answers across the full interview, updated question by question. A drop means the recruiter needed more proof or specifics."],
               ["Can I use my actual CV?", "Yes. Paste or upload your resume and WorkZo tailors every question to your real background and the target role."],
               ["What is in a full interview report?", "Trust timeline per question, weakest answer, recruiter thoughts on your performance, and a detailed improvement plan."],
-              ["Which languages are supported?", "English. More languages are on the roadmap."],
+              ["Which languages are supported?", "English, German, Dutch, French, Spanish, Italian, and Portuguese. The recruiter speaks in your selected language — not just the UI."],
             ].map(([question, answer]) => (
               <FaqItem key={question} question={question} answer={answer} />
             ))}

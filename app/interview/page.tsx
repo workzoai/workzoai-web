@@ -60,6 +60,8 @@ import {
   classifyVoiceError,
   requestMicrophoneAccess,
 } from "@/lib/workzoVoiceReliability";
+import { buildAdaptiveFollowUpQuestion } from "@/lib/companySimulationEngine";
+import { speakWithElevenLabs } from "@/lib/workzoElevenLabs";
 
 type TranscriptRole = "recruiter" | "candidate" | "system";
 
@@ -2140,6 +2142,11 @@ function cleanVisibleTranscriptText(text: string) {
     .trim();
 }
 
+function countFillerWords(text: string): number {
+  const fillerPattern = /(um+|uh+|er+|hmm+|like[,\s]|you know[,\s]|basically[,\s]|literally[,\s]|sort of[,\s]|kind of[,\s])/gi;
+  return (text.match(fillerPattern) || []).length;
+}
+
 function isTinyVisibleSpeechFragment(text: string) {
   const cleaned = cleanVisibleTranscriptText(text).toLowerCase();
   const words = cleaned.split(/\s+/).filter(Boolean);
@@ -2315,10 +2322,10 @@ function getWorkZoLiveCopilotInsight(input: {
   }
 
   return {
-    headline: "Stay focused",
-    sayNext: "Answer the recruiter with one clear, role-relevant example.",
-    recruiterConcern: input.recruiterConcern || "The recruiter is watching for evidence and consistency.",
-    liveTip: "Keep it concise and specific.",
+    headline: "Processing answer",
+    sayNext: "Get ready for the follow-up — prepare a specific, evidence-based response.",
+    recruiterConcern: input.recruiterConcern || "The recruiter is evaluating your last answer.",
+    liveTip: "Think of one metric or outcome you can add to your next answer.",
     tone: "neutral",
   };
 }
@@ -2433,7 +2440,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const [copilotAggressiveness, setCopilotAggressiveness] = useState<"Low" | "Medium" | "High">("Medium");
   const [recoverySnapshot, setRecoverySnapshot] = useState<WorkZoInterviewSnapshot | null>(null);
   // Orphaned engines now wired
-  const [emotionalMemory, setEmotionalMemory] = useState<WorkZoEmotionalMemory>(createWorkZoEmotionalMemory);
+  const [emotionalMemory, setEmotionalMemory] = useState<WorkZoEmotionalMemory>(createWorkZoEmotionalMemory());
   const [recruiterVisualState, setRecruiterVisualState] = useState<WorkZoRecruiterVisualState>("waiting");
   const [fillerWordCount, setFillerWordCount] = useState(0);
   const [shareableMoment, setShareableMoment] = useState<{ title: string; text: string; category: string } | null>(null);
@@ -2441,6 +2448,12 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const [recoveryNoticeDismissed, setRecoveryNoticeDismissed] = useState(false);
   const [recoveredSessionReady, setRecoveredSessionReady] = useState(false);
   const [premiumUnlocked, setPremiumUnlocked] = useState(false);
+  // Live reaction text shown in copilot panel
+  const [liveReactionText, setLiveReactionText] = useState("");
+  // Filler word running count for current answer
+  const [fillerCount, setFillerCount] = useState(0);
+  // Company simulation mode
+  const [companyMode, setCompanyMode] = useState<"global" | "google" | "mckinsey" | "startup" | "corporate">("global");
 
   useEffect(() => {
     setPremiumUnlocked(isWorkZoPremiumUnlocked());
@@ -2520,6 +2533,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
     setSetup(nextSetup);
     setupRef.current = nextSetup;
     setSetupLoaded(true);
+
+    // Map stored companyStyle into simulation mode for companySimulationEngine
+    const storedStyle = String((nextSetup as Record<string, unknown>).companyStyle || "").toLowerCase();
+    if (storedStyle.includes("startup")) setCompanyMode("startup");
+    else if (storedStyle.includes("corporate")) setCompanyMode("corporate");
+    else if (storedStyle.includes("consulting") || storedStyle.includes("big tech") || storedStyle.includes("technical")) setCompanyMode("mckinsey");
+    else setCompanyMode("global");
 
     trackWorkZoInterviewEvent("interview_room_viewed", {
       role: nextSetup.targetRole,
@@ -2745,9 +2765,14 @@ const [questionIndex, setQuestionIndex] = useState(0);
         else interim += text;
       }
 
-      if (interim.trim()) setInterimText(interim.trim());
+      if (interim.trim()) {
+        setInterimText(interim.trim());
+        // Live filler word counter — updates copilot panel in real time
+        setFillerCount(countFillerWords(`${answerBufferRef.current} ${interim}`.trim()));
+      }
       if (finalText.trim()) {
         answerBufferRef.current = `${answerBufferRef.current} ${finalText}`.trim();
+        setFillerCount(countFillerWords(answerBufferRef.current));
       }
     };
 
@@ -2781,6 +2806,16 @@ const [questionIndex, setQuestionIndex] = useState(0);
       });
 
       applyRecruiterSignalUpdate(answer);
+      setFillerCount(0); // reset for next answer
+
+      // Emotional memory engine — tracks vague answers, missing metrics, ownership patterns
+      const reaction = getWorkZoLiveReaction(answer);
+      setRecruiterVisualState(reaction.visualState);
+      setLiveReactionText(reaction.text);
+      const nextEmoMem = updateWorkZoEmotionalMemory(emotionalMemoryRef.current, answer);
+      emotionalMemoryRef.current = nextEmoMem;
+      setEmotionalMemory(nextEmoMem);
+
       setStatus("thinking");
 
       // Live interruption engine — recruiter can cut off rambling answers
@@ -2788,11 +2823,19 @@ const [questionIndex, setQuestionIndex] = useState(0);
       const baseReply = interruptDecision.shouldInterrupt
         ? interruptDecision.line
         : buildRecruiterReply(answer, questionIndexRef.current, setupRef.current, recruiterMemoryRef.current);
-      const reply = enforceRuntimeLanguageForReply(setupRef.current, baseReply);
+
+      // Company simulation engine — adaptive pressure follow-ups based on detected mode
+      const simStyle = companyMode === "google" ? "analytical" : companyMode === "mckinsey" ? "pressure" : companyMode === "startup" ? "pressure" : "supportive";
+      const adaptiveFollowUp = !interruptDecision.shouldInterrupt && nextEmoMem.missingMetrics >= 2
+        ? buildAdaptiveFollowUpQuestion({ style: simStyle, targetRole: setupRef.current.targetRole, weaknessSignals: nextEmoMem.weakMoments, previousAnswer: answer })
+        : null;
+
+      const reply = enforceRuntimeLanguageForReply(setupRef.current, adaptiveFollowUp || baseReply);
 
       window.setTimeout(() => {
         if (stopRequestedRef.current) return;
         setQuestionIndex((value) => Math.min(value + 1, 12));
+        setRecruiterVisualState(interruptDecision.shouldInterrupt ? "interrupting" : "listening");
         speakRecruiter(reply);
       }, 650);
     };
@@ -2821,7 +2864,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
       });
 
       // Block browser TTS only while AI voice is actually starting/connected.
-      // When status is fallback, browser TTS must be audible.
       if (
         premiumVoiceEnabledRef.current &&
         audioEnabledRef.current &&
@@ -2831,7 +2873,27 @@ const [questionIndex, setQuestionIndex] = useState(0);
         return;
       }
 
-      if (!audioEnabled || typeof window === "undefined" || !window.speechSynthesis) {
+      if (!audioEnabled) {
+        window.setTimeout(() => startListening(), 650);
+        return;
+      }
+
+      // Tier 2: ElevenLabs TTS — richer voice when browser TTS is active and key is set
+      if (
+        typeof window !== "undefined" &&
+        process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY &&
+        premiumVoiceStatus === "fallback"
+      ) {
+        try {
+          await speakWithElevenLabs(activeSetup.recruiterId, text);
+          window.setTimeout(() => startListening(), 280);
+          return;
+        } catch {
+          // ElevenLabs failed — fall through to browser TTS
+        }
+      }
+
+      if (typeof window === "undefined" || !window.speechSynthesis) {
         window.setTimeout(() => startListening(), 650);
         return;
       }
@@ -2989,9 +3051,24 @@ const [questionIndex, setQuestionIndex] = useState(0);
   }, []);
 
   const analyzeVapiUserAnswer = useCallback((answer: string) => {
-    // Transcript-only AI voice path for now.
-    // Browser/local interview logic remains the scoring source, so AI voice instability cannot break scoring.
     if (!answer.trim()) return;
+
+    // Emotional memory engine — same as browser path
+    const reaction = getWorkZoLiveReaction(answer);
+    setRecruiterVisualState(reaction.visualState);
+    setLiveReactionText(reaction.text);
+    const nextEmoMem = updateWorkZoEmotionalMemory(emotionalMemoryRef.current, answer);
+    emotionalMemoryRef.current = nextEmoMem;
+    setEmotionalMemory(nextEmoMem);
+
+    // Filler word count from Vapi transcript
+    setFillerCount((prev) => prev + countFillerWords(answer));
+
+    // Interruption check — if Vapi's answer is rambling, record it
+    const interruptDecision = decideWorkZoInterruption(answer);
+    if (interruptDecision.shouldInterrupt) {
+      setRecruiterVisualState("interrupting");
+    }
   }, []);
 
   const startBrowserFallbackInterview = useCallback(
@@ -3151,6 +3228,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
             vapiFinalUserTextRef.current = finalText;
             lastUserTranscriptRef.current = finalText;
 
+            // Live interruption check — surfaced visually via recruiter visual state
+            const liveInterrupt = shouldInterruptLive({ transcript: finalText, duration: 0 });
+            if (liveInterrupt.interrupt) {
+              setRecruiterVisualState("interrupting");
+              setLiveReactionText(liveInterrupt.message || "Let me stop you there.");
+            }
+
             addTranscript({
               role: "candidate",
               speaker: "You",
@@ -3304,14 +3388,18 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const startInterview = useCallback(async () => {
     stopRequestedRef.current = false;
 
-    // ── Free plan interview limit check ──────────────────────────────────────
+    // ── Plan interview limit check ───────────────────────────────────────────
+    const currentPlan = getWorkZoCurrentPlan();
     const interviewCheck = checkWorkZoInterviewAllowed();
     if (!interviewCheck.allowed) {
-      openUpgradeModal("interview_limit");
+      const gateFeature = currentPlan === "premium" ? "premium_pro_interview" : "interview_limit";
+      openUpgradeModal(gateFeature);
       addTranscript({
         role: "system",
         speaker: "System",
-        text: `You have used all ${interviewCheck.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
+        text: currentPlan === "premium"
+          ? `You have used all ${interviewCheck.limit} interviews this month. Upgrade to Premium Pro for unlimited voice interviews.`
+          : `You have used all ${interviewCheck.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
       });
       return;
     }
@@ -3369,7 +3457,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
       questionIndexRef.current = nextQuestionIndex;
       setQuestionIndex(nextQuestionIndex);
 
-      if (premiumVoiceEnabledRef.current && audioEnabledRef.current) {
+      const currentPlanForRestore = getWorkZoCurrentPlan();
+      if (currentPlanForRestore === "premium_pro" && premiumVoiceEnabledRef.current && audioEnabledRef.current) {
         const reconnectedPremiumVoice = await startPremiumVoice(restoredSetup);
 
         if (reconnectedPremiumVoice) {
@@ -3394,7 +3483,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
       addTranscript({
         role: "system",
         speaker: "System",
-        text: "Interview restored. Voice is idle. Tap Start when you are ready to continue.",
+        text: "Interview restored. Tap Start to reconnect voice and continue.",
       });
       setStatus("idle");
       return;
@@ -3449,29 +3538,36 @@ const [questionIndex, setQuestionIndex] = useState(0);
     setFillerWordCount(0);
     setShareableMoment(null);
 
-    if (premiumVoiceEnabledRef.current && audioEnabledRef.current) {
+    // ── Plan-gated voice routing ─────────────────────────────────────────────
+    // Free + Premium: browser STT/TTS only — never initialize Vapi
+    // Premium Pro: try Vapi → if it fails, browser fallback
+    // currentPlan already declared above for the limit check — reuse it
+    const isProPlan = currentPlan === "premium_pro";
+
+    if (isProPlan && premiumVoiceEnabledRef.current && audioEnabledRef.current) {
       const startedPremiumVoice = await startPremiumVoice(freshSetup);
 
       if (startedPremiumVoice) {
         addTranscript({
           role: "system",
           speaker: "System",
-          text: "Premium voice connected.",
+          text: "Live AI voice connected.",
         });
         setStatus("listening");
         return;
       }
 
-<<<<<<< HEAD
-
-      // Vapi failed or not configured — fall back to browser voice automatically.
-=======
-      // Vapi not available — start browser voice fallback automatically
->>>>>>> e5c0987 (Resolve merge conflicts)
+      // Vapi failed for Pro user — fall back to browser voice automatically
+      addTranscript({
+        role: "system",
+        speaker: "System",
+        text: "Live AI voice unavailable. Switching to browser voice.",
+      });
       startBrowserFallbackInterview(freshSetup);
       return;
     }
 
+    // Free or Premium: go straight to browser voice — no Vapi attempt
     startBrowserFallbackInterview(freshSetup);
   }, [addTranscript, speakRecruiter, startBrowserFallbackInterview, startPremiumVoice]);
 
@@ -3539,6 +3635,21 @@ const [questionIndex, setQuestionIndex] = useState(0);
         );
         window.localStorage.setItem("workzo_latest_interview_result", JSON.stringify(session));
         clearActiveInterviewSnapshot();
+
+        // Detect shareable moment for post-session social card
+        const shareable = detectShareableMoment({
+          trust: session.score?.trust ?? 0,
+          pressure: recruiterMemoryRef.current.unsupportedClaims > 0 ? 80 : 40,
+          contradiction: session.memory.patterns.find((p) => p.toLowerCase().includes("unsupported")) || "",
+        });
+        if (shareable.shouldHighlight) {
+          setShareableMoment({
+            title: shareable.shareTitle,
+            text: shareable.shareText,
+            category: shareable.category,
+          });
+          window.localStorage.setItem("workzo_shareable_moment", JSON.stringify(shareable));
+        }
 
         trackWorkZoInterviewEvent("interview_completed", {
           reason,
@@ -3695,7 +3806,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">Preparing interview room</p>
-                <h1 className="mt-1 text-2xl font-black">Loading your recruiter…</h1>
+                <h1 className="mt-1 text-2xl font-black">Preparing your interview room…</h1>
               </div>
             </div>
 
@@ -3706,7 +3817,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
             </div>
 
             <p className="mt-5 text-base leading-6 text-white leading-7 font-medium">
-              WorkZo is loading your selected recruiter and interview setup before showing the room.
+              Setting up your recruiter, CV context, and interview configuration.
             </p>
           </section>
         </div>
@@ -3715,14 +3826,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
   }
 
   return (
-<<<<<<< HEAD
-
-    <main className={`min-h-screen overflow-x-hidden bg-[#04080f] text-white lg:h-screen lg:overflow-hidden${false ? " text-lg" : ""}`}>
-=======
     <main className="min-h-screen overflow-x-hidden bg-[#050b14] text-white lg:h-screen lg:overflow-hidden">
->>>>>>> e5c0987 (Resolve merge conflicts)
 <section className="grid min-h-screen grid-rows-[64px_1fr] lg:h-full lg:min-h-0 lg:grid-rows-[70px_1fr]">
-        <header className="flex items-center justify-between gap-2 border-b border-white/[0.08] bg-[#050816]/70 px-3 backdrop-blur-xl sm:px-5">
+        <header className="flex items-center justify-between gap-2 border-b border-white/10 px-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-2 sm:gap-5">
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <button
@@ -3764,6 +3870,16 @@ const [questionIndex, setQuestionIndex] = useState(0);
               <span className={`hidden rounded-full border px-2.5 py-1 text-xs font-black uppercase sm:block ${recruiterStatusTone(recruiterSignal, scoreReady)}`}>
                 {recruiterStatus}
               </span>
+              {/* Plan badge */}
+              <span className={`hidden rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] lg:block ${
+                getWorkZoCurrentPlan() === "premium_pro"
+                  ? "border-violet-300/25 bg-violet-500/10 text-violet-200"
+                  : getWorkZoCurrentPlan() === "premium"
+                  ? "border-blue-300/25 bg-blue-500/10 text-blue-200"
+                  : "border-white/10 bg-white/[0.04] text-slate-400"
+              }`}>
+                {getWorkZoCurrentPlan() === "premium_pro" ? "Premium Pro" : getWorkZoCurrentPlan() === "premium" ? "Premium" : "Free"}
+              </span>
             </div>
           </div>
 
@@ -3796,7 +3912,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
               >
                 <PhoneOff className="h-4 w-4" />
                 <PremiumUsageBadge compact />
-              End Interview
+              End
               </button>
             )}
 
@@ -3931,14 +4047,21 @@ const [questionIndex, setQuestionIndex] = useState(0);
                           <span>Voice On/Off</span>
                           <span className="text-slate-400">{audioEnabled ? "On" : "Off"}</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setPremiumVoiceEnabled((value) => !value)}
-                          className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
-                        >
-                          <span>Premium Voice (AI voice)</span>
-                          <span className="text-slate-400">{premiumVoiceEnabled ? "On" : "Off"}</span>
-                        </button>
+                        {getWorkZoCurrentPlan() === "premium_pro" ? (
+                          <button
+                            type="button"
+                            onClick={() => setPremiumVoiceEnabled((value) => !value)}
+                            className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
+                          >
+                            <span>Live AI voice (Pro)</span>
+                            <span className="text-slate-400">{premiumVoiceEnabled ? "On" : "Off"}</span>
+                          </button>
+                        ) : (
+                          <div className="flex w-full items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-sm opacity-50">
+                            <span>Live AI voice</span>
+                            <span className="text-slate-500">Premium Pro only</span>
+                          </div>
+                        )}
                         <label className="block rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm">
                           <div className="mb-2 flex items-center justify-between">
                             <span>Voice Speed</span>
@@ -4095,7 +4218,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
                         : "text-slate-300"
                   }
                 >
-                  {premiumVoiceStatus === "connected" ? "connected" : premiumVoiceStatus.replaceAll("_", " ")}
+                  {premiumVoiceStatus === "connected" ? "AI voice on" : premiumVoiceStatus === "connecting" ? "connecting…" : premiumVoiceStatus === "fallback" ? "browser voice" : premiumVoiceStatus === "failed" ? "voice off" : premiumVoiceStatus === "checking_microphone" ? "checking mic…" : "voice"}
                 </span>
               </div>
             ) : null}
@@ -4170,10 +4293,11 @@ const [questionIndex, setQuestionIndex] = useState(0);
                   fill
                   priority
                   sizes="(max-width: 1024px) 100vw, 850px"
-                  className="object-cover transition-all duration-500"
-                  style={{ objectPosition: recruiterImagePosition, filter: status === "thinking" ? "brightness(0.9) saturate(0.85)" : "brightness(1) saturate(1)" }}
+                  className="object-cover"
+                  style={{ objectPosition: recruiterImagePosition }}
                 />
               </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/10 to-black/0" />
 
               {/* Recruiter visual state overlay — powered by workzoPremiumExperienceEngine */}
               {recruiterVisualState !== "waiting" && recruiterVisualState !== "listening" && status !== "idle" && (
@@ -4197,71 +4321,67 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 <span className="inline-block h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.9)]" /> {status === "recruiter-speaking" ? "SPEAKING" : status === "listening" ? "LISTENING" : status === "thinking" ? "THINKING" : "LIVE"}
               </div>
 
+              {/* Recruiter visual state overlay — emotional reaction ring */}
+              {scoreReady && recruiterVisualState !== "waiting" && recruiterVisualState !== "listening" && (
+                <div className={`absolute inset-0 pointer-events-none transition-all duration-700 ${
+                  recruiterVisualState === "interested" ? "ring-4 ring-inset ring-emerald-400/45" :
+                  recruiterVisualState === "skeptical" ? "ring-4 ring-inset ring-amber-400/45" :
+                  recruiterVisualState === "interrupting" ? "ring-[6px] ring-inset ring-red-500/60" :
+                  recruiterVisualState === "typing_notes" ? "ring-4 ring-inset ring-blue-400/35" :
+                  ""
+                }`} />
+              )}
+              {/* Recruiter reaction bubble */}
+              {scoreReady && liveReactionText && recruiterVisualState !== "waiting" && recruiterVisualState !== "listening" && (
+                <div className={`absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-2xl border px-4 py-2 text-xs font-black shadow-2xl backdrop-blur-md z-10 transition-all duration-300 ${
+                  recruiterVisualState === "interested" ? "border-emerald-300/25 bg-emerald-950/80 text-emerald-200" :
+                  recruiterVisualState === "interrupting" ? "border-red-300/25 bg-red-950/85 text-red-200" :
+                  recruiterVisualState === "skeptical" ? "border-amber-300/25 bg-amber-950/80 text-amber-200" :
+                  "border-white/10 bg-black/70 text-slate-200"
+                }`}>
+                  {liveReactionText}
+                </div>
+              )}
+
               {premiumVoiceError ? (
-                <div className="absolute right-4 top-5 hidden max-w-[320px] rounded-xl border border-amber-300/20 bg-[#050816]/80 px-3 py-2 text-xs leading-5 text-amber-100 backdrop-blur-xl lg:block">
+                <div className="absolute right-4 top-5 hidden max-w-[320px] rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100 lg:block">
                   {premiumVoiceError}
                 </div>
               ) : null}
 
-<<<<<<< HEAD
-
-              {/* Candidate self-view tile — Zoom/Meet style PiP */}
-              <div className="absolute bottom-4 right-3 sm:bottom-5 sm:right-5">
-                <div className="relative h-16 w-20 overflow-hidden rounded-xl border border-white/20 bg-[#0a1628] shadow-xl sm:h-20 sm:w-28">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-700 text-slate-300">
-                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg>
-                      </div>
-                      <p className="text-[9px] font-black text-white/50">You</p>
-                    </div>
-                  </div>
-                  {status === "listening" && (
-                    <div className="absolute inset-0 rounded-xl border-2 border-blue-400 animate-pulse" />
-                  )}
-                </div>
-              </div>
-
-=======
->>>>>>> e5c0987 (Resolve merge conflicts)
               <div className="absolute bottom-4 left-3 max-w-[145px] sm:bottom-5 sm:left-5 sm:max-w-none">
                 <div className="flex items-center gap-2 text-lg font-black">
                   {setup.recruiterName}
                   <CheckCircle2 className="h-5 w-5 fill-blue-500 text-blue-500" />
                 </div>
-                <p className="mt-1 truncate text-sm text-white/70">{setup.recruiterTitle}</p>
-                <span className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-[11px] font-bold backdrop-blur-md ${recruiterStatusTone(recruiterSignal, scoreReady)}`}>
+                <p className="mt-1 truncate text-xs text-white/80 sm:text-sm">{setup.recruiterTitle}</p>
+                <p className="mt-2 text-xs font-bold text-emerald-200">
                   {scoreReady ? recruiterStatus : "Ready for first answer"}
-                </span>
+                </p>
               </div>
 
-              {/* floating controls */}
-              <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/[0.12] bg-[#050816]/65 px-5 py-3 shadow-2xl backdrop-blur-xl">
+              <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2 sm:bottom-5 sm:gap-4">
                 <button
-                  type="button"
                   onClick={toggleMic}
-                  className={`grid h-11 w-11 place-items-center rounded-full shadow-lg transition-all duration-150 hover:scale-105 active:scale-95 ${
-                    status === "listening"
-                      ? "bg-blue-500 text-white shadow-blue-500/30"
-                      : "border border-white/15 bg-white/8 text-white hover:bg-white/15"
+                  className={`grid h-10 w-10 place-items-center rounded-full sm:h-14 sm:w-14 shadow-2xl ${
+                    status === "listening" ? "bg-blue-500 text-white" : "bg-white text-slate-950"
                   }`}
                 >
-                  {status === "listening" ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                  {status === "listening" ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsOpen(true)}
-                  className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-white/8 text-white shadow-lg transition-all duration-150 hover:scale-105 hover:bg-white/15 active:scale-95"
+                  className="grid h-10 w-10 place-items-center rounded-full sm:h-14 sm:w-14 bg-white text-slate-950 shadow-2xl sm:h-14 sm:w-14"
                   aria-label="Interview settings"
                 >
-                  <Settings className="h-5 w-5" />
+                  <Settings className="h-6 w-6" />
                 </button>
                 <button
-                  type="button"
                   onClick={endInterview}
-                  className="grid h-11 w-11 place-items-center rounded-full bg-red-500 text-white shadow-lg shadow-red-500/25 transition-all duration-150 hover:scale-105 hover:bg-red-400 active:scale-95"
+                  className="grid h-10 w-10 place-items-center rounded-full sm:h-14 sm:w-14 bg-red-500 text-white shadow-2xl sm:h-14 sm:w-14"
                 >
-                  <PhoneOff className="h-5 w-5" />
+                  <PhoneOff className="h-6 w-6" />
                 </button>
               </div>
             </section>
@@ -4270,105 +4390,95 @@ const [questionIndex, setQuestionIndex] = useState(0);
               <button
                 type="button"
                 onClick={() => setShowTranscript((value) => !value)}
-                className="flex h-12 w-full items-center justify-between border-b border-white/[0.07] px-5 text-left"
+                className="flex h-12 w-full items-center justify-between border-b border-white/10 px-5 text-left"
                 aria-expanded={showTranscript}
               >
                 <div className="flex items-center gap-3">
-                  <h2 className="text-sm font-black tracking-wide">Live Transcript</h2>
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.8)]" />
-                  <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[11px] font-black text-slate-400">
-                    {transcriptMessageCount} {transcriptMessageCount === 1 ? "msg" : "msgs"}
-                  </span>
+                  <h2 className="text-lg font-black">Live Transcript</h2>
+                  <span className="h-2 w-2 rounded-full bg-red-400" />
+                  <span className="text-base text-white leading-7 font-medium">{transcriptMessageCount} message{transcriptMessageCount === 1 ? "" : "s"}</span>
                 </div>
-                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-black text-blue-300 lg:hidden">
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-black text-blue-200 lg:hidden">
                   {showTranscript ? "Collapse" : "Expand"}
                 </span>
               </button>
 
               {showTranscript || (typeof window !== "undefined" && window.innerWidth >= 1024) ? (
                 <>
-                  <div className="hidden h-9 items-center justify-end border-b border-white/[0.07] px-5 sm:flex">
-                    <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-400">
+                  <div className="hidden h-10 items-center justify-end border-b border-white/10 px-5 sm:flex">
+                    <div className="flex items-center gap-3 text-base text-white leading-7 font-medium">
                       Auto-scroll
                       <button
                         type="button"
                         onClick={() => setAutoScrollTranscript((value) => !value)}
-                        className={`relative h-5 w-9 rounded-full transition-colors ${autoScrollTranscript ? "bg-blue-500" : "bg-white/15"}`}
+                        className={`relative h-5 w-9 rounded-full ${autoScrollTranscript ? "bg-blue-500" : "bg-white/15"}`}
                       >
-                        <span className={`absolute top-1 h-3 w-3 rounded-full bg-white transition-all ${autoScrollTranscript ? "right-1" : "left-1"}`} />
+                        <span className={`absolute top-1 h-3 w-3 rounded-full bg-white transition ${autoScrollTranscript ? "right-1" : "left-1"}`} />
                       </button>
                     </div>
                   </div>
 
-                  <div className="overflow-y-auto px-4 py-3 lg:h-[calc(100%-108px)] lg:max-h-none workzo-hide-scrollbar">
+                  <div className="overflow-hidden px-4 py-1 lg:h-[calc(100%-114px)] lg:max-h-none">
                     {visibleTranscriptItems.length || interimText ? (
-                      <div className="flex flex-col gap-3">
-                        {visibleTranscriptItems.map((line) => {
-                          if (line.role === "system") {
-                            return (
-                              <div key={line.id} className="text-center text-[11px] text-slate-500 py-0.5">
-                                {line.text}
-                              </div>
-                            );
-                          }
-                          const isRecruiter = line.role === "recruiter";
-                          return (
-                            <div key={line.id} className={`flex gap-2.5 ${isRecruiter ? "" : "flex-row-reverse"}`}>
-                              <div className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[11px] font-black ${
-                                isRecruiter ? "bg-blue-500/15 text-blue-300" : "bg-violet-500/15 text-violet-300"
-                              }`}>
-                                {isRecruiter ? (setup.recruiterName?.[0] ?? "R") : "Y"}
-                              </div>
-                              <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed text-slate-100 ${
-                                isRecruiter
-                                  ? "rounded-tl-sm border border-white/[0.07] bg-white/[0.06]"
-                                  : "rounded-tr-sm border border-violet-500/15 bg-violet-500/10"
-                              }`}>
-                                {line.text}
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <div className="divide-y divide-white/8">
+                        {visibleTranscriptItems.map((line) => (
+                          <div
+                            key={line.id}
+                            className="grid grid-cols-[80px_150px_1fr] gap-3 py-1 text-sm max-sm:grid-cols-1 max-sm:gap-1 max-sm:py-3"
+                          >
+                            <span className="text-slate-400">{line.time}</span>
+                            <span
+                              className={`font-semibold ${
+                                line.role === "candidate"
+                                  ? "text-blue-300"
+                                  : line.role === "recruiter"
+                                    ? "text-violet-300"
+                                    : "text-slate-400"
+                              }`}
+                            >
+                              {line.speaker}
+                            </span>
+                            <span className="leading-6 text-slate-100 max-sm:line-clamp-none sm:line-clamp-2">{line.text}</span>
+                          </div>
+                        ))}
 
                         {interimText ? (
-                          <div className="flex flex-row-reverse gap-2.5 opacity-55">
-                            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-500/15 text-[11px] font-black text-violet-300">Y</div>
-                            <div className="max-w-[78%] rounded-2xl rounded-tr-sm border border-violet-500/15 bg-violet-500/10 px-4 py-2.5 text-sm leading-relaxed text-slate-100">
-                              {interimText}
-                            </div>
+                          <div className="grid grid-cols-[80px_150px_1fr] gap-3 py-1 text-sm opacity-70 max-sm:grid-cols-1 max-sm:gap-1">
+                            <span className="text-slate-400">listening</span>
+                            <span className="font-semibold text-blue-300">You</span>
+                            <span className="leading-6 text-slate-100">{interimText}</span>
                           </div>
                         ) : null}
 
                         <div ref={transcriptEndRef} />
                       </div>
                     ) : (
-                      <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
-                        <p className="text-sm font-bold text-slate-200">Transcript will appear here.</p>
-                        <p className="mt-1 text-xs text-slate-500">The recruiter will ask the first question after you press Start.</p>
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-base leading-6 text-white leading-7 font-medium">
+                        <p className="font-bold text-slate-100">Interview transcript will appear here.</p>
+                        <p className="mt-1">The recruiter will ask the first question after you press Start.</p>
                         <div ref={transcriptEndRef} />
                       </div>
                     )}
                   </div>
 
-                  <div className="flex min-h-8 flex-wrap items-center justify-between gap-2 border-t border-white/[0.07] px-4 py-1.5 text-[11px] text-slate-500 sm:px-5">
-                    <span>AI-generated · may not be 100% accurate</span>
-                    <button onClick={() => setTranscript([])} className="transition hover:text-slate-300">
-                      Clear
+                  <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-t border-white/10 px-4 py-1.5 text-xs text-slate-400 sm:px-5">
+                    <span>AI-generated transcript — may contain errors.</span>
+                    <button onClick={() => setTranscript([])} className="hover:text-white">
+                      Clear Transcript
                     </button>
                   </div>
                 </>
               ) : (
-                <div className="px-5 py-3 text-sm text-slate-400">
-                  Transcript will appear here as the interview progresses.
+                <div className="px-4 py-3 text-base text-white sm:px-5 leading-7 font-medium">
+                  Transcript will appear here as the recruiter and candidate speak.
                 </div>
               )}
             </section>
           </div>
 
-
           <aside className="grid gap-3 lg:min-h-0 lg:grid-rows-[190px_270px_82px]">
             <section className="rounded-2xl border border-white/10 bg-[#0b1527] p-3.5">
-              <h2 className="text-base font-black">Interview Score</h2>
+              <h2 className="text-base font-black">Recruiter signal</h2>
               <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className={`grid h-[78px] w-[78px] place-items-center rounded-full border-[7px] bg-[#07111f] transition-all duration-500 ${scoreFlash === "up" ? "border-emerald-400 shadow-[0_0_0_10px_rgba(52,211,153,0.18)]" : scoreFlash === "down" ? "border-amber-400 shadow-[0_0_0_10px_rgba(251,191,36,0.18)]" : "border-blue-500 shadow-[0_0_0_10px_rgba(124,58,237,0.2)]"}`}>
                   <div className="text-center">
@@ -4380,7 +4490,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
                     ) : (
                       <>
                         <div className="text-sm font-black uppercase tracking-[0.14em] text-blue-100">Ready</div>
-                        <div className="text-[10px] text-slate-400">first answer</div>
+                        <div className="text-[10px] text-slate-400">answer to start</div>
                       
       <UpgradeModal
         open={upgradeModalOpen}
@@ -4423,64 +4533,25 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
             <section style={{ display: showCopilot ? undefined : "none" }} className="rounded-2xl border border-white/10 bg-[#0b1527] p-3.5 overflow-hidden">
               <div className="flex items-center justify-between">
-<<<<<<< HEAD
-                <div className="flex items-center gap-2.5">
-                  <h2 className="text-base font-black text-white">Live Copilot</h2>
-                  <span className="rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-violet-300">Beta</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowCopilot((v) => !v)}
-                  className={`relative h-6 w-11 rounded-full transition-colors ${showCopilot ? "bg-blue-500" : "bg-white/15"}`}
-                  aria-label="Toggle copilot"
-                >
-                  <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all ${showCopilot ? "right-1" : "left-1"}`} />
-                </button>
-=======
 <h2 className="text-lg font-black text-blue-300">Live Copilot</h2>
                 <span className="relative h-6 w-11 rounded-full bg-blue-500">
                   <span className="absolute right-1 top-1 h-4 w-4 rounded-full bg-white" />
                 </span>
->>>>>>> e5c0987 (Resolve merge conflicts)
               </div>
 
-              {/* mood block */}
-              <div className="mt-3 border-t border-white/[0.07] pt-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Recruiter mood</p>
-                <p className={`mt-1.5 text-xl font-black tracking-tight ${recruiterMoodColor(recruiterSignal.mood)}`}>
-                  {scoreReady ? recruiterSignal.mood : "Waiting"}
-                </p>
-                <div className="mt-2.5 space-y-2">
-                  {/* trust bar */}
-                  <div className="grid grid-cols-[52px_1fr_36px] items-center gap-2.5">
-                    <span className="text-xs text-slate-400">Trust</span>
-                    <div className="h-[5px] overflow-hidden rounded-full bg-white/[0.07]">
-                      <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all duration-700" style={{ width: `${scoreReady ? recruiterSignal.trust : 0}%` }} />
-                    </div>
-                    <span className="text-right text-xs font-black text-slate-300">
-                      {scoreReady ? (recruiterSignal.trust >= 70 ? "High" : recruiterSignal.trust >= 45 ? "Med" : "Low") : "—"}
-                    </span>
-                  </div>
-                  {/* interest bar */}
-                  <div className="grid grid-cols-[52px_1fr_36px] items-center gap-2.5">
-                    <span className="text-xs text-slate-400">Interest</span>
-                    <div className="h-[5px] overflow-hidden rounded-full bg-white/[0.07]">
-                      <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all duration-700" style={{ width: `${scoreReady ? recruiterSignal.interest : 0}%` }} />
-                    </div>
-                    <span className="text-right text-xs font-black text-slate-300">
-                      {scoreReady ? (recruiterSignal.interest >= 70 ? "High" : recruiterSignal.interest >= 45 ? "Med" : "Low") : "—"}
-                    </span>
-                  </div>
+              <div className="mt-3 grid grid-cols-[1fr_auto] gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Recruiter mood</p>
+                  <p className={`mt-1 text-base font-black ${recruiterMoodColor(recruiterSignal.mood)}`}>
+                    {scoreReady ? recruiterSignal.mood : "Waiting"}
+                  </p>
+                </div>
+                <div className="text-right text-xs text-slate-300">
+                  <p>Trust <span className="font-bold text-white">{scoreReady ? recruiterSignal.trust : "—"}</span></p>
+                  <p>Interest <span className="font-bold text-white">{scoreReady ? recruiterSignal.interest : "—"}</span></p>
                 </div>
               </div>
 
-<<<<<<< HEAD
-              {/* say next block */}
-              <div className="mt-3 border-t border-white/[0.07] pt-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Say next</p>
-                <div className="mt-2 rounded-xl border border-violet-500/20 bg-violet-500/[0.08] px-3.5 py-2.5" style={{borderLeftWidth: '3px', borderLeftColor: 'rgba(139,92,246,0.55)'}}>
-                  <p className="text-sm font-semibold leading-[1.5] text-slate-100">
-=======
               {fillerWordCount > 0 && (
                 <div className="mb-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-1.5">
                   <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200">Filler words</p>
@@ -4494,117 +4565,68 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 <div className="rounded-xl border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-1.5">
                   <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200">Say next</p>
                   <p className="mt-1 line-clamp-1 text-[13px] leading-5 text-slate-100">
->>>>>>> e5c0987 (Resolve merge conflicts)
                     {scoreReady
                       ? recruiterSignal.trust < 60
                         ? "Clarify the claim first, then give one verified example."
-                        : "Lead with the result, then explain how you got there in one or two steps."
-                      : "Answer with one clear, role-relevant example."}
+                        : "Use one real example and state the result."
+                      : "Answer the recruiter with one clear, role-relevant example."}
                   </p>
                 </div>
-              </div>
 
-              {/* watch for block */}
-              <div className="mt-3 border-t border-white/[0.07] pt-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Watch for</p>
-                <p className="mt-1.5 text-sm leading-[1.55] text-slate-400">
-                  {scoreReady
-                    ? recruiterSignal.concern
-                    : <>The recruiter is waiting for <span className="font-bold text-amber-400">evidence</span>, ownership, and measurable impact.</>}
-                </p>
-              </div>
-            </section>
-
-            {/* ── Score Panel ── */}
-            <section className="rounded-2xl border border-white/[0.09] bg-[#0b1120] p-4">
-              <UpgradeModal
-                open={upgradeModalOpen}
-                feature={upgradeModalFeature}
-                onClose={closeUpgradeModal}
-                onUpgrade={handleUpgradeInterest}
-              />
-              {/* header row */}
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-base font-black text-white">Interview score</h2>
-                <div className="flex items-center gap-3">
-                  <span className={`rounded-lg px-2.5 py-1 text-xs font-black ${
-                    scoreReady
-                      ? recruiterSignal.overall >= 80 ? "bg-emerald-400/10 text-emerald-300"
-                      : recruiterSignal.overall >= 65 ? "bg-blue-400/10 text-blue-300"
-                      : "bg-amber-400/10 text-amber-300"
-                      : "bg-white/5 text-slate-500"
-                  }`}>
-                    {scoreReady ? (recruiterSignal.overall >= 80 ? "On track" : recruiterSignal.overall >= 65 ? "Building" : "Needs work") : "Waiting"}
-                  </span>
-                  {scoreReady ? (
-                    <div className="flex items-baseline gap-1">
-                      <span className={`text-3xl font-black tracking-tight transition-all duration-300 ${scoreFlash === "up" ? "text-emerald-300" : scoreFlash === "down" ? "text-amber-300" : "text-white"}`}>
-                        {(recruiterSignal.overall / 10).toFixed(1)}
-                      </span>
-                      <span className="text-sm text-slate-500">/10</span>
-                    </div>
-                  ) : null}
+                <div className="rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-1.5">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200">Recruiter concern</p>
+                  <p className="mt-1 line-clamp-1 text-[13px] leading-5 text-slate-100">
+                    {scoreReady ? recruiterSignal.concern : "The recruiter is waiting for evidence, ownership, and impact."}
+                  </p>
                 </div>
-              </div>
 
-              {/* metric rows */}
-              <div className="mt-3 space-y-2.5">
-                {scoreItems.map((item) => {
-                  const numericVal = scoreReady
-                    ? item.tone === "emerald" ? recruiterSignal.confidence
-                    : item.tone === "blue"   ? recruiterSignal.clarity
-                    : item.tone === "violet" ? recruiterSignal.relevance
-                    : recruiterSignal.communication
-                    : 0;
-                  const isPending = !scoreReady || numericVal === 0;
-                  return (
-                    <div key={item.label} className={isPending && item.tone === "orange" ? "opacity-45" : ""}>
-                      <div className="mb-1.5 flex items-center justify-between gap-2">
-                        <span className={`text-sm ${isPending && item.tone === "orange" ? "text-slate-500" : "text-slate-300"}`}>{item.label}</span>
-                        <span className="text-xs font-black text-slate-300">{item.value}</span>
-                      </div>
-                      <div className="h-[5px] overflow-hidden rounded-full bg-white/[0.07]">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all duration-700"
-                          style={{ width: `${numericVal}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+                {/* Live filler word counter */}
+                {status === "listening" && fillerCount > 0 && (
+                  <div className="rounded-xl border border-red-300/15 bg-red-400/[0.07] px-3 py-1.5">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-red-200">Filler words</p>
+                    <p className="mt-1 text-[13px] leading-5 text-slate-100">
+                      <span className="font-black text-red-300">{fillerCount}</span> detected — avoid um, uh, like, you know.
+                    </p>
+                  </div>
+                )}
+
+                {/* Emotional memory pattern callbacks */}
+                {emotionalMemory.missingMetrics >= 2 && (
+                  <div className="rounded-xl border border-violet-300/15 bg-violet-400/[0.07] px-3 py-1.5">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-violet-200">Pattern detected</p>
+                    <p className="mt-1 text-[13px] leading-5 text-slate-100">
+                      {emotionalMemory.lastCallbackLine || "Multiple answers without measurable proof — add one number."}
+                    </p>
+                  </div>
+                )}
               </div>
             </section>
 
             <section className="rounded-2xl border border-white/10 bg-[#0b1527] p-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-black text-white">
-                  Question {visibleQuestionNumber > 0 ? visibleQuestionNumber : 0} of 12
-                </h2>
-                <span className="text-sm font-black text-slate-400">{progress}%</span>
+                <h2 className="text-base font-black">Interview Progress</h2>
+                <span className="text-base text-white leading-7 font-medium">
+                  Question {visibleQuestionNumber} of 12
+                </span>
               </div>
-              <div className="mt-3 flex gap-1">
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`h-[6px] flex-1 rounded-full transition-all duration-500 ${
-                      i < visibleQuestionNumber - 1
-                        ? "bg-cyan-400"
-                        : i === visibleQuestionNumber - 1
-                          ? "bg-gradient-to-r from-cyan-400 to-blue-500"
-                          : "bg-white/[0.08]"
-                    }`}
-                  />
-                ))}
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500"
+                  style={{ width: `${progress}%` }}
+                />
               </div>
-              {interviewComplete ? (
-                <Link
-                  href="/results"
-                  onClick={() => saveInterviewResult("paused")}
-                  className="mt-3 block rounded-xl bg-gradient-to-r from-emerald-500/15 to-blue-500/15 px-3 py-2 text-center text-xs font-black text-emerald-300 ring-1 ring-emerald-500/20 transition hover:from-emerald-500/25 hover:to-blue-500/25"
-                >
-                  View Results →
-                </Link>
-              ) : null}
+              <div className="mt-1.5 flex items-center justify-between gap-3">
+                <p className="text-xs text-slate-300">{progress}% Completed</p>
+                {interviewComplete ? (
+                  <Link
+                    href="/results"
+                    onClick={() => saveInterviewResult("paused")}
+                    className="rounded-lg bg-emerald-500/15 px-2.5 py-1 text-xs font-black text-emerald-200"
+                  >
+                    View Results
+                  </Link>
+                ) : null}
+              </div>
             </section>
           </aside>
         </div>
@@ -4613,7 +4635,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
           <div className="fixed bottom-20 left-3 right-3 z-40 rounded-2xl border border-blue-300/20 bg-[#07111f]/95 px-4 py-3 shadow-2xl backdrop-blur-xl lg:hidden">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-300">Live Copilot</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">Live Copilot</p>
                 <p className={`truncate text-sm font-black ${recruiterMoodColor(recruiterSignal.mood)}`}>
                   {scoreReady ? recruiterSignal.mood : "Waiting"}
                 </p>

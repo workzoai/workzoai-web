@@ -261,11 +261,16 @@ export default function PricingPage() {
 
       <div className="mx-auto max-w-7xl">
         <div className="flex items-center justify-between gap-4">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-black text-slate-300 hover:text-white">
-            <ArrowLeft className="h-4 w-4" />
-            Back home
+          <Link href="/" className="flex items-center gap-3">
+            <img src="/workzo_icon.png" alt="WorkZo AI" width={36} height={36} className="rounded-xl" />
+            <span className="hidden text-xl font-black sm:block">WorkZo <span className="text-blue-400">AI</span></span>
           </Link>
-          <AuthNavButton />
+          <div className="flex items-center gap-3">
+            <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-black text-slate-400 transition hover:text-white">
+              <ArrowLeft className="h-4 w-4" /> Back home
+            </Link>
+            <AuthNavButton />
+          </div>
         </div>
 
         <section className="mx-auto mt-10 max-w-4xl text-center">
@@ -357,7 +362,7 @@ export default function PricingPage() {
                 <div className="flex items-center gap-3 pr-28">
                   <div className={cn(
                     "grid place-items-center rounded-2xl",
-                    isPremium ? "h-13 w-13 bg-blue-400/20 text-blue-200" : "h-11 w-11",
+                    isPremium ? "h-[52px] w-[52px] bg-blue-400/20 text-blue-200" : "h-11 w-11",
                     isPro ? "bg-violet-400/15 text-violet-200" : !isPremium ? "bg-emerald-400/15 text-emerald-200" : "",
                   )}
                     style={isPremium ? {height: "52px", width: "52px"} : undefined}
@@ -436,7 +441,7 @@ export default function PricingPage() {
         <section className="mt-14 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.03]">
           <div className="border-b border-white/10 p-6">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">Plan comparison</p>
-            <h2 className="mt-2 text-2xl font-black sm:text-3xl">What changes between Free, Premium, and Premium Pro?</h2>
+            <h2 className="mt-2 text-2xl font-black sm:text-3xl">What changes between plans?</h2>
           </div>
           <div className="overflow-x-auto">
             <div className="min-w-[760px]">
