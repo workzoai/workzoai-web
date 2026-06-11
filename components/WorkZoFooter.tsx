@@ -1,57 +1,44 @@
 import Link from "next/link";
+import Image from "next/image";
 
 const productLinks = [
-  { label: "Features", href: "/#features" },
-  { label: "Pricing", href: "/pricing" },
   { label: "Interview Practice", href: "/features/interview-practice" },
-  { label: "Improve CV", href: "/features/improve-cv" },
-  { label: "Cover Letter", href: "/features/cover-letter" },
-  { label: "Job Assist", href: "/features/job-assist" },
+  { label: "Improve CV", href: "/cv" },
+  { label: "Cover Letter", href: "/cover-letter" },
+  { label: "Job Assist", href: "/jobs" },
+  { label: "AI Career Coach", href: "/pricing?plan=premium_pro" },
+  { label: "Pricing", href: "/pricing" },
 ];
 
 const resourceLinks = [
   { label: "About", href: "/about" },
-  { label: "FAQ", href: "/faq" },
-  { label: "Help Center", href: "/help" },
   { label: "Roadmap", href: "/roadmap" },
   { label: "Changelog", href: "/changelog" },
+  { label: "FAQ", href: "/faq" },
+  { label: "Help Center", href: "/help" },
   { label: "System Status", href: "/status" },
 ];
 
 const legalLinks = [
-  { label: "Privacy", href: "/legal/privacy" },
-  { label: "Terms", href: "/legal/terms" },
-  { label: "Cookies", href: "/legal/cookies" },
+  { label: "Privacy Policy", href: "/legal/privacy" },
+  { label: "Terms of Service", href: "/legal/terms" },
+  { label: "Cookie Policy", href: "/legal/cookies" },
   { label: "Disclaimer", href: "/legal/disclaimer" },
   { label: "Impressum", href: "/legal/impressum" },
   { label: "Delete My Data", href: "/legal/delete-data" },
 ];
 
-const supportLinks = [
-  { label: "Contact", href: "/contact" },
-  { label: "Product Hunt", href: "https://www.producthunt.com/products/workzo-ai", external: true },
+const socialLinks = [
   { label: "LinkedIn", href: "https://www.linkedin.com/company/workzo-ai", external: true },
+  { label: "Product Hunt", href: "https://www.producthunt.com/products/workzo-ai", external: true },
+  { label: "Contact", href: "/contact" },
+  { label: "support@workzoai.com", href: "mailto:support@workzoai.com", external: true },
 ];
 
 function FooterLink({ href, label, external = false }: { href: string; label: string; external?: boolean }) {
-  if (external) {
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer"
-        className="text-sm font-semibold text-slate-400 transition hover:text-white"
-      >
-        {label}
-      </a>
-    );
-  }
-
-  return (
-    <Link href={href} className="text-sm font-semibold text-slate-400 transition hover:text-white">
-      {label}
-    </Link>
-  );
+  const cls = "text-sm text-slate-400 transition hover:text-white";
+  if (external) return <a href={href} target="_blank" rel="noreferrer" className={cls}>{label}</a>;
+  return <Link href={href} className={cls}>{label}</Link>;
 }
 
 function FooterColumn({ title, links }: { title: string; links: Array<{ label: string; href: string; external?: boolean }> }) {
@@ -59,53 +46,51 @@ function FooterColumn({ title, links }: { title: string; links: Array<{ label: s
     <div>
       <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">{title}</p>
       <div className="mt-4 flex flex-col gap-3">
-        {links.map((link) => (
-          <FooterLink key={link.href} {...link} />
-        ))}
+        {links.map((link) => <FooterLink key={link.href} {...link} />)}
       </div>
     </div>
   );
 }
 
-export default function WorkZoFooter() {
+export default function WorkZoFooter({ minimal = false }: { minimal?: boolean }) {
   return (
-    <footer className="border-t border-white/10 bg-[#050b14] px-4 py-10 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto grid max-w-7xl gap-8 sm:grid-cols-2 lg:grid-cols-[1.25fr_0.75fr_0.75fr_0.75fr_0.8fr]">
-        <div className="sm:col-span-2 lg:col-span-1">
-          <p className="text-lg font-black text-white">WorkZo AI</p>
-          <p className="mt-3 max-w-md text-sm leading-6 text-slate-400">
-            AI-powered interview preparation built to help job seekers practice realistic recruiter conversations with CV and job context.
-          </p>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-black text-cyan-100">
-            </span>
-            <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-100">
-              Global job seekers
-            </span>
+    <footer className="border-t border-white/[0.07] bg-[#030710] px-4 py-12 text-white sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_0.8fr]">
+          {/* Brand */}
+          <div className="sm:col-span-2 lg:col-span-1">
+            <Link href="/" className="flex items-center gap-3">
+              <Image src="/workzo_icon.png" alt="WorkZo AI" width={36} height={36} className="rounded-xl" />
+              <span className="text-xl font-black tracking-tight">WorkZo <span className="text-blue-400">AI</span></span>
+            </Link>
+            <p className="mt-4 max-w-sm text-sm leading-6 text-slate-400">
+              AI-powered interview preparation. Practice realistic recruiter conversations with your CV and job context — and see exactly why trust rises or falls.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-1 text-xs font-black text-blue-100">
+                7 languages
+              </span>
+              <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-100">
+                Global job seekers
+              </span>
+              <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-1 text-xs font-black text-violet-100">
+                AI-powered
+              </span>
+            </div>
           </div>
+
+          <FooterColumn title="Product" links={productLinks} />
+          <FooterColumn title="Resources" links={resourceLinks} />
+          <FooterColumn title="Legal" links={legalLinks} />
+          <FooterColumn title="Connect" links={socialLinks} />
         </div>
 
-        <FooterColumn title="Product" links={productLinks} />
-        <FooterColumn title="Resources" links={resourceLinks} />
-        <FooterColumn title="Legal" links={legalLinks} />
-
-        <div>
-          <FooterColumn title="Support" links={supportLinks} />
-          <a
-            href="mailto:support@workzoai.com"
-            className="mt-3 block text-sm font-semibold text-slate-400 transition hover:text-white"
-          >
-            support@workzoai.com
-          </a>
+        <div className="mt-10 flex flex-col gap-3 border-t border-white/[0.07] pt-6 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <p>© 2026 WorkZo AI. All rights reserved.</p>
+          <p className="max-w-xl text-right">
+            WorkZo AI is interview preparation support. We do not guarantee job offers, interviews, or employment outcomes.
+          </p>
         </div>
-      </div>
-
-      <div className="mx-auto mt-10 flex max-w-7xl flex-col gap-3 border-t border-white/10 pt-6 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-        <p>© 2026 WorkZo AI</p>
-        <p className="max-w-3xl">
-          Interview preparation support. WorkZo AI does not guarantee interviews, job offers, or employment outcomes.
-        </p>
       </div>
     </footer>
   );

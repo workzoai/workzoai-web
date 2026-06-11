@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { redirect } from "next/navigation";
 import Vapi from "@vapi-ai/web";
 
 type RecruiterKey = "Sarah" | "Priya" | "Daniel" | "Markus";
@@ -32,6 +33,14 @@ const assistantIds: Record<RecruiterKey, string | undefined> = {
 };
 
 export default function VapiTestPage() {
+  // Auth protection — only accessible in development or with founder access
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+    const founderMode = window.localStorage.getItem("workzo_founder_mode");
+    if (!founderMode) {
+      window.location.href = "/dashboard";
+      return null;
+    }
+  }
   const vapiRef = useRef<any>(null);
 
   const [selectedRecruiter, setSelectedRecruiter] =

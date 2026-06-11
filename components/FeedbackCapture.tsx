@@ -60,7 +60,7 @@ export default function FeedbackCapture({
       </div>
 
       <p className="mt-2 text-sm leading-6 text-slate-400">
-        Leave quick feedback to help us improve.
+        Leave quick feedback to help us improve WorkZo AI.
       </p>
 
       <input
