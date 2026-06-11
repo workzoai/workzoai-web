@@ -27,7 +27,7 @@ export default function StatusPage() {
             <CheckCircle2 className="h-4 w-4" /> All core systems operational
           </div>
           <h1 className="mt-6 text-4xl font-black tracking-[-0.04em] sm:text-5xl">WorkZo AI status</h1>
-          <p className="mt-4 text-base leading-8 text-slate-300">This page gives a simple public status overview while WorkZo AI is in beta.</p>
+          <p className="mt-4 text-base leading-8 text-slate-300">This page gives a live status overview of WorkZo AI services.</p>
           <div className="mt-8 divide-y divide-white/10 rounded-3xl border border-white/10 bg-black/20">
             {systems.map(([name, status]) => (
               <div key={name} className="flex items-center justify-between gap-4 p-4">
