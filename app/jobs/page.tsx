@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PremiumFeatureGate from "@/components/PremiumFeatureGate";
 import {
   ArrowLeft,
   ArrowRight,
@@ -483,7 +484,8 @@ INTERVIEW TIP:
   }
 
   return (
-    <main className="min-h-screen bg-[#020817] px-4 py-5 text-white sm:px-5">
+    <PremiumFeatureGate feature="job_assist" title="Job Assist is a Premium feature" description="Job fit scoring, gaps, and likely interview questions are included in Premium.">
+      <main className="min-h-screen bg-[#020817] px-4 py-5 text-white sm:px-5">
       <div className="mx-auto max-w-7xl">
         <header className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.035] px-4 py-3">
           <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-black text-slate-300 hover:text-white">
@@ -912,5 +914,6 @@ INTERVIEW TIP:
         </section>
       </div>
     </main>
+    </PremiumFeatureGate>
   );
 }

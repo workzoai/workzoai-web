@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PremiumFeatureGate from "@/components/PremiumFeatureGate";
 import { AlertTriangle, ArrowLeft, CheckCircle2, Copy, FileText, Gauge, Target, Wand2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -104,7 +105,8 @@ Requirements:
   }
 
   return (
-    <main className="min-h-screen bg-[#020817] px-5 py-5 text-white">
+    <PremiumFeatureGate feature="cover_letter" title="Cover Letter is a Premium feature" description="Role-specific cover letters based on your CV and job description are included in Premium.">
+      <main className="min-h-screen bg-[#020817] px-5 py-5 text-white">
       <div className="mx-auto max-w-6xl">
         <header className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.035] px-4 py-3">
           <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-black text-slate-300 hover:text-white">
@@ -249,5 +251,6 @@ Requirements:
         </section>
       </div>
     </main>
+    </PremiumFeatureGate>
   );
 }

@@ -31,8 +31,6 @@ import UpgradeModal from "@/components/premium/UpgradeModal";
 import PremiumUsageBadge from "@/components/premium/PremiumUsageBadge";
 import {
   checkWorkZoInterviewAllowed,
-  checkWorkZoTavusAllowed,
-  getWorkZoCurrentPlan,
   recordWorkZoInterviewStarted,
   recordWorkZoTavusInterviewStarted,
 } from "@/lib/workzoUsageTracker";
@@ -60,6 +58,23 @@ import {
   classifyVoiceError,
   requestMicrophoneAccess,
 } from "@/lib/workzoVoiceReliability";
+import { buildAdaptiveFollowUpQuestion } from "@/lib/companySimulationEngine";
+import { formatWorkZoCompanyBlueprintForPrompt } from "@/lib/workzoCompanyBlueprint";
+import { speakWithElevenLabs } from "@/lib/workzoElevenLabs";
+import { fetchWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
+import {
+  readLatestInterviewSetup,
+  normalizeCandidateName as normalizeStoredCandidateName,
+} from "@/lib/workzoInterviewSetup";
+import {
+  analyzeWorkZoActiveDisruption,
+  buildWorkZoPersonaOpeningQuestion,
+  buildWorkZoWaitingRoomSteps,
+  createWorkZoDisruptionMemory,
+  getWorkZoSimulationPersona,
+  updateWorkZoDisruptionMemory,
+  type WorkZoDisruptionMemory,
+} from "@/lib/workzoInterviewFlightSimulator";
 
 type TranscriptRole = "recruiter" | "candidate" | "system";
 
@@ -176,59 +191,85 @@ type InterviewSetup = {
   language: string;
   cvText?: string;
   jobDescription?: string;
+  companyBlueprint?: any;
+  companyName?: string;
 };
 
 const recruiterProfiles: Record<
   string,
-  { name: string; title: string; image: string; voiceHint: string }
+  { name: string; title: string; image: string; voiceHint: string; companyArchetype: string; focusAreas: string[]; pressureStyle: string }
 > = {
   friendly_hr: {
-    name: "Sarah",
-    title: "Friendly HR Recruiter",
+    name: "Sarah Chen",
+    title: "Senior Talent Partner",
     image: "/recruiters/sarah.png",
     voiceHint: "female",
+    companyArchetype: "Structured global company",
+    focusAreas: ["motivation", "communication", "role fit", "specific examples"],
+    pressureStyle: "Warm first, then precise follow-ups",
   },
   sarah: {
-    name: "Sarah",
-    title: "Friendly HR Recruiter",
+    name: "Sarah Chen",
+    title: "Senior Talent Partner",
     image: "/recruiters/sarah.png",
     voiceHint: "female",
+    companyArchetype: "Structured global company",
+    focusAreas: ["motivation", "communication", "role fit", "specific examples"],
+    pressureStyle: "Warm first, then precise follow-ups",
   },
   startup_recruiter: {
-    name: "Priya",
-    title: "Startup Recruiter",
+    name: "Priya Raman",
+    title: "Startup Talent Lead",
     image: "/recruiters/priya.png",
     voiceHint: "female",
+    companyArchetype: "Fast-moving startup",
+    focusAreas: ["speed", "initiative", "ambiguity", "business impact"],
+    pressureStyle: "Pushes for speed, ambiguity handling, and resourcefulness",
   },
   priya: {
-    name: "Priya",
-    title: "Startup Recruiter",
+    name: "Priya Raman",
+    title: "Startup Talent Lead",
     image: "/recruiters/priya.png",
     voiceHint: "female",
+    companyArchetype: "Fast-moving startup",
+    focusAreas: ["speed", "initiative", "ambiguity", "business impact"],
+    pressureStyle: "Pushes for speed, ambiguity handling, and resourcefulness",
   },
   analytical_hiring_manager: {
-    name: "Daniel",
-    title: "Analytical Hiring Manager",
+    name: "Daniel Reed",
+    title: "Senior Hiring Manager",
     image: "/recruiters/daniel.png",
     voiceHint: "male",
+    companyArchetype: "Metrics-driven hiring team",
+    focusAreas: ["metrics", "trade-offs", "technical reasoning", "decision quality"],
+    pressureStyle: "Drills into numbers, trade-offs, and individual ownership",
   },
   daniel: {
-    name: "Daniel",
-    title: "Analytical Hiring Manager",
+    name: "Daniel Reed",
+    title: "Senior Hiring Manager",
     image: "/recruiters/daniel.png",
     voiceHint: "male",
+    companyArchetype: "Metrics-driven hiring team",
+    focusAreas: ["metrics", "trade-offs", "technical reasoning", "decision quality"],
+    pressureStyle: "Drills into numbers, trade-offs, and individual ownership",
   },
   german_corporate: {
-    name: "Markus",
-    title: "Structured Corporate Recruiter",
+    name: "Markus Weber",
+    title: "Corporate Hiring Lead",
     image: "/recruiters/markus.png",
     voiceHint: "male",
+    companyArchetype: "Process-oriented enterprise",
+    focusAreas: ["process", "risk", "documentation", "consistency"],
+    pressureStyle: "Tests consistency, documentation, and accountability",
   },
   markus: {
-    name: "Markus",
-    title: "Structured Corporate Recruiter",
+    name: "Markus Weber",
+    title: "Corporate Hiring Lead",
     image: "/recruiters/markus.png",
     voiceHint: "male",
+    companyArchetype: "Process-oriented enterprise",
+    focusAreas: ["process", "risk", "documentation", "consistency"],
+    pressureStyle: "Tests consistency, documentation, and accountability",
   },
 };
 
@@ -327,6 +368,104 @@ function getNestedValue(source: unknown, paths: string[]) {
   }
 
   return "";
+}
+
+
+function getNestedObject(source: unknown, paths: string[]) {
+  if (!source || typeof source !== "object") return null;
+
+  for (const path of paths) {
+    let current: unknown = source;
+
+    for (const part of path.split(".")) {
+      if (!current || typeof current !== "object") {
+        current = null;
+        break;
+      }
+
+      current = (current as Record<string, unknown>)[part];
+    }
+
+    if (current && typeof current === "object") return current as Record<string, unknown>;
+  }
+
+  return null;
+}
+
+function stringList(value: unknown, limit = 10) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => safeText(item))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function buildReadableResumeContextFromProfile(profile: unknown, fallbackCvText: string) {
+  if (!profile || typeof profile !== "object") return fallbackCvText;
+
+  const data = profile as Record<string, unknown>;
+  const basics = data.basics && typeof data.basics === "object" ? (data.basics as Record<string, unknown>) : {};
+  const lines: string[] = [];
+
+  const name = normalizeStoredCandidateName(basics.name);
+  const headline = safeText(basics.headline);
+  const email = safeText(basics.email);
+  const phone = safeText(basics.phone);
+  const location = safeText(basics.location);
+  const linkedin = safeText(basics.linkedin);
+  const summary = safeText(data.summary);
+
+  if (name) lines.push(`Candidate name: ${name}`);
+  if (headline) lines.push(`Headline: ${headline}`);
+  if (email || phone || location || linkedin) lines.push(`Contact: ${[email, phone, location, linkedin].filter(Boolean).join(" • ")}`);
+  if (summary) lines.push(`Summary: ${summary}`);
+
+  const experience = Array.isArray(data.experience) ? data.experience.slice(0, 6) : [];
+  if (experience.length) {
+    lines.push("Experience:");
+    for (const item of experience) {
+      if (!item || typeof item !== "object") continue;
+      const exp = item as Record<string, unknown>;
+      const title = safeText(exp.title || exp.role || exp.position, "Role");
+      const company = safeText(exp.company || exp.organization);
+      const dates = safeText(exp.dates || exp.period);
+      const bullets = stringList(exp.bullets || exp.highlights || exp.responsibilities, 4);
+      lines.push(`- ${[title, company, dates].filter(Boolean).join(" • ")}`);
+      bullets.forEach((bullet) => lines.push(`  • ${bullet}`));
+    }
+  }
+
+  const education = Array.isArray(data.education) ? data.education.slice(0, 4) : [];
+  if (education.length) {
+    lines.push("Education:");
+    for (const item of education) {
+      if (!item || typeof item !== "object") continue;
+      const edu = item as Record<string, unknown>;
+      lines.push(`- ${[safeText(edu.degree), safeText(edu.institution), safeText(edu.dates)].filter(Boolean).join(" • ")}`);
+    }
+  }
+
+  const skills = stringList(data.skills, 18);
+  if (skills.length) lines.push(`Skills: ${skills.join(", ")}`);
+
+  const projects = Array.isArray(data.projects) ? data.projects.slice(0, 4) : [];
+  if (projects.length) {
+    lines.push("Projects:");
+    for (const item of projects) {
+      if (!item || typeof item !== "object") continue;
+      const project = item as Record<string, unknown>;
+      const projectName = safeText(project.name, "Project");
+      const bullets = stringList(project.bullets || project.highlights, 3);
+      lines.push(`- ${projectName}`);
+      bullets.forEach((bullet) => lines.push(`  • ${bullet}`));
+    }
+  }
+
+  const languages = stringList(data.languages, 8);
+  if (languages.length) lines.push(`Languages: ${languages.join(", ")}`);
+
+  const context = lines.join("\n").trim();
+  return context || fallbackCvText;
 }
 
 function readJsonFromStorage(key: string) {
@@ -439,7 +578,7 @@ function normalizeCandidateName(name: string) {
     .trim();
 
   if (!cleaned || cleaned.length < 2) return "";
-  if (/\b(resume|cv|curriculum|profile|summary|experience|education|skills|project|sales|manager|executive|engineer|analyst)\b/i.test(cleaned)) {
+  if (/\b(resume|cv|curriculum|profile|summary|experience|education|skills|project|projects|sales|manager|executive|engineer|analyst|bootcamp|school|college|university|institute|academy|data|science|technology|technologies|software|solutions|services|support|specialist|consultant|developer|coordinator|administrator|director|assistant|associate|officer|partner|talent|recruiter|hiring|technical|business|customer|senior|junior|lead|head|chief|principal|intern|graduate|bachelor|master|degree|certificate|certification|diploma|training|course|program|bootcamp|coding|marketing|finance|accounting|operations|design|research|development|product|strategy|communications|program|management|digital|growth|success)\b/i.test(cleaned)) {
     return "";
   }
 
@@ -454,31 +593,54 @@ function extractNameFromCvText(cvText: string) {
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const firstLine = lines.find((line) => {
-    if (line.length < 3 || line.length > 60) return false;
+  // Skip formatted context strings (produced by buildReadableResumeContextFromProfile)
+  // These start with "Candidate name:" / "Experience:" / "Skills:" etc.
+  // Only look in the first 15 lines of truly raw text
+  const rawLines = lines.slice(0, 15);
+
+  const firstLine = rawLines.find((line) => {
+    if (line.length < 3 || line.length > 50) return false;
+    // Skip structured context keys
+    if (/^(candidate name|headline|contact|summary|experience|education|skills|projects|languages|cv fact memory|raw cv|jd fact memory):/i.test(line)) return false;
     if (/@|www|http|\+|\d/.test(line)) return false;
-    if (/\b(resume|curriculum|profile|summary|experience|education|skills)\b/i.test(line)) return false;
-    return /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/.test(line);
+    // Skip lines that contain common CV section headers or job titles
+    if (/\b(resume|curriculum|profile|summary|experience|education|skills|bootcamp|school|college|university|data science|data analyst|engineer|manager|specialist|consultant|support|developer|coordinator|director|partner|recruiter|technical|business|customer|senior|junior|lead|head|chief|intern|graduate)\b/i.test(line)) return false;
+    // Must look like a person's name: 2-4 words, all letters/hyphens/apostrophes
+    const parts = line.split(/\s+/).filter(Boolean);
+    if (parts.length < 2 || parts.length > 4) return false;
+    return parts.every((part) => /^[A-Za-zÀ-ÖØ-öø-ÿ' .-]{2,}$/.test(part));
   });
 
   return firstLine || "";
 }
 
 function buildSetupFromStorage(): InterviewSetup {
-  const stored = findSetupFromLocalStorage();
+  const canonicalStored = readLatestInterviewSetup();
+  const stored = canonicalStored || findSetupFromLocalStorage();
 
   const state =
     stored && typeof stored === "object" && "state" in stored
       ? (stored as Record<string, unknown>).state
       : stored;
 
-  const cvText = getNestedValue(state, [
+  const rawCvText = getNestedValue(state, [
     "cvText",
+    "uploadedCvText",
     "resumeText",
+    "candidateCv",
     "candidate.cvText",
     "setup.cvText",
     "profile.cvText",
   ]);
+
+  const resumeProfile = getNestedObject(state, [
+    "resumeProfile",
+    "profile.resumeProfile",
+    "candidate.resumeProfile",
+    "setup.resumeProfile",
+  ]);
+
+  const cvText = buildReadableResumeContextFromProfile(resumeProfile, rawCvText);
 
   const jobDescription = getNestedValue(state, [
     "jobDescription",
@@ -492,6 +654,14 @@ function buildSetupFromStorage(): InterviewSetup {
     "selectedJob.jobDescription",
   ]);
 
+  const profileCandidateName = normalizeCandidateName(
+    getNestedValue(state, [
+      "resumeProfile.basics.name",
+      "profile.resumeProfile.basics.name",
+      "candidate.resumeProfile.basics.name",
+      "setup.resumeProfile.basics.name",
+    ]),
+  );
   const storedCandidateName = normalizeCandidateName(
     getNestedValue(state, [
       "candidateName",
@@ -504,7 +674,7 @@ function buildSetupFromStorage(): InterviewSetup {
     ]),
   );
   const cvCandidateName = normalizeCandidateName(extractNameFromCvText(cvText));
-  const candidateName = storedCandidateName || cvCandidateName || "Candidate";
+  const candidateName = profileCandidateName || storedCandidateName || cvCandidateName || "Candidate";
 
   const targetRole =
     getNestedValue(state, [
@@ -708,8 +878,8 @@ function safeLocalStorageList(key: string) {
   }
 }
 
-function isWorkZoPremiumUnlocked() {
-  const limits = getWorkZoPlanLimits(getWorkZoCurrentPlan());
+function isWorkZoPremiumUnlocked(plan: "free" | "premium" | "premium_pro") {
+  const limits = getWorkZoPlanLimits(plan);
   return limits.tavus || limits.advancedReports;
 }
 
@@ -1324,6 +1494,22 @@ function buildRecruiterReply(answer: string, questionIndex: number, setup: Inter
     return intelligenceV2.spokenReply;
   }
 
+  const runtimeMemory = typeof window !== "undefined"
+    ? ((window as unknown as { __workzoDisruptionMemory?: WorkZoDisruptionMemory }).__workzoDisruptionMemory || createWorkZoDisruptionMemory())
+    : createWorkZoDisruptionMemory();
+  const disruption = analyzeWorkZoActiveDisruption({
+    answer,
+    setup: setup as unknown as Record<string, unknown>,
+    memory: runtimeMemory,
+    questionIndex,
+  });
+  if (typeof window !== "undefined") {
+    (window as unknown as { __workzoDisruptionMemory?: WorkZoDisruptionMemory }).__workzoDisruptionMemory = updateWorkZoDisruptionMemory(runtimeMemory, answer);
+  }
+  if (disruption.shouldDisrupt) {
+    return disruption.line;
+  }
+
   if (wordCount < 12) {
     return "I’m following you, but I need more detail before I can judge the fit. Give me one specific situation, what you personally did, and what changed after that.";
   }
@@ -1667,7 +1853,7 @@ function localizedOpeningQuestion(setup: InterviewSetup) {
     return `Hi ${name}. Let’s begin your interview for the ${role} role. Please answer in Tamil or English, whichever feels natural. ${recruiterQuestions[0]}`;
   }
 
-  return `Hi ${name}. Let’s begin your interview for the ${role} role. ${recruiterQuestions[0]}`;
+  return buildWorkZoPersonaOpeningQuestion(setup);
 }
 
 function buildContextQualityNotice(setup: InterviewSetup) {
@@ -2140,6 +2326,11 @@ function cleanVisibleTranscriptText(text: string) {
     .trim();
 }
 
+function countFillerWords(text: string): number {
+  const fillerPattern = /(um+|uh+|er+|hmm+|like[,\s]|you know[,\s]|basically[,\s]|literally[,\s]|sort of[,\s]|kind of[,\s])/gi;
+  return (text.match(fillerPattern) || []).length;
+}
+
 function isTinyVisibleSpeechFragment(text: string) {
   const cleaned = cleanVisibleTranscriptText(text).toLowerCase();
   const words = cleaned.split(/\s+/).filter(Boolean);
@@ -2183,7 +2374,9 @@ function safeFirstName(name: string) {
 
 function safeGreetingName(name: string) {
   const firstName = safeFirstName(name);
-  if (!firstName || /^(candidate|user|there|unknown|resume|cv|profile|surrender)$/i.test(firstName)) return "there";
+  if (!firstName) return "there";
+  // Reject if first word is a section header, title word, or clearly not a human name
+  if (/^(candidate|user|there|unknown|resume|cv|profile|surrender|data|science|technical|business|customer|senior|junior|lead|head|chief|intern|graduate|bootcamp|school|university|college|institute|marketing|finance|product|digital|growth|success|manager|engineer|analyst|specialist|consultant|developer|coordinator|director|assistant|associate|officer|partner|talent|recruiter|hiring|support)$/i.test(firstName)) return "there";
   if (!/^[A-Za-zÀ-ÖØ-öø-ÿ' .-]{2,24}$/.test(firstName)) return "there";
   return firstName;
 }
@@ -2315,10 +2508,10 @@ function getWorkZoLiveCopilotInsight(input: {
   }
 
   return {
-    headline: "Stay focused",
-    sayNext: "Answer the recruiter with one clear, role-relevant example.",
-    recruiterConcern: input.recruiterConcern || "The recruiter is watching for evidence and consistency.",
-    liveTip: "Keep it concise and specific.",
+    headline: "Processing answer",
+    sayNext: "Get ready for the follow-up — prepare a specific, evidence-based response.",
+    recruiterConcern: input.recruiterConcern || "The recruiter is evaluating your last answer.",
+    liveTip: "Think of one metric or outcome you can add to your next answer.",
     tone: "neutral",
   };
 }
@@ -2424,16 +2617,23 @@ const [questionIndex, setQuestionIndex] = useState(0);
   );
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [serverPlan, setServerPlan] = useState<"free" | "premium" | "premium_pro">("free");
+  const [planLoading, setPlanLoading] = useState(true);
+  const interviewSessionIdRef = useRef<string>(`workzo-session-${Date.now()}`);
   const [moreOpen, setMoreOpen] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [showCopilot, setShowCopilot] = useState(true);
+  const [waitingRoomActive, setWaitingRoomActive] = useState(false);
+  const [waitingRoomStep, setWaitingRoomStep] = useState(0);
+  const waitingRoomSteps = useMemo(() => buildWorkZoWaitingRoomSteps(setup as unknown as Record<string, unknown>), [setup]);
+  const simulationPersona = useMemo(() => getWorkZoSimulationPersona(setup as unknown as Record<string, unknown>), [setup]);
   const [autoScrollTranscript, setAutoScrollTranscript] = useState(true);
   const [interviewStyle, setInterviewStyle] = useState<"Supportive" | "Realistic" | "Challenging" | "Brutal">("Realistic");
   const [voiceSpeed, setVoiceSpeed] = useState(0.84);
   const [copilotAggressiveness, setCopilotAggressiveness] = useState<"Low" | "Medium" | "High">("Medium");
   const [recoverySnapshot, setRecoverySnapshot] = useState<WorkZoInterviewSnapshot | null>(null);
   // Orphaned engines now wired
-  const [emotionalMemory, setEmotionalMemory] = useState<WorkZoEmotionalMemory>(createWorkZoEmotionalMemory);
+  const [emotionalMemory, setEmotionalMemory] = useState<WorkZoEmotionalMemory>(createWorkZoEmotionalMemory());
   const [recruiterVisualState, setRecruiterVisualState] = useState<WorkZoRecruiterVisualState>("waiting");
   const [fillerWordCount, setFillerWordCount] = useState(0);
   const [shareableMoment, setShareableMoment] = useState<{ title: string; text: string; category: string } | null>(null);
@@ -2441,9 +2641,27 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const [recoveryNoticeDismissed, setRecoveryNoticeDismissed] = useState(false);
   const [recoveredSessionReady, setRecoveredSessionReady] = useState(false);
   const [premiumUnlocked, setPremiumUnlocked] = useState(false);
+  // Live reaction text shown in copilot panel
+  const [liveReactionText, setLiveReactionText] = useState("");
+  // Filler word running count for current answer
+  const [fillerCount, setFillerCount] = useState(0);
+  // Company simulation mode
+  const [companyMode, setCompanyMode] = useState<"global" | "google" | "mckinsey" | "startup" | "corporate">("global");
 
   useEffect(() => {
-    setPremiumUnlocked(isWorkZoPremiumUnlocked());
+    setPremiumUnlocked(isWorkZoPremiumUnlocked(serverPlan));
+  }, [serverPlan]);
+
+  useEffect(() => {
+    let active = true;
+    fetchWorkZoAuthoritativePlan()
+      .then((resolved) => {
+        if (!active) return;
+        setServerPlan(resolved.plan);
+      })
+      .catch(() => active && setServerPlan("free"))
+      .finally(() => active && setPlanLoading(false));
+    return () => { active = false; };
   }, []);
 
   const handlePremiumGateClick = useCallback((feature: string) => {
@@ -2520,6 +2738,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
     setSetup(nextSetup);
     setupRef.current = nextSetup;
     setSetupLoaded(true);
+
+    // Map stored companyStyle into simulation mode for companySimulationEngine
+    const storedStyle = String((nextSetup as Record<string, unknown>).companyStyle || "").toLowerCase();
+    if (storedStyle.includes("startup")) setCompanyMode("startup");
+    else if (storedStyle.includes("corporate")) setCompanyMode("corporate");
+    else if (storedStyle.includes("consulting") || storedStyle.includes("big tech") || storedStyle.includes("technical")) setCompanyMode("mckinsey");
+    else setCompanyMode("global");
 
     trackWorkZoInterviewEvent("interview_room_viewed", {
       role: nextSetup.targetRole,
@@ -2656,6 +2881,67 @@ const [questionIndex, setQuestionIndex] = useState(0);
     if (autoScrollTranscript) transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [transcript, interimText, autoScrollTranscript]);
 
+  const persistInterviewSessionToDb = useCallback((statusValue: "active" | "completed" | "paused" = "active") => {
+    const sessionId = interviewSessionIdRef.current;
+    fetch("/api/db/interview-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        sessionId,
+        setup: setupRef.current,
+        status: statusValue === "completed" ? "completed" : "active",
+        mode: serverPlan === "premium_pro" ? "pro" : "standard",
+        questionIndex: questionIndexRef.current,
+        elapsedSeconds: elapsedRef.current,
+        trustScore: recruiterSignalRef.current.trust,
+        interestScore: recruiterSignalRef.current.interest,
+        recruiterMemory: recruiterMemoryRef.current,
+        recoverySnapshot: recoverySnapshotRef.current || {},
+        completedAt: statusValue === "completed" ? new Date().toISOString() : null,
+      }),
+    }).catch(() => undefined);
+    return sessionId;
+  }, [serverPlan]);
+
+  const persistInterviewMessageToDb = useCallback((item: Omit<TranscriptItem, "id" | "time">, messageIndex: number) => {
+    if (item.role === "system") return;
+    fetch("/api/db/interview-message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        sessionId: interviewSessionIdRef.current,
+        role: item.role,
+        speaker: item.speaker,
+        text: item.text,
+        messageIndex,
+        metadata: { source: "interview_room" },
+      }),
+    }).catch(() => undefined);
+  }, []);
+
+  const persistInterviewResultToDb = useCallback((session: Record<string, any>) => {
+    fetch("/api/db/interview-result", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        sessionId: interviewSessionIdRef.current,
+        overallScore: session.score?.overall ?? session.summary?.trust ?? null,
+        trustScore: session.score?.trust ?? null,
+        evidenceQuality: session.answerQuality?.evidenceScore ?? null,
+        contradictionRisk: session.memory?.unsupportedClaims ?? null,
+        strengths: session.verdict?.strengths || [],
+        improvements: session.verdict?.improvements || [],
+        weakAnswers: session.weakestMoment ? [session.weakestMoment] : [],
+        contradictions: session.memory?.patterns || [],
+        evidenceRequests: session.answerQuality?.evidenceRequests || [],
+        rawResult: session,
+      }),
+    }).catch(() => undefined);
+  }, []);
+
   const addTranscript = useCallback((item: Omit<TranscriptItem, "id" | "time">) => {
     const cleanedText = cleanVisibleTranscriptText(item.text);
 
@@ -2670,6 +2956,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
       text: cleanedText,
     };
 
+    persistInterviewMessageToDb(cleanedItem, transcript.length);
     setTranscript((current) => {
       const previous = current[current.length - 1];
 
@@ -2694,7 +2981,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
         },
       ].slice(-80);
     });
-  }, []);
+  }, [persistInterviewMessageToDb, transcript.length]);
 
   const stopListening = useCallback(() => {
     listeningRef.current = false;
@@ -2703,7 +2990,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
     } catch {}
   }, []);
 
-  const startListening = useCallback(() => {
+  const startListening = useCallback(async () => {
     if (stopRequestedRef.current) return;
 
     const Recognition = getRecognitionConstructor();
@@ -2713,8 +3000,64 @@ const [questionIndex, setQuestionIndex] = useState(0);
       addTranscript({
         role: "system",
         speaker: "System",
-        text: "Speech recognition is not available in this browser. Use Chrome for live voice transcript.",
+        text: "Browser speech recognition is unavailable. Recording a short answer and transcribing it securely instead.",
       });
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        const chunks: BlobPart[] = [];
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) chunks.push(event.data);
+        };
+        recorder.onstop = async () => {
+          stream.getTracks().forEach((track) => track.stop());
+          const audioBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+          const formData = new FormData();
+          formData.append("audio", audioBlob, "candidate-answer.webm");
+          formData.append("language", setupRef.current.language || "en");
+
+          const response = await fetch("/api/transcribe", { method: "POST", body: formData, credentials: "include" });
+          const data = await response.json().catch(() => ({}));
+          const answer = String(data?.text || "").trim();
+
+          if (!answer || stopRequestedRef.current) {
+            setStatus("listening");
+            return;
+          }
+
+          addTranscript({ role: "candidate", speaker: "You", text: answer });
+          applyRecruiterSignalUpdate(answer);
+          const reaction = getWorkZoLiveReaction(answer);
+          setRecruiterVisualState(reaction.visualState);
+          setLiveReactionText(reaction.text);
+          const nextEmoMem = updateWorkZoEmotionalMemory(emotionalMemoryRef.current, answer);
+          emotionalMemoryRef.current = nextEmoMem;
+          setEmotionalMemory(nextEmoMem);
+          setStatus("thinking");
+
+          const interruptDecision = decideWorkZoInterruption(answer);
+          const baseReply = interruptDecision.shouldInterrupt
+            ? interruptDecision.line
+            : buildRecruiterReply(answer, questionIndexRef.current, setupRef.current, recruiterMemoryRef.current);
+          const reply = enforceRuntimeLanguageForReply(setupRef.current, baseReply);
+          window.setTimeout(() => {
+            if (stopRequestedRef.current) return;
+            setQuestionIndex((value) => Math.min(value + 1, 12));
+            speakRecruiter(reply);
+          }, 650);
+        };
+        recorder.start();
+        window.setTimeout(() => {
+          if (recorder.state !== "inactive") recorder.stop();
+        }, 9000);
+      } catch (error) {
+        trackWorkZoErrorEvent("server_transcription_fallback_failed", error, {
+          role: setupRef.current.targetRole,
+          recruiter: setupRef.current.recruiterName,
+        }, "medium");
+        setStatus("listening");
+      }
       return;
     }
 
@@ -2745,9 +3088,14 @@ const [questionIndex, setQuestionIndex] = useState(0);
         else interim += text;
       }
 
-      if (interim.trim()) setInterimText(interim.trim());
+      if (interim.trim()) {
+        setInterimText(interim.trim());
+        // Live filler word counter — updates copilot panel in real time
+        setFillerCount(countFillerWords(`${answerBufferRef.current} ${interim}`.trim()));
+      }
       if (finalText.trim()) {
         answerBufferRef.current = `${answerBufferRef.current} ${finalText}`.trim();
+        setFillerCount(countFillerWords(answerBufferRef.current));
       }
     };
 
@@ -2781,6 +3129,15 @@ const [questionIndex, setQuestionIndex] = useState(0);
       });
 
       applyRecruiterSignalUpdate(answer);
+      setFillerCount(0); // reset for next answer
+
+      // Emotional memory engine — tracks vague answers, missing metrics, ownership patterns
+      const reaction = getWorkZoLiveReaction(answer);
+      setRecruiterVisualState(reaction.visualState);
+      setLiveReactionText(reaction.text);
+      const nextEmoMem = updateWorkZoEmotionalMemory(emotionalMemoryRef.current, answer);
+      emotionalMemoryRef.current = nextEmoMem;
+      setEmotionalMemory(nextEmoMem);
       setStatus("thinking");
 
       // Live interruption engine — recruiter can cut off rambling answers
@@ -2788,11 +3145,19 @@ const [questionIndex, setQuestionIndex] = useState(0);
       const baseReply = interruptDecision.shouldInterrupt
         ? interruptDecision.line
         : buildRecruiterReply(answer, questionIndexRef.current, setupRef.current, recruiterMemoryRef.current);
-      const reply = enforceRuntimeLanguageForReply(setupRef.current, baseReply);
+
+      // Company simulation engine — adaptive pressure follow-ups based on detected mode
+      const simStyle = companyMode === "google" ? "analytical" : companyMode === "mckinsey" ? "pressure" : companyMode === "startup" ? "pressure" : "supportive";
+      const adaptiveFollowUp = !interruptDecision.shouldInterrupt && nextEmoMem.missingMetrics >= 2
+        ? buildAdaptiveFollowUpQuestion({ style: simStyle, targetRole: setupRef.current.targetRole, weaknessSignals: nextEmoMem.weakMoments, previousAnswer: answer })
+        : null;
+
+      const reply = enforceRuntimeLanguageForReply(setupRef.current, adaptiveFollowUp || baseReply);
 
       window.setTimeout(() => {
         if (stopRequestedRef.current) return;
         setQuestionIndex((value) => Math.min(value + 1, 12));
+        setRecruiterVisualState(interruptDecision.shouldInterrupt ? "interrupting" : "listening");
         speakRecruiter(reply);
       }, 650);
     };
@@ -2816,12 +3181,11 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
       addTranscript({
         role: "recruiter",
-        speaker: `${activeSetup.recruiterName} (AI Recruiter)`,
+        speaker: `${activeSetup.recruiterName} · ${getWorkZoSimulationPersona(activeSetup as unknown as Record<string, unknown>).title}`,
         text,
       });
 
       // Block browser TTS only while AI voice is actually starting/connected.
-      // When status is fallback, browser TTS must be audible.
       if (
         premiumVoiceEnabledRef.current &&
         audioEnabledRef.current &&
@@ -2831,11 +3195,61 @@ const [questionIndex, setQuestionIndex] = useState(0);
         return;
       }
 
-      if (!audioEnabled || typeof window === "undefined" || !window.speechSynthesis) {
+      if (!audioEnabled) {
         window.setTimeout(() => startListening(), 650);
         return;
       }
 
+      // Tier 2: ElevenLabs TTS — richer voice when browser TTS is active and key is set
+      if (
+        typeof window !== "undefined" &&
+        process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY &&
+        premiumVoiceStatus === "fallback"
+      ) {
+        try {
+          await speakWithElevenLabs(activeSetup.recruiterId, text);
+          window.setTimeout(() => startListening(), 280);
+          return;
+        } catch {
+          // ElevenLabs failed — fall through to browser TTS
+        }
+      }
+
+      // Server-side OpenAI TTS route — keeps keys off the client and makes /api/tts the production fallback.
+      if (audioEnabled && premiumVoiceStatus === "fallback") {
+        try {
+          const ttsRes = await fetch("/api/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text,
+              recruiterId: activeSetup.recruiterId,
+              recruiterState: recruiterVisualState,
+              mode: serverPlan,
+            }),
+          });
+          if (ttsRes.ok) {
+            const audioBlob = await ttsRes.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            setStatus("recruiter-speaking");
+            await new Promise<void>((resolve) => {
+              audio.onended = () => { URL.revokeObjectURL(audioUrl); resolve(); };
+              audio.onerror = () => { URL.revokeObjectURL(audioUrl); resolve(); };
+              audio.play().catch(() => resolve());
+            });
+            window.setTimeout(() => startListening(), 280);
+            return;
+          }
+        } catch {
+          // Fall through to browser speechSynthesis.
+        }
+      }
+
+      if (typeof window === "undefined" || !window.speechSynthesis) {
+        window.setTimeout(() => startListening(), 650);
+        return;
+      }
       // ── ElevenLabs tier-2 voice (better than browser, lighter than Vapi) ──
       if (audioEnabled && typeof window !== "undefined") {
         try {
@@ -2989,9 +3403,24 @@ const [questionIndex, setQuestionIndex] = useState(0);
   }, []);
 
   const analyzeVapiUserAnswer = useCallback((answer: string) => {
-    // Transcript-only AI voice path for now.
-    // Browser/local interview logic remains the scoring source, so AI voice instability cannot break scoring.
     if (!answer.trim()) return;
+
+    // Emotional memory engine — same as browser path
+    const reaction = getWorkZoLiveReaction(answer);
+    setRecruiterVisualState(reaction.visualState);
+    setLiveReactionText(reaction.text);
+    const nextEmoMem = updateWorkZoEmotionalMemory(emotionalMemoryRef.current, answer);
+    emotionalMemoryRef.current = nextEmoMem;
+    setEmotionalMemory(nextEmoMem);
+
+    // Filler word count from Vapi transcript
+    setFillerCount((prev) => prev + countFillerWords(answer));
+
+    // Interruption check — if Vapi's answer is rambling, record it
+    const interruptDecision = decideWorkZoInterruption(answer);
+    if (interruptDecision.shouldInterrupt) {
+      setRecruiterVisualState("interrupting");
+    }
   }, []);
 
   const startBrowserFallbackInterview = useCallback(
@@ -3151,6 +3580,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
             vapiFinalUserTextRef.current = finalText;
             lastUserTranscriptRef.current = finalText;
 
+            // Live interruption check — surfaced visually via recruiter visual state
+            const liveInterrupt = shouldInterruptLive({ transcript: finalText, duration: 0 });
+            if (liveInterrupt.interrupt) {
+              setRecruiterVisualState("interrupting");
+              setLiveReactionText(liveInterrupt.message || "Let me stop you there.");
+            }
+
             addTranscript({
               role: "candidate",
               speaker: "You",
@@ -3193,14 +3629,14 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
             addTranscript({
               role: "recruiter",
-              speaker: `${activeSetup.recruiterName} (AI Recruiter)`,
+              speaker: `${activeSetup.recruiterName} · ${getWorkZoSimulationPersona(activeSetup as unknown as Record<string, unknown>).title}`,
               text: recruiterText,
             });
           }
         });
 
         const variableValues = buildWorkZoVapiVariableValues({
-          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume and job description as the only verified facts. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim is supported by the CV/JD. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV/JD, challenge it immediately and politely. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize evidence, ownership, STAR structure, metrics, and role relevance. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. Do not invent farewell names or phrases. End only with: 'Thank you for your time, {candidateName}. We will be in touch soon. Have a great day.'`,
+          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume and job description as the only verified facts. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim is supported by the CV/JD. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV/JD, challenge it immediately and politely. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize evidence, ownership, STAR structure, metrics, and role relevance. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. Do not invent farewell names or phrases. End only with: 'Thank you for your time, {candidateName}. We will be in touch soon. Have a great day.'`,
           strictGroundingRules: "You are WorkZo AI's realistic recruiter. Treat the CV/resume and job description as the only verified facts. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim is supported by the CV/JD. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV/JD, challenge it immediately and politely. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize evidence, ownership, STAR structure, metrics, and role relevance.",
           recruiterMustChallengeUnsupportedClaims: "true",
           antiHallucinationMode: "strict",
@@ -3216,6 +3652,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
           cvText: [
             enforceSelectedLanguagePrefix(activeSetup),
             buildFactualMemoryBrief(activeSetup),
+            formatWorkZoCompanyBlueprintForPrompt(activeSetup.companyBlueprint),
             "CV fact memory:",
             JSON.stringify(extractCvFactMemory(activeSetup)),
             "",
@@ -3226,6 +3663,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
             enforceSelectedLanguagePrefix(activeSetup),
             buildContextQualityNotice(activeSetup),
             buildLanguageInstruction(activeSetup),
+            formatWorkZoCompanyBlueprintForPrompt(activeSetup.companyBlueprint),
             "JD fact memory:",
             JSON.stringify(extractJdFactMemory(activeSetup)),
             "",
@@ -3304,19 +3742,32 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const startInterview = useCallback(async () => {
     stopRequestedRef.current = false;
 
-    // ── Free plan interview limit check ──────────────────────────────────────
-    const interviewCheck = checkWorkZoInterviewAllowed();
-    if (!interviewCheck.allowed) {
-      openUpgradeModal("interview_limit");
+    // ── Plan interview limit check ───────────────────────────────────────────
+    if (planLoading) {
       addTranscript({
         role: "system",
         speaker: "System",
-        text: `You have used all ${interviewCheck.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
+        text: "Preparing your interview access. Please tap Start again in a moment.",
+      });
+      return;
+    }
+    const currentPlan = serverPlan;
+    const interviewCheck = checkWorkZoInterviewAllowed(currentPlan);
+    if (!interviewCheck.allowed) {
+      const gateFeature = currentPlan === "premium" ? "premium_pro_interview" : "interview_limit";
+      openUpgradeModal(gateFeature);
+      addTranscript({
+        role: "system",
+        speaker: "System",
+        text: currentPlan === "premium"
+          ? `You have used all ${interviewCheck.limit} interviews this month. Upgrade to Premium Pro for unlimited voice interviews.`
+          : `You have used all ${interviewCheck.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
       });
       return;
     }
     // Record this interview start so the usage counter increments correctly
     recordWorkZoInterviewStarted();
+    fetch("/api/transcribe", { method: "OPTIONS" }).catch(() => undefined);
 
     const restoredSnapshot = recoveredSessionRef.current;
 
@@ -3369,7 +3820,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
       questionIndexRef.current = nextQuestionIndex;
       setQuestionIndex(nextQuestionIndex);
 
-      if (premiumVoiceEnabledRef.current && audioEnabledRef.current) {
+      const currentPlanForRestore = serverPlan;
+      if (currentPlanForRestore === "premium_pro" && premiumVoiceEnabledRef.current && audioEnabledRef.current) {
         const reconnectedPremiumVoice = await startPremiumVoice(restoredSetup);
 
         if (reconnectedPremiumVoice) {
@@ -3394,15 +3846,27 @@ const [questionIndex, setQuestionIndex] = useState(0);
       addTranscript({
         role: "system",
         speaker: "System",
-        text: "Interview restored. Voice is idle. Tap Start when you are ready to continue.",
+        text: "Interview restored. Tap Start to reconnect voice and continue.",
       });
       setStatus("idle");
       return;
     }
 
     const freshSetup = buildSetupFromStorage();
+    interviewSessionIdRef.current = `workzo-session-${Date.now()}`;
     setSetup(freshSetup);
     setupRef.current = freshSetup;
+    if (typeof window !== "undefined") {
+      (window as unknown as { __workzoDisruptionMemory?: WorkZoDisruptionMemory }).__workzoDisruptionMemory = createWorkZoDisruptionMemory();
+    }
+
+    setWaitingRoomActive(true);
+    setWaitingRoomStep(0);
+    for (let stepIndex = 0; stepIndex < buildWorkZoWaitingRoomSteps(freshSetup as unknown as Record<string, unknown>).length; stepIndex += 1) {
+      setWaitingRoomStep(stepIndex);
+      await new Promise((resolve) => window.setTimeout(resolve, stepIndex === 0 ? 320 : 620));
+    }
+    setWaitingRoomActive(false);
 
     if (recoverySnapshotRef.current) {
       trackWorkZoFailureEvent("active_interview_replaced", {
@@ -3416,6 +3880,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
     setRecoveredSessionReady(false);
     setRecoverySnapshot(null);
     setRecoveryNoticeDismissed(false);
+
+    persistInterviewSessionToDb("active");
 
     trackWorkZoInterviewEvent("interview_started", {
       role: freshSetup.targetRole,
@@ -3449,26 +3915,46 @@ const [questionIndex, setQuestionIndex] = useState(0);
     setFillerWordCount(0);
     setShareableMoment(null);
 
-    if (premiumVoiceEnabledRef.current && audioEnabledRef.current) {
+    // ── Plan-gated voice routing ─────────────────────────────────────────────
+    // Free + Premium: browser STT/TTS only — never initialize Vapi
+    // Premium Pro: try Vapi → if it fails, browser fallback
+    // currentPlan already declared above for the limit check — reuse it
+    const isProPlan = currentPlan === "premium_pro";
+
+    if (isProPlan && premiumVoiceEnabledRef.current && audioEnabledRef.current) {
       const startedPremiumVoice = await startPremiumVoice(freshSetup);
 
       if (startedPremiumVoice) {
         addTranscript({
           role: "system",
           speaker: "System",
-          text: "Premium voice connected.",
+          text: "Live AI voice connected.",
         });
         setStatus("listening");
         return;
       }
 
-      // Vapi not available — start browser voice fallback automatically
+
+      // Vapi failed for Pro user — fall back to browser voice automatically
+      addTranscript({
+        role: "system",
+        speaker: "System",
+        text: "Live AI voice unavailable. Switching to browser voice.",
+      });
       startBrowserFallbackInterview(freshSetup);
       return;
     }
 
+    // Free or Premium: go straight to browser voice — no Vapi attempt
     startBrowserFallbackInterview(freshSetup);
-  }, [addTranscript, speakRecruiter, startBrowserFallbackInterview, startPremiumVoice]);
+  }, [
+    addTranscript,
+    planLoading,
+    serverPlan,
+    startBrowserFallbackInterview,
+    startPremiumVoice,
+    persistInterviewSessionToDb,
+  ]);
 
   const saveInterviewResult = useCallback(
     (reason: "ended" | "paused" = "ended") => {
@@ -3533,7 +4019,24 @@ const [questionIndex, setQuestionIndex] = useState(0);
           JSON.stringify([session, ...list].slice(0, 20)),
         );
         window.localStorage.setItem("workzo_latest_interview_result", JSON.stringify(session));
+        persistInterviewSessionToDb("completed");
+        persistInterviewResultToDb(session as unknown as Record<string, any>);
         clearActiveInterviewSnapshot();
+
+        // Detect shareable moment for post-session social card
+        const shareable = detectShareableMoment({
+          trust: session.score?.trust ?? 0,
+          pressure: recruiterMemoryRef.current.unsupportedClaims > 0 ? 80 : 40,
+          contradiction: session.memory.patterns.find((p) => p.toLowerCase().includes("unsupported")) || "",
+        });
+        if (shareable.shouldHighlight) {
+          setShareableMoment({
+            title: shareable.shareTitle,
+            text: shareable.shareText,
+            category: shareable.category,
+          });
+          window.localStorage.setItem("workzo_shareable_moment", JSON.stringify(shareable));
+        }
 
         trackWorkZoInterviewEvent("interview_completed", {
           reason,
@@ -3563,7 +4066,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
         }, "high");
       }
     },
-    [elapsed, recruiterSignal, recruiterMemory, scoreReady, transcript],
+    [elapsed, recruiterSignal, recruiterMemory, scoreReady, transcript, persistInterviewResultToDb, persistInterviewSessionToDb],
   );
 
   const endInterview = useCallback(() => {
@@ -3690,7 +4193,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">Preparing interview room</p>
-                <h1 className="mt-1 text-2xl font-black">Loading your recruiter…</h1>
+                <h1 className="mt-1 text-2xl font-black">Preparing your interview room…</h1>
               </div>
             </div>
 
@@ -3701,7 +4204,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
             </div>
 
             <p className="mt-5 text-base leading-6 text-white leading-7 font-medium">
-              WorkZo is loading your selected recruiter and interview setup before showing the room.
+              Setting up your recruiter, CV context, and interview configuration.
             </p>
           </section>
         </div>
@@ -3754,6 +4257,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
               <span className={`hidden rounded-full border px-2.5 py-1 text-xs font-black uppercase sm:block ${recruiterStatusTone(recruiterSignal, scoreReady)}`}>
                 {recruiterStatus}
               </span>
+
             </div>
           </div>
 
@@ -3786,7 +4290,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
               >
                 <PhoneOff className="h-4 w-4" />
                 <PremiumUsageBadge compact />
-              End Interview
+              End
               </button>
             )}
 
@@ -3826,10 +4330,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           {([
-                            { id: "friendly_hr", name: "Sarah", label: "Friendly HR", premium: false },
-                            { id: "analytical_hiring_manager", name: "Daniel", label: "Analytical", premium: false },
-                            { id: "startup_recruiter", name: "Priya", label: "Startup", premium: true },
-                            { id: "german_corporate", name: "Markus", label: "Corporate", premium: true },
+                            { id: "friendly_hr", name: "Sarah Chen", label: "Talent Partner", premium: false },
+                            { id: "analytical_hiring_manager", name: "Daniel Reed", label: "Hiring Manager", premium: false },
+                            { id: "startup_recruiter", name: "Priya Raman", label: "Startup Lead", premium: true },
+                            { id: "german_corporate", name: "Markus Weber", label: "Corporate Lead", premium: true },
                           ] as const).map((recruiter) => {
                             const locked = recruiter.premium && !premiumUnlocked;
                             const selected = setup.recruiterName === recruiter.name || setup.recruiterId === recruiter.id;
@@ -3921,14 +4425,21 @@ const [questionIndex, setQuestionIndex] = useState(0);
                           <span>Voice On/Off</span>
                           <span className="text-slate-400">{audioEnabled ? "On" : "Off"}</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setPremiumVoiceEnabled((value) => !value)}
-                          className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
-                        >
-                          <span>Premium Voice (AI voice)</span>
-                          <span className="text-slate-400">{premiumVoiceEnabled ? "On" : "Off"}</span>
-                        </button>
+                        {serverPlan === "premium_pro" ? (
+                          <button
+                            type="button"
+                            onClick={() => setPremiumVoiceEnabled((value) => !value)}
+                            className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
+                          >
+                            <span>Live AI voice (Pro)</span>
+                            <span className="text-slate-400">{premiumVoiceEnabled ? "On" : "Off"}</span>
+                          </button>
+                        ) : (
+                          <div className="flex w-full items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-sm opacity-50">
+                            <span>Live AI voice</span>
+                            <span className="text-slate-500">Premium Pro only</span>
+                          </div>
+                        )}
                         <label className="block rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm">
                           <div className="mb-2 flex items-center justify-between">
                             <span>Voice Speed</span>
@@ -4073,22 +4584,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
                   </div>
                 ) : null}
               </div>
-            {premiumVoiceStatus !== "not_configured" && premiumVoiceStatus !== "idle" ? (
-              <div className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-slate-300 lg:flex">
-                <span className="text-slate-200">Voice:</span>
-                <span
-                  className={
-                    premiumVoiceStatus === "connected"
-                      ? "text-emerald-300"
-                      : premiumVoiceStatus === "fallback" || premiumVoiceStatus === "failed"
-                        ? "text-amber-300"
-                        : "text-slate-300"
-                  }
-                >
-                  {premiumVoiceStatus === "connected" ? "connected" : premiumVoiceStatus.replaceAll("_", " ")}
-                </span>
-              </div>
-            ) : null}
+
           </div>
         </header>
 
@@ -4149,14 +4645,14 @@ const [questionIndex, setQuestionIndex] = useState(0);
           </section>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-3 overflow-x-hidden p-3 pb-24 lg:min-h-0 lg:grid-cols-[1fr_368px] lg:overflow-hidden lg:p-4">
-          <div className="grid gap-3 lg:min-h-0 lg:grid-rows-[69vh_18vh]">
-            <section className="relative h-[260px] overflow-hidden rounded-2xl border border-white/10 bg-[#0b1527] sm:h-[390px] lg:h-auto">
+        <div className="grid grid-cols-1 overflow-x-hidden lg:min-h-0 lg:grid-cols-[1fr_340px] lg:overflow-hidden">
+          <div className="flex flex-col lg:min-h-0">
+            <section className="relative flex-1 overflow-hidden bg-[#08101c] sm:h-[390px] lg:h-auto">
               <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-blue-500/20 blur-3xl" />
               <div className="absolute inset-0">
                 <Image
                   src={setup.recruiterImage}
-                  alt={`${setup.recruiterName}, AI recruiter`}
+                  alt={`${setup.recruiterName}, interview recruiter`}
                   fill
                   priority
                   sizes="(max-width: 1024px) 100vw, 850px"
@@ -4165,6 +4661,33 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 />
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/10 to-black/0" />
+
+              {waitingRoomActive ? (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050b14]/80 p-4 backdrop-blur-md">
+                  <div className="w-full max-w-xl rounded-[1.5rem] border border-white/10 bg-[#0b1527]/95 p-5 shadow-2xl">
+                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-200">Interview waiting room</p>
+                    <h2 className="mt-2 text-xl font-black text-white">{simulationPersona.name} is preparing your interview</h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">{simulationPersona.openingFrame}</p>
+                    <div className="mt-5 space-y-3">
+                      {waitingRoomSteps.map((step, index) => {
+                        const active = index === waitingRoomStep;
+                        const done = index < waitingRoomStep;
+                        return (
+                          <div key={step.label} className={`rounded-2xl border p-3 transition ${active ? "border-blue-300/35 bg-blue-500/10" : done ? "border-emerald-300/25 bg-emerald-500/10" : "border-white/10 bg-white/[0.03]"}`}>
+                            <div className="flex items-center gap-3">
+                              <span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-black ${done ? "bg-emerald-400 text-slate-950" : active ? "bg-blue-400 text-slate-950 animate-pulse" : "bg-white/10 text-slate-400"}`}>{done ? "✓" : index + 1}</span>
+                              <div>
+                                <p className="text-sm font-black text-white">{step.label}</p>
+                                <p className="mt-0.5 text-xs leading-5 text-slate-400">{step.detail}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {/* Recruiter visual state overlay — powered by workzoPremiumExperienceEngine */}
               {recruiterVisualState !== "waiting" && recruiterVisualState !== "listening" && status !== "idle" && (
@@ -4184,9 +4707,31 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 </div>
               )}
 
-              <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-lg border border-emerald-400/50 bg-emerald-400/10 px-4 py-2 text-sm font-bold text-emerald-300">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.9)]" /> {status === "recruiter-speaking" ? "SPEAKING" : status === "listening" ? "LISTENING" : status === "thinking" ? "THINKING" : "LIVE"}
+              <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-black/50 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-emerald-300 backdrop-blur-sm">
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.9)]" /> {waitingRoomActive ? "CONNECTING" : status === "recruiter-speaking" ? "SPEAKING" : status === "listening" ? "LISTENING" : status === "thinking" ? "THINKING" : "READY"}
               </div>
+
+              {/* Recruiter visual state overlay — emotional reaction ring */}
+              {scoreReady && recruiterVisualState !== "waiting" && recruiterVisualState !== "listening" && (
+                <div className={`absolute inset-0 pointer-events-none transition-all duration-700 ${
+                  recruiterVisualState === "interested" ? "ring-4 ring-inset ring-emerald-400/45" :
+                  recruiterVisualState === "skeptical" ? "ring-4 ring-inset ring-amber-400/45" :
+                  recruiterVisualState === "interrupting" ? "ring-[6px] ring-inset ring-red-500/60" :
+                  recruiterVisualState === "typing_notes" ? "ring-4 ring-inset ring-blue-400/35" :
+                  ""
+                }`} />
+              )}
+              {/* Recruiter reaction bubble */}
+              {scoreReady && liveReactionText && recruiterVisualState !== "waiting" && recruiterVisualState !== "listening" && (
+                <div className={`absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-2xl border px-4 py-2 text-xs font-black shadow-2xl backdrop-blur-md z-10 transition-all duration-300 ${
+                  recruiterVisualState === "interested" ? "border-emerald-300/25 bg-emerald-950/80 text-emerald-200" :
+                  recruiterVisualState === "interrupting" ? "border-red-300/25 bg-red-950/85 text-red-200" :
+                  recruiterVisualState === "skeptical" ? "border-amber-300/25 bg-amber-950/80 text-amber-200" :
+                  "border-white/10 bg-black/70 text-slate-200"
+                }`}>
+                  {liveReactionText}
+                </div>
+              )}
 
               {premiumVoiceError ? (
                 <div className="absolute right-4 top-5 hidden max-w-[320px] rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100 lg:block">
@@ -4194,22 +4739,22 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 </div>
               ) : null}
 
-              <div className="absolute bottom-4 left-3 max-w-[145px] sm:bottom-5 sm:left-5 sm:max-w-none">
+              <div className="absolute bottom-[4.5rem] left-5">
                 <div className="flex items-center gap-2 text-lg font-black">
                   {setup.recruiterName}
                   <CheckCircle2 className="h-5 w-5 fill-blue-500 text-blue-500" />
                 </div>
                 <p className="mt-1 truncate text-xs text-white/80 sm:text-sm">{setup.recruiterTitle}</p>
                 <p className="mt-2 text-xs font-bold text-emerald-200">
-                  {scoreReady ? recruiterStatus : "Ready for first answer"}
+                  {waitingRoomActive ? "Reviewing your resume" : scoreReady ? recruiterStatus : "Ready for first answer"}
                 </p>
               </div>
 
-              <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2 sm:bottom-5 sm:gap-4">
+              <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3">
                 <button
                   onClick={toggleMic}
-                  className={`grid h-10 w-10 place-items-center rounded-full sm:h-14 sm:w-14 shadow-2xl ${
-                    status === "listening" ? "bg-blue-500 text-white" : "bg-white text-slate-950"
+                  className={`grid h-12 w-12 place-items-center rounded-full shadow-2xl transition-transform active:scale-95 ${
+                    status === "listening" ? "bg-blue-500 text-white ring-4 ring-blue-400/30" : "bg-white text-slate-950 hover:bg-blue-50"
                   }`}
                 >
                   {status === "listening" ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
@@ -4217,35 +4762,33 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 <button
                   type="button"
                   onClick={() => setSettingsOpen(true)}
-                  className="grid h-10 w-10 place-items-center rounded-full sm:h-14 sm:w-14 bg-white text-slate-950 shadow-2xl sm:h-14 sm:w-14"
+                  className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white shadow-lg backdrop-blur-sm border border-white/20 transition hover:bg-white/25"
                   aria-label="Interview settings"
                 >
                   <Settings className="h-6 w-6" />
                 </button>
                 <button
                   onClick={endInterview}
-                  className="grid h-10 w-10 place-items-center rounded-full sm:h-14 sm:w-14 bg-red-500 text-white shadow-2xl sm:h-14 sm:w-14"
+                  className="grid h-10 w-10 place-items-center rounded-full bg-red-500/90 text-white shadow-xl transition hover:bg-red-400 active:scale-95"
                 >
                   <PhoneOff className="h-6 w-6" />
                 </button>
               </div>
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-[#0b1527]/95 lg:min-h-0">
+            <section className="border-t border-white/[0.08] bg-[#05090f] lg:min-h-0">
               <button
                 type="button"
                 onClick={() => setShowTranscript((value) => !value)}
-                className="flex h-12 w-full items-center justify-between border-b border-white/10 px-5 text-left"
+                className="flex h-11 w-full items-center justify-between border-b border-white/[0.07] px-5 text-left"
                 aria-expanded={showTranscript}
               >
                 <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-black">Live Transcript</h2>
+                  <h2 className="text-sm font-black text-slate-200">Transcript</h2>
                   <span className="h-2 w-2 rounded-full bg-red-400" />
                   <span className="text-base text-white leading-7 font-medium">{transcriptMessageCount} message{transcriptMessageCount === 1 ? "" : "s"}</span>
                 </div>
-                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-black text-blue-200 lg:hidden">
-                  {showTranscript ? "Collapse" : "Expand"}
-                </span>
+                <span className="text-[10px] font-black text-slate-500 lg:hidden">{showTranscript ? "▲" : "▼"}</span>
               </button>
 
               {showTranscript || (typeof window !== "undefined" && window.innerWidth >= 1024) ? (
@@ -4307,7 +4850,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
                   </div>
 
                   <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-t border-white/10 px-4 py-1.5 text-xs text-slate-400 sm:px-5">
-                    <span>Transcript is AI-generated and may not be 100% accurate.</span>
+                    <span>AI-generated transcript — may contain errors.</span>
                     <button onClick={() => setTranscript([])} className="hover:text-white">
                       Clear Transcript
                     </button>
@@ -4321,29 +4864,21 @@ const [questionIndex, setQuestionIndex] = useState(0);
             </section>
           </div>
 
-          <aside className="grid gap-3 lg:min-h-0 lg:grid-rows-[190px_270px_82px]">
-            <section className="rounded-2xl border border-white/10 bg-[#0b1527] p-3.5">
-              <h2 className="text-base font-black">Interview Score</h2>
+          <aside className="flex flex-col gap-0 border-l border-white/[0.07] lg:min-h-0">
+            <section className="border-b border-white/[0.07] bg-[#05090f] p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Signal</p>
               <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className={`grid h-[78px] w-[78px] place-items-center rounded-full border-[7px] bg-[#07111f] transition-all duration-500 ${scoreFlash === "up" ? "border-emerald-400 shadow-[0_0_0_10px_rgba(52,211,153,0.18)]" : scoreFlash === "down" ? "border-amber-400 shadow-[0_0_0_10px_rgba(251,191,36,0.18)]" : "border-blue-500 shadow-[0_0_0_10px_rgba(124,58,237,0.2)]"}`}>
+                <div className={`grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full border-[5px] bg-[#03070e] transition-all duration-500 ${scoreFlash === "up" ? "border-emerald-400 shadow-[0_0_0_6px_rgba(52,211,153,0.12)]" : scoreFlash === "down" ? "border-amber-400 shadow-[0_0_0_6px_rgba(251,191,36,0.12)]" : "border-blue-500/60"}`}>
                   <div className="text-center">
                     {scoreReady ? (
                       <>
-                        <div className="text-2xl font-black">{recruiterSignal.overall}</div>
-                        <div className="text-xs text-slate-300">/100</div>
+                        <div className="text-2xl font-black tabular-nums leading-none">{recruiterSignal.overall}</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">/100</div>
                       </>
                     ) : (
                       <>
-                        <div className="text-sm font-black uppercase tracking-[0.14em] text-blue-100">Ready</div>
-                        <div className="text-[10px] text-slate-400">first answer</div>
-                      
-      <UpgradeModal
-        open={upgradeModalOpen}
-        feature={upgradeModalFeature}
-        onClose={closeUpgradeModal}
-        onUpgrade={handleUpgradeInterest}
-      />
-</>
+                        <div className="text-2xl font-black text-slate-600">·</div>
+                      </>
                     )}
                     {scoreFlash ? (
                       <div className={`mt-1 text-[10px] font-black uppercase ${scoreFlash === "up" ? "text-emerald-300" : "text-amber-300"}`}>
@@ -4353,40 +4888,39 @@ const [questionIndex, setQuestionIndex] = useState(0);
                   </div>
                 </div>
 
-                <div className="w-full min-w-0 flex-1 space-y-2">
+                <div className="w-full min-w-0 flex-1 space-y-1.5">
                   {scoreItems.map((item) => {
                     const Icon = item.icon;
+                    const numVal = scoreReady ? parseInt(String(item.value)) : 0;
                     return (
-                      <div key={item.label} className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className={`grid h-6 w-6 place-items-center rounded-lg ${toneClass(item.tone)}`}>
-                            <Icon className="h-4 w-4" />
-                          </span>
-                          <span className="text-sm">{item.label}</span>
+                      <div key={item.label}>
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <span className={`text-[11px] ${scoreReady ? "text-slate-400" : "text-slate-600"}`}>{item.label}</span>
+                          <span className={`text-[11px] font-black ${scoreReady ? "text-white" : "text-slate-600"}`}>{item.value}</span>
                         </div>
-                        <span className="text-xs text-slate-200">{item.value}</span>
+                        <div className="h-1 overflow-hidden rounded-full bg-white/[0.07]">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${toneClass(item.tone).split(" ").find(c => c.startsWith("bg-")) || "bg-blue-400"}`}
+                            style={{ width: scoreReady ? `${Math.min(100, numVal)}%` : "0%" }}
+                          />
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
-              <p className="mt-2 text-xs text-slate-300">
-                <span className="text-emerald-300">●</span> Overall Performance:{" "}
-                <span className={`font-bold ${recruiterMoodColor(recruiterSignal.mood)}`}>{scoreReady ? recruiterSignal.mood : "Waiting"}</span>
-              </p>
+              
             </section>
 
-            <section style={{ display: showCopilot ? undefined : "none" }} className="rounded-2xl border border-white/10 bg-[#0b1527] p-3.5 overflow-hidden">
+            <section style={{ display: showCopilot ? undefined : "none" }} className="flex-1 border-b border-white/[0.07] bg-[#05090f] p-4 overflow-hidden">
               <div className="flex items-center justify-between">
-<h2 className="text-lg font-black text-blue-300">Live Copilot</h2>
-                <span className="relative h-6 w-11 rounded-full bg-blue-500">
-                  <span className="absolute right-1 top-1 h-4 w-4 rounded-full bg-white" />
-                </span>
+<p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Live Copilot</p>
+                <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
               </div>
 
-              <div className="mt-3 grid grid-cols-[1fr_auto] gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="mt-3 flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Recruiter mood</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Mood</p>
                   <p className={`mt-1 text-base font-black ${recruiterMoodColor(recruiterSignal.mood)}`}>
                     {scoreReady ? recruiterSignal.mood : "Waiting"}
                   </p>
@@ -4406,10 +4940,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 </div>
               )}
 
-              <div className="mt-3 space-y-2">
-                <div className="rounded-xl border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-1.5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200">Say next</p>
-                  <p className="mt-1 line-clamp-1 text-[13px] leading-5 text-slate-100">
+              <div className="mt-2 space-y-1.5">
+                <div className="rounded-xl border border-emerald-300/15 bg-emerald-500/[0.06] px-3 py-2">
+                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-400">Say next</p>
+                  <p className="text-xs leading-4 text-slate-100 line-clamp-2">
                     {scoreReady
                       ? recruiterSignal.trust < 60
                         ? "Clarify the claim first, then give one verified example."
@@ -4418,30 +4952,48 @@ const [questionIndex, setQuestionIndex] = useState(0);
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-1.5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200">Recruiter concern</p>
-                  <p className="mt-1 line-clamp-1 text-[13px] leading-5 text-slate-100">
+                <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2">
+                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Concern</p>
+                  <p className="text-xs leading-4 text-slate-400 line-clamp-2">
                     {scoreReady ? recruiterSignal.concern : "The recruiter is waiting for evidence, ownership, and impact."}
                   </p>
                 </div>
+
+                {/* Live filler word counter */}
+                {status === "listening" && fillerCount > 0 && (
+                  <div className="rounded-xl border border-red-300/15 bg-red-400/[0.07] px-3 py-1.5">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-red-200">Filler words</p>
+                    <p className="mt-1 text-[13px] leading-5 text-slate-100">
+                      <span className="font-black text-red-300">{fillerCount}</span> detected — avoid um, uh, like, you know.
+                    </p>
+                  </div>
+                )}
+
+                {/* Emotional memory pattern callbacks */}
+                {emotionalMemory.missingMetrics >= 2 && (
+                  <div className="rounded-xl border border-violet-300/15 bg-violet-400/[0.07] px-3 py-1.5">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-violet-200">Pattern detected</p>
+                    <p className="mt-1 text-[13px] leading-5 text-slate-100">
+                      {emotionalMemory.lastCallbackLine || "Multiple answers without measurable proof — add one number."}
+                    </p>
+                  </div>
+                )}
               </div>
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-[#0b1527] p-4">
+            <section className="bg-[#05090f] p-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-black">Interview Progress</h2>
-                <span className="text-base text-white leading-7 font-medium">
-                  Question {visibleQuestionNumber} of 12
-                </span>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Progress</p>
+                <span className="tabular-nums text-sm font-black text-white">{visibleQuestionNumber}<span className="text-slate-500">/12</span></span>
               </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
+              <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.07]">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500"
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <div className="mt-1.5 flex items-center justify-between gap-3">
-                <p className="text-xs text-slate-300">{progress}% Completed</p>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <p className="text-[10px] text-slate-600">{progress}%</p>
                 {interviewComplete ? (
                   <Link
                     href="/results"
@@ -4473,6 +5025,40 @@ const [questionIndex, setQuestionIndex] = useState(0);
           </div>
         ) : null}
       </section>
-    </main>
+    
+      <UpgradeModal
+        open={upgradeModalOpen}
+        feature={upgradeModalFeature}
+        onClose={closeUpgradeModal}
+        onUpgrade={handleUpgradeInterest}
+      />
+
+      {settingsOpen && (
+        <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm lg:hidden" onClick={() => setSettingsOpen(false)}>
+          <section className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-[2rem] border border-white/10 bg-[#07111f] p-5 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/20" />
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200">Interview settings</p>
+                <h2 className="mt-1 text-xl font-black">Mobile controls</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-400">Adjust the most important interview controls without opening the desktop side panel.</p>
+              </div>
+              <button type="button" onClick={() => setSettingsOpen(false)} className="rounded-2xl border border-white/10 px-3 py-2 text-sm font-black text-slate-300">Close</button>
+            </div>
+            <div className="mt-5 grid gap-3">
+              <button type="button" onClick={() => setAudioEnabled((value) => !value)} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
+                <span><span className="block text-sm font-black">Recruiter voice</span><span className="block text-xs text-slate-400">Use spoken recruiter prompts</span></span>
+                <span className={`rounded-full px-3 py-1 text-xs font-black ${audioEnabled ? "bg-emerald-400/15 text-emerald-200" : "bg-white/10 text-slate-400"}`}>{audioEnabled ? "On" : "Off"}</span>
+              </button>
+              <button type="button" onClick={() => setShowTranscript((value) => !value)} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
+                <span><span className="block text-sm font-black">Transcript</span><span className="block text-xs text-slate-400">Show or collapse live transcript</span></span>
+                <span className="rounded-full bg-blue-400/15 px-3 py-1 text-xs font-black text-blue-200">{showTranscript ? "Shown" : "Hidden"}</span>
+              </button>
+              <Link href="/dashboard" className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-slate-300">Back to dashboard</Link>
+            </div>
+          </section>
+        </div>
+      )}
+</main>
   );
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildWorkZoPremiumProSuite } from "@/lib/workzoPremiumProCareerSuite";
-import { normalizeWorkZoPlan } from "@/lib/workzoPlanLimits";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,9 +8,9 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const plan = normalizeWorkZoPlan(body?.plan || body?.plan_tier || body?.planTier || "free");
+    const resolved = await resolveWorkZoServerPlan();
 
-    if (plan !== "premium_pro") {
+    if (resolved.plan !== "premium_pro") {
       return NextResponse.json(
         { ok: false, code: "premium_pro_required", message: "Replay intelligence requires Premium Pro." },
         { status: 403 },

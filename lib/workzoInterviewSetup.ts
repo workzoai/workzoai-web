@@ -7,6 +7,8 @@ export type JobMemoryProfile = {
   targetMarket?: string;
   country?: string;
   companyName?: string;
+  targetCompany?: string;
+  companyBlueprint?: any;
   companyStyle?: string;
   jobDescription?: string;
   jdText?: string;
@@ -47,6 +49,8 @@ export type WorkZoInterviewSetup = {
   country?: string;
 
   companyName?: string;
+  targetCompany?: string;
+  companyBlueprint?: any;
   companyStyle?: string;
   recruiterStyle?: string;
   recruiterPersonality?: string;

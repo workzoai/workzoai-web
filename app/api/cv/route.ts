@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createRequire } from "module";
-import { extractResumeProfile } from "@/lib/workzoResumeParser";
+import { extractResumeProfile, sanitizeResumeProfileIdentity } from "@/lib/workzoResumeParser";
+import { cleanExtractedCvText, diagnoseCvLayout } from "@/lib/workzoCvPdfCleaner";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 
 const require = createRequire(import.meta.url);
@@ -14,6 +15,7 @@ type RequestBody = {
   jobDescription?: string;
   targetRole?: string;
   targetMarket?: string;
+  fileName?: string;
   language?: string;
 };
 
@@ -28,6 +30,157 @@ type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>;
 
 function text(value: unknown) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+}
+
+
+const INVALID_CANDIDATE_NAME_WORDS = [
+  "public relations",
+  "project management",
+  "teamwork",
+  "time management",
+  "leadership",
+  "effective communication",
+  "critical thinking",
+  "english",
+  "german",
+  "programming",
+  "machine learning",
+  "data visualization",
+  "data engineering",
+  "generative ai",
+  "skills",
+  "contact",
+  "education",
+  "expertise",
+  "languages",
+  "projects",
+  "professional experience",
+  "profile summary",
+  "technical support engineer",
+  "application engineer",
+];
+
+function titleCaseName(value: string) {
+  return value
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function normalizeSpacedCapsLine(line: string) {
+  const trimmed = line.trim();
+  const lettersOnly = trimmed.replace(/[^A-Za-z]/g, "");
+  const spacedUppercase = /^(?:[A-Z]\s*){6,}$/.test(trimmed.replace(/[^A-Z\s]/g, ""));
+
+  if (lettersOnly.length >= 8 && spacedUppercase) {
+    return lettersOnly;
+  }
+
+  return trimmed;
+}
+
+function isBadCandidateName(value: unknown) {
+  const name = text(value);
+  if (!name) return true;
+
+  const lower = name.toLowerCase();
+  if (INVALID_CANDIDATE_NAME_WORDS.some((item) => lower === item || lower.includes(item))) {
+    return true;
+  }
+
+  if (/@|linkedin|github|http|www|phone|email|address|street|straße|strasse|weg|germany|deutschland|würzburg|wurzburg|\d/.test(lower)) {
+    return true;
+  }
+
+  const words = name.split(/\s+/).filter(Boolean);
+  if (words.length < 2 || words.length > 5) return true;
+
+  return false;
+}
+
+function deriveCandidateNameFromCv(rawText = "", fileName = "", currentName = "") {
+  if (!isBadCandidateName(currentName)) {
+    return titleCaseName(text(currentName));
+  }
+
+  const lines = String(rawText || "")
+    .split(/\n+/)
+    .map((line) => normalizeSpacedCapsLine(line))
+    .map((line) => line.replace(/[^A-Za-zÀ-ÿ.' -]/g, " ").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  for (const line of lines.slice(0, 80)) {
+    const words = line.split(/\s+/).filter(Boolean);
+    const compactUpper = line.replace(/\s+/g, "");
+
+    if (/^[A-Z]{8,}$/.test(compactUpper) && compactUpper.length <= 40) {
+      const split = compactUpper.match(/[A-Z][a-z]*|[A-Z]+(?=[A-Z]|$)/g);
+      if (split && split.length >= 2 && split.length <= 5) {
+        const candidate = split.join(" ");
+        if (!isBadCandidateName(candidate)) return titleCaseName(candidate);
+      }
+    }
+
+    if (words.length >= 2 && words.length <= 5 && !isBadCandidateName(line)) {
+      const mostlyLetters = words.every((word) => /^[A-Za-zÀ-ÿ.'-]+$/.test(word));
+      const looksLikeName =
+        mostlyLetters &&
+        words.every((word) => word.length >= 2) &&
+        words.filter((word) => /^[A-ZÀ-Ý]/.test(word)).length >= 2;
+
+      if (looksLikeName) {
+        return titleCaseName(line);
+      }
+    }
+  }
+
+  const cleanFileName = String(fileName || "")
+    .replace(/\.(pdf|docx|doc|txt)$/gi, "")
+    .replace(/\.(pdf|docx|doc|txt)$/gi, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\d+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (cleanFileName && !isBadCandidateName(cleanFileName)) {
+    return titleCaseName(cleanFileName);
+  }
+
+  const email = String(rawText || "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
+  const local = email.split("@")[0]?.replace(/[._-]+/g, " ").replace(/\d+/g, " ").trim() || "";
+  if (local && !isBadCandidateName(local)) {
+    return titleCaseName(local);
+  }
+
+  return "";
+}
+
+function applySafeRecruiterCandidateName<T extends { recruiterMemoryProfile?: { candidateName?: string } }>(
+  payload: T,
+  rawText = "",
+  fileName = "",
+): T {
+  const profile = payload?.recruiterMemoryProfile;
+  if (!profile) return payload;
+
+  const safeName = deriveCandidateNameFromCv(rawText, fileName, profile.candidateName || "");
+  if (safeName) {
+    profile.candidateName = safeName;
+  } else if (isBadCandidateName(profile.candidateName)) {
+    profile.candidateName = "";
+  }
+
+  return payload;
+}
+
+function normalizeUploadFileName(fileName = "") {
+  const clean = String(fileName || "uploaded-cv.pdf").replace(/\s+/g, " ").trim();
+  return clean
+    .replace(/(?:\.pdf){2,}$/i, ".pdf")
+    .replace(/(?:\.docx){2,}$/i, ".docx")
+    .replace(/(?:\.txt){2,}$/i, ".txt") || "uploaded-cv.pdf";
 }
 
 function normalizeExtractedText(value: string) {
@@ -223,22 +376,28 @@ function fallbackMemory(input: {
 }
 
 async function buildMemoryFromJson(body: RequestBody) {
-  const cvText = text(body.cvText);
+  const rawCvInput = text(body.cvText);
+  const cvText = rawCvInput ? cleanExtractedCvText(rawCvInput) : "";
   const jobDescription = text(body.jobDescription);
   const targetRole = text(body.targetRole) || "General Role";
   const targetMarket = text(body.targetMarket) || "Global";
+  const fileName = text(body.fileName);
   const language = text(body.language) || "English";
 
   if (!cvText && !jobDescription) {
     return NextResponse.json(emptyMemory(targetRole, targetMarket));
   }
 
-  const fallback = fallbackMemory({
+  const fallback = applySafeRecruiterCandidateName(
+    fallbackMemory({
+      cvText,
+      jobDescription,
+      targetRole,
+      targetMarket,
+    }),
     cvText,
-    jobDescription,
-    targetRole,
-    targetMarket,
-  });
+    fileName,
+  );
 
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -307,23 +466,33 @@ Return valid JSON only:
       return NextResponse.json(fallback);
     }
 
-    return NextResponse.json({
-      recruiterMemoryProfile: parsed.recruiterMemoryProfile,
-      jobMemoryProfile: parsed.jobMemoryProfile,
-      confidence: parsed.confidence || "medium",
-    });
+    return NextResponse.json(
+      applySafeRecruiterCandidateName(
+        {
+          recruiterMemoryProfile: parsed.recruiterMemoryProfile,
+          jobMemoryProfile: parsed.jobMemoryProfile,
+          confidence: parsed.confidence || "medium",
+        },
+        cvText,
+        fileName,
+      ),
+    );
   } catch (error) {
     return NextResponse.json(
-      fallbackMemory({
+      applySafeRecruiterCandidateName(
+        fallbackMemory({
+          cvText,
+          jobDescription,
+          targetRole,
+          targetMarket,
+          warning:
+            error instanceof Error
+              ? error.message
+              : "Recruiter memory extraction failed.",
+        }),
         cvText,
-        jobDescription,
-        targetRole,
-        targetMarket,
-        warning:
-          error instanceof Error
-            ? error.message
-            : "Recruiter memory extraction failed.",
-      })
+        fileName,
+      )
     );
   }
 }
@@ -340,14 +509,23 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "No file uploaded." }, { status: 400 });
       }
 
+      const safeFileName = normalizeUploadFileName(file.name);
       const extracted = await extractFileText(file);
-      debugCvText("api.cv.file_text.extracted", extracted, { fileName: file.name, fileType: file.type });
+      debugCvText("api.cv.file_text.extracted", extracted, { fileName: safeFileName, fileType: file.type });
 
-      const cleanedCv = normalizeCvText(extracted);
-      debugCvText("api.cv.file_text.cleaned", cleanedCv, { fileName: file.name });
+      // Use universal CV cleaner — handles multi-column, sidebar, ATS, modern templates
+      const cleanedCv = cleanExtractedCvText(extracted);
+      const layout = diagnoseCvLayout(extracted);
+      debugCvText("api.cv.file_text.cleaned", cleanedCv, {
+        fileName: safeFileName,
+        likelySidebar: layout.likelySidebar,
+        sectionOrder: layout.sectionOrder.join(" → "),
+        hasEncodingArtefacts: layout.hasEncodingArtefacts,
+      });
 
-      const resumeProfile = extractResumeProfile(cleanedCv);
-      debugCvProfile("api.cv.parser.output", resumeProfile, { fileName: file.name });
+      const parsedProfile = extractResumeProfile(cleanedCv);
+      const resumeProfile = sanitizeResumeProfileIdentity(parsedProfile, { rawText: cleanedCv, fileName: safeFileName });
+      debugCvProfile("api.cv.parser.output", resumeProfile, { fileName: safeFileName });
 
       return NextResponse.json({
         text: cleanedCv,
@@ -355,7 +533,7 @@ export async function POST(request: Request) {
         content: cleanedCv,
         resumeProfile,
         profile: resumeProfile,
-        fileName: file.name,
+        fileName: safeFileName,
         chars: cleanedCv.length,
       });
     } catch (error) {

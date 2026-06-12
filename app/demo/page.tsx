@@ -1,276 +1,204 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { ArrowRight, CheckCircle2, Mic, Play, Sparkles, Volume2 } from "lucide-react";
+import Image from "next/image";
+import { useState } from "react";
+import { ArrowRight, BarChart3, CheckCircle2, Mic, Play, Sparkles, Volume2 } from "lucide-react";
+import WorkZoFooter from "@/components/WorkZoFooter";
 
 type RecruiterId = "sarah" | "daniel" | "priya" | "markus";
 type RoleId = "customer-success" | "data-analyst" | "software-engineer" | "it-support";
 
-const demoRoles: Array<{ id: RoleId; label: string }> = [
-  { id: "customer-success", label: "Customer Success Manager" },
-  { id: "data-analyst", label: "Data Analyst" },
-  { id: "software-engineer", label: "Software Engineer" },
-  { id: "it-support", label: "IT Support Specialist" },
+const demoRoles = [
+  { id: "customer-success" as RoleId, label: "Customer Success Manager" },
+  { id: "data-analyst" as RoleId, label: "Data Analyst" },
+  { id: "software-engineer" as RoleId, label: "Software Engineer" },
+  { id: "it-support" as RoleId, label: "IT Support Specialist" },
 ];
 
-const recruiters: Array<{ id: RecruiterId; name: string; style: string; voiceHint: "female" | "male" }> = [
-  { id: "sarah", name: "Sarah", style: "Friendly HR Recruiter", voiceHint: "female" },
-  { id: "daniel", name: "Daniel", style: "Analytical Hiring Manager", voiceHint: "male" },
-  { id: "priya", name: "Priya", style: "Startup Recruiter", voiceHint: "female" },
-  { id: "markus", name: "Markus", style: "Structured Hiring Lead", voiceHint: "male" },
+const recruiters = [
+  { id: "sarah" as RecruiterId, name: "Sarah", style: "Friendly HR Recruiter", image: "/recruiters/sarah.png" },
+  { id: "daniel" as RecruiterId, name: "Daniel", style: "Analytical Hiring Manager", image: "/recruiters/daniel.png" },
+  { id: "priya" as RecruiterId, name: "Priya", style: "Startup Recruiter", image: "/recruiters/priya.png" },
+  { id: "markus" as RecruiterId, name: "Markus", style: "Structured Corporate Lead", image: "/recruiters/markus.png" },
 ];
 
 const questionBank: Record<RoleId, Record<RecruiterId, string[]>> = {
   "customer-success": {
-    sarah: [
-      "A customer is unhappy because they expected faster results from your product. How would you handle the conversation without sounding defensive?",
-      "Tell me about a time you had to rebuild trust with a customer. What exactly did you say and what changed after that?",
-      "If your customer health score drops but the customer says everything is fine, what signals would you investigate first?",
-    ],
-    daniel: [
-      "Walk me through how you would identify whether churn risk is caused by product gaps, poor onboarding, or wrong customer expectations.",
-      "Give me a specific example of how you used data, usage patterns, or support history to improve customer retention.",
-      "A high-value customer asks for a feature your product cannot deliver. How do you protect the relationship and the business?",
-    ],
-    priya: [
-      "In a startup with messy processes, how would you create a repeatable customer success motion from scratch?",
-      "How would you balance urgent customer requests with limited product and engineering bandwidth?",
-      "Describe a time you turned customer feedback into a product or process improvement.",
-    ],
-    markus: [
-      "Explain your customer escalation process step by step, from first signal to final resolution.",
-      "What metrics would you track weekly to prove customer success is improving?",
-      "How do you document customer risks so another team member can take over without losing context?",
-    ],
+    sarah: ["A customer is unhappy because results took longer than expected. How do you handle the conversation without sounding defensive?", "Tell me about a time you had to rebuild trust with a customer. What exactly did you say?", "If your customer health score drops but the customer says everything is fine, what do you investigate first?"],
+    daniel: ["How would you identify whether churn risk is caused by product gaps, onboarding problems, or wrong expectations?", "Give me a specific example of how you used data to improve customer retention.", "A high-value customer asks for a feature you cannot deliver. How do you protect the relationship?"],
+    priya: ["In a startup with no process, how would you create a repeatable customer success motion from scratch?", "How do you balance urgent customer requests with limited engineering bandwidth?", "Describe a time you turned customer feedback into a product improvement."],
+    markus: ["Explain your customer escalation process step by step, from first signal to resolution.", "What metrics would you track weekly to prove customer success is improving?", "How do you document customer risks so another team member can take over?"],
   },
   "data-analyst": {
-    sarah: [
-      "Tell me about an analysis you worked on where the first answer was misleading. How did you validate the result?",
-      "How would you explain a complex dashboard insight to a non-technical stakeholder?",
-      "Describe a time your analysis changed a business decision.",
-    ],
-    daniel: [
-      "You see a sudden drop in conversion rate. Walk me through your investigation from raw data to recommendation.",
-      "How do you check whether a metric is genuinely changing or just affected by data quality or seasonality?",
-      "Give me an example where SQL logic or joins could have produced the wrong conclusion. How would you catch it?",
-    ],
-    priya: [
-      "A founder asks for a dashboard by tomorrow, but the data is messy. What do you deliver first and what do you postpone?",
-      "How would you prioritize analytics work when multiple teams ask for different reports?",
-      "Tell me about a scrappy analysis you could build fast that still gives useful direction.",
-    ],
-    markus: [
-      "Define the steps you follow before trusting a dataset for reporting.",
-      "What would your ideal weekly business dashboard include and why?",
-      "How do you document assumptions so future analysts can understand your work?",
-    ],
+    sarah: ["Tell me about an analysis where the first result was misleading. How did you validate it?", "How would you explain a complex dashboard insight to a non-technical stakeholder?", "Describe a project where your analysis directly changed a business decision."],
+    daniel: ["Walk me through how you would approach building a churn prediction model from scratch.", "Give me a specific example of a KPI you designed and the business problem it solved.", "How do you decide which data to include and which to exclude from a report?"],
+    priya: ["You have limited data and a one-week deadline. What is your analytical process?", "How have you used SQL to solve a business problem that was not initially framed as a data question?", "Tell me about a time a stakeholder rejected your findings. How did you respond?"],
+    markus: ["How do you ensure data quality before presenting findings to leadership?", "Walk me through the governance process you follow when publishing a new metric.", "What is your approach to version control and documentation for analytical work?"],
   },
   "software-engineer": {
-    sarah: [
-      "Tell me about a bug that was difficult to reproduce. How did you approach it calmly and systematically?",
-      "Describe a time you received code review feedback. How did you respond and improve the solution?",
-      "How do you explain a technical trade-off to a product or business stakeholder?",
-    ],
-    daniel: [
-      "Walk me through how you would design a reliable upload-and-processing flow for large PDF files.",
-      "What checks would you add before deploying a feature that affects authentication or payments?",
-      "Tell me about a performance problem you solved. What did you measure before and after?",
-    ],
-    priya: [
-      "In an early startup, how do you decide between shipping fast and building a scalable architecture?",
-      "What would you do if a founder asks for five features but the product has a critical reliability issue?",
-      "Describe how you would build a small MVP without creating too much future technical debt.",
-    ],
-    markus: [
-      "Explain your debugging process from error report to verified fix.",
-      "How do you structure code so another developer can maintain it later?",
-      "What is your process for testing edge cases before production?",
-    ],
+    sarah: ["Tell me about a bug you found in production. How did you diagnose and fix it?", "How do you decide when to refactor vs rewrite a piece of code?", "Describe a feature you built that you are most proud of."],
+    daniel: ["Walk me through a technical decision you made that had a significant performance impact.", "How do you approach code reviews — both giving and receiving feedback?", "Give me an example of how you reduced technical debt in a production system."],
+    priya: ["How do you handle ambiguous requirements when the product direction is unclear?", "Tell me about a time you had to ship fast and what trade-offs you made.", "How have you contributed to improving engineering culture at a previous company?"],
+    markus: ["Describe your approach to writing documentation that stays up to date.", "How do you ensure compliance and security standards are met in your code?", "Walk me through how you collaborate with cross-functional teams on a large feature."],
   },
   "it-support": {
-    sarah: [
-      "A frustrated user says the same issue keeps coming back. How would you handle the conversation and the investigation?",
-      "Tell me about a time you had to explain a technical issue to a non-technical user.",
-      "How do you stay calm when multiple urgent tickets arrive at the same time?",
-    ],
-    daniel: [
-      "A user cannot access a business-critical system. Walk me through your troubleshooting steps.",
-      "How would you decide whether an issue is device-related, network-related, account-related, or application-related?",
-      "Give me an example of how you reduced repeat tickets or improved support documentation.",
-    ],
-    priya: [
-      "In a small team without perfect processes, how would you create a better support workflow?",
-      "How would you prioritize support issues when customers, internal users, and managers all need help?",
-      "Tell me how you would turn common support questions into product or process improvements.",
-    ],
-    markus: [
-      "Explain your ticket documentation standards from first contact to resolution.",
-      "What information must be collected before escalating a technical issue?",
-      "How do you measure whether IT support quality is improving?",
-    ],
+    sarah: ["Tell me about a time you helped a non-technical user solve a complex issue. How did you communicate?", "How do you prioritize when multiple tickets need urgent attention at the same time?", "Describe a situation where you went beyond the ticket to prevent a future issue."],
+    daniel: ["Walk me through how you would diagnose a network connectivity issue for a remote user.", "How do you document recurring issues so future technicians can resolve them faster?", "Give me an example of a process improvement you introduced in a support role."],
+    priya: ["How do you handle a user who is frustrated and escalating even when the issue is minor?", "Tell me about a tool or script you built to solve a repetitive support problem.", "How do you stay current with new technologies and security threats?"],
+    markus: ["Describe your process for managing SLA compliance across a high-volume ticket queue.", "How do you escalate an issue that requires development team involvement?", "What does good IT documentation look like to you, and why?"],
   },
 };
 
-function pickVoice(voices: SpeechSynthesisVoice[], recruiterId: RecruiterId) {
-  const femaleVoiceNames = ["zira", "jenny", "aria", "samantha", "susan", "victoria", "karen", "moira", "female"];
-  const maleVoiceNames = ["david", "mark", "guy", "alex", "daniel", "george", "male"];
-  const wantsFemale = recruiterId === "sarah" || recruiterId === "priya";
-  const preferred = wantsFemale ? femaleVoiceNames : maleVoiceNames;
-
-  return (
-    voices.find((voice) => preferred.some((name) => voice.name.toLowerCase().includes(name))) ||
-    voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ||
-    voices[0] ||
-    null
-  );
-}
-
 export default function DemoPage() {
-  const [role, setRole] = useState<RoleId>("data-analyst");
+  const [role, setRole] = useState<RoleId>("customer-success");
   const [recruiter, setRecruiter] = useState<RecruiterId>("sarah");
   const [questionIndex, setQuestionIndex] = useState(0);
   const [speaking, setSpeaking] = useState(false);
 
-  const activeRecruiter = recruiters.find((item) => item.id === recruiter) || recruiters[0];
-  const activeRole = demoRoles.find((item) => item.id === role) || demoRoles[0];
+  const questions = questionBank[role][recruiter];
+  const activeQuestion = questions[questionIndex] ?? questions[0];
+  const activeRole = demoRoles.find((r) => r.id === role)!;
+  const activeRecruiter = recruiters.find((r) => r.id === recruiter)!;
 
-  const questions = useMemo(() => questionBank[role][recruiter], [role, recruiter]);
-  const activeQuestion = questions[questionIndex % questions.length];
+  function nextQuestion() {
+    setQuestionIndex((i) => (i + 1) % (questions.length));
+  }
 
   function speakQuestion() {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-
-    window.speechSynthesis.cancel();
-    const voices = window.speechSynthesis.getVoices();
+    if (!window.speechSynthesis || speaking) return;
+    setSpeaking(true);
     const utterance = new SpeechSynthesisUtterance(activeQuestion);
-    const voice = pickVoice(voices, recruiter);
-
-    if (voice) utterance.voice = voice;
-    utterance.rate = recruiter === "daniel" || recruiter === "markus" ? 0.88 : 0.94;
-    utterance.pitch = recruiter === "daniel" || recruiter === "markus" ? 0.9 : 1.08;
-    utterance.lang = "en-US";
-
-    utterance.onstart = () => setSpeaking(true);
+    utterance.rate = 0.88;
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
-
+    window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   }
 
-  function nextQuestion() {
-    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
-    setSpeaking(false);
-    setQuestionIndex((value) => value + 1);
-  }
-
   return (
-    <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
-      <div className="mx-auto max-w-6xl">
-        <Link href="/" className="text-sm font-black text-slate-300 hover:text-white">
-          ← Back home
-        </Link>
+    <main className="min-h-screen bg-[#04080f] text-white">
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,rgba(34,211,238,0.08),transparent_55%)]" />
 
-        <section className="mt-8 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">Interactive demo</p>
-            <h1 className="mt-4 text-4xl font-black tracking-[-0.05em] sm:text-5xl">
-              Try a smarter recruiter preview.
-            </h1>
-            <p className="mt-4 text-sm leading-7 text-slate-300">
-              Demo questions now change by role and recruiter style. The real interview goes deeper using your CV and target job.
-            </p>
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="grid h-9 w-9 place-items-center rounded-xl bg-blue-500 text-white">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <span className="text-xl font-black">WorkZo <span className="text-blue-400">AI</span></span>
+          </Link>
+          <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-4 py-2 text-sm font-black text-white hover:bg-blue-400">
+            Start with your CV <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
 
-            <div className="mt-6 space-y-4">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Choose role</p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {demoRoles.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setRole(item.id);
-                        setQuestionIndex(0);
-                      }}
-                      className={`rounded-2xl border px-4 py-3 text-left text-sm font-black transition ${
-                        role === item.id
-                          ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100"
-                          : "border-white/10 bg-black/20 text-slate-300 hover:bg-white/10"
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
+        <div className="mt-10 text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
+            <Sparkles className="h-3.5 w-3.5" /> Interactive demo
+          </div>
+          <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-6xl">
+            Try a recruiter question
+          </h1>
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-400">
+            Pick a role and recruiter to hear a sample question. In the real interview, questions are built from <em>your</em> CV — not a generic bank.
+          </p>
+        </div>
+
+        {/* Main demo area */}
+        <div className="mt-12 grid gap-6 lg:grid-cols-[340px_1fr]">
+          {/* Config panel */}
+          <div className="space-y-5">
+            <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Target role</p>
+              <div className="grid gap-2">
+                {demoRoles.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => { setRole(r.id); setQuestionIndex(0); }}
+                    className={`rounded-xl border px-4 py-3 text-left text-sm font-black transition ${
+                      role === r.id
+                        ? "border-blue-400/50 bg-blue-500/15 text-blue-100"
+                        : "border-white/10 bg-black/20 text-slate-400 hover:text-white hover:border-white/20"
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Choose recruiter</p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {recruiters.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setRecruiter(item.id);
-                        setQuestionIndex(0);
-                      }}
-                      className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                        recruiter === item.id
-                          ? "border-blue-300/40 bg-blue-400/15 text-blue-100"
-                          : "border-white/10 bg-black/20 text-slate-300 hover:bg-white/10"
-                      }`}
-                    >
-                      <span className="block font-black">{item.name}</span>
-                      <span className="mt-1 block text-xs text-slate-400">{item.style}</span>
-                    </button>
-                  ))}
-                </div>
+            <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Recruiter</p>
+              <div className="grid grid-cols-2 gap-2">
+                {recruiters.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => { setRecruiter(r.id); setQuestionIndex(0); }}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      recruiter === r.id
+                        ? "border-blue-400/50 bg-blue-500/15"
+                        : "border-white/10 bg-black/20 hover:border-white/20"
+                    }`}
+                  >
+                    <img src={r.image} alt={r.name} className="h-10 w-10 rounded-xl object-cover" />
+                    <p className="mt-2 text-sm font-black text-white">{r.name}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">{r.style}</p>
+                  </button>
+                ))}
               </div>
             </div>
 
             <Link
               href="/onboarding"
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 transition hover:bg-slate-200"
+              className="block w-full rounded-2xl bg-white px-5 py-4 text-center text-sm font-black text-slate-950 hover:bg-blue-50"
             >
               Start real interview with my CV
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="ml-2 inline h-4 w-4" />
             </Link>
           </div>
 
-          <div className="rounded-[2rem] border border-white/10 bg-[#08111f] p-6 shadow-2xl">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200">{activeRole.label}</p>
-                <h2 className="mt-2 text-2xl font-black">{activeRecruiter.name}</h2>
-                <p className="mt-1 text-sm text-slate-400">{activeRecruiter.style}</p>
+          {/* Question panel */}
+          <div className="flex flex-col gap-5">
+            {/* Recruiter header */}
+            <div className="flex items-center gap-4 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5">
+              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl">
+                <Image src={activeRecruiter.image} alt={activeRecruiter.name} fill className="object-cover" />
               </div>
-              <div className="grid h-14 w-14 place-items-center rounded-2xl bg-blue-400/10 text-blue-200">
-                <Mic className="h-6 w-6" />
+              <div>
+                <p className="text-lg font-black">{activeRecruiter.name}</p>
+                <p className="text-sm text-slate-400">{activeRecruiter.style} · {activeRole.label}</p>
+              </div>
+              <div className="ml-auto flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                <span className="text-xs font-black text-emerald-200">Demo</span>
               </div>
             </div>
 
-            <div className="mt-8 rounded-[2rem] border border-white/10 bg-black/30 p-6">
-              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
-                <Sparkles className="h-4 w-4" />
-                Demo question {questionIndex + 1}
-              </div>
-              <p className="mt-5 text-2xl font-black leading-snug text-white">{activeQuestion}</p>
+            {/* Question */}
+            <div className="flex-1 rounded-[1.5rem] border border-white/10 bg-[#08111f] p-7">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200 mb-5">Question {questionIndex + 1} of {questions.length}</p>
+              <p className="text-2xl font-black leading-snug text-white sm:text-3xl">
+                {activeQuestion}
+              </p>
 
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
                   onClick={speakQuestion}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-blue-500 px-5 py-4 text-sm font-black text-white hover:bg-blue-400"
+                  disabled={speaking}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-blue-500 px-5 py-4 text-sm font-black text-white hover:bg-blue-400 disabled:opacity-60"
                 >
                   {speaking ? <Volume2 className="h-4 w-4 animate-pulse" /> : <Play className="h-4 w-4" />}
-                  {speaking ? "Speaking…" : "Play voice"}
+                  {speaking ? "Speaking…" : "Hear the question"}
                 </button>
                 <button
                   type="button"
                   onClick={nextQuestion}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 px-5 py-4 text-sm font-black text-slate-200 hover:bg-white/10"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-sm font-black text-slate-200 hover:bg-white/10"
                 >
                   Next question
                   <ArrowRight className="h-4 w-4" />
@@ -278,21 +206,43 @@ export default function DemoPage() {
               </div>
             </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            {/* Feature badges */}
+            <div className="grid grid-cols-3 gap-3">
               {[
-                "Role-specific",
-                "Recruiter-style aware",
-                "CV-aware in real interview",
-              ].map((item) => (
-                <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm font-bold text-slate-200">
-                  <CheckCircle2 className="mb-2 h-4 w-4 text-emerald-300" />
-                  {item}
-                </div>
-              ))}
+                { icon: Mic, text: "Role-specific questions", sub: "Built for the JD you target" },
+                { icon: BarChart3, text: "Live trust score", sub: "Updates after every answer" },
+                { icon: CheckCircle2, text: "CV-aware follow-ups", sub: "Based on your real experience" },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.text} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <Icon className="h-4 w-4 text-blue-300 mb-2" />
+                    <p className="text-sm font-black text-white leading-4">{item.text}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">{item.sub}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        </section>
+        </div>
+
+        {/* CTA */}
+        <div className="mt-14 rounded-[2rem] border border-blue-300/20 bg-blue-500/[0.07] p-8 text-center">
+          <h2 className="text-3xl font-black tracking-tight">The real interview reads your CV.</h2>
+          <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-slate-300">
+            The demo shows sample questions. The real interview uses your actual CV and job description — so every follow-up is specific to your experience.
+          </p>
+          <Link
+            href="/onboarding"
+            className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-7 py-4 text-sm font-black text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400"
+          >
+            Start with my CV <ArrowRight className="h-4 w-4" />
+          </Link>
+          <p className="mt-4 text-xs text-slate-500">Free · No credit card · 2 interviews per month</p>
+        </div>
       </div>
+
+      <WorkZoFooter />
     </main>
   );
 }

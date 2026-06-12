@@ -36,8 +36,8 @@ import {
   runWorkobotAction,
   type WorkobotAction,
 } from "@/lib/launchIntelligenceEngine";
-import { getWorkZoCurrentPlan } from "@/lib/workzoUsageTracker";
 import { getWorkZoPlanLimits } from "@/lib/workzoPlanLimits";
+import { useWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
 import FeedbackCapture from "@/components/FeedbackCapture";
 import { trackWorkZoLaunchEvent } from "@/lib/workzoLaunchAnalytics";
 
@@ -410,17 +410,8 @@ export default function WorkOBotCopilotPage() {
   const [comparison, setComparison] = useState<ReturnType<typeof compareAnswers> | null>(null);
   const [loading, setLoading] = useState(false);
   const [conversation, setConversation] = useState<ChatMessage[]>([]);
-  const [isPremium, setIsPremium] = useState(false);
-
-  useEffect(() => {
-    try {
-      const plan = getWorkZoCurrentPlan();
-      const limits = getWorkZoPlanLimits(plan);
-      setIsPremium(Boolean(limits.advancedReports || limits.tavus));
-    } catch {
-      setIsPremium(false);
-    }
-  }, []);
+  const planState = useWorkZoAuthoritativePlan();
+  const isPremium = Boolean(getWorkZoPlanLimits(planState.plan).advancedReports || getWorkZoPlanLimits(planState.plan).tavus);
 
   useEffect(() => {
     setSetup(readSetup());

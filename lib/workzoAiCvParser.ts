@@ -2,6 +2,9 @@ import OpenAI from "openai";
 import {
   extractResumeProfileComplex,
   normalizeResumeText,
+  sanitizeResumeProfileIdentity,
+  splitGroupedSkillEntries,
+  separateLanguagesFromSkills,
   type ResumeEducation,
   type ResumeExperience,
   type ResumeProfile,
@@ -107,7 +110,7 @@ function safeName(value: unknown) {
 
   if (!name || name.length < 3 || name.length > 60) return "";
   if (
-    /\b(cv|resume|profile|summary|experience|education|skills|project|engineer|analyst|manager|specialist|support|tier|product|developer|consultant|professional|email|phone|linkedin|english|german|dutch|french|fluent|native|bachelor|master|university|college|school|bootcamp)\b/i.test(
+    /\b(cv|resume|profile|summary|experience|education|skills|project|engineer|analyst|manager|specialist|support|tier|product|developer|consultant|professional|email|phone|linkedin|english|german|dutch|french|fluent|native|bachelor|master|university|college|school|bootcamp|public\s+relations|project\s+management|communication|leadership|teamwork|time\s+management|critical\s+thinking)\b/i.test(
       name,
     )
   ) {
@@ -493,8 +496,19 @@ function mergeAiWithFallback(ai: AiResumeJson, fallback: ResumeProfile, rawText:
   const experience = coerceExperience(ai.experience);
   const education = coerceEducation(ai.education);
   const projects = coerceProjects(ai.projects);
-  const skills = unique(asList(ai.skills), 30);
-  const languages = unique(asList(ai.languages), 12);
+  // Safety net — regardless of what the AI model returns, apply the same
+  // grouped-category splitting and language separation the local parser uses.
+  // This guards against the AI returning "Programming: Python, SQL" or
+  // "English: Fluent" inside the skills array despite prompt instructions.
+  const rawAiSkills = asList(ai.skills);
+  const rawAiLanguages = asList(ai.languages);
+
+  const { skills: splitAiSkills, languages: extractedFromSkills } = separateLanguagesFromSkills(
+    splitGroupedSkillEntries(rawAiSkills),
+  );
+
+  const skills = unique(splitAiSkills, 30);
+  const languages = unique([...rawAiLanguages, ...extractedFromSkills], 12);
   const certifications = unique(asList(ai.certifications), 12);
   const strengths = unique(asList(ai.strengths), 12);
   const additionalEvidence = unique(asList(ai.additionalEvidence), 18);
@@ -514,7 +528,7 @@ function mergeAiWithFallback(ai: AiResumeJson, fallback: ResumeProfile, rawText:
   const finalProjects = projects.length ? projects : fallback.projects;
   const finalLanguages = languages.length ? languages : fallback.languages;
 
-  return {
+  const merged: ResumeProfile = {
     ...fallback,
     rawText,
     basics: {
@@ -543,37 +557,44 @@ function mergeAiWithFallback(ai: AiResumeJson, fallback: ResumeProfile, rawText:
       ...warnings,
       "AI-assisted CV structure used. Please verify extracted details before continuing.",
     ]),
+    previewText: "",
+  };
+
+  const identitySafe = sanitizeResumeProfileIdentity(merged, { rawText });
+
+  return {
+    ...identitySafe,
     previewText: [
-      name,
-      headline,
-      clean(basics.email) || fallback.basics.email,
-      clean(basics.phone) || fallback.basics.phone,
-      clean(basics.location) || fallback.basics.location,
+      identitySafe.basics.name,
+      identitySafe.basics.headline,
+      identitySafe.basics.email,
+      identitySafe.basics.phone,
+      identitySafe.basics.location,
       "",
-      summary,
+      identitySafe.summary,
       "",
       "Experience:",
-      ...finalExperience.flatMap((job) => [
+      ...identitySafe.experience.flatMap((job) => [
         [job.title, job.company, job.dates].filter(Boolean).join(" • "),
         ...job.bullets.map((bullet) => `- ${bullet}`),
       ]),
       "",
       "Skills:",
-      finalSkills.join(", "),
+      identitySafe.skills.join(", "),
       "",
       "Education:",
-      ...finalEducation.map((edu) =>
+      ...identitySafe.education.map((edu) =>
         [edu.degree, edu.institution, edu.dates].filter(Boolean).join(" • "),
       ),
       "",
       "Projects:",
-      ...finalProjects.flatMap((project) => [
+      ...identitySafe.projects.flatMap((project) => [
         project.name,
         ...project.bullets.map((bullet) => `- ${bullet}`),
       ]),
       "",
       "Languages:",
-      finalLanguages.join(", "),
+      identitySafe.languages.join(", "),
     ]
       .filter(Boolean)
       .join("\n"),
@@ -694,6 +715,9 @@ Global CV rules:
 - Never invent employers, dates, degrees, achievements, tools, metrics, languages, certifications, or project names.
 - Add warnings for uncertain section assignments.
 - Before returning JSON, verify every experience bullet belongs to the company/role immediately above it.
+- SKILLS FORMAT: the "skills" array must contain individual skill names only — never category labels with grouped items. If the CV groups skills like "Programming: Python, SQL" or "Machine Learning: Sklearn, TensorFlow", split them into separate entries: "Python", "SQL", "Sklearn", "TensorFlow". Do not include the category label itself (e.g. do not include "Programming" or "Machine Learning" as a skill).
+- LANGUAGES FORMAT: the "languages" array must contain language + proficiency pairs as single strings, e.g. "English - FLUENT", "German - B1". If the CV lists "English: Fluent" or "German: Conversational" anywhere (including inside a skills or sidebar section), move it to "languages", not "skills". Never duplicate a language entry in both "skills" and "languages".
+- SOFT SKILLS: items like "Teamwork", "Leadership", "Communication", "Time Management", "Critical Thinking", "Public Relations", "Project Management" are valid skills entries — keep them in "skills" as individual items, not grouped.
 - If a bullet mentions project names, feasibility studies, dashboards, YouTube/API/NLP, e-scooters, Magist, GANS, market analysis, cloud pipeline, or other portfolio work, place it under PROJECTS unless it is explicitly tied to an employer role.
 - Do not place project bullets under Zoho, CSS Corp, or any employer unless the CV clearly says that project happened inside that job.
 - Experience bullets should describe employment responsibilities, customer support, technical support, troubleshooting, escalations, product support, service delivery, stakeholder support, or role duties.

@@ -22,7 +22,11 @@ function clean(value: unknown) {
 }
 
 function isGenericName(value = "") {
-  return /^(candidate|user|workzo user)$/i.test(clean(value));
+  const name = clean(value);
+  return (
+    /^(candidate|user|workzo user)$/i.test(name) ||
+    /(public\s+relations|project\s+management|communication|leadership|teamwork|time\s+management|critical\s+thinking|english|german|python|sql|skills|experience|education|summary|profile)/i.test(name)
+  );
 }
 
 function readStoredIdentity(): WorkZoCandidateIdentity | null {
@@ -56,11 +60,13 @@ export function extractCandidateIdentity(setup?: WorkZoInterviewSetup | null): W
   const profile = source?.resumeProfile || {};
   const basics = profile?.basics || {};
 
-  const name =
+  const rawName =
     clean(basics.name) ||
     clean(source?.candidateName) ||
     clean(source?.name) ||
     "Candidate";
+
+  const name = isGenericName(rawName) ? "Candidate" : rawName;
 
   const headline =
     clean(basics.headline) ||

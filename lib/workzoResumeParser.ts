@@ -120,10 +120,10 @@ const ROLE_RE =
   /\b(product design engineer|product design technician|space systems engineer|graduate intern|cad designer|technical support engineer|application engineer|it support specialist|data analyst|business analyst|data scientist|support engineer|support specialist|product specialist|software engineer|frontend developer|backend developer|full stack developer|developer|designer|engineer|analyst|scientist|manager|specialist|consultant|coordinator|intern|lead|supervisor|technician|administrator|assistant|executive|operator|officer|recruiter|sales|marketing|accountant|teacher|nurse)\b/i;
 
 const COMPANY_WORD_RE =
-  /\b(gmbh|ag|se|ug|kg|ohg|ltd|llc|inc|corp|corporation|company|co\.?|pvt|private limited|limited|plc|bv|nv|group|systems|solutions|technologies|technology|software|services|labs|studio|consulting|industries|insights|edge|zoho|css corp|cummins|visomax|belkin|linksys|manageengine)\b/i;
+  /\b(gmbh|ag|se|ug|kg|ohg|ltd|llc|inc|corp|corporation|company|co\.?|pvt|private limited|limited|plc|bv|nv|group|systems|solutions|technologies|technology|software|services|labs|studio|consulting|industries|insights|edge|partners|ventures|capital|global|international|enterprises|associates|management|digital|media|network|networks|platform|platforms|analytics|data|cloud|security|health|healthcare|finance|financial|bank|banking|insurance|retail|logistics|telecom|telecommunications)\b/i;
 
 const EDUCATION_ORG_RE =
-  /\b(university|universität|universitaet|college|school|institute|academy|hochschule|coding school|arts and science|engineering college|technical university|wbs|srm|tum|luleå|lulea)\b/i;
+  /\b(university|universität|universitaet|fachhochschule|college|school|institute|academy|hochschule|coding school|arts and science|engineering college|technical university|polytechnic|conservatory|seminary|faculty|campus|lycée|lycee|gymnasium|realschule|grundschule|gesamtschule|berufsschule|fachschule|berufsakademie|duale hochschule)\b/i;
 
 const DEGREE_RE =
   /\b(master|masters|master's|bachelor|bachelors|bachelor's|degree|phd|mba|b\.sc|m\.sc|bsc|msc|bootcamp|diploma|certificate|certification|computer science|data science|aeronautical engineering|space science and technology)\b/i;
@@ -135,7 +135,7 @@ const PROJECT_ACTION_RE =
   /\b(project|capstone|case study|dashboard|pipeline|analysis|analy[sz]ed|developed|built|automated|visuali[sz]ed|collected|presented|showcased|feasibility|market|portfolio|recommendation|api|scraping|cloud|database|sentiment|nlp|youtube|startup)\b/i;
 
 const PROJECT_HINT_RE =
-  /\b(project|magist|gans|e-scooter|scooter|classical dance|youtube api|market analysis|feasibility study|pipeline|dashboard|portfolio|capstone|case study|sentiment analysis)\b/i;
+  /\b(project|projects|side project|personal project|open source|capstone|case study|feasibility study|market analysis|market research|pipeline|dashboard|portfolio|prototype|proof of concept|poc|mvp|hackathon|competition|research project|academic project|thesis|dissertation)\b/i;
 
 const SKILL_DICTIONARY = [
   "Python",
@@ -289,7 +289,6 @@ function titleCase(value = "") {
     .replace(/\bYoutube\b/g, "YouTube")
     .replace(/\bWbs\b/g, "WBS")
     .replace(/\bSrm\b/g, "SRM")
-    .replace(/\bGans\b/g, "GANS")
     .replace(/\bCreo\b/g, "CREO")
     .replace(/\bCad\b/g, "CAD")
     .replace(/\bCnc\b/g, "CNC")
@@ -329,19 +328,42 @@ function compactSpacedCaps(value = "") {
 function decompactKnownPhrases(value = "") {
   const clean = cleanLine(value);
   const key = clean.replace(/[^a-zA-ZäöüÄÖÜß]/g, "").toLowerCase();
+
+  // If the compact form starts with a section-header word AND is long,
+  // it's a concatenated header line (e.g. "PROFILE SUMMARY WORK EXPERIENCE").
+  // Return a section header so it gets correctly parsed instead of treated as a name.
+  if (key.length > 18) {
+    if (/^profile/.test(key)) return "PROFILE SUMMARY";
+    if (/^summary/.test(key)) return "SUMMARY";
+    if (/^workexp|^professional.*exp/.test(key)) return "WORK EXPERIENCE";
+    if (/^skills/.test(key)) return "SKILLS";
+    if (/^education/.test(key)) return "EDUCATION";
+    if (/^languages/.test(key)) return "LANGUAGES";
+    if (/^projects/.test(key)) return "PROJECTS";
+    if (/^contact/.test(key)) return "CONTACT";
+    if (/^certif/.test(key)) return "CERTIFICATIONS";
+  }
+
   const known: Record<string, string> = {
-    profilesummary: "Profile Summary",
+    profilesummary: "PROFILE SUMMARY",
     professionalprofile: "Professional Profile",
-    workexperience: "Work Experience",
+    workexperience: "WORK EXPERIENCE",
     professionalexperience: "Professional Experience",
     berufserfahrung: "Berufserfahrung",
     beruflichesprofil: "Berufliches Profil",
     itsupportspecialistdataanalyst: "IT Support Specialist / Data Analyst",
+    itsupportspecialist: "IT Support Specialist",
     productdesignengineer: "Product Design Engineer",
     productdesigntechnician: "Product Design Technician",
     technicalsupportengineer: "Technical Support Engineer",
     applicationengineer: "Application Engineer",
     dataanalyst: "Data Analyst",
+    dataengineer: "Data Engineer",
+    datascientist: "Data Scientist",
+    softwareengineer: "Software Engineer",
+    businessanalyst: "Business Analyst",
+    projectmanager: "Project Manager",
+    productmanager: "Product Manager",
   };
   return known[key] || clean;
 }
@@ -426,7 +448,11 @@ function isContactLine(line: string) {
 }
 
 function isLocationLine(line: string) {
-  return /\b(würzburg|wurzburg|berlin|hamburg|munich|münchen|germany|india|sweden|netherlands|uk|usa|chennai|bangalore|hyderabad|delhi)\b|\b\d{4,6}\b/i.test(cleanLine(line));
+  // Generic location detection: postal codes, country names, major cities
+  // Does not hardcode specific individual addresses
+  if (/\b\d{4,6}\b/.test(cleanLine(line))) return true; // postal code
+  return /\b(germany|deutschland|united kingdom|uk|usa|united states|france|netherlands|spain|italy|portugal|india|china|japan|australia|canada|switzerland|austria|belgium|poland|sweden|norway|denmark|finland|ireland|brazil|mexico|singapore|dubai|uae|remote)\b/i.test(cleanLine(line)) ||
+    /\b(berlin|hamburg|munich|münchen|frankfurt|cologne|köln|düsseldorf|stuttgart|dortmund|essen|bremen|hannover|nuremberg|nürnberg|leipzig|amsterdam|rotterdam|paris|london|madrid|barcelona|rome|milan|zurich|vienna|wien|brussels|warsaw|stockholm|oslo|copenhagen|helsinki|dublin|toronto|sydney|new york|san francisco|london|chicago|boston|seattle)\b/i.test(cleanLine(line));
 }
 
 function isSkillCategory(line: string) {
@@ -518,11 +544,14 @@ function extractBasics(lines: string[], rawText: string) {
 
   function looksLikeName(line: string) {
     if (/@|linkedin|github|outlook|gmail/i.test(line)) return false;
+    // Reject skill category lines with colons: "Programming: Python, SQL"
+    if (/:/.test(line)) return false;
     const clean = titleCase(line.replace(/[^A-Za-zÀ-ž' -]/g, " ").replace(/\s+/g, " ").trim());
     if (!clean || clean.length > 45) return false;
     if (ROLE_RE.test(clean) || findSectionKind(clean) || isContactLine(clean) || COMPANY_WORD_RE.test(clean) || DEGREE_RE.test(clean)) return false;
+    if (WORKZO_BAD_NAME_WORDS.test(clean)) return false;
     const words = clean.split(/\s+/).filter(Boolean);
-    return words.length >= 2 && words.length <= 5 && words.every((word) => /^[A-Za-zÀ-ž' -]{2,}$/.test(word));
+    return words.length >= 2 && words.length <= 4 && words.every((word) => /^[A-Za-zÀ-ž' -]{2,}$/.test(word));
   }
 
   const top = lines.slice(0, 28);
@@ -600,8 +629,12 @@ function extractSummary(lines: string[], sections: SectionMap) {
 
 function normalizeSkillToken(value = "") {
   let clean = cleanLine(value)
+    // Strip any "Category: " prefix — handles "Programming: Python", "Machine Learning: Sklearn" etc.
+    .replace(/^[A-Za-z][A-Za-z\s&]+:\s*/g, "")
+    // Also strip known category labels without colon
     .replace(/^(skills|core skills|technical skills|expertise|tools|programming|machine learning|data visualization|data visualisation|data engineering|generative ai|3d cad tools|3d printing|product lifecycle management|visualization)\s*[:：]?\s*/i, "")
     .replace(/\bTensor Flow\b/gi, "TensorFlow")
+    .replace(/\bLang Chain\b/gi, "LangChain")
     .replace(/\bScikit Learn\b/gi, "scikit-learn")
     .replace(/\bSk Learn\b/gi, "Sklearn")
     .replace(/\bWeb Scrapping\b/gi, "Web Scraping")
@@ -613,6 +646,13 @@ function normalizeSkillToken(value = "") {
   const lower = clean.toLowerCase();
   const exact = SKILL_DICTIONARY.find((skill) => skill.toLowerCase() === lower);
   if (exact) return exact;
+
+  // Fallback: try matching dictionary entries with spaces removed.
+  // Catches cases where the CamelCase-split regex (a-z)(A-Z) inserted a
+  // space into a product name that's actually one word: "LangChain" → "Lang Chain".
+  const lowerNoSpace = lower.replace(/\s+/g, "");
+  const exactNoSpace = SKILL_DICTIONARY.find((skill) => skill.toLowerCase().replace(/\s+/g, "") === lowerNoSpace);
+  if (exactNoSpace) return exactNoSpace;
   if (lower === "solid works") return "SolidWorks";
   if (lower === "catia v5") return "Catia V5";
   if (lower === "creo") return "CREO";
@@ -624,12 +664,137 @@ function normalizeSkillToken(value = "") {
 
 function isPollutedSkill(value = "") {
   const clean = cleanLine(value);
-  if (!clean || clean.length > 42) return true;
+  if (!clean || clean.length > 60) return true;
   if (/\d/.test(clean) && !/^(3D CAD|3D Printing|Catia V5|FFF)$/i.test(clean)) return true;
   if (/^(and|or|in|with|using|education|languages|contact|profile|summary|work experience|experience|projects|berufserfahrung|bildung|kontakt|sprachen)$/i.test(clean)) return true;
-  if (/@|linkedin|outlook|gmail|\+\d|\b\d{4}\b|würzburg|wurzburg|germany|india|sweden|candidate|candidate|surender|aarav/i.test(clean)) return true;
+  if (/@|linkedin|outlook|gmail|\+\d|\b\d{4}\b|würzburg|wurzburg|germany|india|sweden/i.test(clean)) return true;
   if (/experience|responsible|supported|collaborated|delivered|developed|designed|analyzed|proven|track record|background|fluent in|bachelor|master|degree|university|college|satellite|docking|retrieval|generation|implementation|configuration|performance optimization$/i.test(clean)) return true;
+  // Reject language proficiency entries that sneak into skills section
+  // e.g. "English: Fluent", "German: Conversational", "English - FLUENT"
+  if (/^(english|german|deutsch|french|français|spanish|español|arabic|hindi|tamil|dutch|italian|portuguese|mandarin|japanese|korean|russian)\s*[:–-]/i.test(clean)) return true;
+  if (/^(english|german|deutsch|french|spanish|arabic|hindi|tamil|dutch|italian|portuguese)\s+(fluent|native|conversational|basic|professional|a1|a2|b1|b2|c1|c2)$/i.test(clean)) return true;
+  // Reject bare language names without proficiency (from colon split leaving "Fluent" or "Conversational")
+  if (/^(fluent|native|conversational|professional|basic|a1|a2|b1|b2|c1|c2)$/i.test(clean)) return true;
+  // Reject bare category labels that become orphans after colon split
+  if (/^(programming|visualization|visualisation|machine learning|data engineering|generative ai|soft skills|3d cad tools|product lifecycle)$/i.test(clean)) return true;
   return false;
+}
+
+/**
+ * splitGroupedSkillEntries
+ *
+ * Takes a list of raw skill strings (which may include grouped category
+ * lines like "Programming: Python, SQL" or "Generative AI: LangChain, RAG")
+ * and returns a flat list of individual skill tokens.
+ *
+ * Exported so both the local parser (extractSkills) and the AI-structuring
+ * pipeline (workzoAiCvParser) can apply the same splitting logic as a
+ * safety net, regardless of how the source data was produced.
+ *
+ * Works for any candidate, any CV template — no hardcoded category names.
+ */
+const LANGUAGE_CATEGORY_RE = /^(english|german|deutsch|french|français|spanish|español|arabic|hindi|tamil|malayalam|telugu|kannada|dutch|italian|portuguese|mandarin|chinese|japanese|korean|russian|polish|swedish|norwegian|danish|finnish|turkish|greek|hebrew|urdu|bengali|punjabi|vietnamese|thai)$/i;
+
+export function splitGroupedSkillEntries(rawSkills: string[]): string[] {
+  // First split grouped categories at colon: "Programming: Python, SQL" → ["Python", "SQL"]
+  // EXCEPTION: if the part before the colon is a language name (e.g. "English: Fluent"),
+  // keep it as one combined entry — "English Fluent" — so it survives to be
+  // recognised as a language by separateLanguagesFromSkills, instead of losing
+  // the language name and leaving an orphan proficiency word.
+  const flatSource: string[] = [];
+  for (const line of rawSkills) {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx > 0 && colonIdx < line.length - 1) {
+      const beforeColon = line.slice(0, colonIdx).trim();
+      const afterColon = line.slice(colonIdx + 1);
+
+      if (LANGUAGE_CATEGORY_RE.test(beforeColon)) {
+        // "English: Fluent" → "English Fluent" (kept as one entry)
+        flatSource.push(`${beforeColon} ${afterColon.trim()}`);
+      } else {
+        // "Programming: Python, SQL" → "Python", "SQL"
+        flatSource.push(...afterColon.split(/[,;]/));
+      }
+    } else {
+      flatSource.push(line);
+    }
+  }
+
+  const LANGUAGE_ENTRY_RE = /^(english|german|deutsch|french|français|spanish|español|arabic|hindi|tamil|malayalam|telugu|kannada|dutch|italian|portuguese|mandarin|chinese|japanese|korean|russian|polish|swedish|norwegian|danish|finnish|turkish|greek|hebrew|urdu|bengali|punjabi|vietnamese|thai)\s+(native|fluent|professional|conversational|basic|elementary|intermediate|advanced|a1|a2|b1|b2|c1|c2)$/i;
+
+  return flatSource
+    .join(" | ")
+    // CamelCase-split fix: only split when followed by 2+ lowercase letters,
+    // to avoid breaking short acronym-like product names (e.g. "AI", "ML" stay intact)
+    .replace(/([a-z])([A-Z][a-z]{2,})/g, "$1 $2")
+    .split(/[,|;/]/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .map((token) => {
+      // Preserve "English Fluent"-style language entries through normalization
+      // and the polluted-skill filter — separateLanguagesFromSkills handles them next.
+      if (LANGUAGE_ENTRY_RE.test(token)) return token;
+      return normalizeSkillToken(token);
+    })
+    .filter((skill) => LANGUAGE_ENTRY_RE.test(skill) || !isPollutedSkill(skill));
+}
+
+/**
+ * separateLanguagesFromSkills
+ *
+ * Scans a list of (already-split) skill tokens and pulls out any that are
+ * actually language proficiency entries (e.g. "English Fluent", "German
+ * Conversational", "Fluent" as an orphan after a colon split was applied
+ * to "English: Fluent").
+ *
+ * Returns the remaining skills plus a separate list of normalized
+ * language entries ("English - FLUENT", "German - CONVERSATIONAL").
+ *
+ * This prevents language proficiency from being shown as a "skill" chip
+ * while also ensuring it ends up in the languages list even if the
+ * source CV or AI model put it in the wrong section.
+ */
+export function separateLanguagesFromSkills(skills: string[]): { skills: string[]; languages: string[] } {
+  const remainingSkills: string[] = [];
+  const languages: string[] = [];
+
+  const LANGUAGE_NAME_RE = /^(english|german|deutsch|french|français|spanish|español|arabic|hindi|tamil|malayalam|telugu|kannada|dutch|italian|portuguese|mandarin|chinese|japanese|korean|russian|polish|swedish|norwegian|danish|finnish|turkish|greek|hebrew|urdu|bengali|punjabi|vietnamese|thai)$/i;
+  const PROFICIENCY_RE = /^(native|fluent|professional|conversational|basic|elementary|intermediate|advanced|a1|a2|b1|b2|c1|c2)$/i;
+
+  for (let i = 0; i < skills.length; i += 1) {
+    const token = skills[i];
+    const normalized = normalizeLanguage(token);
+
+    // normalizeLanguage matches "English Fluent", "German B1" etc. and returns "English - FLUENT"
+    if (normalized && LANGUAGE_NAME_RE.test(token.split(/\s+/)[0] || "")) {
+      languages.push(normalized);
+      continue;
+    }
+
+    // Handle case where colon-split left the language name and proficiency as
+    // two separate adjacent tokens: ["English", "Fluent", "German", "Conversational"]
+    if (LANGUAGE_NAME_RE.test(token) && i + 1 < skills.length && PROFICIENCY_RE.test(skills[i + 1])) {
+      const lang = normalizeLanguage(`${token} ${skills[i + 1]}`);
+      if (lang) {
+        languages.push(lang);
+        i += 1; // consume the next token too
+        continue;
+      }
+    }
+
+    // Bare proficiency word with no language — drop it (orphan from colon split)
+    if (PROFICIENCY_RE.test(token)) continue;
+
+    // Bare language name with no proficiency — still move to languages
+    if (LANGUAGE_NAME_RE.test(token)) {
+      languages.push(titleCase(token));
+      continue;
+    }
+
+    remainingSkills.push(token);
+  }
+
+  return { skills: remainingSkills, languages };
 }
 
 function extractSkills(rawText: string, sections: SectionMap, allLines: string[]) {
@@ -638,12 +803,8 @@ function extractSkills(rawText: string, sections: SectionMap, allLines: string[]
     ...allLines.filter((line) => isSkillCategory(line) || /^(technical|programming|visualization|tools|soft skills|machine learning|data engineering|generative ai|3d cad tools|3d printing|product lifecycle management)\b/i.test(line)),
   ];
 
-  const explicit = explicitSource
-    .join(" | ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .split(/[,|;/]/)
-    .map(normalizeSkillToken)
-    .filter((skill) => !isPollutedSkill(skill));
+  const splitTokens = splitGroupedSkillEntries(explicitSource);
+  const { skills: explicit } = separateLanguagesFromSkills(splitTokens);
 
   const dictionary = SKILL_DICTIONARY.filter((skill) => new RegExp(`\\b${escapeRegExp(skill)}\\b`, "i").test(rawText)).map(normalizeSkillToken);
   return unique([...explicit, ...dictionary].filter((skill) => !isPollutedSkill(skill))).slice(0, 28);
@@ -665,7 +826,12 @@ function extractLanguages(rawText: string, sections: SectionMap) {
 }
 
 function extractEducation(sections: SectionMap, lines: string[]) {
-  const source = (sections.education.length ? sections.education : lines).map(cleanLine).filter(Boolean);
+  // Filter out language entries that landed in education section due to sidebar extraction order
+  const isLanguageLine = (line: string) => /^(english|german|deutsch|french|spanish|arabic|hindi|tamil|dutch|italian|portuguese|mandarin|japanese|korean|russian)\b/i.test(cleanLine(line));
+  const source = (sections.education.length ? sections.education : lines)
+    .map(cleanLine)
+    .filter(Boolean)
+    .filter((line) => !isLanguageLine(line));
   const items: ResumeEducation[] = [];
 
   function cleanDegree(line = "") {
@@ -797,9 +963,26 @@ function repairProjectsFromGlobalLines(lines: string[], projects: ResumeProject[
     project.bullets = unique(project.bullets).slice(0, 5);
   }
 
-  addTo(/magist/i, /brazilian market|magist|market trends|partnership|strategic decision/i);
-  addTo(/gans|scooter/i, /gans|e-scooter|web scraping|city demographic|weather|flight data|cloud functions|database management/i);
-  addTo(/cultural|dance|youtube/i, /classical dance|youtube|sentiment|textblob|viewer comments|traditional art/i);
+  // Generic: for each parsed project, find bullet lines in the full text that mention
+  // the project name or contain project-action vocabulary near it.
+  // No hardcoded project names — works for any candidate's projects.
+  for (const project of repaired) {
+    const nameParts = project.name
+      .split(/\s+/)
+      .filter((part) => part.length > 3)
+      .map((part) => part.replace(/[^A-Za-z0-9]/g, ""));
+    if (!nameParts.length) continue;
+    const nameRe = new RegExp(nameParts.slice(0, 2).join("|"), "i");
+    for (const line of lines) {
+      if (nameRe.test(line) && (isProbablyBullet(line) || PROJECT_ACTION_RE.test(line))) {
+        const cleaned = cleanBullet(line);
+        if (cleaned && !project.bullets.includes(cleaned)) {
+          project.bullets.push(cleaned);
+        }
+      }
+    }
+    project.bullets = unique(project.bullets).slice(0, 5);
+  }
 
   return repaired.filter((project) => project.bullets.length || project.name !== "Selected Project");
 }
@@ -860,7 +1043,11 @@ function extractExperience(sections: SectionMap, lines: string[], projects: Resu
   function bulletBelongsToProject(line: string) {
     const clean = cleanLine(cleanBullet(line)).toLowerCase();
     if (projectBulletSet.has(clean)) return true;
-    return /magist|brazilian market|classical dance|youtube api|viewer comments|sentiment analysis|textblob|gans|e-scooter|city demographic|flight data/i.test(line);
+    // Generic: check if this bullet line references any known project name from the parsed projects
+    return projects.some((project) => {
+      const nameParts = project.name.split(/\s+/).filter((part) => part.length > 3);
+      return nameParts.length > 0 && nameParts.some((part) => new RegExp(`\\b${part}\\b`, "i").test(line));
+    });
   }
 
   function collectBullets(anchorIndex: number, nextAnchorIndex: number) {
@@ -884,7 +1071,7 @@ function extractExperience(sections: SectionMap, lines: string[], projects: Resu
       if (bulletBelongsToSummary(line) || bulletBelongsToProject(line)) continue;
       bullets.push(...splitLongBullet(line));
     }
-    return unique(bullets).slice(0, 9);
+    return unique(bullets).slice(0, 14);
   }
 
   companyAnchors.forEach((anchor, index) => {
@@ -899,6 +1086,44 @@ function extractExperience(sections: SectionMap, lines: string[], projects: Resu
       bullets,
     });
   });
+
+  // ── Redistribute shared bullet blocks between adjacent jobs ──────────────────
+  // Some CVs write achievements for multiple roles as one continuous block
+  // positioned entirely before the SECOND company's anchor line (a common PDF
+  // text-extraction artefact for stacked "Company / Dates / Title" entries).
+  // The result: the first job absorbs every bullet, the next job has none —
+  // even though some of those bullets plausibly belong to the second role.
+  //
+  // Generic heuristic, no hardcoded content: if a job has a substantial number
+  // of bullets (6+) and the immediately following job has zero, split the
+  // block so the later portion (which is positionally closer to the next
+  // job's anchor in the original CV) moves to that job. This keeps the first
+  // few (most senior-sounding / role-defining) bullets with the donor and
+  // gives the tail — often more generic support/ops bullets — to the
+  // recipient, which matches how CVs are typically written (headline
+  // achievements first, supporting duties later).
+  const MIN_BULLETS_TO_SPLIT = 6;
+  const MAX_BULLETS_PER_JOB = 9;
+  for (let i = 0; i < jobs.length - 1; i += 1) {
+    const donor = jobs[i];
+    const recipient = jobs[i + 1];
+    if (recipient.bullets.length > 0) continue;
+    if (donor.bullets.length < MIN_BULLETS_TO_SPLIT) continue;
+
+    // Split roughly in half, but cap each side at MAX_BULLETS_PER_JOB
+    const splitPoint = Math.max(
+      MIN_BULLETS_TO_SPLIT - 2,
+      Math.min(donor.bullets.length - 1, Math.ceil(donor.bullets.length / 2)),
+    );
+
+    const donorShare = donor.bullets.slice(0, splitPoint).slice(0, MAX_BULLETS_PER_JOB);
+    const recipientShare = donor.bullets.slice(splitPoint).slice(0, MAX_BULLETS_PER_JOB);
+
+    if (!recipientShare.length) continue;
+
+    donor.bullets = donorShare;
+    recipient.bullets = recipientShare;
+  }
 
   return unique(
     jobs.filter((job) => job.company && (job.bullets.length || job.title !== "Professional Experience")),
@@ -1000,15 +1225,26 @@ export function extractResumeProfile(rawText: string): ResumeProfile {
   const initialProjects = extractProjects(sections, lines);
   const projects = repairProjectsFromGlobalLines(lines, initialProjects);
 
+  // extractSkills already separates any language entries that were grouped
+  // into the skills section (e.g. "English: Fluent" sitting next to "Programming: Python, SQL").
+  // Merge those into the languages list so they're not lost.
+  const extractedSkills = extractSkills(normalized, sections, lines);
+  const skillsLanguageCheck = separateLanguagesFromSkills(extractedSkills);
+  const baseLanguages = extractLanguages(normalized, sections);
+  const mergedLanguages = unique(
+    [...baseLanguages, ...skillsLanguageCheck.languages],
+    (item) => item.split(" - ")[0].toLowerCase(),
+  ).slice(0, 10);
+
   const partial = {
     rawText: normalized,
     basics: extractBasics(lines, normalized),
     summary,
     experience: extractExperience(sections, lines, projects, summary),
     education: extractEducation(sections, lines),
-    skills: extractSkills(normalized, sections, lines),
+    skills: skillsLanguageCheck.skills,
     projects,
-    languages: extractLanguages(normalized, sections),
+    languages: mergedLanguages,
     certifications: extractCertifications(sections),
     strengths: extractStrengths(normalized),
   };
@@ -1031,7 +1267,7 @@ export function extractResumeProfile(rawText: string): ResumeProfile {
 // - Keep education out of experience and dates attached to correct section.
 // =========================================================
 
-const WORKZO_BAD_NAME_WORDS = /\b(product|stability|tier|support|engineer|developer|analyst|manager|specialist|consultant|supervisor|professional|experience|education|skills|summary|profile|contact|email|phone|linkedin|location|service|delivery|requirements|analysis|python|sql|excel|tableau|microsoft|word|germany|w[üu]rzburg|street|road|weg)\b/i;
+const WORKZO_BAD_NAME_WORDS = /\b(product|stability|tier|support|engineer|developer|analyst|manager|specialist|consultant|supervisor|professional|experience|education|skills|summary|profile|contact|email|phone|linkedin|location|service|delivery|requirements|analysis|python|sql|excel|tableau|microsoft|word|germany|w[üu]rzburg|street|road|weg|public\s+relations|project\s+management|communication|leadership|teamwork|time\s+management|critical\s+thinking|english|german|french|dutch|spanish|italian|portuguese|fluent|conversational|native|programming|machine\s+learning|visualization|visualisation|engineering|generative|bootcamp|school|college|bachelor|master|candidate|retrieval|augmented|generation|pipeline|scraping|automation|integration)\b/i;
 
 function wzBetterClean(value = "") {
   return normalizeResumeText(value)
@@ -1043,6 +1279,15 @@ function wzBetterClean(value = "") {
 }
 
 function wzLooksLikePersonName(value = "") {
+  // Reject immediately if original value contains a colon — these are skill category lines
+  // e.g. "Programming: Python, SQL" or "Generative AI: LangChain, RAG"
+  if (/:/.test(wzBetterClean(value))) return false;
+
+  // Reject lines that are fully uppercase with 2+ words — section headers, not names
+  // e.g. "PROFILE SUMMARY", "WORK EXPERIENCE", "SKILLS EDUCATION LANGUAGES"
+  const rawUpper = wzBetterClean(value).trim();
+  if (/^[A-ZÄÖÜ][A-ZÄÖÜ\s\/]{6,}$/.test(rawUpper) && rawUpper.split(/\s+/).length >= 2) return false;
+
   const clean = wzBetterClean(value)
     .replace(/[,|•].*$/g, "")
     .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ' .-]/g, " ")
@@ -1055,22 +1300,70 @@ function wzLooksLikePersonName(value = "") {
 
   const parts = clean.split(" ").filter(Boolean);
   if (parts.length < 2 || parts.length > 4) return false;
-  return parts.every((part) => /^[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'.-]{1,}$/.test(part));
+  // Every word must start with a capital letter — real names do, skill categories don't
+  if (!parts.every((part) => /^[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'.-]{1,}$/.test(part))) return false;
+  // Reject if any word looks like a skill/tech/tool keyword
+  const joinedLower = clean.toLowerCase();
+  if (/\b(python|sql|api|gcp|nlp|rag|rest|mysql|tableau|excel|scrum|agile|jira|cloud|azure|aws|java|react|node|html|css|git|linux|docker|kubernetes|salesforce|hubspot|crm|sap|erp|itil|itsm|cobol|swift|kotlin|scala|rust|golang|angular|vue|typescript|javascript|php|ruby|perl|bash|terraform|ansible|spark|hadoop|kafka|airflow|dbt|looker|powerbi|snowflake|databricks|mlflow|langchain|openai|chatgpt|tensorflow|pytorch|sklearn|pandas|numpy|matplotlib|seaborn|plotly|streamlit|fastapi|flask|django|spring|hibernate|junit|selenium|jenkins|github|gitlab|bitbucket|confluence|notion|slack|figma|sketch|canva|adobe|photoshop|illustrator|premiere|after effects|solidworks|autocad|catia|creo|inventor|matlab|simulink|labview|fpga|vhdl|verilog)\b/i.test(joinedLower)) return false;
+  return true;
+}
+
+function wzTitleCaseCompactName(value = "") {
+  const compact = value.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, "").trim();
+  if (!compact || compact.length < 6 || compact.length > 36) return "";
+
+  // Known safe splits for compact names from email addresses or spaced-cap CV headers.
+  // This prevents multi-column PDFs from using skill words as the candidate name.
+  // No hardcoded person-specific splits — use generic logic only
+  // Names from email addresses or file names are handled by the email prefix path
+
+  return "";
+}
+
+function wzNameFromFileName(fileName = "") {
+  const base = cleanLine(fileName)
+    .replace(/(?:\.pdf|\.docx?|\.txt)+$/gi, "")
+    .replace(/\s*\(\d+\)\s*/g, " ")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b(cv|resume|lebenslauf|copy|final|new|updated)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (wzLooksLikePersonName(base)) return titleCase(base);
+  return wzTitleCaseCompactName(base);
 }
 
 function wzExtractBetterName(text = "") {
-  const lines = normalizeResumeText(text)
+  const normalized = normalizeResumeText(text);
+
+  // Prefer visual resume headers written as spaced capitals, e.g.
+  // H A R I T H A  V I J A Y A K U M A R. Multi-column PDFs often place
+  // this after skills, so we search the full text, not just the first lines.
+  const spacedCapsMatches = normalized.match(/(?:\b[A-ZÀ-ÖØ-Þ]\s+){5,}[A-ZÀ-ÖØ-Þ]\b/g) || [];
+  for (const match of spacedCapsMatches) {
+    const compact = match.replace(/\s+/g, "");
+    const known = wzTitleCaseCompactName(compact);
+    if (known && wzLooksLikePersonName(known)) return known;
+  }
+
+  const lines = normalized
     .split(/\n+/)
-    .map((line) => line.trim())
+    .map((line) => decompactKnownPhrases(compactSpacedCaps(line)).trim())
     .filter(Boolean)
-    .slice(0, 25);
+    .slice(0, 60);
 
   for (const line of lines) {
     const clean = line.replace(/\s*[|•].*$/g, "").trim();
+    const known = wzTitleCaseCompactName(clean);
+    if (known && wzLooksLikePersonName(known)) return known;
     if (wzLooksLikePersonName(clean)) return titleCase(clean);
   }
 
-  const emailPrefix = text.match(/\b([a-z][a-z0-9._-]{2,})@[a-z0-9.-]+\.[a-z]{2,}\b/i)?.[1] || "";
+  // Email prefix fallback. Some visual CVs expose the real name most reliably in email.
+  const emailPrefix = normalized.match(/\b([a-z][a-z0-9._-]{2,})@[a-z0-9.-]+\.[a-z]{2,}\b/i)?.[1] || "";
+  const knownEmailName = wzTitleCaseCompactName(emailPrefix.replace(/\d+/g, ""));
+  if (knownEmailName && wzLooksLikePersonName(knownEmailName)) return knownEmailName;
+
   const spaced = emailPrefix
     .replace(/[._-]+/g, " ")
     .replace(/\d+/g, " ")
@@ -1080,6 +1373,25 @@ function wzExtractBetterName(text = "") {
   if (wzLooksLikePersonName(spaced)) return titleCase(spaced);
 
   return "";
+}
+
+export function sanitizeResumeProfileIdentity(profile: ResumeProfile, source: { rawText?: string; fileName?: string } = {}): ResumeProfile {
+  const text = source.rawText || profile.rawText || "";
+  const betterName = wzExtractBetterName(text) || wzNameFromFileName(source.fileName || "");
+  const currentName = wzLooksLikePersonName(profile.basics.name) ? profile.basics.name : "";
+  const name = betterName || currentName || "Candidate";
+
+  return {
+    ...profile,
+    basics: {
+      ...profile.basics,
+      name,
+    },
+    warnings: unique([
+      ...(profile.warnings || []),
+      ...(name === "Candidate" ? ["Candidate name could not be verified from the CV header."] : []),
+    ]),
+  };
 }
 
 function wzSectionWindow(text: string, startPatterns: RegExp[], endPatterns: RegExp[]) {

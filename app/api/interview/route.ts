@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import {
   decideUnifiedRecruiterResponse,
   type TranscriptItem,
@@ -659,14 +660,18 @@ function withinRateLimit(key: string, limit: number): boolean {
   return true;
 }
 
-function getPlan(req: Request): string {
+async function getPlan(req: Request): Promise<string> {
+  try {
+    const resolved = await resolveWorkZoServerPlan();
+    if (resolved.authenticated) return resolved.plan;
+  } catch {}
   const cookie = req.headers.get("cookie") || "";
   return cookie.match(/workzo_plan=([^;]+)/)?.[1] ?? "free";
 }
 
 export async function POST(request: Request) {
   try {
-    const plan = getPlan(request);
+    const plan = await getPlan(request);
     const paid = plan === "premium" || plan === "premium_pro";
     const clientKey = getClientKey(request);
 

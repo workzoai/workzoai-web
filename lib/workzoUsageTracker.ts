@@ -135,10 +135,64 @@ export function getWorkZoCurrentPlan(): WorkZoPlanType {
   return "free";
 }
 
-export function setWorkZoCurrentPlan(plan: WorkZoPlanType) {
+const WORKZO_DEV_PLAN_OVERRIDE_KEY = "workzo_dev_plan_override";
+
+/**
+ * Sets the current plan for this browser session.
+ *
+ * Writes to localStorage AND a cookie (so server-rendered pages like
+ * /history and /billing/manage also see the override), and sets a
+ * dev-override flag so fetchWorkZoAuthoritativePlan() does not silently
+ * overwrite this value with the real DB plan on the next page load.
+ *
+ * @param plan - The plan to set
+ * @param isDevOverride - If true, marks this as a manual dev/test override
+ *   that should persist until explicitly cleared via clearWorkZoDevPlanOverride().
+ */
+export function setWorkZoCurrentPlan(plan: WorkZoPlanType, isDevOverride = false) {
+  if (typeof window === "undefined") return;
+  const normalized = normalizeWorkZoPlan(plan);
+  try {
+    window.localStorage.setItem(WORKZO_PLAN_KEY, normalized);
+    window.localStorage.setItem("workzo_plan", normalized);
+    window.localStorage.setItem("workzo_plan_type", normalized);
+  } catch {}
+  try {
+    const maxAge = 60 * 60 * 24 * 30; // 30 days
+    document.cookie = `workzo_plan=${normalized}; Max-Age=${maxAge}; Path=/; SameSite=Lax`;
+    document.cookie = `workzo_plan_type=${normalized}; Max-Age=${maxAge}; Path=/; SameSite=Lax`;
+  } catch {}
+  if (isDevOverride) {
+    try {
+      window.localStorage.setItem(WORKZO_DEV_PLAN_OVERRIDE_KEY, normalized);
+      const maxAge = 60 * 60 * 24 * 30;
+      document.cookie = `${WORKZO_DEV_PLAN_OVERRIDE_KEY}=${normalized}; Max-Age=${maxAge}; Path=/; SameSite=Lax`;
+    } catch {}
+  }
+}
+
+/**
+ * Returns the active dev plan override, if any. Used by
+ * fetchWorkZoAuthoritativePlan() to decide whether to trust the DB plan
+ * or keep the developer's manual override.
+ */
+export function getWorkZoDevPlanOverride(): WorkZoPlanType | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(WORKZO_DEV_PLAN_OVERRIDE_KEY);
+    if (raw) return normalizeWorkZoPlan(raw);
+  } catch {}
+  return null;
+}
+
+/**
+ * Clears any active dev plan override, restoring normal DB-driven plan resolution.
+ */
+export function clearWorkZoDevPlanOverride() {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(WORKZO_PLAN_KEY, normalizeWorkZoPlan(plan));
+    window.localStorage.removeItem(WORKZO_DEV_PLAN_OVERRIDE_KEY);
+    document.cookie = `${WORKZO_DEV_PLAN_OVERRIDE_KEY}=; Max-Age=0; Path=/; SameSite=Lax`;
   } catch {}
 }
 

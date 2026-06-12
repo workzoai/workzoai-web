@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
+import { canUseWorkZoFeature, getWorkZoFeatureRequiredPlan } from "@/lib/workzoPlanLimits";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -99,6 +101,14 @@ function buildQuery(role: string, location: string, keywords: string[]) {
 }
 
 export async function POST(request: NextRequest) {
+  const account = await resolveWorkZoServerPlan();
+  if (!account.authenticated) {
+    return NextResponse.json({ error: "Please sign in to use this feature." }, { status: 401 });
+  }
+  if (!canUseWorkZoFeature(account.plan, "job_assist")) {
+    return NextResponse.json({ error: "Upgrade required.", requiredPlan: getWorkZoFeatureRequiredPlan("job_assist"), plan: account.plan }, { status: 403 });
+  }
+
   try {
     const body = (await request.json().catch(() => ({}))) as {
       role?: string;

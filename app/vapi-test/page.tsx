@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Vapi from "@vapi-ai/web";
+import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 
 type RecruiterKey = "Sarah" | "Priya" | "Daniel" | "Markus";
 
@@ -33,15 +34,23 @@ const assistantIds: Record<RecruiterKey, string | undefined> = {
 };
 
 export default function VapiTestPage() {
-  // Auth protection — only accessible in development or with founder access
-  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
-    const founderMode = window.localStorage.getItem("workzo_founder_mode");
-    if (!founderMode) {
-      window.location.href = "/dashboard";
-      return null;
-    }
-  }
+  const router = useRouter();
   const vapiRef = useRef<any>(null);
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    void supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) {
+        router.replace("/login?redirect=/vapi-test");
+        return;
+      }
+      // Only allow if user is the founder (extra protection)
+      const email = data.user.email || "";
+      if (!email.includes("haritha") && !email.includes("workzoai") && !email.includes("workzo")) {
+        router.replace("/dashboard");
+      }
+    });
+  }, [router]);
 
   const [selectedRecruiter, setSelectedRecruiter] =
     useState<RecruiterKey>("Sarah");

@@ -5,8 +5,8 @@ import { useMemo } from "react";
 import { BrainCircuit, CheckCircle2, Lock, PlayCircle, Route, Sparkles, Target, TrendingUp } from "lucide-react";
 import { buildWorkZoPremiumProSuite, type WorkZoPremiumProSuite } from "@/lib/workzoPremiumProCareerSuite";
 import type { PhaseCCareerBrainInput } from "@/lib/workzoCareerMemory";
-import { getWorkZoCurrentPlan } from "@/lib/workzoUsageTracker";
-import { canUseWorkZoFeature, normalizeWorkZoPlan } from "@/lib/workzoPlanLimits";
+import { useWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
+import { canUseWorkZoFeature } from "@/lib/workzoPlanLimits";
 
 type PanelProps = {
   source?: "dashboard" | "results" | "history";
@@ -157,7 +157,7 @@ function LockedPanel() {
 }
 
 export default function WorkZoPremiumProSuitePanel({ source = "dashboard", report = null, compact = false }: PanelProps) {
-  const plan = typeof window !== "undefined" ? normalizeWorkZoPlan(getWorkZoCurrentPlan()) : "free";
+  const { plan } = useWorkZoAuthoritativePlan();
   const allowed = canUseWorkZoFeature(plan, "career_coach");
   const suite: WorkZoPremiumProSuite = useMemo(() => buildWorkZoPremiumProSuite(buildInputFromReport(report)), [report]);
 

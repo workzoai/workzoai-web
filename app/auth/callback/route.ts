@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/utils/supabase/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentWorkZoUserSubscription } from "@/lib/workzoSubscription";
+import { normalizeWorkZoPlan } from "@/lib/workzoPlanLimits";
 
 function sanitizeRedirect(value: string | null) {
   if (!value) return "/dashboard";
@@ -52,6 +54,11 @@ export async function GET(request: Request) {
 
     const destination = new URL(redirectPath, requestUrl.origin);
     const response = NextResponse.redirect(destination);
+
+    const subscription = await getCurrentWorkZoUserSubscription();
+    const resolvedPlan = subscription?.status === "premium" ? normalizeWorkZoPlan(subscription.plan_tier || subscription.plan) : "free";
+    response.cookies.set("workzo_plan", resolvedPlan, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 30 });
+    response.cookies.set("workzo_plan_type", resolvedPlan, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 30 });
 
     response.cookies.set("workzo_after_login", "", {
       path: "/",

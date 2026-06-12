@@ -15,8 +15,8 @@ import {
 import WorkZoFooter from "@/components/WorkZoFooter";
 
 const badges = [
-  { label: "4 Years Technical Support", icon: BriefcaseBusiness },
-  { label: "Data Science Graduate", icon: BarChart3 },
+  { label: "Built from real support experience", icon: BriefcaseBusiness },
+  { label: "AI career-prep product", icon: BarChart3 },
   { label: "Founder of WorkZo AI", icon: Sparkles },
 ];
 

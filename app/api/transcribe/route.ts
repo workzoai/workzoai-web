@@ -14,6 +14,8 @@ function normalizeLanguage(value: FormDataEntryValue | null) {
   return undefined;
 }
 
+export async function OPTIONS() { return new Response(null, { status: 204 }); }
+
 export async function POST(request: Request) {
   try {
     if (!process.env.OPENAI_API_KEY) {

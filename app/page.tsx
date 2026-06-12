@@ -22,13 +22,13 @@ import AuthNavButton from "@/components/auth/AuthNavButton";
 import { getWorkZoDisplayPrices } from "@/lib/workzoLocalizedPricing";
 
 const trustItems = [
-  "CV + job based practice",
-  "Dynamic recruiter follow-ups",
-  "Trust timeline + weakest answer",
+  "Company + role blueprint",
+  "High-friction recruiter simulation",
+  "Hiring committee style analytics",
 ];
 
 const quickFeatures = [
-  { title: "Real Recruiter AI", text: "Follow-up questions based on your answers.", icon: Mic },
+  { title: "Recruiter Pressure Simulation", text: "Messy follow-ups, pushback, and hiring-manager scrutiny.", icon: Mic },
   { title: "CV + Job Aware", text: "Practice for the exact role you want.", icon: FileText },
   { title: "Live Copilot", text: "Know what to say next during practice.", icon: Zap },
   { title: "Recruiter Feedback", text: "See score, trust, verdict, and weak answers.", icon: BarChart3 },
@@ -127,7 +127,7 @@ const COMPARISON_ROWS = [
   ["Recruiter Trust Analysis", "Live trust score per answer with a timeline showing why it dropped", "Not available"],
   ["Dynamic Follow-Ups", "Recruiter reacts to your specific answer — not a fixed script", "Preset question order"],
   ["Weakest Answer Detection", "Flags your lowest-scoring answer with a specific, actionable fix", "Not available"],
-  ["Recruiter Personalities", "4 distinct styles: sceptical, fast-paced, culture-focused, executive", "Not available"],
+  ["Recruiter Personalities", "11 recruiter personas — 4 standard, 7 Premium Pro", "Not available"],
   ["Trust Timeline", "Visual graph of recruiter confidence question by question", "Not available"],
   ["Improvement Plan", "Specific metrics, ownership, and structure fixes tied to your session", "Generic tips"],
 ];
@@ -350,7 +350,7 @@ function DemoSection() {
     <section className="px-4 py-20 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl">
         <div className="mx-auto max-w-3xl text-center">
-          <SectionLabel>See it in action</SectionLabel>
+          <SectionLabel>How it works</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
             Watch a live practice session
           </h2>
@@ -676,7 +676,7 @@ export default function LandingPage() {
 
               <div className="invisible absolute left-0 top-full z-50 mt-4 w-72 translate-y-2 rounded-2xl border border-white/10 bg-[#071120]/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
                 {[
-                  ["Real Interview AI", "/features/interview-practice", "See how recruiter-style practice works."],
+                  ["Interview Flight Simulator", "/features/interview-practice", "See how recruiter-style practice works."],
                   ["Improve CV", "/features/improve-cv", "View CV optimization details before upgrading."],
                   ["Cover Letter", "/features/cover-letter", "See how tailored letters are generated."],
                   ["Job Assist", "/features/job-assist", "Understand role-preparation tools."],
@@ -736,20 +736,20 @@ export default function LandingPage() {
           <div className="flex flex-col items-center text-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.20em] text-white/80 backdrop-blur">
               <Sparkles className="h-3.5 w-3.5" />
-              Real Interview AI
+              Interview Flight Simulator
             </div>
 
             <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.02] tracking-tight sm:text-6xl lg:text-[68px]">
-              Practice real interviews<br className="hidden sm:block" /> before the real one.
+              Simulate real hiring pressure<br className="hidden sm:block" /> before the real interview.
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg leading-8 text-white/70 sm:text-xl">
-              WorkZo AI rehearses recruiter-style interviews based on your CV and target job, then shows exactly where recruiter trust dropped.
+              WorkZo turns your CV, target role, and company context into a realistic recruiter simulation with pushback, deep-dives, trust drops, and hiring-committee style feedback.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link href="/pricing?intent=interview" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-7 py-4 text-base font-black text-slate-900 shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-blue-50">
-                Start Interview
+                Start Simulation
                 <ArrowRight className="h-5 w-5" />
               </Link>
               <Link href="/demo" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-7 py-4 text-base font-black text-white backdrop-blur transition hover:bg-white/20">
@@ -779,10 +779,10 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {[
-              ["500+", "AI Interviews Practiced"],
-              ["74", "Avg Trust Score Improvement"],
-              ["10+", "Countries Represented"],
-              ["4", "AI Recruiter Personas"],
+              ["500+", "simulations completed"],
+              ["74", "Avg. trust improvement"],
+              ["10+", "Countries"],
+              ["11", "recruiter personas"],
             ].map(([number, label]) => (
               <div key={label} className="rounded-2xl border border-white/[0.10] bg-black/20 p-6 text-center backdrop-blur-sm">
                 <p className="text-4xl font-black text-white">{number}</p>
@@ -800,12 +800,12 @@ export default function LandingPage() {
       <section id="how" className="px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl">
           <div className="text-center">
-            <SectionLabel>See it in action</SectionLabel>
+            <SectionLabel>How it works</SectionLabel>
             <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-              See How WorkZo Works
+              How the flight simulator works
             </h2>
             <p className="mt-4 text-lg leading-8 text-white/60">
-              A realistic recruiter conversation with live trust analysis.
+              A company-aware interview simulation with pressure, follow-ups, and hiring-signal analysis.
             </p>
           </div>
 
@@ -874,7 +874,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>The problem</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-            Why Good Candidates Still Get Rejected
+            Why strong candidates still get rejected
           </h2>
           <p className="mt-4 text-lg leading-8 text-white/60">
             Most candidates are rejected for communication problems, not technical ability.
@@ -930,7 +930,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>Your report</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-            See What Happens After Every Interview
+            What your report shows after every interview
           </h2>
           <p className="mt-4 text-lg leading-8 text-white/60">
             WorkZo shows exactly where recruiter confidence increased or dropped.
@@ -1026,7 +1026,7 @@ export default function LandingPage() {
 
           <div className="mt-8 text-center">
             <Link
-              href="/pricing?intent=interview"
+              href="/onboarding"
               className="inline-flex items-center gap-2 rounded-2xl bg-white px-7 py-4 text-base font-black text-slate-900 shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-blue-50"
             >
               Start Your Interview
@@ -1067,7 +1067,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>The difference</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-            Built For Real Interviews
+            Built for real interviews
           </h2>
         </div>
 
@@ -1112,10 +1112,10 @@ export default function LandingPage() {
           <div className="mx-auto max-w-3xl text-center">
             <SectionLabel>Pricing</SectionLabel>
             <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-              Start free. Upgrade when you need deeper support.
+              Start free. Upgrade when you need more.
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-300">
-              Free lets you try the interview engine. Premium unlocks complete preparation. Premium Pro adds AI Career Coach and Live AI Recruiter minutes.
+              Free lets you try the simulator. Premium unlocks full interview preparation. Premium Pro adds advanced career strategy and live recruiter sessions.
             </p>
           </div>
 
@@ -1129,7 +1129,7 @@ export default function LandingPage() {
               </p>
               <ul className="mt-5 space-y-2.5">
                 {[
-                  "2 Voice AI Interviews / month",
+                  "2 Recruiter simulations / month",
                   "Recruiter intelligence trial",
                   "Realistic follow-up questions",
                   "Basic interview report",
@@ -1168,7 +1168,7 @@ export default function LandingPage() {
               </div>
               <ul className="mt-5 space-y-2.5">
                 {[
-                  "50 Voice AI Interviews / month",
+                  "50 Recruiter simulations / month",
                   "Advanced recruiter intelligence",
                   "CV Improvement + ATS Optimization",
                   "Cover Letter Generator",
@@ -1191,7 +1191,7 @@ export default function LandingPage() {
                 Best Experience
               </div>
               <p className="text-sm font-black uppercase tracking-[0.20em] text-violet-200">Premium Pro</p>
-              <h3 className="mt-3 pr-24 text-2xl font-black text-white">AI Career Coach + Live Recruiter</h3>
+              <h3 className="mt-3 pr-24 text-2xl font-black text-white">Career Strategy + Live Recruiter</h3>
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 <span className="text-lg font-black text-white/40 line-through decoration-2">{localizedPlans.premiumPro.regular}</span>
                 <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-200">Launch offer</span>
@@ -1209,11 +1209,11 @@ export default function LandingPage() {
               <ul className="mt-5 space-y-2.5">
                 {[
                   "Everything in Premium",
-                  "Unlimited Voice AI Interviews",
+                  "Unlimited Recruiter simulations",
                   "60 Live AI Recruiter Minutes / month",
                   "Live AI Video Recruiter",
                   "Premium recruiter personas",
-                  "AI Career Coach + roadmaps",
+                  "Career strategy + roadmaps",
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-2 text-sm text-white/80">
                     <Sparkles className="h-4 w-4 shrink-0 text-violet-200" />{item}
@@ -1235,7 +1235,7 @@ export default function LandingPage() {
           <div className="mb-10 text-center">
             <SectionLabel>FAQ</SectionLabel>
             <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-              Common Questions
+              Common questions
             </h2>
           </div>
           <div className="space-y-2">
@@ -1245,7 +1245,7 @@ export default function LandingPage() {
               ["What does the trust score measure?", "Recruiter confidence in your answers across the full interview, updated question by question. A drop means the recruiter needed more proof or specifics."],
               ["Can I use my actual CV?", "Yes. Paste or upload your resume and WorkZo tailors every question to your real background and the target role."],
               ["What is in a full interview report?", "Trust timeline per question, weakest answer, recruiter thoughts on your performance, and a detailed improvement plan."],
-              ["Which languages are supported?", "English. More languages are on the roadmap."],
+              ["Which languages are supported?", "English, German, Dutch, French, Spanish, Italian, and Portuguese. The recruiter speaks in your selected language — not just the UI."],
             ].map(([question, answer]) => (
               <FaqItem key={question} question={question} answer={answer} />
             ))}

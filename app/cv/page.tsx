@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import PremiumFeatureGate from "@/components/PremiumFeatureGate";
 import { ArrowLeft, AlertTriangle, CheckCircle2, Copy, Download, FileText, Gauge, Printer, Sparkles, Target } from "lucide-react";
 import {
   buildResumeJson,
@@ -244,7 +245,8 @@ export default function CvWorkspacePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#020817] px-5 py-6 text-white">
+    <PremiumFeatureGate feature="improve_cv" title="Improve CV is a Premium feature" description="ATS keyword analysis, job-specific CV improvement, exports, and advanced CV targeting are included in Premium.">
+      <main className="min-h-screen bg-[#020817] px-5 py-6 text-white">
       <header className="mx-auto mb-6 flex max-w-7xl items-center justify-between">
         <Link
           href="/dashboard"
@@ -679,5 +681,6 @@ export default function CvWorkspacePage() {
         </div>
       </section>
     </main>
+    </PremiumFeatureGate>
   );
 }

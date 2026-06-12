@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CheckCircle2, Clock, Sparkles, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Circle, Clock3, Rocket, Sparkles, Star } from "lucide-react";
 import WorkZoFooter from "@/components/WorkZoFooter";
 
 export const metadata = {
@@ -8,124 +8,136 @@ export const metadata = {
 };
 
 const shipped = [
-  "CV-aware recruiter intelligence — questions built from your actual CV",
-  "Trust score per answer with exact reason shown",
-  "Contradiction and claim verification — AI catches unsupported facts",
-  "Recruiter interruption — cuts you off when you ramble",
-  "Cross-session memory — recruiter remembers your patterns",
-  "7-language support with language-enforced recruiter replies",
-  "Live copilot with real-time coaching during the interview",
-  "Stripe billing with Free / Premium / Premium Pro plans",
+  "CV-aware recruiter intelligence — questions built from your actual CV and JD",
+  "Live trust score per answer with the exact reason shown in real time",
+  "Contradiction and claim verification — AI catches unsupported facts instantly",
+  "Recruiter interruption — cuts you off mid-answer when you ramble",
+  "Cross-session career memory — recruiter remembers your recurring patterns",
+  "7-language support with fully language-enforced recruiter replies",
+  "Live copilot panel with real-time coaching during the interview",
+  "Stripe billing with Free / Premium / Premium Pro tiers",
   "AI career coach, 30/60/90 roadmaps, and replay intelligence (Pro)",
-  "7 Premium Pro recruiter personas",
-  "ElevenLabs recruiter voice per character",
-  "ATS keyword gap analysis on CV page",
-  "AI cover letter generation from CV + JD",
-  "Job fit analysis with likely interview questions",
-  "Multi-session snapshot recovery",
+  "7 Premium Pro recruiter personas: FAANG, Startup Founder, Consulting Partner, Sales Director, Product Leader, Executive, Enterprise",
+  "Recruiter emotional state engine — visual reactions (sceptical, interested, interrupting)",
+  "Live filler word counter — um, uh, like tracked in real time",
+  "ElevenLabs per-recruiter voices",
+  "Shareable interview moments — contradiction caught, trust recovery",
 ];
 
 const building = [
-  { title: "Company DNA interview mode", detail: "Pick 'Practice for Google', 'McKinsey', 'Series A startup', or 'Enterprise bank' — interview pressure, style, and follow-ups adapt to that specific culture." },
-  { title: "Wow moment detection on results", detail: "After each session: see the exact moment trust dropped, the best comeback, and the most memorable recruiter challenge — shareable as a card." },
-  { title: "Retry weak answer from results", detail: "One-click to retry your weakest answer with a suggested rewrite. Starts a new session with that specific question loaded first." },
-  { title: "Speaking pace coaching", detail: "Words per minute shown in real time and in the results report. Pacing card already exists — now powered by real data from every session." },
-  { title: "In-place settings editing", detail: "Change recruiter, language, and interview style without repeating the full onboarding flow." },
+  { label: "Candidate video self-review playback", progress: 40 },
+  { label: "Speaking pace and WPM coaching in real time", progress: 30 },
+  { label: "Company DNA mode — 'Practice for Google', 'Practice for McKinsey'", progress: 60 },
+  { label: "In-place settings editing without returning to onboarding", progress: 50 },
+  { label: "Interview probability forecasting dashboard widget", progress: 25 },
 ];
 
-const later = [
-  { title: "LinkedIn profile import", detail: "Paste a LinkedIn URL and WorkZo extracts role history, skills, and education directly." },
-  { title: "Scheduled practice reminders", detail: "Set a practice goal (3x per week) and get a reminder. Session streak displayed on dashboard." },
-  { title: "Interview probability score", detail: "Based on your CV, target role, and session history — a forecast of your current interview-readiness." },
-  { title: "Team and coach workspace", detail: "Career coaches can assign practice sessions, track client progress, and review session reports." },
-  { title: "Candidate comparison mode", detail: "See how your answers rank against strong and weak answer patterns for the same role." },
+const planned = [
+  "Mobile app — iOS and Android",
+  "B2B — career coaching platform for universities and coaches",
+  "Interview audit — upload a real recording for AI feedback",
+  "Salary negotiation practice mode",
+  "Assessment centre simulation",
+  "Candidate benchmarking against top performers by role",
+  "LinkedIn message and cold outreach coach",
+  "API access for enterprise integrations",
 ];
 
 export default function RoadmapPage() {
   return (
-    <main className="min-h-screen bg-[#050a12] text-white">
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.1),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.1),transparent_34%)]" />
+    <main className="min-h-screen bg-[#04080f] text-white">
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,rgba(34,211,238,0.07),transparent_55%)]" />
 
-      <div className="mx-auto max-w-6xl px-5 py-8 sm:px-6 lg:px-8">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-bold text-slate-300 hover:text-white">
-          <ArrowLeft className="h-4 w-4" /> Back to WorkZo AI
+      <div className="mx-auto max-w-5xl px-5 py-12 sm:px-6 lg:px-8">
+        <Link href="/" className="inline-flex items-center gap-2 text-sm font-black text-slate-400 transition hover:text-white">
+          <ArrowLeft className="h-4 w-4" /> Back home
         </Link>
 
-        <section className="mt-10 rounded-[2rem] border border-white/10 bg-white/[0.03] p-8">
+        <header className="mt-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
-            <Sparkles className="h-4 w-4" /> Product roadmap
+            <Sparkles className="h-3.5 w-3.5" /> Product roadmap
           </div>
-          <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-5xl">What we are building</h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
-            WorkZo AI ships improvements continuously. This page tracks what has been shipped, what is being built now, and what is planned next.
+          <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-5xl">What we're building</h1>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-slate-400">
+            WorkZo AI ships continuously. Here is what is already live, what is in active development, and what is coming next.
           </p>
-        </section>
+        </header>
 
         {/* Shipped */}
-        <section className="mt-8">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-400/15">
-              <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+        <section className="mt-12">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-4 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-emerald-200">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Live now
             </div>
-            <h2 className="text-xl font-black">Shipped</h2>
+            <div className="h-px flex-1 bg-white/[0.07]" />
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2.5 sm:grid-cols-2">
             {shipped.map((item) => (
-              <div key={item} className="flex items-start gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
-                <p className="text-sm leading-6 text-slate-300">{item}</p>
+              <div key={item} className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm leading-5 text-slate-300">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                {item}
               </div>
             ))}
           </div>
         </section>
 
-        {/* Building now */}
-        <section className="mt-8">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="grid h-8 w-8 place-items-center rounded-xl bg-blue-400/15">
-              <Zap className="h-5 w-5 text-blue-300" />
+        {/* In development */}
+        <section className="mt-12">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex items-center gap-2 rounded-full border border-blue-300/20 bg-blue-400/10 px-4 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-blue-200">
+              <Clock3 className="h-3.5 w-3.5" /> In development
             </div>
-            <h2 className="text-xl font-black">Building now</h2>
+            <div className="h-px flex-1 bg-white/[0.07]" />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3">
             {building.map((item) => (
-              <div key={item.title} className="rounded-2xl border border-blue-300/15 bg-blue-500/[0.05] p-5">
-                <p className="font-black text-white">{item.title}</p>
-                <p className="mt-2 text-sm leading-6 text-slate-400">{item.detail}</p>
+              <div key={item.label} className="rounded-xl border border-blue-300/10 bg-blue-500/[0.05] px-5 py-4">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm font-black text-white">{item.label}</p>
+                  <span className="shrink-0 text-xs font-black text-blue-300">{item.progress}%</span>
+                </div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all"
+                    style={{ width: `${item.progress}%` }}
+                  />
+                </div>
               </div>
             ))}
           </div>
         </section>
 
         {/* Planned */}
-        <section className="mt-8">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="grid h-8 w-8 place-items-center rounded-xl bg-violet-400/15">
-              <Clock className="h-5 w-5 text-violet-300" />
+        <section className="mt-12">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-violet-200">
+              <Star className="h-3.5 w-3.5" /> Planned
             </div>
-            <h2 className="text-xl font-black">Planned</h2>
+            <div className="h-px flex-1 bg-white/[0.07]" />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {later.map((item) => (
-              <div key={item.title} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5">
-                <p className="font-black text-white">{item.title}</p>
-                <p className="mt-2 text-sm leading-6 text-slate-400">{item.detail}</p>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {planned.map((item) => (
+              <div key={item} className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm leading-5 text-slate-400">
+                <Circle className="mt-0.5 h-4 w-4 shrink-0 text-slate-600" />
+                {item}
               </div>
             ))}
           </div>
         </section>
 
-        <section className="mt-8 rounded-[2rem] border border-blue-300/20 bg-blue-500/[0.07] p-8">
-          <h2 className="text-2xl font-black">Have a feature request?</h2>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">
-            We build based on what users actually need. Send a suggestion and we will review it for the next sprint.
-          </p>
-          <a href="mailto:support@workzoai.com?subject=WorkZo AI Feature Request" className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400">
-            Send a request <ArrowRight className="h-4 w-4" />
-          </a>
-        </section>
+        <div className="mt-12 rounded-[2rem] border border-blue-300/20 bg-blue-500/[0.07] p-7">
+          <h2 className="text-xl font-black">Have a suggestion?</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300">The most-requested features move up the priority queue. Email us and tell us what you need.</p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <a href="mailto:support@workzoai.com?subject=WorkZo AI Feature Request" className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400">
+              Send a suggestion <ArrowRight className="h-4 w-4" />
+            </a>
+            <Link href="/pricing" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
+              View pricing
+            </Link>
+          </div>
+        </div>
       </div>
-
       <WorkZoFooter />
     </main>
   );

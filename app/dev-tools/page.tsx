@@ -9,6 +9,8 @@ import {
   getWorkZoUsageSummary,
   resetWorkZoTestingUsage,
   setWorkZoCurrentPlan,
+  clearWorkZoDevPlanOverride,
+  getWorkZoDevPlanOverride,
 } from "@/lib/workzoUsageTracker";
 import { getWorkZoPlanLimits, normalizeWorkZoPlan, type WorkZoPlanType } from "@/lib/workzoPlanLimits";
 
@@ -57,12 +59,14 @@ export default function DevToolsPage() {
   const [mounted, setMounted] = useState(false);
   const [summary, setSummary] = useState<DevSummary | null>(null);
   const [plan, setPlan] = useState<WorkZoPlanType>("free");
+  const [devOverrideActive, setDevOverrideActive] = useState(false);
 
   function refresh() {
     if (typeof window === "undefined") return;
     const currentPlan = normalizeWorkZoPlan(getWorkZoCurrentPlan());
     setSummary(getWorkZoUsageSummary(currentPlan));
     setPlan(currentPlan);
+    setDevOverrideActive(Boolean(getWorkZoDevPlanOverride()));
   }
 
   function clearCheckoutState() {
@@ -74,9 +78,20 @@ export default function DevToolsPage() {
     refresh();
   }
 
+  // Full reset — clears the dev plan override so the real DB plan
+  // (from /api/account/plan) takes effect again on next page load.
+  function resetToRealAccountPlan() {
+    if (typeof window === "undefined") return;
+    clearWorkZoDevPlanOverride();
+    clearCheckoutState();
+    window.location.reload();
+  }
+
   function setPlanForTesting(nextPlan: WorkZoPlanType) {
     disableWorkZoFounderTestMode();
-    setWorkZoCurrentPlan(nextPlan);
+    // isDevOverride=true: this plan persists even after pages call
+    // fetchWorkZoAuthoritativePlan() and get "free" back from the DB.
+    setWorkZoCurrentPlan(nextPlan, true);
     resetWorkZoTestingUsage();
     clearCheckoutState();
     refresh();
@@ -84,7 +99,7 @@ export default function DevToolsPage() {
 
   function testAsFounderUnlimited() {
     enableWorkZoFounderTestMode();
-    setWorkZoCurrentPlan("premium_pro");
+    setWorkZoCurrentPlan("premium_pro", true);
     resetWorkZoTestingUsage();
     clearCheckoutState();
     refresh();
@@ -99,7 +114,7 @@ export default function DevToolsPage() {
   }
 
   function simulateFreeLimitReached() {
-    setWorkZoCurrentPlan("free");
+    setWorkZoCurrentPlan("free", true);
     setUsagePatch({
       interviewsStarted: 2,
       tavusInterviewsStarted: 0,
@@ -109,7 +124,7 @@ export default function DevToolsPage() {
   }
 
   function simulatePremiumLimitReached() {
-    setWorkZoCurrentPlan("premium");
+    setWorkZoCurrentPlan("premium", true);
     setUsagePatch({
       interviewsStarted: 50,
       tavusInterviewsStarted: 0,
@@ -119,7 +134,7 @@ export default function DevToolsPage() {
   }
 
   function simulateProTavusExpired() {
-    setWorkZoCurrentPlan("premium_pro");
+    setWorkZoCurrentPlan("premium_pro", true);
     setUsagePatch({
       tavusInterviewsStarted: 999,
       tavusMinutesUsed: 60,
@@ -193,6 +208,9 @@ export default function DevToolsPage() {
               Plan: <strong>{displayPlan}</strong>
             </p>
             <p>
+              Override: <strong className={devOverrideActive ? "text-amber-300" : "text-slate-500"}>{devOverrideActive ? "Active" : "None"}</strong>
+            </p>
+            <p>
               Founder mode: <strong>{founderMode}</strong>
             </p>
             <p>
@@ -208,6 +226,24 @@ export default function DevToolsPage() {
               Tavus: <strong>{tavusUsed}/{tavusLimit}</strong>
             </p>
           </div>
+
+          {devOverrideActive && (
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300/20 bg-amber-400/[0.07] p-4">
+              <div>
+                <p className="text-sm font-black text-amber-200">Dev plan override active: {displayPlan}</p>
+                <p className="mt-1 text-xs leading-5 text-amber-100/80">
+                  Every page will show this plan, even after calling /api/account/plan. This persists across page loads until cleared.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={resetToRealAccountPlan}
+                className="shrink-0 rounded-xl border border-amber-300/25 bg-amber-400/10 px-4 py-2 text-xs font-black text-amber-100 hover:bg-amber-400/15"
+              >
+                Clear override — use real account plan
+              </button>
+            </div>
+          )}
 
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
             {planCards.map((card) => (

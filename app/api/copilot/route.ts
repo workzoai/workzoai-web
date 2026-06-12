@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
+import { canUseWorkZoFeature, getWorkZoFeatureRequiredPlan } from "@/lib/workzoPlanLimits";
 import { askOpenRouter } from "@/lib/openrouter";
 
 type CopilotAction =
@@ -151,6 +153,14 @@ function isPaidPlan(plan: string): boolean {
 }
 
 export async function POST(request: Request) {
+  const account = await resolveWorkZoServerPlan();
+  if (!account.authenticated) {
+    return NextResponse.json({ error: "Please sign in to use this feature." }, { status: 401 });
+  }
+  if (!canUseWorkZoFeature(account.plan, "career_brain")) {
+    return NextResponse.json({ error: "Upgrade required.", requiredPlan: getWorkZoFeatureRequiredPlan("career_brain"), plan: account.plan }, { status: 403 });
+  }
+
   try {
     if (!process.env.OPENROUTER_API_KEY) {
       return NextResponse.json({ success: false, error: "OPENROUTER_API_KEY is missing." }, { status: 500 });

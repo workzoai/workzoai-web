@@ -12,7 +12,7 @@ const systems = [
   ["Interview practice", "Operational"],
   ["Results reports", "Operational"],
   ["History", "Operational"],
-  ["Payments", "Coming soon"],
+  ["Payments", "Operational"],
 ];
 
 export default function StatusPage() {
