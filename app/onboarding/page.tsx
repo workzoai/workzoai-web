@@ -6,28 +6,20 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
-  Briefcase,
-  Building2,
   Check,
-  ChevronRight,
+  ChevronDown,
   FileText,
-  Globe2,
   Lock,
-  Mic,
-  Radar,
-  ShieldCheck,
+  Plus,
   Sparkles,
   Upload,
-  UserRound,
-  Wand2,
-  Zap,
+  X,
 } from "lucide-react";
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useId, useMemo, useState } from "react";
 
 import { useInterviewStore } from "@/store/interviewStore";
 import { buildAndSaveInterviewSetup, structureResumeProfileFromCv } from "@/lib/workzoCvClient";
 import {
-  extractResumeProfile,
   extractResumeProfileComplex,
   normalizeResumeText,
   type ResumeProfile,
@@ -35,6 +27,7 @@ import {
 import {
   saveLatestInterviewSetup,
   clearLatestInterviewSetup,
+  readLatestInterviewSetup,
 } from "@/lib/workzoInterviewSetup";
 
 import PrivacyNotice from "@/components/BetaPrivacyNotice";
@@ -90,22 +83,6 @@ type SetupState = {
   updatedAt?: string;
   source?: string;
 };
-
-type CardIcon = typeof FileText;
-
-type PreviewCard = {
-  label: string;
-  value: string;
-  Icon: CardIcon;
-};
-
-const steps = [
-  { id: 1, label: "Upload CV" },
-  { id: 2, label: "Job Role" },
-  { id: 3, label: "Preferences" },
-  { id: 4, label: "Preview" },
-  { id: 5, label: "Start" },
-];
 
 const markets: { label: Market; flag: string }[] = [
   { label: "Global", flag: "🌍" },
@@ -205,26 +182,6 @@ function normalizeInterviewLanguage(value?: unknown): InterviewLanguage {
   return "English";
 }
 
-const waveform = [
-  8, 14, 22, 12, 18, 26, 14, 20, 11, 24, 16, 28, 12, 20, 15, 23, 10, 19, 13, 26,
-  14, 18, 9, 22,
-];
-
-const analysisSignals = [
-  "CV evidence scan",
-  "JD match logic",
-  "Recruiter memory",
-  "Pressure moments",
-  "Market expectations",
-];
-
-const liveStatusMessages = [
-  "Analyzing communication style",
-  "Matching recruiter expectations",
-  "Building contradiction memory",
-  "Preparing pressure follow-ups",
-];
-
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -264,12 +221,6 @@ function normalizeRecruiterKey(value?: unknown): RecruiterKey {
   if (key === "enterprise_recruiter" || raw.includes("enterprise_recruiter") || raw.includes("kimura")) return "enterprise_recruiter";
 
   return "analytical_hiring_manager";
-}
-
-function compactText(value?: string, fallback = "Missing") {
-  const text = value?.trim();
-  if (!text) return fallback;
-  return text.length > 70 ? `${text.slice(0, 70)}...` : text;
 }
 
 function getStoreSetup(store: unknown): SetupState {
@@ -438,7 +389,7 @@ function buildCanonicalCvSetup(input: {
   } as SetupState;
 }
 
-function saveCanonicalCvSetup(setup: SetupState, store: any) {
+function saveCanonicalCvSetup(setup: SetupState, store: unknown) {
   debugCvProfile("onboarding.saveCanonicalCvSetup.before", setup.resumeProfile, {
     setupId: setup.setupId,
     source: setup.source,
@@ -455,154 +406,295 @@ function saveCanonicalCvSetup(setup: SetupState, store: any) {
   });
 }
 
-function ResumeProfileReview({ profile }: { profile: ResumeProfile | null }) {
-  if (!profile) {
-    return (
-      <div className="mt-4 rounded-3xl border border-white/10 bg-[#050b16] p-5 text-sm leading-6 text-slate-400">
-        Upload a CV or paste CV text. WorkZo will convert it into a clean
-        profile before the interview.
-      </div>
-    );
-  }
+type PersonaItem = (typeof recruiters)[number];
 
-  const basics = profile.basics;
-  const topSkills = profile.skills.slice(0, 18);
-  const experience = profile.experience.slice(0, 3);
-  const projects = profile.projects.slice(0, 3);
-  const education = profile.education.slice(0, 3);
-  const languages = profile.languages.slice(0, 6);
+function PersonaCard({
+  persona,
+  selected,
+  locked,
+  pro,
+  onClick,
+}: {
+  persona: PersonaItem;
+  selected: boolean;
+  locked?: boolean;
+  pro?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "relative rounded-2xl border p-3.5 text-left transition",
+        locked
+          ? "cursor-not-allowed border-white/[0.06] bg-white/[0.02] opacity-50 hover:opacity-70 hover:border-violet-300/20 hover:bg-violet-500/[0.05]"
+          : selected
+            ? pro
+              ? "border-violet-300/45 bg-violet-500/10 shadow-[0_0_28px_rgba(139,92,246,0.14)]"
+              : "border-cyan-300/45 bg-cyan-400/[0.09] shadow-[0_0_28px_rgba(34,211,238,0.13)]"
+            : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06] active:scale-[0.99]",
+      )}
+    >
+      {pro && locked && (
+        <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full border border-violet-300/25 bg-violet-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-violet-200">
+          <Lock className="h-2.5 w-2.5" />
+          Pro
+        </span>
+      )}
+      {selected && !locked && (
+        <span
+          className={cn(
+            "absolute right-2.5 top-2.5 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em]",
+            pro ? "bg-violet-300/15 text-violet-200" : "bg-cyan-300/15 text-cyan-200",
+          )}
+        >
+          Selected
+        </span>
+      )}
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.07] text-base">
+          {persona.avatar}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-black leading-4 text-white">{persona.name}</p>
+          <p className="mt-0.5 truncate text-[11px] font-bold text-slate-400">{persona.role}</p>
+        </div>
+      </div>
+      <p className="mt-2.5 text-xs leading-4 text-slate-400">{persona.description}</p>
+    </button>
+  );
+}
+
+function ProPersonaDropdown({
+  open,
+  onToggle,
+  isProUser,
+  recruiter,
+  onSelect,
+  nudgeKey,
+  onLockedClick,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  isProUser: boolean;
+  recruiter: RecruiterKey;
+  onSelect: (key: RecruiterKey) => void;
+  nudgeKey: number;
+  onLockedClick: () => void;
+}) {
+  return (
+    <div className="mt-3 overflow-hidden rounded-2xl border border-violet-300/15 bg-violet-500/[0.05]">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onToggle();
+          }
+        }}
+        className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-3 text-left transition hover:bg-violet-500/[0.08]"
+      >
+        <Lock className="h-4 w-4 shrink-0 text-violet-300" />
+        <span className="text-sm font-black text-violet-100">Premium Pro personas</span>
+        <span className="rounded-full border border-violet-300/25 bg-violet-400/15 px-2 py-0.5 text-[10px] font-black text-violet-200">
+          {proRecruiters.length}
+        </span>
+        <span className="hidden text-xs text-slate-500 sm:inline">
+          High-pressure interviewers for senior prep
+        </span>
+        {!isProUser && (
+          <Link
+            key={nudgeKey}
+            href="/pricing?plan=premium_pro&intent=personas"
+            onClick={(event) => event.stopPropagation()}
+            className={cn(
+              "ml-auto shrink-0 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-black text-white transition hover:bg-violet-400",
+              nudgeKey > 0 && "animate-[wzNudge_0.45s_ease-in-out_2]",
+            )}
+          >
+            Unlock
+          </Link>
+        )}
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200",
+            !isProUser ? "" : "ml-auto",
+            open && "rotate-180",
+          )}
+        />
+      </div>
+
+      {open && (
+        <div className="border-t border-violet-300/10 p-3">
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {proRecruiters.map((item) => (
+              <PersonaCard
+                key={item.key}
+                persona={item}
+                pro
+                locked={!isProUser}
+                selected={recruiter === item.key}
+                onClick={() => {
+                  if (isProUser) {
+                    onSelect(item.key);
+                  } else {
+                    onLockedClick();
+                  }
+                }}
+              />
+            ))}
+          </div>
+          {!isProUser && (
+            <p className="mt-3 text-center text-xs font-bold text-slate-500">
+              These personas are visible to everyone, but interviewing with them requires{" "}
+              <span className="text-violet-300">Premium Pro</span>.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const readinessChecklist: { key: "cv" | "jd" | "role" | "style"; label: string }[] = [
+  { key: "cv", label: "CV uploaded" },
+  { key: "jd", label: "Job description" },
+  { key: "role", label: "Target role" },
+  { key: "style", label: "Interview style" },
+];
+
+function readinessHint(readiness: number) {
+  if (readiness >= 100) return "Fully personalised. The recruiter knows your story.";
+  if (readiness >= 75) return "Almost there — one more detail sharpens the questions.";
+  if (readiness >= 50) return "Good base. Add more context for sharper follow-ups.";
+  return "Add your CV to unlock a personal interview.";
+}
+
+function ReadinessRail({
+  readiness,
+  checks,
+  summaryLine,
+  onStart,
+  hideCta,
+}: {
+  readiness: number;
+  checks: Record<"cv" | "jd" | "role" | "style", boolean>;
+  summaryLine: string;
+  onStart: () => void;
+  hideCta?: boolean;
+}) {
+  const gradientId = useId().replace(/:/g, "");
+  const circumference = 251.3;
+  const dashOffset = circumference - (circumference * readiness) / 100;
 
   return (
-    <section className="mt-4 space-y-4 rounded-3xl border border-white/10 bg-[#050b16] p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">
-            Review your professional profile
-          </p>
-          <h2 className="mt-2 break-words text-2xl font-black text-white">
-            {basics.name || "Candidate"}
-          </h2>
-          <p className="mt-1 text-sm font-bold text-blue-100">
-            {basics.headline || "Professional"}
-          </p>
-          <p className="mt-2 break-words text-xs leading-5 text-slate-400">
-            {[basics.email, basics.phone, basics.location, basics.linkedin]
-              .filter(Boolean)
-              .join(" • ")}
-          </p>
+    <div className="rounded-[22px] border border-white/10 bg-white/[0.028] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
+      <div className="relative overflow-hidden rounded-[18px] border border-white/[0.07] bg-black/20 p-4">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-1/2 top-[-60px] h-48 w-48 -translate-x-1/2 rounded-full bg-blue-500/10 blur-[70px]" />
         </div>
-        <span className="shrink-0 rounded-full border border-emerald-300/15 bg-emerald-400/10 px-3 py-1.5 text-xs font-black text-emerald-200">
-          Clean profile ready
-        </span>
-      </div>
 
-      {profile.summary ? (
-        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
-            Summary
-          </p>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
-            {profile.summary}
-          </p>
-        </div>
-      ) : null}
-
-      {experience.length ? (
-        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
-            Experience
-          </p>
-          <div className="mt-3 space-y-3">
-            {experience.map((job, index) => (
-              <div
-                key={`experience-${job.company || "company"}-${job.title || "title"}-${job.dates || "dates"}-${index}`}
-                className="rounded-2xl bg-black/20 p-3"
-              >
-                <p className="font-black text-white">{job.title || "Role"}</p>
-                <p className="mt-1 text-sm font-bold text-blue-100">
-                  {[job.company, job.dates].filter(Boolean).join(" • ")}
-                </p>
-                {job.bullets.length ? (
-                  <ul className="mt-2 space-y-1 text-sm leading-5 text-slate-400">
-                    {job.bullets.slice(0, 3).map((bullet, bulletIndex) => (
-                      <li key={`bullet-${index}-${bulletIndex}`}>• {bullet}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            ))}
+        <div className="relative flex items-center gap-4">
+          <div className="relative h-[88px] w-[88px] shrink-0">
+            <svg viewBox="0 0 96 96" className="h-full w-full -rotate-90">
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" />
+                  <stop offset="60%" stopColor="#22d3ee" />
+                  <stop offset="100%" stopColor="#34d399" />
+                </linearGradient>
+              </defs>
+              <circle
+                cx="48"
+                cy="48"
+                r="40"
+                fill="none"
+                strokeWidth="7"
+                className="stroke-white/[0.08]"
+              />
+              <circle
+                cx="48"
+                cy="48"
+                r="40"
+                fill="none"
+                strokeWidth="7"
+                strokeLinecap="round"
+                stroke={`url(#${gradientId})`}
+                strokeDasharray={circumference}
+                strokeDashoffset={dashOffset}
+                className="transition-all duration-500"
+              />
+            </svg>
+            <span className="absolute inset-0 grid place-items-center text-xl font-black">
+              {readiness}%
+            </span>
+          </div>
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-cyan-200">
+              Readiness
+            </p>
+            <p className="mt-1 text-sm font-bold leading-5 text-slate-300">
+              {readinessHint(readiness)}
+            </p>
           </div>
         </div>
-      ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {topSkills.length ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
-              Skills
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {topSkills.map((skill, index) => (
+        <div className="relative mt-4 space-y-1.5">
+          {readinessChecklist.map((item) => {
+            const done = checks[item.key];
+            return (
+              <div key={item.key} className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm">
                 <span
-                  key={`skill-${skill || "skill"}-${index}`}
-                  className="rounded-full border border-cyan-300/15 bg-cyan-400/8 px-3 py-1.5 text-xs font-bold text-cyan-100"
+                  className={cn(
+                    "grid h-5 w-5 place-items-center rounded-full border",
+                    done
+                      ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-300"
+                      : "border-white/15 text-slate-500",
+                  )}
                 >
-                  {skill}
+                  {done && <Check className="h-3 w-3" strokeWidth={3.5} />}
                 </span>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {education.length || languages.length ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
-              Education & languages
-            </p>
-            <div className="mt-3 space-y-2 text-sm leading-5 text-slate-300">
-              {education.map((edu, index) => (
-                <p
-                  key={`education-${edu.degree || "degree"}-${edu.institution || "institution"}-${edu.dates || "dates"}-${index}`}
-                >
-                  •{" "}
-                  {[edu.degree, edu.institution, edu.dates]
-                    .filter(Boolean)
-                    .join(" • ")}
-                </p>
-              ))}
-              {languages.map((language, index) => (
-                <p key={`language-${language || "language"}-${index}`}>
-                  • {language}
-                </p>
-              ))}
-            </div>
-          </div>
-        ) : null}
+                <span className={cn("font-bold", done ? "text-slate-200" : "text-slate-500")}>
+                  {item.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {projects.length ? (
-        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
-            Projects
-          </p>
-          <div className="mt-3 grid gap-3 md:grid-cols-3">
-            {projects.map((project, index) => (
-              <div
-                key={`project-${project.name || "project"}-${index}`}
-                className="rounded-2xl bg-black/20 p-3"
-              >
-                <p className="font-black text-white">{project.name}</p>
-                {project.bullets[0] ? (
-                  <p className="mt-2 text-xs leading-5 text-slate-400">
-                    {project.bullets[0]}
-                  </p>
-                ) : null}
-              </div>
-            ))}
+      <div className="mt-3 rounded-[18px] border border-white/[0.07] bg-black/20 p-4">
+        <div className="flex items-start gap-3">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-500/12 text-blue-200">
+            <Sparkles className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
+              Your interview
+            </p>
+            <p className="mt-1.5 text-sm font-black leading-6 text-white">{summaryLine}</p>
           </div>
         </div>
-      ) : null}
-    </section>
+      </div>
+
+      {!hideCta && (
+        <button
+          type="button"
+          onClick={onStart}
+          className="mt-3 flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 text-base font-black text-white shadow-[0_18px_45px_rgba(14,165,233,0.30)] transition hover:scale-[1.01] active:scale-[0.99]"
+        >
+          Start Interview
+          <ArrowRight className="h-5 w-5" />
+        </button>
+      )}
+      <p className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-xs font-bold text-slate-500">
+        <Lock className="h-3.5 w-3.5 text-emerald-300/80" />
+        Private — you can edit everything before starting.
+      </p>
+    </div>
   );
 }
 
@@ -611,7 +703,6 @@ export default function OnboardingPage() {
   const store = useInterviewStore() as unknown;
   const setup = getStoreSetup(store);
 
-  const [step, setStep] = useState(1);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [fileName, setFileName] = useState("");
@@ -619,7 +710,7 @@ export default function OnboardingPage() {
   // previous session is tracked separately so we can show a clear banner
   // instead of silently rendering a possibly-stale extracted profile.
   const [manualCv, setManualCv] = useState("");
-  const [restoredCvText] = useState(setup.cvText || "");
+  const [restoredCvText, setRestoredCvText] = useState(setup.cvText || "");
   const [restoredCvDismissed, setRestoredCvDismissed] = useState(false);
   const [useRestoredCv, setUseRestoredCv] = useState(false);
 
@@ -649,20 +740,22 @@ export default function OnboardingPage() {
   const [interviewLanguage, setInterviewLanguage] = useState<InterviewLanguage>(
     normalizeInterviewLanguage(setup.language),
   );
-  const [aiResumeProfile, setAiResumeProfile] = useState<ResumeProfile | null>(
-    null,
-  );
+  // The structured profile is no longer rendered (single-screen design hides
+  // the parsed output), but structureCvWithAi still produces it for the setup.
+  const [, setAiResumeProfile] = useState<ResumeProfile | null>(null);
   const [aiCvStructuringStatus, setAiCvStructuringStatus] = useState<
     "idle" | "structuring" | "ready" | "fallback"
   >("idle");
 
-  const resumeProfile = useMemo(() => {
-    if (aiResumeProfile) return aiResumeProfile;
-
-    const source = normalizeResumeText(effectiveCvText);
-    if (!source.trim()) return null;
-    return extractResumeProfileComplex(source);
-  }, [aiResumeProfile, effectiveCvText]);
+  // Single-screen UI state
+  const [contextModalOpen, setContextModalOpen] = useState(false);
+  const [jdDraft, setJdDraft] = useState("");
+  const [proListOpen, setProListOpen] = useState(false);
+  const [nudgeKey, setNudgeKey] = useState(0);
+  // Persist requests are processed in effects so persistFast/persist always
+  // read committed state instead of stale closures.
+  const [persistRequest, setPersistRequest] = useState(0);
+  const [persistFullRequest, setPersistFullRequest] = useState(0);
 
   const readiness = useMemo(() => {
     const cvReady = Boolean(effectiveCvText.trim());
@@ -684,59 +777,18 @@ export default function OnboardingPage() {
     jobDescription,
   ]);
 
-  const visualReadinessByStep: Record<number, number> = {
-    1: 25,
-    2: 50,
-    3: 75,
-    4: 90,
-    5: 100,
+  const checks = {
+    cv: Boolean(effectiveCvText.trim()),
+    jd: Boolean(jobDescription.trim()),
+    role: Boolean(role.trim()),
+    style: true,
   };
 
-  const visualReadiness = Math.max(
-    readiness,
-    visualReadinessByStep[step] || readiness,
-  );
+  const selectedPersona =
+    [...recruiters, ...proRecruiters].find((item) => item.key === recruiter) ||
+    recruiters[1];
 
-  const currentStepLabel =
-    steps.find((item) => item.id === step)?.label || "Setup";
-
-  const setupGuideContent: Record<
-    number,
-    { title: string; description: string; summary: string }
-  > = {
-    1: {
-      title: "WorkZo is understanding your experience.",
-      description:
-        "Add your CV first. The recruiter will use your real background instead of asking generic practice questions.",
-      summary: `Your CV context is being prepared for ${recruiterLabel(recruiter)}.`,
-    },
-    2: {
-      title: "Interview questions are adapting to your role.",
-      description:
-        "Add a target role or job description so WorkZo can ask sharper, role-specific follow-ups.",
-      summary: `You are shaping this interview around ${role.trim() || "your target role"}.`,
-    },
-    3: {
-      title: "Recruiter behavior is being calibrated.",
-      description:
-        "Market, company style, and recruiter personality quietly shape the pressure, tone, and expectations.",
-      summary: `You are choosing ${recruiterLabel(recruiter)} with a ${companyStyle.toLowerCase()} interview style in ${interviewLanguage}.`,
-    },
-    4: {
-      title: "Pressure and follow-up logic are prepared.",
-      description:
-        "Review the setup once. WorkZo will use this context to simulate a more realistic recruiter conversation.",
-      summary: `You are preparing a realistic interview with ${recruiterLabel(recruiter)}.`,
-    },
-    5: {
-      title: "Your interview runtime is ready.",
-      description:
-        "Start when ready. You can still return and edit your setup before practicing again.",
-      summary: `Your interview room is ready with ${recruiterLabel(recruiter)}.`,
-    },
-  };
-
-  const guide = setupGuideContent[step] || setupGuideContent[1];
+  const summaryLine = `${selectedPersona.name} · ${selectedPersona.role} — ${companyStyle} style, ${market} market, in ${interviewLanguage}${role.trim() ? `, for a ${role.trim()} role` : ""}.`;
 
   function buildDraftSetup(): SetupState {
     const cvText = effectiveCvText.trim();
@@ -763,6 +815,10 @@ export default function OnboardingPage() {
       companyStyle,
       recruiterStyle: companyStyle,
       recruiterPersonality: normalizeRecruiterKey(recruiter),
+      // Carry the selected interview language through the fast save path.
+      // Without this, persistFast() drops it and the interview defaults to
+      // English even after the user picks another language.
+      language: normalizeInterviewLanguage(interviewLanguage),
       source: setup.source || "mobile-fast-onboarding",
       setupVersion: 4,
       setupId: setup.setupId || `setup_${Date.now()}`,
@@ -803,7 +859,7 @@ export default function OnboardingPage() {
     }, 40);
   }
 
-  function persistFast(nextStep?: number) {
+  function persistFast() {
     const draft = buildDraftSetup();
     const rawCvText = normalizeResumeText(draft.cvText || effectiveCvText || "");
     const profile = extractResumeProfileComplex(rawCvText);
@@ -845,9 +901,51 @@ export default function OnboardingPage() {
     } as SetupState;
 
     saveCanonicalCvSetup(canonicalSetup, store);
-    if (nextStep) setStep(nextStep);
     enrichSetupInBackground(canonicalSetup);
   }
+
+  // On a hard reload the useState initializers above can run before the
+  // Zustand store rehydrates from localStorage, leaving the restored-CV banner
+  // and prior preferences blank. localStorage itself is already populated, so
+  // after mount we re-read it via the canonical reader and seed any field the
+  // user hasn't filled. Functional updates never clobber a value typed/selected
+  // meanwhile, and the previous CV only populates restoredCvText (not auto-used).
+  useEffect(() => {
+    const restored = readLatestInterviewSetup() as SetupState | null;
+    if (!restored) return;
+
+    // Seeding from a client-only source (localStorage) must happen after mount,
+    // not in the useState initializers — doing it during render would make the
+    // client's first paint diverge from the server HTML (hydration mismatch).
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setRestoredCvText((prev) => prev || String(restored.cvText || ""));
+    setRole((prev) => prev || String(restored.targetRole || ""));
+    setCompanyName(
+      (prev) => prev || String(restored.companyName || restored.targetCompany || ""),
+    );
+    setJobDescription((prev) => prev || String(restored.jobDescription || ""));
+
+    const restoredMarket = (restored.targetMarket || restored.country) as Market | undefined;
+    if (restoredMarket) setMarket((prev) => (prev === "Global" ? restoredMarket : prev));
+
+    const restoredStyle = (restored.companyStyle || restored.recruiterStyle) as
+      | CompanyStyle
+      | undefined;
+    if (restoredStyle) setCompanyStyle((prev) => (prev === "Realistic" ? restoredStyle : prev));
+
+    if (restored.recruiterPersonality) {
+      const restoredRecruiter = normalizeRecruiterKey(restored.recruiterPersonality);
+      setRecruiter((prev) =>
+        prev === "analytical_hiring_manager" ? restoredRecruiter : prev,
+      );
+    }
+
+    if (restored.language) {
+      const restoredLanguage = normalizeInterviewLanguage(restored.language);
+      setInterviewLanguage((prev) => (prev === "English" ? restoredLanguage : prev));
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
 
   useEffect(() => {
     trackWorkZoLaunchEvent({
@@ -858,7 +956,7 @@ export default function OnboardingPage() {
     });
   }, [market, recruiter, role]);
 
-  async function persist(nextStep?: number) {
+  async function persist() {
     const cvText = effectiveCvText.trim();
     const jdText = jobDescription.trim();
 
@@ -931,8 +1029,6 @@ export default function OnboardingPage() {
     }
 
     saveCanonicalCvSetup(nextSetup, store);
-
-    if (nextStep) setStep(nextStep);
   }
 
 
@@ -1094,73 +1190,56 @@ export default function OnboardingPage() {
     }
   }
 
-  function next() {
-    persistFast(Math.min(5, step + 1));
-  }
-
-  function back() {
-    setStep(Math.max(1, step - 1));
-  }
-
   function startInterview() {
     persistFast();
     router.push("/interview");
   }
 
+  // Commit-point persistence: state is flushed first, then the effect runs
+  // persistFast/persist against fresh values.
+  function requestPersist() {
+    setPersistRequest((count) => count + 1);
+  }
+
+  useEffect(() => {
+    if (persistRequest > 0) persistFast();
+    // persistFast intentionally reads the latest committed state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistRequest]);
+
+  useEffect(() => {
+    if (persistFullRequest > 0) void persist();
+    // persist intentionally reads the latest committed state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistFullRequest]);
+
+  useEffect(() => {
+    if (!contextModalOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setContextModalOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [contextModalOpen]);
+
+  function openContextModal() {
+    setJdDraft(jobDescription);
+    setContextModalOpen(true);
+  }
+
+  function saveContextModal() {
+    setJobDescription(jdDraft);
+    setContextModalOpen(false);
+    setPersistFullRequest((count) => count + 1);
+  }
+
+  const hasContext = checks.cv || checks.jd;
+  const showRestoredBanner =
+    Boolean(restoredCvText.trim()) && !restoredCvDismissed && !manualCv && !useRestoredCv;
+
   return (
-    <main className="wz-mobile-no-animation wz-mobile-bottom-safe min-h-screen overflow-x-hidden overflow-y-auto bg-[#020712] pb-[calc(env(safe-area-inset-bottom)+120px)] text-white">
+    <main className="wz-mobile-no-animation wz-mobile-bottom-safe min-h-screen overflow-x-hidden overflow-y-auto bg-[#020712] pb-[calc(env(safe-area-inset-bottom)+110px)] text-white xl:pb-8">
       <style jsx global>{`
-        @keyframes wzPulseBar {
-          0%,
-          100% {
-            transform: scaleY(0.72);
-            opacity: 0.72;
-          }
-          50% {
-            transform: scaleY(1.12);
-            opacity: 1;
-          }
-        }
-
-        @keyframes wzGlow {
-          0%,
-          100% {
-            transform: scale(1);
-            opacity: 0.7;
-          }
-          50% {
-            transform: scale(1.08);
-            opacity: 1;
-          }
-        }
-
-        @keyframes wzScan {
-          0% {
-            transform: translateY(-70%);
-            opacity: 0;
-          }
-          15% {
-            opacity: 0.75;
-          }
-          50% {
-            opacity: 1;
-          }
-          100% {
-            transform: translateY(420%);
-            opacity: 0;
-          }
-        }
-
-        @keyframes wzFloat {
-          0%,
-          100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-6px);
-          }
-        }
-
         @keyframes wzDotPulse {
           0%,
           100% {
@@ -1173,25 +1252,26 @@ export default function OnboardingPage() {
           }
         }
 
-        @keyframes wzStatusSlide {
+        @keyframes wzNudge {
           0%,
-          20% {
-            transform: translateY(0);
-          }
-          25%,
-          45% {
-            transform: translateY(-1.5rem);
-          }
-          50%,
-          70% {
-            transform: translateY(-3rem);
-          }
-          75%,
-          95% {
-            transform: translateY(-4.5rem);
-          }
           100% {
-            transform: translateY(0);
+            transform: scale(1);
+            box-shadow: none;
+          }
+          50% {
+            transform: scale(1.08);
+            box-shadow: 0 0 24px rgba(139, 92, 246, 0.5);
+          }
+        }
+
+        @keyframes wzModalIn {
+          from {
+            opacity: 0;
+            transform: translateY(18px) scale(0.97);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
           }
         }
       `}</style>
@@ -1202,803 +1282,492 @@ export default function OnboardingPage() {
         <div className="absolute bottom-[-260px] left-1/2 h-[560px] w-[560px] -translate-x-1/2 rounded-full bg-indigo-600/08 blur-[135px]" />
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+8rem)] pt-3 sm:px-5 xl:pb-8">
-        <header className="flex min-h-[60px] shrink-0 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 sm:px-5 shadow-[0_18px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 pt-3 sm:px-5">
+        <header className="flex min-h-[58px] shrink-0 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 shadow-[0_18px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:px-5">
           <Link
             href="/"
             className="flex items-center gap-3 text-slate-200 transition hover:text-white"
           >
             <ArrowLeft className="h-5 w-5" />
-            <span className="font-black">Onboarding</span>
+            <span className="font-black tracking-tight">Interview Setup</span>
           </Link>
 
-          <div className="hidden items-center gap-3 md:flex">
-            {steps.map((item, index) => {
-              const complete = step > item.id;
-              const active = step === item.id;
-
-              return (
-                <div key={item.id} className="flex items-center gap-3">
-                  <button
-                    onClick={() => persistFast(item.id)}
-                    className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-full border text-sm font-black transition",
-                      complete &&
-                        "border-emerald-400/35 bg-emerald-400/12 text-emerald-200",
-                      active &&
-                        "border-blue-300 bg-blue-500 text-white shadow-[0_0_22px_rgba(59,130,246,0.30)]",
-                      !complete &&
-                        !active &&
-                        "border-white/10 bg-white/8 text-slate-300",
-                    )}
-                  >
-                    {complete ? <Check className="h-4 w-4" /> : item.id}
-                  </button>
-                  <span
-                    className={cn(
-                      "text-sm",
-                      active ? "text-white" : "text-slate-400",
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                  {index !== steps.length - 1 && (
-                    <span className="h-px w-12 bg-white/12" />
-                  )}
-                </div>
-              );
-            })}
+          <div className="flex items-center gap-3">
+            <span className="hidden items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-400/[0.08] px-3 py-1.5 text-xs font-black text-emerald-200 sm:inline-flex">
+              <span className="h-2 w-2 rounded-full bg-emerald-300 [animation:wzDotPulse_1.6s_ease-in-out_infinite]" />
+              Auto-saved
+            </span>
+            <Link
+              href="/"
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/10"
+            >
+              <Image
+                src="/workzo_icon.png"
+                alt="WorkZo"
+                width={22}
+                height={22}
+                className="rounded-md"
+              />
+              WorkZo AI
+            </Link>
           </div>
-
-          <Link
-            href="/"
-            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/10"
-          >
-            <Image
-              src="/workzo_icon.png"
-              alt="WorkZo"
-              width={22}
-              height={22}
-              className="rounded-md"
-            />
-            WorkZo AI
-          </Link>
         </header>
 
-        <PrivacyNotice compact className="mt-3 hidden xl:block" />
+        <PrivacyNotice compact className="mt-3" />
 
-        <div className="mt-3 rounded-2xl border border-amber-300/15 bg-amber-500/[0.07] px-4 py-3 text-sm leading-6 text-amber-50/90 shadow-[0_14px_40px_rgba(0,0,0,0.16)] xl:hidden">
-          <p className="font-black">⚠️ Practice notice</p>
-          <p className="mt-1 text-amber-100/80">
-            WorkZo AI is improving continuously. Use outputs as interview
-            practice guidance and validate important feedback before real
-            applications.
-          </p>
-        </div>
+        <section className="mt-4 grid flex-1 items-start gap-4 xl:grid-cols-[1fr_360px]">
+          {/* ── left column: the whole flow ── */}
+          <div className="flex min-w-0 flex-col gap-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.26em] text-cyan-300/80">
+                Interview setup
+              </p>
+              <h1 className="mt-1.5 text-3xl font-black tracking-tight sm:text-4xl">
+                Set up your interview
+              </h1>
+              <p className="mt-1.5 text-sm leading-6 text-slate-400">
+                Add your context, pick a style, and start. Everything is editable right here.
+              </p>
+            </div>
 
-        <section className="grid flex-1 items-start gap-4 overflow-visible py-3 xl:grid-cols-[1fr_0.68fr]">
-          <div className="flex flex-col overflow-visible rounded-[22px] border border-white/10 bg-white/[0.032] shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-2xl xl:rounded-[26px]">
-            <div className="flex-1 overflow-visible p-4 pb-28 xl:p-5">
-              {step === 1 && (
-                <div className="flex min-h-[520px] flex-col">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/18 text-blue-200">
-                      <Upload className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <h1 className="text-3xl font-black tracking-tight">
-                        Upload your CV
-                      </h1>
-                      <p className="mt-1 text-sm text-slate-400">
-                        WorkZo reads your real experience before asking questions.
-                      </p>
-                    </div>
+            {/* 1 · interview context — CV + JD live behind the modal */}
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.032] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-2xl sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-500/15 text-blue-200">
+                    <FileText className="h-5 w-5" />
                   </div>
-
-                  {/* Previous CV detected — give the user an explicit choice instead of
-                      silently showing a possibly-stale extracted profile. */}
-                  {restoredCvText.trim() && !restoredCvDismissed && !manualCv && !useRestoredCv && (
-                    <div className="mt-4 flex shrink-0 flex-col gap-3 rounded-3xl border border-blue-300/20 bg-blue-500/[0.06] p-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex items-start gap-3">
-                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-500/15 text-blue-200">
-                          <FileText className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-black text-white">CV from a previous session found</p>
-                          <p className="mt-0.5 text-xs leading-5 text-slate-400">
-                            Reuse it to skip re-uploading, or start fresh with a new CV.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setUseRestoredCv(true)}
-                          className="rounded-xl bg-blue-500 px-4 py-2 text-xs font-black text-white hover:bg-blue-400"
-                        >
-                          Use this CV
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRestoredCvDismissed(true)}
-                          className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-black text-slate-300 hover:bg-white/[0.08]"
-                        >
-                          Start fresh
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <label className="mt-4 flex h-[138px] shrink-0 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-blue-300/30 bg-blue-500/8 p-5 text-center transition hover:bg-blue-500/12">
-                    <Upload className="h-8 w-8 text-blue-200" />
-                    <p className="mt-3 text-lg font-black">
-                      {uploading ? "Reading your CV…" : "Click to upload your CV"}
-                    </p>
-                    <p className="mt-1.5 text-sm text-slate-400">
-                      PDF, DOCX, or TXT. Manual paste is available below.
-                    </p>
-                    <input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.txt"
-                      onChange={handleCvUpload}
-                      className="hidden"
-                    />
-                  </label>
-
-                  {fileName && (
-                    <div className="mt-3 flex shrink-0 items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-red-300" />
-                        <div>
-                          <p className="text-sm font-bold">{fileName}</p>
-                          <p className="text-xs text-slate-500">
-                            {manualCv
-                              ? "CV text ready"
-                              : "Waiting for readable text"}
-                          </p>
-                        </div>
-                      </div>
-                      {manualCv && (
-                        <Check className="h-5 w-5 text-emerald-300" />
-                      )}
-                    </div>
-                  )}
-
-                  {uploadError && (
-                    <div className="mt-3 shrink-0 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">
-                      {uploadError}
-                    </div>
-                  )}
-
-                  {aiCvStructuringStatus !== "idle" && (
-                    <div className="mt-3 rounded-2xl border border-blue-300/15 bg-blue-500/8 px-4 py-3 text-xs font-bold leading-5 text-blue-100">
-                      {aiCvStructuringStatus === "structuring"
-                        ? "Reading and structuring your CV…"
-                        : aiCvStructuringStatus === "ready"
-                          ? "CV profile ready. Review the extracted details below."
-                          : "CV parsed using local extraction. Review the details below."}
-                    </div>
-                  )}
-
-                  <ResumeProfileReview profile={resumeProfile} />
-
-                  <details className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <summary className="cursor-pointer text-sm font-black text-slate-200">
-                      Paste or edit CV text manually
-                    </summary>
-                    <p className="mt-2 text-xs leading-5 text-slate-500">
-                      Use this if the upload missed something important.
-                    </p>
-                    <textarea
-                      value={effectiveCvText}
-                      onChange={(event) => {
-                        const nextCv = event.target.value;
-                        setManualCv(nextCv);
-                        setAiResumeProfile(null);
-                        setAiCvStructuringStatus("idle");
-
-                        const rawCvText = normalizeResumeText(nextCv);
-                        if (!rawCvText.trim()) return;
-
-                        const profile = extractResumeProfileComplex(rawCvText);
-                        const canonicalSetup = buildCanonicalCvSetup({
-                          setup,
-                          rawCvText,
-                          jobDescription: jobDescription.trim(),
-                          role:
-                            role || profile.basics.headline || "General Role",
-                          market,
-                          companyStyle,
-                          recruiter: recruiter as RecruiterKey,
-                          language: interviewLanguage,
-                          profile,
-                        });
-
-                        saveCanonicalCvSetup(canonicalSetup, store);
-                      }}
-                      placeholder="Or paste your CV text here..."
-                      className="mt-3 h-[220px] w-full resize-none overflow-y-auto rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,0.10),transparent_34%),#050b16] p-5 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
-                    />
-                  </details>
-                </div>
-              )}
-
-              {step === 2 && (
-                <div className="flex min-h-[360px] flex-col">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/16 text-cyan-200">
-                      <Briefcase className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <h1 className="text-3xl font-black tracking-tight">
-                        Choose your target role
-                      </h1>
-                      <p className="mt-1 text-sm text-slate-400">
-                        Questions adapt to the role and job description.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 shrink-0">
-                    <label className="text-xs font-black uppercase tracking-[0.28em] text-slate-500">
-                      Target role
-                    </label>
-                    <input
-                      value={role}
-                      onChange={(event) => setRole(event.target.value)}
-                      placeholder="Example: Customer Success Manager"
-                      className="mt-3 h-14 w-full rounded-3xl border border-white/10 bg-[#050b16] px-5 text-lg font-bold text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
-                    />
-
-                    <label className="mt-5 block text-xs font-black uppercase tracking-[0.28em] text-slate-500">
-                      Target company optional
-                    </label>
-                    <input
-                      value={companyName}
-                      onChange={(event) => setCompanyName(event.target.value)}
-                      placeholder="Example: Google, Siemens, Shopify, Startup"
-                      className="mt-3 h-14 w-full rounded-3xl border border-white/10 bg-[#050b16] px-5 text-lg font-bold text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
-                    />
-                  </div>
-
-                  <div className="mt-5 min-h-0 flex-1">
-                    <label className="text-xs font-black uppercase tracking-[0.28em] text-slate-500">
-                      Job description
-                    </label>
-                    <textarea
-                      value={jobDescription}
-                      onChange={(event) =>
-                        setJobDescription(event.target.value)
-                      }
-                      placeholder="Paste the job description here so the recruiter can ask job-specific follow-ups..."
-                      className="mt-3 h-[calc(100%-32px)] w-full resize-none rounded-3xl border border-white/10 bg-[#050b16] p-5 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {step === 3 && (
-                <div className="flex min-h-[560px] flex-col xl:h-full xl:min-h-0">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-500/14 text-indigo-200">
-                      <Globe2 className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300/80">
-                        One decision at a time
-                      </p>
-                      <h1 className="mt-1 text-3xl font-black tracking-tight">
-                        Choose interview style
-                      </h1>
-                      <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-                        Pick the market, company style, and recruiter
-                        personality. WorkZo will adapt the interview behavior
-                        quietly in the background.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid gap-4 md:grid-cols-2">
-                    <section className="rounded-[26px] border border-white/10 bg-black/18 p-4">
-                      <p className="text-xs font-black uppercase tracking-[0.26em] text-slate-500">
-                        Target market
-                      </p>
-                      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        {markets.map((item) => (
-                          <button
-                            key={item.label}
-                            onClick={() => setMarket(item.label)}
-                            className={cn(
-                              "rounded-2xl border px-3 py-3 text-sm font-black transition active:scale-[0.98]",
-                              market === item.label
-                                ? "border-cyan-300/40 bg-cyan-400/14 text-white shadow-[0_0_24px_rgba(14,165,233,0.16)]"
-                                : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.07]",
-                            )}
-                          >
-                            <span className="mr-2">{item.flag}</span>
-                            {item.label}
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-
-                    <section className="rounded-[26px] border border-white/10 bg-black/18 p-4">
-                      <p className="text-xs font-black uppercase tracking-[0.26em] text-slate-500">
-                        Company style
-                      </p>
-                      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-2">
-                        {companyStyles.map((item) => (
-                          <button
-                            key={item}
-                            onClick={() => setCompanyStyle(item)}
-                            className={cn(
-                              "rounded-2xl border px-3 py-3 text-sm font-black transition active:scale-[0.98]",
-                              companyStyle === item
-                                ? "border-violet-300/40 bg-violet-400/14 text-white shadow-[0_0_24px_rgba(139,92,246,0.16)]"
-                                : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.07]",
-                            )}
-                          >
-                            {item}
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-                  </div>
-
-
-                  <section className="mt-4 rounded-[26px] border border-white/10 bg-black/18 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-[0.26em] text-slate-500">
-                          Interview language
-                        </p>
-                        <p className="mt-1 text-sm text-slate-400">
-                          Choose the language the recruiter should use during the interview.
-                        </p>
-                      </div>
-                      <span className="hidden rounded-full border border-blue-300/15 bg-blue-400/8 px-3 py-1.5 text-xs font-black text-blue-200 sm:inline-flex">
-                        {interviewLanguage}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                      {interviewLanguages.map((item) => (
-                        <button
-                          key={item.label}
-                          onClick={() => setInterviewLanguage(item.label)}
-                          className={cn(
-                            "rounded-2xl border px-3 py-3 text-left transition active:scale-[0.98]",
-                            interviewLanguage === item.label
-                              ? "border-blue-300/45 bg-blue-400/14 text-white shadow-[0_0_24px_rgba(59,130,246,0.16)]"
-                              : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.07]",
-                          )}
-                        >
-                          <span className="block text-sm font-black">{item.nativeLabel}</span>
-                          <span className="mt-1 block text-[11px] leading-4 text-slate-500">{item.hint}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-
-                  <section className="mt-4 min-h-0 flex-1 rounded-[26px] border border-white/10 bg-black/18 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-[0.26em] text-slate-500">
-                          Recruiter personality
-                        </p>
-                        <p className="mt-1 text-sm text-slate-400">
-                          Choose the interview energy. You can change this
-                          later.
-                        </p>
-                      </div>
-                      <span className="hidden rounded-full border border-cyan-300/15 bg-cyan-400/8 px-3 py-1.5 text-xs font-black text-cyan-200 sm:inline-flex">
-                        {recruiterLabel(recruiter)}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      {recruiters.map((item) => (
-                        <button
-                          key={item.key}
-                          onClick={() => setRecruiter(item.key)}
-                          className={cn(
-                            "relative rounded-[24px] border p-4 text-left transition active:scale-[0.99]",
-                            recruiter === item.key
-                              ? "border-cyan-300/45 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.14)]"
-                              : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06]",
-                          )}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/8 text-lg">
-                              {item.avatar}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <h3 className="text-base font-black leading-5">
-                                  {item.name}
-                                </h3>
-                                {recruiter === item.key && (
-                                  <span className="rounded-full bg-cyan-300/14 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
-                                    Selected
-                                  </span>
-                                )}
-                              </div>
-                              <p className="mt-0.5 text-xs font-bold text-slate-400">
-                                {item.role}
-                              </p>
-                              <p className="mt-2 text-sm leading-5 text-slate-300">
-                                {item.description}
-                              </p>
-                              <p className="mt-3 border-l border-cyan-300/20 pl-3 text-xs italic leading-5 text-slate-400">
-                                “{item.quote}”
-                              </p>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Premium Pro Personas */}
-                    <div className="mt-5">
-                      <div className="mb-3 flex items-center gap-3">
-                        <div className="h-px flex-1 bg-white/[0.07]" />
-                        <span className="rounded-full border border-violet-300/20 bg-violet-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-violet-200">
-                          Premium Pro personas
-                        </span>
-                        <div className="h-px flex-1 bg-white/[0.07]" />
-                      </div>
-                      {!isProUser && (
-                        <p className="mb-3 text-xs leading-5 text-slate-500">
-                          These high-pressure personas are exclusive to Premium Pro.
-                        </p>
-                      )}
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {proRecruiters.map((item) => (
-                          <button
-                            key={item.key}
-                            type="button"
-                            disabled={!isProUser}
-                            onClick={() => { if (isProUser) setRecruiter(item.key); }}
-                            className={cn(
-                              "relative rounded-[24px] border p-4 text-left transition",
-                              !isProUser
-                                ? "cursor-not-allowed border-white/[0.05] bg-white/[0.01] opacity-50"
-                                : recruiter === item.key
-                                ? "border-violet-300/45 bg-violet-500/10 shadow-[0_0_30px_rgba(139,92,246,0.14)]"
-                                : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06] active:scale-[0.99]",
-                            )}
-                          >
-                            {!isProUser && (
-                              <div className="absolute right-3 top-3 rounded-full border border-violet-300/20 bg-violet-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-violet-300">
-                                Pro
-                              </div>
-                            )}
-                            <div className="flex items-start gap-3">
-                              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/[0.06] text-lg">
-                                {item.avatar}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between gap-2">
-                                  <h3 className="text-base font-black leading-5">{item.name}</h3>
-                                  {recruiter === item.key && isProUser && (
-                                    <span className="rounded-full bg-violet-300/14 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-violet-200">Selected</span>
-                                  )}
-                                </div>
-                                <p className="mt-0.5 text-xs font-bold text-slate-400">{item.role}</p>
-                                <p className="mt-2 text-sm leading-5 text-slate-300">{item.description}</p>
-                                <p className="mt-3 border-l border-violet-300/20 pl-3 text-xs italic leading-5 text-slate-400">"{item.quote}"</p>
-                              </div>
-                              <p className="mt-0.5 text-xs font-bold text-slate-400">
-                                {item.role}
-                              </p>
-                              <p className="mt-2 text-sm leading-5 text-slate-300">
-                                {item.description}
-                              </p>
-                              <p className="mt-3 border-l border-cyan-300/20 pl-3 text-xs italic leading-5 text-slate-400">
-                                “{item.quote}”
-                              </p>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                      {!isProUser && (
-                        <a href="/pricing?plan=premium_pro&intent=personas" className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-violet-500 px-4 py-2.5 text-sm font-black text-white hover:bg-violet-400">
-                          Unlock Premium Pro personas
-                        </a>
-                      )}
-                    </div>
-                  </section>
-                </div>
-              )}
-
-              {step === 4 && (
-                <div className="flex min-h-[360px] flex-col">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/16 text-emerald-200">
-                      <ShieldCheck className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <h1 className="text-3xl font-black tracking-tight">
-                        Preview your setup
-                      </h1>
-                      <p className="mt-1 text-sm text-slate-400">
-                        Review your setup before entering the interview room.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                    {(
-                      [
-                        {
-                          label: "CV Status",
-                          value:
-                            effectiveCvText ? "CV ready" : "Missing",
-                          Icon: FileText,
-                        },
-                        {
-                          label: "Target Role",
-                          value: compactText(role, "General Role"),
-                          Icon: Briefcase,
-                        },
-                        { label: "Market", value: market, Icon: Globe2 },
-                        {
-                          label: "Company Style",
-                          value: companyStyle,
-                          Icon: Building2,
-                        },
-                        {
-                          label: "Recruiter",
-                          value: recruiterLabel(recruiter),
-                          Icon: UserRound,
-                        },
-                        {
-                          label: "Interview Language",
-                          value: interviewLanguage,
-                          Icon: Globe2,
-                        },
-
-                      ] satisfies PreviewCard[]
-                    ).map(({ label, value, Icon }) => (
-                      <div
-                        key={label}
-                        className="rounded-3xl border border-white/10 bg-black/20 p-4"
-                      >
-                        <Icon className="h-5 w-5 text-blue-200" />
-                        <p className="mt-3 text-xs font-black uppercase tracking-[0.24em] text-slate-500">
-                          {label}
-                        </p>
-                        <p className="mt-2 text-lg font-black">{value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 rounded-3xl border border-blue-400/15 bg-blue-500/[0.06] p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-[0.24em] text-blue-200">
-                          Company / role blueprint
-                        </p>
-                        <h3 className="mt-2 text-lg font-black text-white">
-                          {companyName || "Target company"} · {role || "Target role"}
-                        </h3>
-                        <p className="mt-2 text-sm leading-6 text-slate-400">
-                          WorkZo will pressure-test job-specific proof, company-fit signals, likely recruiter concerns, and role-relevant examples before moving into the interview room.
-                        </p>
-                      </div>
-                      <Building2 className="h-5 w-5 shrink-0 text-blue-200" />
-                    </div>
-                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                      {["Measurable impact", "Ownership proof", "Role-specific examples", "Pushback readiness"].map((item) => (
-                        <div key={item} className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-bold text-slate-300">
-                          {item}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-3xl border border-white/10 bg-[#050b16] p-4">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-bold text-slate-300">
-                        Simulation readiness
-                      </p>
-                      <p className="text-sm font-black">{readiness}%</p>
-                    </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-300"
-                        style={{ width: `${visualReadiness}%` }}
-                      />
-                    </div>
-                    <p className="mt-4 text-sm leading-6 text-slate-400">
-                      The recruiter will adapt to your CV, target role, market,
-                      company style, selected personality, and interview language.
+                  <div>
+                    <p className="text-sm font-black">Interview context</p>
+                    <p className="text-xs text-slate-500">
+                      CV + job description make the recruiter ask about your real experience.
                     </p>
                   </div>
                 </div>
-              )}
+                <button
+                  type="button"
+                  onClick={openContextModal}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-blue-300/30 bg-blue-500/15 px-4 text-sm font-black text-blue-100 transition hover:bg-blue-500/25"
+                >
+                  <Plus className="h-4 w-4" strokeWidth={2.5} />
+                  {hasContext ? "Edit CV & job description" : "Add CV & job description"}
+                </button>
+              </div>
 
-              {step === 5 && (
-                <div className="flex h-full flex-col justify-center">
-                  <div className="mx-auto max-w-xl text-center">
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-r from-blue-500 to-cyan-400 shadow-[0_0_50px_rgba(14,165,233,0.28)]">
-                      <Mic className="h-8 w-8" />
+              {showRestoredBanner && (
+                <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-blue-300/20 bg-blue-500/[0.06] p-3.5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-500/15 text-blue-200">
+                      <FileText className="h-4 w-4" />
                     </div>
-                    <h1 className="mt-6 text-4xl font-black tracking-tight">
-                      Your interview room is ready
-                    </h1>
-                    <p className="mt-4 text-base leading-7 text-slate-400">
-                      WorkZo will simulate a real recruiter using your CV, role,
-                      target market, company style, selected language, pressure logic, and memory.
-                    </p>
-
+                    <div>
+                      <p className="text-sm font-black text-white">
+                        CV from a previous session found
+                      </p>
+                      <p className="mt-0.5 text-xs leading-5 text-slate-400">
+                        Reuse it to skip re-uploading, or start fresh with a new CV.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
                     <button
-                      onClick={() => void startInterview()}
-                      className="mt-8 inline-flex h-14 items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 px-8 text-base font-black text-white shadow-[0_18px_45px_rgba(14,165,233,0.34)] transition hover:scale-[1.02]"
+                      type="button"
+                      onClick={() => {
+                        setUseRestoredCv(true);
+                        requestPersist();
+                      }}
+                      className="rounded-xl bg-blue-500 px-4 py-2 text-xs font-black text-white hover:bg-blue-400"
                     >
-                      Start Interview
-                      <ArrowRight className="h-5 w-5" />
+                      Use this CV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRestoredCvDismissed(true)}
+                      className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-black text-slate-300 hover:bg-white/[0.08]"
+                    >
+                      Start fresh
                     </button>
                   </div>
                 </div>
               )}
+
+              {(hasContext || uploading || aiCvStructuringStatus === "structuring") && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(uploading || aiCvStructuringStatus === "structuring") && (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-blue-300/20 bg-blue-400/[0.08] px-3 py-1.5 text-xs font-bold text-blue-100">
+                      <span className="h-2 w-2 rounded-full bg-blue-300 [animation:wzDotPulse_1.2s_ease-in-out_infinite]" />
+                      Reading your CV…
+                    </span>
+                  )}
+                  {checks.cv && !uploading && (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/[0.08] px-3 py-1.5 text-xs font-bold text-emerald-100">
+                      <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                      {fileName || (useRestoredCv ? "CV from previous session" : "CV added")}
+                    </span>
+                  )}
+                  {checks.jd && (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/[0.08] px-3 py-1.5 text-xs font-bold text-emerald-100">
+                      <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                      Job description added
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {uploadError && !contextModalOpen && (
+                <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">
+                  {uploadError}
+                </div>
+              )}
             </div>
 
-            <div className="flex h-[54px] shrink-0 items-center justify-between border-t border-white/10 bg-gradient-to-r from-white/[0.02] via-blue-500/5 to-indigo-500/8 px-5 backdrop-blur-xl">
-              <button
-                onClick={back}
-                disabled={step === 1}
-                className="h-10 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-bold text-slate-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 xl:h-11 xl:px-5"
-              >
-                Back
-              </button>
+            {/* 2 · role + company */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.032] p-4 backdrop-blur-2xl">
+                <label
+                  htmlFor="wz-target-role"
+                  className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500"
+                >
+                  Target role
+                </label>
+                <input
+                  id="wz-target-role"
+                  value={role}
+                  onChange={(event) => setRole(event.target.value)}
+                  onBlur={requestPersist}
+                  placeholder="e.g. Customer Success Manager"
+                  className="mt-2.5 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-[15px] font-bold text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
+                />
+              </div>
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.032] p-4 backdrop-blur-2xl">
+                <label
+                  htmlFor="wz-target-company"
+                  className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500"
+                >
+                  Target company{" "}
+                  <span className="normal-case tracking-normal text-slate-600">· optional</span>
+                </label>
+                <input
+                  id="wz-target-company"
+                  value={companyName}
+                  onChange={(event) => setCompanyName(event.target.value)}
+                  onBlur={requestPersist}
+                  placeholder="e.g. Google, Siemens, a startup"
+                  className="mt-2.5 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-[15px] font-bold text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
+                />
+              </div>
+            </div>
 
-              {step < 5 ? (
-                <button
-                  onClick={next}
-                  className="inline-flex h-10 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-5 text-sm font-black text-white shadow-[0_10px_28px_rgba(37,99,235,0.26)] transition hover:scale-[1.02] xl:h-11 xl:px-6"
-                >
-                  Continue
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    persistFast();
-                    router.push("/dashboard");
-                  }}
-                  className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-black text-slate-200 shadow-[0_10px_28px_rgba(15,23,42,0.24)] transition hover:bg-white/[0.08] hover:text-white xl:h-11 xl:px-6"
-                  aria-label="Return to dashboard"
-                >
-                  Dashboard
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              )}
+            {/* 3 · market / company style / language */}
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.032] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-2xl sm:p-5">
+              <div className="grid gap-5 lg:grid-cols-3">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
+                    Market
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    {markets.map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => {
+                          setMarket(item.label);
+                          requestPersist();
+                        }}
+                        className={cn(
+                          "rounded-xl border px-3 py-2 text-[13px] font-black transition active:scale-[0.97]",
+                          market === item.label
+                            ? "border-cyan-300/45 bg-cyan-400/[0.13] text-white shadow-[0_0_22px_rgba(34,211,238,0.14)]"
+                            : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]",
+                        )}
+                      >
+                        <span className="mr-1.5">{item.flag}</span>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
+                    Company style
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    {companyStyles.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => {
+                          setCompanyStyle(item);
+                          requestPersist();
+                        }}
+                        className={cn(
+                          "rounded-xl border px-3 py-2 text-[13px] font-black transition active:scale-[0.97]",
+                          companyStyle === item
+                            ? "border-violet-300/45 bg-violet-400/[0.14] text-white shadow-[0_0_22px_rgba(139,92,246,0.16)]"
+                            : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]",
+                        )}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
+                    Language
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    {interviewLanguages.map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => {
+                          setInterviewLanguage(item.label);
+                          requestPersist();
+                        }}
+                        className={cn(
+                          "rounded-xl border px-3 py-2 text-[13px] font-black transition active:scale-[0.97]",
+                          interviewLanguage === item.label
+                            ? "border-blue-300/50 bg-blue-400/[0.15] text-white shadow-[0_0_22px_rgba(59,130,246,0.16)]"
+                            : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]",
+                        )}
+                      >
+                        {item.nativeLabel}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 4 · recruiter personality */}
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.032] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-2xl sm:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
+                  Recruiter personality
+                </p>
+                <span className="hidden rounded-full border border-cyan-300/15 bg-cyan-400/[0.08] px-3 py-1 text-xs font-black text-cyan-200 sm:inline-flex">
+                  {selectedPersona.name} · {selectedPersona.role}
+                </span>
+              </div>
+
+              <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                {recruiters.map((item) => (
+                  <PersonaCard
+                    key={item.key}
+                    persona={item}
+                    selected={recruiter === item.key}
+                    onClick={() => {
+                      setRecruiter(item.key);
+                      requestPersist();
+                    }}
+                  />
+                ))}
+              </div>
+
+              <ProPersonaDropdown
+                open={proListOpen}
+                onToggle={() => setProListOpen((open) => !open)}
+                isProUser={isProUser}
+                recruiter={recruiter}
+                onSelect={(key) => {
+                  setRecruiter(key);
+                  requestPersist();
+                }}
+                nudgeKey={nudgeKey}
+                onLockedClick={() => setNudgeKey((key) => key + 1)}
+              />
+            </div>
+
+            {/* readiness rail inline on smaller screens */}
+            <div className="xl:hidden">
+              <ReadinessRail
+                readiness={readiness}
+                checks={checks}
+                summaryLine={summaryLine}
+                onStart={startInterview}
+                hideCta
+              />
             </div>
           </div>
 
-          <aside className="hidden min-h-0 rounded-[26px] border border-white/10 bg-white/[0.028] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl xl:block">
-            <div className="relative flex min-h-[460px] flex-col overflow-hidden rounded-[24px] border border-white/[0.08] bg-[#050b16] p-4">
-              <div className="pointer-events-none absolute inset-0">
-                <div className="absolute left-1/2 top-20 h-72 w-72 -translate-x-1/2 rounded-full bg-blue-500/10 blur-[95px]" />
-                <div className="absolute bottom-[-120px] right-[-100px] h-72 w-72 rounded-full bg-cyan-400/8 blur-[95px]" />
-              </div>
-
-              <div className="relative z-10 flex items-start justify-between gap-4">
-                <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/16 bg-cyan-400/7 px-3 py-1.5 text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
-                    <Wand2 className="h-3.5 w-3.5" />
-                    Guided setup
-                  </div>
-                  <h2 className="mt-4 max-w-sm text-2xl font-black leading-tight tracking-tight">
-                    {guide.title}
-                  </h2>
-                  <p className="mt-3 max-w-md text-sm leading-6 text-slate-400">
-                    {guide.description}
-                  </p>
-                </div>
-
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055]">
-                  <Image
-                    src="/workzo_icon.png"
-                    alt="WorkZo"
-                    width={30}
-                    height={30}
-                    className="rounded-lg"
-                  />
-                </div>
-              </div>
-
-              <div className="relative z-10 mt-6 rounded-[26px] border border-white/[0.065] bg-black/16 p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/12 text-blue-200">
-                      <Radar className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
-                        Readiness
-                      </p>
-                      <p className="mt-1 text-2xl font-black">
-                        {visualReadiness}%
-                      </p>
-                    </div>
-                  </div>
-                  <span className="rounded-full border border-emerald-300/15 bg-emerald-400/8 px-3 py-1.5 text-xs font-black text-emerald-200">
-                    Auto-saved
-                  </span>
-                </div>
-
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-300 to-emerald-300 transition-all duration-500"
-                    style={{ width: `${readiness}%` }}
-                  />
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {analysisSignals.slice(0, 4).map((signal, index) => {
-                    const active =
-                      index === 0 ||
-                      readiness >= 50 ||
-                      (readiness >= 25 && index < 3) ||
-                      (readiness >= 75 && index < 4);
-
-                    return (
-                      <span
-                        key={signal}
-                        className={cn(
-                          "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold",
-                          active
-                            ? "border-emerald-300/12 bg-emerald-400/8 text-emerald-100"
-                            : "border-white/[0.06] bg-white/[0.03] text-slate-500",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-2 w-2 rounded-full",
-                            active ? "bg-emerald-300" : "bg-slate-600",
-                          )}
-                        />
-                        {signal}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="relative z-10 mt-4 rounded-[26px] border border-white/[0.065] bg-white/[0.026] p-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-500/12 text-blue-200">
-                    <Sparkles className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
-                      Setup summary
-                    </p>
-                    <p className="mt-1 text-sm font-black leading-6 text-white">
-                      {guide.summary}
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">
-                      Current step: {currentStepLabel}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="relative z-10 mt-auto pt-3">
-                <div className="flex items-start gap-3 rounded-[22px] border border-emerald-300/10 bg-emerald-400/[0.055] px-4 py-3 text-xs font-bold leading-5 text-emerald-100/90">
-                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-200" />
-                  <span>
-                    Your setup stays private and can be edited before the
-                    interview.
-                  </span>
-                </div>
-              </div>
-            </div>
+          {/* ── right rail: briefing + launch (desktop) ── */}
+          <aside className="hidden xl:sticky xl:top-3 xl:block">
+            <ReadinessRail
+              readiness={readiness}
+              checks={checks}
+              summaryLine={summaryLine}
+              onStart={startInterview}
+            />
           </aside>
         </section>
       </div>
+
+      {/* mobile launch bar */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[rgba(5,8,22,0.94)] px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 backdrop-blur-xl xl:hidden">
+        <button
+          type="button"
+          onClick={startInterview}
+          className="flex h-13 min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 text-base font-black text-white shadow-[0_14px_36px_rgba(14,165,233,0.30)] transition active:scale-[0.99]"
+        >
+          Start Interview
+          <ArrowRight className="h-5 w-5" />
+        </button>
+      </div>
+
+      {/* ── context modal: CV upload + JD paste ── */}
+      {contextModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setContextModalOpen(false);
+          }}
+        >
+          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-[26px] border border-white/10 bg-[#070d1d] p-5 shadow-[0_40px_120px_rgba(0,0,0,0.6)] [animation:wzModalIn_0.28s_cubic-bezier(0.22,1,0.36,1)] sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black tracking-tight">Add your context</h2>
+                <p className="mt-1 text-sm leading-5 text-slate-400">
+                  Both are optional — but the more you add, the more personal the interview gets.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setContextModalOpen(false)}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition hover:bg-white/10 hover:text-white"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" strokeWidth={2.5} />
+              </button>
+            </div>
+
+            <label
+              className={cn(
+                "mt-5 flex min-h-[108px] cursor-pointer flex-col items-center justify-center rounded-2xl border-[1.5px] p-4 text-center transition",
+                manualCv && fileName
+                  ? "border-emerald-300/40 bg-emerald-400/[0.07]"
+                  : "border-dashed border-blue-300/35 bg-blue-500/[0.07] hover:bg-blue-500/[0.12]",
+              )}
+            >
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,.txt"
+                onChange={handleCvUpload}
+                className="hidden"
+              />
+              {uploading ? (
+                <>
+                  <Upload className="h-7 w-7 text-blue-200" />
+                  <span className="mt-2 block text-sm font-black">Reading your CV…</span>
+                </>
+              ) : manualCv && fileName ? (
+                <>
+                  <Check className="h-7 w-7 text-emerald-300" strokeWidth={2.5} />
+                  <span className="mt-2 block text-sm font-black text-emerald-100">{fileName}</span>
+                  <span className="mt-1 block text-xs text-slate-500">Click to replace</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="h-7 w-7 text-blue-200" />
+                  <span className="mt-2 block text-sm font-black">Upload your CV</span>
+                  <span className="mt-1 block text-xs text-slate-500">PDF, DOCX or TXT</span>
+                </>
+              )}
+            </label>
+
+            {uploadError && (
+              <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">
+                {uploadError}
+              </div>
+            )}
+
+            {aiCvStructuringStatus !== "idle" && (
+              <div className="mt-3 rounded-2xl border border-blue-300/15 bg-blue-500/[0.08] px-4 py-3 text-xs font-bold leading-5 text-blue-100">
+                {aiCvStructuringStatus === "structuring"
+                  ? "Reading and structuring your CV…"
+                  : aiCvStructuringStatus === "ready"
+                    ? "CV ready. It will be used to personalise your interview."
+                    : "CV parsed using local extraction. It will be used to personalise your interview."}
+              </div>
+            )}
+
+            <details className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-4">
+              <summary className="cursor-pointer text-sm font-black text-slate-200">
+                Paste or edit CV text manually
+              </summary>
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                Use this if the upload missed something important.
+              </p>
+              <textarea
+                value={effectiveCvText}
+                onChange={(event) => {
+                  const nextCv = event.target.value;
+                  setManualCv(nextCv);
+                  setAiResumeProfile(null);
+                  setAiCvStructuringStatus("idle");
+
+                  const rawCvText = normalizeResumeText(nextCv);
+                  if (!rawCvText.trim()) return;
+
+                  const profile = extractResumeProfileComplex(rawCvText);
+                  const canonicalSetup = buildCanonicalCvSetup({
+                    setup,
+                    rawCvText,
+                    jobDescription: jobDescription.trim(),
+                    role:
+                      role || profile.basics.headline || "General Role",
+                    market,
+                    companyStyle,
+                    recruiter: recruiter as RecruiterKey,
+                    language: interviewLanguage,
+                    profile,
+                  });
+
+                  saveCanonicalCvSetup(canonicalSetup, store);
+                }}
+                placeholder="Or paste your CV text here..."
+                className="mt-3 h-[160px] w-full resize-none overflow-y-auto rounded-2xl border border-white/10 bg-[#050b16] p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
+              />
+            </details>
+
+            <div className="mt-4">
+              <label
+                htmlFor="wz-jd-draft"
+                className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500"
+              >
+                Job description
+              </label>
+              <textarea
+                id="wz-jd-draft"
+                value={jdDraft}
+                onChange={(event) => setJdDraft(event.target.value)}
+                rows={5}
+                placeholder="Paste the job description here so the recruiter can ask job-specific follow-ups…"
+                className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
+              />
+            </div>
+
+            <div className="mt-4 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setContextModalOpen(false)}
+                className="h-11 rounded-xl border border-white/10 bg-white/[0.04] px-5 text-sm font-bold text-slate-300 transition hover:bg-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveContextModal}
+                className="h-11 rounded-xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-6 text-sm font-black text-white shadow-[0_10px_28px_rgba(37,99,235,0.26)] transition hover:scale-[1.02]"
+              >
+                Save context
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
