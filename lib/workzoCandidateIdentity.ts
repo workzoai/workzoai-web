@@ -25,7 +25,7 @@ function isGenericName(value = "") {
   const name = clean(value);
   return (
     /^(candidate|user|workzo user)$/i.test(name) ||
-    /(public\s+relations|project\s+management|communication|leadership|teamwork|time\s+management|critical\s+thinking|english|german|python|sql|skills|experience|education|summary|profile)/i.test(name)
+    /\b(public\s+relations|project\s+management|communication|leadership|teamwork|time\s+management|critical\s+thinking|english|german|python|sql|skills|experience|education|summary|profile)\b/i.test(name)
   );
 }
 

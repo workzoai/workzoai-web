@@ -3,8 +3,6 @@ import {
   extractResumeProfileComplex,
   normalizeResumeText,
   sanitizeResumeProfileIdentity,
-  splitGroupedSkillEntries,
-  separateLanguagesFromSkills,
   type ResumeEducation,
   type ResumeExperience,
   type ResumeProfile,
@@ -12,9 +10,10 @@ import {
 } from "@/lib/workzoResumeParser";
 
 type WorkZoCvParserSource =
-  | "openai_structured_cv"
-  | "local_fallback_no_openai_key"
+  | "ai_structured_cv"
+  | "local_fallback_no_api_key"
   | "local_fallback_invalid_ai_json"
+  | "local_fallback_ai_truncated"
   | "local_fallback_ai_error"
   | "empty";
 
@@ -212,8 +211,11 @@ function normalizeForCompare(value: string) {
     .trim();
 }
 
+// Generic signals that a bullet describes a standalone PROJECT rather than
+// day-to-day employment duties. No project names, company names, or
+// candidate-specific vocabulary — works for any CV in any field.
 const GLOBAL_PROJECT_HINTS =
-  /\b(project|capstone|case study|dashboard|pipeline|analysis|analy[sz]ed|visuali[sz]ed|youtube|api|sentiment|textblob|magist|gans|e-scooter|scooter|market feasibility|brazilian market|web scraping|cloud functions|mysql|database|portfolio|nlp|rag|automation pipeline)\b/i;
+  /\b(project|capstone|case study|dashboard|pipeline|prototype|proof of concept|poc|mvp|hackathon|side project|personal project|open source|feasibility study|market research|market analysis|portfolio|thesis|dissertation|research project|academic project)\b/i;
 
 const GLOBAL_EXPERIENCE_HINTS =
   /\b(customer|client|ticket|support|troubleshoot|troubleshooting|configuration|router|switch|wireless|network|service desk|servicedesk|itil|itsm|escalation|knowledge base|first-call|sla|on-premise|on-premises|product stability|resolution time|technical training|technical support)\b/i;
@@ -283,21 +285,21 @@ function sanitizeParsedSections(ai: AiResumeJson): AiResumeJson {
 
   const nextProjects = [...projects];
 
-  for (const bullet of movedProjectBullets) {
-    const lower = bullet.toLowerCase();
-
-    let targetName = "Selected Project";
-    if (/magist|brazilian market/i.test(lower)) targetName = "Magist";
-    else if (/gans|e-scooter|scooter|web scraping|flight|weather|mysql|cloud functions/i.test(lower)) targetName = "GANS E-Scooter Service";
-    else if (/classical dance|youtube|sentiment|textblob|traditional art|cultural evolution/i.test(lower)) targetName = "Cultural Evolution & Popularity of Indian Classical Dance";
-
-    let target = nextProjects.find((project) => clean(project.name).toLowerCase() === targetName.toLowerCase());
+  // Group bullets that look project-like but weren't assigned to a named
+  // project by the AI into a single generic bucket. We deliberately do NOT
+  // try to invent a project name from bullet content — the AI prompt already
+  // instructs the model to name projects when it extracts them. If a bullet
+  // reaches this point without a project home, it's safer to group it under
+  // one neutral label than to guess a name that could be wrong for this
+  // candidate's actual project.
+  if (movedProjectBullets.length) {
+    const GENERIC_PROJECT_LABEL = "Additional Project Work";
+    let target = nextProjects.find((project) => clean(project.name).toLowerCase() === GENERIC_PROJECT_LABEL.toLowerCase());
     if (!target) {
-      target = { name: targetName, bullets: [] };
+      target = { name: GENERIC_PROJECT_LABEL, bullets: [] };
       nextProjects.push(target);
     }
-
-    target.bullets = unique([...asList(target.bullets), bullet], 8);
+    target.bullets = unique([...asList(target.bullets), ...movedProjectBullets], 8);
   }
 
   return {
@@ -496,19 +498,8 @@ function mergeAiWithFallback(ai: AiResumeJson, fallback: ResumeProfile, rawText:
   const experience = coerceExperience(ai.experience);
   const education = coerceEducation(ai.education);
   const projects = coerceProjects(ai.projects);
-  // Safety net — regardless of what the AI model returns, apply the same
-  // grouped-category splitting and language separation the local parser uses.
-  // This guards against the AI returning "Programming: Python, SQL" or
-  // "English: Fluent" inside the skills array despite prompt instructions.
-  const rawAiSkills = asList(ai.skills);
-  const rawAiLanguages = asList(ai.languages);
-
-  const { skills: splitAiSkills, languages: extractedFromSkills } = separateLanguagesFromSkills(
-    splitGroupedSkillEntries(rawAiSkills),
-  );
-
-  const skills = unique(splitAiSkills, 30);
-  const languages = unique([...rawAiLanguages, ...extractedFromSkills], 12);
+  const skills = unique(asList(ai.skills), 30);
+  const languages = unique(asList(ai.languages), 12);
   const certifications = unique(asList(ai.certifications), 12);
   const strengths = unique(asList(ai.strengths), 12);
   const additionalEvidence = unique(asList(ai.additionalEvidence), 18);
@@ -611,6 +602,7 @@ export async function parseResumeWithAiStructure(input: {
   jobDescription?: string;
   targetRole?: string;
   targetMarket?: string;
+  fileName?: string;
 }): Promise<WorkZoAiCvParserResult> {
   const rawText = normalizeResumeText(
     [input.layoutText, input.cvText].filter(Boolean).join("\n\n"),
@@ -627,21 +619,71 @@ export async function parseResumeWithAiStructure(input: {
     };
   }
 
-  if (!process.env.OPENAI_API_KEY) {
+  // ── CV extraction uses OpenRouter (Claude) by default ────────────────────────
+  // This is intentionally a SEPARATE provider/key from the one used for Vapi
+  // voice calls (which continues to use OPENAI_API_KEY directly and is
+  // untouched by this change).
+  //
+  // Env vars:
+  //   OPENROUTER_API_KEY        - required for CV extraction via OpenRouter
+  //   WORKZO_CV_AI_MODEL        - OpenRouter model slug, defaults to a Claude model
+  //   WORKZO_CV_AI_BASE_URL     - override base URL if needed (defaults to OpenRouter)
+  //
+  // If OPENROUTER_API_KEY is not set, falls back to OPENAI_API_KEY so existing
+  // single-provider setups keep working without code changes.
+  const cvAiApiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+  const cvAiBaseURL =
+    process.env.WORKZO_CV_AI_BASE_URL ||
+    (process.env.OPENROUTER_API_KEY ? "https://openrouter.ai/api/v1" : undefined);
+  const cvAiModel =
+    process.env.WORKZO_CV_AI_MODEL ||
+    (process.env.OPENROUTER_API_KEY ? "anthropic/claude-sonnet-4.6" : "gpt-4o-mini");
+
+  if (!cvAiApiKey) {
     return {
       ok: false,
-      source: "local_fallback_no_openai_key",
+      source: "local_fallback_no_api_key",
       resumeProfile: fallback,
-      error: "OPENAI_API_KEY is not configured.",
+      error: "Neither OPENROUTER_API_KEY nor OPENAI_API_KEY is configured for CV extraction.",
     };
   }
 
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const client = new OpenAI({
+      apiKey: cvAiApiKey,
+      ...(cvAiBaseURL ? { baseURL: cvAiBaseURL } : {}),
+    });
 
-    const response = await openai.chat.completions.create({
-      model: process.env.WORKZO_CV_AI_MODEL || "gpt-4o-mini",
+    // Cast to `any` for the request body: `reasoning` is an OpenRouter-specific
+    // extension not present in the OpenAI SDK's TypeScript types, but is
+    // accepted by OpenRouter's OpenAI-compatible endpoint and silently
+    // ignored by providers that don't support it (per OpenRouter docs).
+    const requestParams = {
+      model: cvAiModel,
       temperature: 0,
+      // Without an explicit max_tokens, some providers/models apply a low
+      // default completion limit. For a CV with multiple jobs, many bullets,
+      // education, projects, skills, and languages, the structured JSON
+      // response — especially with Claude's tendency toward verbose,
+      // complete bullet text — can run several thousand tokens. 16384 gives
+      // generous headroom even for long, multi-role CVs with detailed bullet
+      // points, so the response is not cut off mid-field (which previously
+      // produced dangling fragments like a job with no closing braces being
+      // picked up by extractJsonObject's regex fallback).
+      max_tokens: 16384,
+      // Claude 4.x models default to "adaptive thinking", which can consume
+      // part of max_tokens on internal reasoning before writing the JSON
+      // response. For a deterministic extraction task with a fixed schema,
+      // reasoning isn't needed — disable it so the full token budget goes to
+      // the JSON output itself.
+      reasoning: { enabled: false },
+      // Prefer Anthropic's first-party API when available. Some OpenRouter
+      // upstream providers (e.g. Google Vertex, Amazon Bedrock) host the same
+      // model but may handle max_tokens/reasoning parameters differently or
+      // impose stricter per-request limits than Anthropic direct. This is a
+      // soft preference — OpenRouter falls back to other providers if
+      // Anthropic direct is unavailable or over capacity.
+      provider: { order: ["anthropic"], allow_fallbacks: true },
       response_format: { type: "json_object" },
       messages: [
         {
@@ -708,18 +750,16 @@ Global CV rules:
 - CVs may be one-column, two-column, sidebar, visual, ATS, European, Indian, US, UK, German, Dutch, French, Spanish, Italian, Portuguese, or mixed format.
 - If the source text order is scrambled by PDF extraction, reconstruct the most likely section order from headings and evidence.
 - Read sidebar sections as their own sections. Do not merge skills/languages/education into experience or summary.
-- Name must be a real human name from the CV header or email. Never use a role, skill, section title, language, or word like "Tier" as a name.
+- Name must be a real human name from the CV header or email. Never use a role title, skill name, section heading, language name, address, or any other non-name text as the candidate's name.
 - Keep experience, education, skills, languages, projects, and certifications separate.
 - Attach dates to the correct job or education item only.
 - Preserve all facts, but clean obvious extraction spacing issues.
 - Never invent employers, dates, degrees, achievements, tools, metrics, languages, certifications, or project names.
 - Add warnings for uncertain section assignments.
 - Before returning JSON, verify every experience bullet belongs to the company/role immediately above it.
-- SKILLS FORMAT: the "skills" array must contain individual skill names only — never category labels with grouped items. If the CV groups skills like "Programming: Python, SQL" or "Machine Learning: Sklearn, TensorFlow", split them into separate entries: "Python", "SQL", "Sklearn", "TensorFlow". Do not include the category label itself (e.g. do not include "Programming" or "Machine Learning" as a skill).
-- LANGUAGES FORMAT: the "languages" array must contain language + proficiency pairs as single strings, e.g. "English - FLUENT", "German - B1". If the CV lists "English: Fluent" or "German: Conversational" anywhere (including inside a skills or sidebar section), move it to "languages", not "skills". Never duplicate a language entry in both "skills" and "languages".
-- SOFT SKILLS: items like "Teamwork", "Leadership", "Communication", "Time Management", "Critical Thinking", "Public Relations", "Project Management" are valid skills entries — keep them in "skills" as individual items, not grouped.
-- If a bullet mentions project names, feasibility studies, dashboards, YouTube/API/NLP, e-scooters, Magist, GANS, market analysis, cloud pipeline, or other portfolio work, place it under PROJECTS unless it is explicitly tied to an employer role.
-- Do not place project bullets under Zoho, CSS Corp, or any employer unless the CV clearly says that project happened inside that job.
+- PDF TEXT-EXTRACTION ARTEFACTS: source text may contain words that are fused together with no space due to PDF extraction (e.g. "Specialistandaspiring" meaning "Specialist and aspiring", "DetailorientedIT" meaning "Detail-oriented IT"). When you encounter such fused words, split them into the correct separate words in your output — this is correcting a transcription artefact, NOT "improving wording". Do this only for clear, unambiguous word-boundary fixes; do not rephrase or restructure sentences.
+- If a bullet describes a standalone project, feasibility study, dashboard, prototype, hackathon, thesis, or other portfolio work that is not part of the candidate's day-to-day job duties, place it under PROJECTS — unless the CV explicitly states it happened as part of a specific employer role, in which case keep it under that employer's experience entry.
+- Do not assume a bullet belongs to an employer just because it appears near that employer's name in the source text — PDF extraction order does not always match logical grouping. Use the bullet's own content (does it describe a one-off project/study, or ongoing job responsibilities?) to decide.
 - Experience bullets should describe employment responsibilities, customer support, technical support, troubleshooting, escalations, product support, service delivery, stakeholder support, or role duties.
 - Project bullets should describe portfolio, bootcamp, capstone, market studies, dashboards, scraping, APIs, ML/NLP, cloud pipelines, or analysis projects.
 
@@ -731,9 +771,78 @@ CV text:
 ${truncateCvText(rawText)}`,
         },
       ],
-    });
+    } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
+      reasoning?: { enabled: boolean };
+      provider?: { order?: string[]; allow_fallbacks?: boolean };
+    };
+
+    // ── Retry on transient OpenRouter/upstream errors ─────────────────────────
+    // OpenRouter occasionally returns "401 User not found" or similar 5xx
+    // errors for valid keys due to upstream routing issues with specific
+    // providers (a known, documented intermittent issue affecting Anthropic
+    // models on OpenRouter as of early 2026). These are not real auth
+    // failures — retrying the same request (sometimes with OpenRouter
+    // re-routing to a different upstream provider) frequently succeeds.
+    //
+    // Retry up to 2 times (3 attempts total) with a short backoff, but only
+    // for error codes that are plausibly transient. A genuinely invalid key
+    // would fail on every attempt; this just avoids surfacing a one-off
+    // hiccup as a full fallback-to-local-parser result.
+    const TRANSIENT_STATUS_CODES = new Set([401, 408, 409, 429, 500, 502, 503, 504]);
+    const MAX_ATTEMPTS = 3;
+
+    let response: Awaited<ReturnType<typeof client.chat.completions.create>> | null = null;
+    let lastError: unknown = null;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      try {
+        // On the first attempt, prefer Anthropic direct (lower latency, fewer
+        // quirks). If that attempt fails with a transient-looking error
+        // (e.g. the OpenRouter "401 User not found" issue tied to a specific
+        // upstream), drop the provider pin on subsequent attempts so
+        // OpenRouter is free to route to a different upstream (Bedrock,
+        // Vertex, etc.) instead of repeatedly hitting the same broken one.
+        const attemptParams =
+          attempt === 1
+            ? requestParams
+            : { ...requestParams, provider: { allow_fallbacks: true } };
+        response = await client.chat.completions.create(attemptParams);
+        lastError = null;
+        break;
+      } catch (err) {
+        lastError = err;
+        const status = (err as { status?: number })?.status;
+        const isTransient = typeof status === "number" && TRANSIENT_STATUS_CODES.has(status);
+        if (!isTransient || attempt === MAX_ATTEMPTS) {
+          throw err;
+        }
+        // Short exponential backoff: 300ms, 900ms
+        await new Promise((resolve) => setTimeout(resolve, 300 * 3 ** (attempt - 1)));
+      }
+    }
+
+    if (!response) {
+      throw lastError instanceof Error ? lastError : new Error("AI CV parser request failed after retries.");
+    }
 
     const content = response.choices[0]?.message?.content || "";
+    const finishReason = response.choices[0]?.finish_reason;
+
+    // If the model hit the token limit mid-generation, the JSON may be
+    // syntactically valid up to the truncation point (e.g. the regex
+    // fallback in extractJsonObject grabs a balanced-looking but
+    // semantically incomplete object) while actually missing later
+    // jobs/fields entirely. Treat this as a failure so we fall back to the
+    // local parser rather than show a confidently-incomplete profile.
+    if (finishReason === "length") {
+      return {
+        ok: false,
+        source: "local_fallback_ai_truncated",
+        resumeProfile: fallback,
+        error: "AI CV parser response was truncated (hit token limit) before completing the JSON output.",
+      };
+    }
+
     const json = extractJsonObject(content);
 
     if (!json) {
@@ -747,7 +856,7 @@ ${truncateCvText(rawText)}`,
 
     return {
       ok: true,
-      source: "openai_structured_cv",
+      source: "ai_structured_cv",
       resumeProfile: enforceCanonicalExtractionOnly(
         validateExperienceProjectSeparation(
           mergeAiWithFallback(sanitizeParsedSections(json), fallback, rawText),

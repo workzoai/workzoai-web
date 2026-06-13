@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     const rawText = typeof body.text === "string"
       ? body.text
           .replace(/\s+/g, " ")
-          .replace(/(um+|uh+|erm)/gi, "")
+          .replace(/\b(um+|uh+|erm)\b/gi, "")
           .trim()
       : "";
     const text = humanizeRecruiterSpokenText(rawText, {

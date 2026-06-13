@@ -25,6 +25,8 @@ type CopilotAction =
   | "expectation"
   | "recruiter_intent";
 
+type CopilotMessage = { role: "user" | "assistant"; content: string };
+
 type CopilotRequest = {
   action?: CopilotAction;
   mode?: string;
@@ -39,6 +41,7 @@ type CopilotRequest = {
   recruiterName?: string;
   recruiterRole?: string;
   recruiterMemory?: unknown;
+  history?: CopilotMessage[];
 };
 
 function cleanText(value: unknown, maxLength: number) {
@@ -216,6 +219,12 @@ STRICT TRUTH + QUALITY RULES:
 - Be specific, practical, and immediately usable.
 - Always include one concrete action the user can do today.
 
+CONVERSATION STYLE:
+- This is an ongoing chat. The conversation history is provided as prior turns.
+- For the first message on a topic, use the structured OUTPUT FORMAT below.
+- For natural follow-ups within the same topic (e.g. "make it shorter", "what about for a different role?", "thanks, what else?"), respond conversationally and concisely — do not repeat the full numbered format unless the user asks for a fresh full breakdown.
+- Stay consistent with anything you already told the user earlier in this conversation.
+
 CONTEXT:
 Recruiter name: ${recruiterName}
 Recruiter role: ${recruiterRole}
@@ -250,18 +259,33 @@ RECRUITER MEMORY:
 ${recruiterMemory}
 `.trim();
 
+    const history: CopilotMessage[] = Array.isArray(body.history)
+      ? body.history
+          .filter((item) => item && (item.role === "user" || item.role === "assistant") && typeof item.content === "string")
+          .map((item) => ({ role: item.role, content: cleanMultiline(item.content, 4000) }))
+          .filter((item) => item.content)
+          .slice(-16)
+      : [];
+
+    const model = pro
+      ? (process.env.OPENROUTER_PRO_MODEL || "anthropic/claude-opus-4-7")
+      : paid
+        ? (process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6")
+        : (process.env.OPENROUTER_FREE_MODEL || "anthropic/claude-haiku-4-5");
+
     const output = await askOpenRouter(
       [
         { role: "system", content: systemPrompt },
+        ...history,
         { role: "user", content: userPrompt },
       ],
-      { temperature: 0.22, maxTokens: 900 },
+      { model, temperature: 0.22, maxTokens: 900 },
     );
 
     return NextResponse.json({
       success: true,
       output: output || buildFallback(targetRole),
-      model: pro ? (process.env.OPENROUTER_PRO_MODEL || "anthropic/claude-opus-4") : paid ? (process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-20250514") : (process.env.OPENROUTER_FREE_MODEL || "anthropic/claude-haiku-4-5-20251001"),
+      model,
       provider: "openrouter",
       action,
     });

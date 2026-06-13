@@ -821,12 +821,12 @@ function preserveSummary(profile: ResumeProfile, roleFit: ResumeJson["roleFit"])
   const badSummary =
     !summary ||
     summary.length < 45 ||
-    /^(skilled in|experienced in|proficient in|knowledge of|showcased|developed|conducted|analyzed|automated|visualized)/i.test(summary);
+    /^(skilled in|experienced in|proficient in|knowledge of|showcased|developed|conducted|analyzed|automated|visualized)\b/i.test(summary);
 
   if (!badSummary) return summary;
 
   const evidence = profile.experience.flatMap((job) => job.bullets).find((line) => line.length > 70) || "";
-  if (evidence && !/^(showcased|developed|conducted|analyzed|automated|visualized)/i.test(evidence)) {
+  if (evidence && !/^(showcased|developed|conducted|analyzed|automated|visualized)\b/i.test(evidence)) {
     return compactSentence(`${roleFit.safeHeadline} with practical experience across ${evidence.replace(/^[•-]\s*/, "")}`, 420);
   }
 

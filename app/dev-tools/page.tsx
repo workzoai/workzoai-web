@@ -1,412 +1,246 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
 import {
-  disableWorkZoFounderTestMode,
-  enableWorkZoFounderTestMode,
-  getWorkZoCurrentPlan,
-  getWorkZoUsageSummary,
-  resetWorkZoTestingUsage,
+  WORKZO_PLAN_LIMITS,
+  WORKZO_PLAN_ORDER,
+  canUseWorkZoFeature,
+  getWorkZoFeatureRequiredPlan,
+  type WorkZoFeatureKey,
+  type WorkZoPlanType,
+} from "@/lib/workzoPlanLimits";
+import {
   setWorkZoCurrentPlan,
-  clearWorkZoDevPlanOverride,
   getWorkZoDevPlanOverride,
+  clearWorkZoDevPlanOverride,
 } from "@/lib/workzoUsageTracker";
-import { getWorkZoPlanLimits, normalizeWorkZoPlan, type WorkZoPlanType } from "@/lib/workzoPlanLimits";
+import { fetchWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
 
-type DevSummary = ReturnType<typeof getWorkZoUsageSummary>;
+/**
+ * Internal dev tool — protected by middleware.ts (FOUNDER_ALLOWED_EMAILS).
+ *
+ * Lets you override the client-side "plan" used by PremiumFeatureGate /
+ * useWorkZoAuthoritativePlan, so you can click through the app as if you
+ * were on Free, Premium, or Premium Pro — without needing a real Stripe
+ * subscription in each state.
+ *
+ * This ONLY affects feature-gating on the client. It does not change your
+ * real plan in the database or in Stripe.
+ */
 
-const TEST_USAGE_KEY = "workzo_usage_state_v2";
-const CHECKOUT_KEYS = [
-  "workzo_pending_checkout",
-  "workzo_selected_plan_intent",
-  "workzo_pending_upgrade_route",
-  "workzo_allow_standard_start_once",
-  "workzo_after_login",
+// Every page worth testing, with the feature key (if any) that gates it via
+// PremiumFeatureGate. Pages without a featureKey are open to all plans, but
+// may still render different content based on plan (handled inside the page).
+type PageEntry = {
+  href: string;
+  label: string;
+  featureKey?: WorkZoFeatureKey;
+  note?: string;
+};
+
+const PAGES: PageEntry[] = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/onboarding", label: "Onboarding / CV upload" },
+  { href: "/interview", label: "Interview room", note: "Voice interview is free; some recruiters/personas are Premium Pro." },
+  { href: "/results", label: "Interview results", note: "Advanced report sections are Premium-gated inline (see UpgradeModal)." },
+  { href: "/cv", label: "Improve CV", featureKey: "improve_cv" },
+  { href: "/cover-letter", label: "Cover letter", featureKey: "cover_letter" },
+  { href: "/jobs", label: "Find jobs / Job Assist", featureKey: "job_assist" },
+  { href: "/copilot", label: "Work-O-Bot (full page)", featureKey: "career_brain" },
+  { href: "/history", label: "Interview history", featureKey: "interview_history" },
+  { href: "/account", label: "Account / billing" },
+  { href: "/settings", label: "Settings" },
+  { href: "/pricing", label: "Pricing" },
 ];
 
-function cn(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
-
-function safeNumber(value: unknown, fallback = 0) {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function setUsagePatch(patch: Record<string, unknown>) {
-  if (typeof window === "undefined") return;
-
-  try {
-    const raw = window.localStorage.getItem(TEST_USAGE_KEY);
-    const existing = raw ? JSON.parse(raw) : {};
-    window.localStorage.setItem(
-      TEST_USAGE_KEY,
-      JSON.stringify({
-        ...existing,
-        monthKey:
-          existing?.monthKey ||
-          `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`,
-        ...patch,
-        lastUpdatedAt: new Date().toISOString(),
-      }),
-    );
-  } catch {
-    // Ignore localStorage errors in dev tools.
-  }
+function planAllows(plan: WorkZoPlanType, page: PageEntry) {
+  if (!page.featureKey) return true;
+  return canUseWorkZoFeature(plan, page.featureKey);
 }
 
 export default function DevToolsPage() {
-  const [mounted, setMounted] = useState(false);
-  const [summary, setSummary] = useState<DevSummary | null>(null);
-  const [plan, setPlan] = useState<WorkZoPlanType>("free");
-  const [devOverrideActive, setDevOverrideActive] = useState(false);
-
-  function refresh() {
-    if (typeof window === "undefined") return;
-    const currentPlan = normalizeWorkZoPlan(getWorkZoCurrentPlan());
-    setSummary(getWorkZoUsageSummary(currentPlan));
-    setPlan(currentPlan);
-    setDevOverrideActive(Boolean(getWorkZoDevPlanOverride()));
-  }
-
-  function clearCheckoutState() {
-    if (typeof window === "undefined") return;
-    for (const key of CHECKOUT_KEYS) {
-      window.localStorage.removeItem(key);
-    }
-    document.cookie = "workzo_after_login=; Max-Age=0; Path=/; SameSite=Lax";
-    refresh();
-  }
-
-  // Full reset — clears the dev plan override so the real DB plan
-  // (from /api/account/plan) takes effect again on next page load.
-  function resetToRealAccountPlan() {
-    if (typeof window === "undefined") return;
-    clearWorkZoDevPlanOverride();
-    clearCheckoutState();
-    window.location.reload();
-  }
-
-  function setPlanForTesting(nextPlan: WorkZoPlanType) {
-    disableWorkZoFounderTestMode();
-    // isDevOverride=true: this plan persists even after pages call
-    // fetchWorkZoAuthoritativePlan() and get "free" back from the DB.
-    setWorkZoCurrentPlan(nextPlan, true);
-    resetWorkZoTestingUsage();
-    clearCheckoutState();
-    refresh();
-  }
-
-  function testAsFounderUnlimited() {
-    enableWorkZoFounderTestMode();
-    setWorkZoCurrentPlan("premium_pro", true);
-    resetWorkZoTestingUsage();
-    clearCheckoutState();
-    refresh();
-  }
-
-  function resetOnlyTavusMinutes() {
-    setUsagePatch({
-      tavusInterviewsStarted: 0,
-      tavusMinutesUsed: 0,
-    });
-    refresh();
-  }
-
-  function simulateFreeLimitReached() {
-    setWorkZoCurrentPlan("free", true);
-    setUsagePatch({
-      interviewsStarted: 2,
-      tavusInterviewsStarted: 0,
-      tavusMinutesUsed: 0,
-    });
-    refresh();
-  }
-
-  function simulatePremiumLimitReached() {
-    setWorkZoCurrentPlan("premium", true);
-    setUsagePatch({
-      interviewsStarted: 50,
-      tavusInterviewsStarted: 0,
-      tavusMinutesUsed: 0,
-    });
-    refresh();
-  }
-
-  function simulateProTavusExpired() {
-    setWorkZoCurrentPlan("premium_pro", true);
-    setUsagePatch({
-      tavusInterviewsStarted: 999,
-      tavusMinutesUsed: 60,
-    });
-    refresh();
-  }
+  const [override, setOverride] = useState<WorkZoPlanType | null>(null);
+  const [realPlan, setRealPlan] = useState<WorkZoPlanType | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setMounted(true);
-    refresh();
+    setOverride(getWorkZoDevPlanOverride());
+
+    fetchWorkZoAuthoritativePlan()
+      .then((state) => {
+        setRealPlan(state.plan);
+        setEmail(state.email);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  const limits = useMemo(() => getWorkZoPlanLimits(plan), [plan]);
-  const summaryAny = summary as any;
+  function applyOverride(plan: WorkZoPlanType) {
+    setWorkZoCurrentPlan(plan, true);
+    setOverride(plan);
+  }
 
-  const displayPlan = mounted ? plan : "free";
-  const founderMode = mounted && summaryAny?.testMode ? "enabled" : "disabled";
-  const usage = summaryAny?.usage || {};
-  const interviewsUsed = safeNumber(usage.interviewsStarted);
-  const interviewsLeft = safeNumber(summaryAny?.interviewsRemaining);
-  const tavusUsed = safeNumber(usage.tavusMinutesUsed);
-  const tavusLimit = safeNumber(limits.tavusMinutesPerMonth);
-  const tavusLeft = Math.max(0, tavusLimit - tavusUsed);
-  const voiceLimit = limits.unlimitedVoiceInterviews ? "Unlimited" : String(limits.voiceInterviewsPerMonth);
+  function clearOverride() {
+    clearWorkZoDevPlanOverride();
+    setOverride(null);
+  }
 
-  const planCards: Array<{
-    plan: WorkZoPlanType;
-    title: string;
-    description: string;
-    tone: string;
-  }> = [
-    {
-      plan: "free",
-      title: "Test Free",
-      description: "2 voice interviews, basic report, locked premium tools.",
-      tone: "border-emerald-300/20 bg-emerald-400/10 text-emerald-100",
-    },
-    {
-      plan: "premium",
-      title: "Test Premium",
-      description: "50 voice interviews, CV tools, Job Assist, Career Brain.",
-      tone: "border-blue-300/20 bg-blue-400/10 text-blue-100",
-    },
-    {
-      plan: "premium_pro",
-      title: "Test Premium Pro",
-      description: "Unlimited voice interviews, 60 Tavus minutes, Career Coach.",
-      tone: "border-violet-300/20 bg-violet-400/10 text-violet-100",
-    },
-  ];
+  const effectivePlan: WorkZoPlanType = override || realPlan || "free";
 
   return (
-    <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
-      <div className="mx-auto max-w-6xl">
-        <Link href="/" className="text-sm font-black text-slate-300 hover:text-white">
-          ← Back home
-        </Link>
+    <main className="min-h-screen bg-[#050a12] px-5 py-10 text-white">
+      <section className="mx-auto max-w-2xl">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-violet-200">
+          Internal · Dev Tools
+        </p>
+        <h1 className="mt-3 text-3xl font-black tracking-[-0.03em]">
+          Subscription plan tester
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-slate-400">
+          Temporarily override the plan used for feature gating throughout
+          the app (dashboard, copilot, CV tools, etc.) so you can test each
+          tier's experience. This is stored in your browser only and never
+          touches Stripe or the database.
+        </p>
 
-        <section className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
-          <p className="text-sm font-black uppercase tracking-[0.22em] text-cyan-200">
-            Founder testing
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-sm">
+          <p className="text-slate-400">
+            Signed in as{" "}
+            <span className="font-bold text-white">
+              {loading ? "…" : email || "not signed in"}
+            </span>
           </p>
-          <h1 className="mt-3 text-4xl font-black">WorkZo Dev Tools</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
-            Switch between Free, Premium, and Premium Pro without Stripe. Use this page to test dashboard gating,
-            onboarding recruiter locks, interview limits, results gating, Tavus minute behavior, and Premium Pro features.
+          <p className="mt-1 text-slate-400">
+            Real plan (from database):{" "}
+            <span className="font-bold text-white">
+              {loading ? "…" : realPlan || "unknown"}
+            </span>
           </p>
+          <p className="mt-1 text-slate-400">
+            Active override:{" "}
+            <span className="font-bold text-violet-300">
+              {override || "none — using real plan"}
+            </span>
+          </p>
+        </div>
 
-          <div className="mt-6 grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-7 text-slate-200 sm:grid-cols-2 lg:grid-cols-6">
-            <p>
-              Plan: <strong>{displayPlan}</strong>
-            </p>
-            <p>
-              Override: <strong className={devOverrideActive ? "text-amber-300" : "text-slate-500"}>{devOverrideActive ? "Active" : "None"}</strong>
-            </p>
-            <p>
-              Founder mode: <strong>{founderMode}</strong>
-            </p>
-            <p>
-              Voice used: <strong>{interviewsUsed}</strong>
-            </p>
-            <p>
-              Voice limit: <strong>{voiceLimit}</strong>
-            </p>
-            <p>
-              Voice left: <strong>{limits.unlimitedVoiceInterviews ? "∞" : interviewsLeft}</strong>
-            </p>
-            <p>
-              Tavus: <strong>{tavusUsed}/{tavusLimit}</strong>
-            </p>
-          </div>
-
-          {devOverrideActive && (
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300/20 bg-amber-400/[0.07] p-4">
-              <div>
-                <p className="text-sm font-black text-amber-200">Dev plan override active: {displayPlan}</p>
-                <p className="mt-1 text-xs leading-5 text-amber-100/80">
-                  Every page will show this plan, even after calling /api/account/plan. This persists across page loads until cleared.
-                </p>
-              </div>
+        <div className="mt-6 grid gap-3">
+          {WORKZO_PLAN_ORDER.map((plan) => {
+            const meta = WORKZO_PLAN_LIMITS[plan];
+            const active = override === plan;
+            return (
               <button
-                type="button"
-                onClick={resetToRealAccountPlan}
-                className="shrink-0 rounded-xl border border-amber-300/25 bg-amber-400/10 px-4 py-2 text-xs font-black text-amber-100 hover:bg-amber-400/15"
+                key={plan}
+                onClick={() => applyOverride(plan)}
+                className={`rounded-2xl border px-5 py-4 text-left transition ${
+                  active
+                    ? "border-violet-400 bg-violet-500/15"
+                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
+                }`}
               >
-                Clear override — use real account plan
-              </button>
-            </div>
-          )}
-
-          <div className="mt-6 grid gap-4 lg:grid-cols-3">
-            {planCards.map((card) => (
-              <button
-                key={card.plan}
-                type="button"
-                onClick={() => setPlanForTesting(card.plan)}
-                className={cn(
-                  "rounded-2xl border p-5 text-left transition hover:scale-[1.01]",
-                  card.tone,
-                  plan === card.plan && "ring-2 ring-white/30",
-                )}
-              >
-                <p className="text-lg font-black">{card.title}</p>
-                <p className="mt-2 text-sm leading-6 opacity-80">{card.description}</p>
-                <p className="mt-3 text-xs font-black uppercase tracking-[0.18em] opacity-70">
-                  {plan === card.plan ? "Current test plan" : "Switch plan"}
+                <p className="font-black">{meta.label}</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {meta.shortLabel} · {meta.interviewsPerMonth >= 999999
+                    ? "Unlimited"
+                    : meta.interviewsPerMonth}{" "}
+                  interviews / month
                 </p>
               </button>
-            ))}
-          </div>
+            );
+          })}
 
-          <div className="mt-6 rounded-2xl border border-violet-300/15 bg-violet-500/[0.06] p-5">
-            <p className="text-sm font-black uppercase tracking-[0.2em] text-violet-200">
-              Premium Pro Tavus testing
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Tavus minutes used</p>
-                <p className="mt-2 text-3xl font-black">{tavusUsed}</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Tavus monthly limit</p>
-                <p className="mt-2 text-3xl font-black">{tavusLimit}</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Tavus minutes left</p>
-                <p className="mt-2 text-3xl font-black">{tavusLeft}</p>
-              </div>
-            </div>
+          <button
+            onClick={clearOverride}
+            className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white"
+          >
+            Clear override (use real plan)
+          </button>
+        </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <button
-                type="button"
-                onClick={resetOnlyTavusMinutes}
-                className="rounded-2xl border border-white/10 px-5 py-4 text-sm font-black text-slate-200 hover:bg-white/10"
-              >
-                Reset Tavus Minutes
-              </button>
-              <button
-                type="button"
-                onClick={simulateProTavusExpired}
-                className="rounded-2xl border border-red-300/20 bg-red-500/10 px-5 py-4 text-sm font-black text-red-100 hover:bg-red-500/15"
-              >
-                Simulate Tavus Expired
-              </button>
+        <div className="mt-8 flex gap-3">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center justify-center rounded-2xl border border-white/10 px-5 py-3 text-sm font-black text-slate-300 hover:bg-white/[0.06] hover:text-white"
+          >
+            Go to dashboard
+          </Link>
+          <Link
+            href="/founder-dashboard"
+            className="inline-flex items-center justify-center rounded-2xl border border-white/10 px-5 py-3 text-sm font-black text-slate-300 hover:bg-white/[0.06] hover:text-white"
+          >
+            Founder dashboard
+          </Link>
+          <Link
+            href="/founder/analytics"
+            className="inline-flex items-center justify-center rounded-2xl border border-white/10 px-5 py-3 text-sm font-black text-slate-300 hover:bg-white/[0.06] hover:text-white"
+          >
+            Analytics
+          </Link>
+        </div>
+      </section>
+
+      {/* ── Page tester matrix ─────────────────────────────────────────── */}
+      <section className="mx-auto mt-12 max-w-4xl">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
+          Page tester
+        </p>
+        <h2 className="mt-3 text-2xl font-black tracking-[-0.02em]">
+          Click through every page as {WORKZO_PLAN_LIMITS[effectivePlan].label}
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-slate-400">
+          Open any page below in the plan currently active above. Pages that
+          are gated by <code className="rounded bg-white/10 px-1">PremiumFeatureGate</code>{" "}
+          show whether the active plan can access them — switch the plan
+          above and reload a page to see the locked vs. unlocked state.
+        </p>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {PAGES.map((page) => {
+            const allowed = planAllows(effectivePlan, page);
+            const requiredPlan = page.featureKey ? getWorkZoFeatureRequiredPlan(page.featureKey) : "free";
+
+            return (
               <Link
-                href="/interview?test=1&mode=tavus"
-                className="rounded-2xl border border-violet-300/20 bg-violet-400/10 px-5 py-4 text-center text-sm font-black text-violet-100 hover:bg-violet-400/15"
+                key={page.href}
+                href={page.href}
+                target="_blank"
+                className={`rounded-2xl border p-4 transition hover:bg-white/[0.06] ${
+                  allowed
+                    ? "border-emerald-400/25 bg-emerald-400/[0.06]"
+                    : "border-amber-400/25 bg-amber-400/[0.06]"
+                }`}
               >
-                Test Tavus Room
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-black">{page.label}</p>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
+                      allowed ? "bg-emerald-400/15 text-emerald-200" : "bg-amber-400/15 text-amber-200"
+                    }`}
+                  >
+                    {allowed ? "Unlocked" : `Needs ${WORKZO_PLAN_LIMITS[requiredPlan].label}`}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">{page.href}</p>
+                {page.note && <p className="mt-2 text-xs leading-5 text-slate-400">{page.note}</p>}
               </Link>
-            </div>
-          </div>
+            );
+          })}
+        </div>
 
-          <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-            <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-300">
-              Limit simulation
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <button
-                type="button"
-                onClick={simulateFreeLimitReached}
-                className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-5 py-4 text-sm font-black text-amber-100 hover:bg-amber-400/15"
-              >
-                Simulate Free Limit
-              </button>
-              <button
-                type="button"
-                onClick={simulatePremiumLimitReached}
-                className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-5 py-4 text-sm font-black text-amber-100 hover:bg-amber-400/15"
-              >
-                Simulate Premium Limit
-              </button>
-              <button
-                type="button"
-                onClick={testAsFounderUnlimited}
-                className="rounded-2xl border border-violet-300/20 bg-violet-400/10 px-5 py-4 text-sm font-black text-violet-100 hover:bg-violet-400/15"
-              >
-                Founder Unlimited
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <button
-              type="button"
-              onClick={() => {
-                resetWorkZoTestingUsage();
-                refresh();
-              }}
-              className="rounded-2xl border border-white/10 px-5 py-4 text-sm font-black text-slate-200 hover:bg-white/10"
-            >
-              Reset All Usage
-            </button>
-            <button
-              type="button"
-              onClick={clearCheckoutState}
-              className="rounded-2xl border border-white/10 px-5 py-4 text-sm font-black text-slate-200 hover:bg-white/10"
-            >
-              Clear Checkout State
-            </button>
-            <Link
-              href="/pricing?intent=interview&test=1"
-              className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-5 py-4 text-center text-sm font-black text-cyan-100 hover:bg-cyan-400/15"
-            >
-              Pricing Flow
-            </Link>
-            <Link
-              href="/billing/checkout?plan=premium&billing=monthly"
-              className="rounded-2xl border border-blue-300/20 bg-blue-400/10 px-5 py-4 text-center text-sm font-black text-blue-100 hover:bg-blue-400/15"
-            >
-              Premium Checkout
-            </Link>
-            <Link
-              href="/billing/checkout?plan=premium_pro&billing=monthly"
-              className="rounded-2xl border border-violet-300/20 bg-violet-400/10 px-5 py-4 text-center text-sm font-black text-violet-100 hover:bg-violet-400/15"
-            >
-              Pro Checkout
-            </Link>
-            <Link
-              href="/onboarding"
-              className="rounded-2xl bg-white px-5 py-4 text-center text-sm font-black text-slate-950 hover:bg-slate-200"
-            >
-              Onboarding
-            </Link>
-            <Link
-              href="/interview?test=1"
-              className="rounded-2xl border border-white/10 px-5 py-4 text-center text-sm font-black text-slate-200 hover:bg-white/10"
-            >
-              Voice Interview
-            </Link>
-            <Link
-              href="/results"
-              className="rounded-2xl border border-white/10 px-5 py-4 text-center text-sm font-black text-slate-200 hover:bg-white/10"
-            >
-              Results
-            </Link>
-            <Link
-              href="/dashboard"
-              className="rounded-2xl border border-white/10 px-5 py-4 text-center text-sm font-black text-slate-200 hover:bg-white/10"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/history"
-              className="rounded-2xl border border-white/10 px-5 py-4 text-center text-sm font-black text-slate-200 hover:bg-white/10"
-            >
-              History
-            </Link>
-          </div>
-        </section>
-      </div>
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-xs leading-5 text-slate-400">
+          <p className="font-black text-slate-300">Plan matrix reference</p>
+          <p className="mt-2">
+            Free → Premium → Premium Pro is the upgrade order. A page&apos;s
+            required plan is taken live from{" "}
+            <code className="rounded bg-white/10 px-1">getWorkZoFeatureRequiredPlan</code>, so if you
+            change a feature&apos;s required plan in{" "}
+            <code className="rounded bg-white/10 px-1">workzoPlanLimits.ts</code>, this matrix updates
+            automatically.
+          </p>
+        </div>
+      </section>
     </main>
   );
 }

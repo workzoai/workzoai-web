@@ -12,6 +12,13 @@ export type WorkZoVapiClient = {
   on?: (event: string, handler: (...args: any[]) => void) => void;
   off?: (event: string, handler: (...args: any[]) => void) => void;
   removeAllListeners?: () => void;
+  // Vapi Web SDK supports injecting a message into the live call (e.g.
+  // { type: "add-message", message: { role: "system", content: "..." } }).
+  // Used to push real-time fact-check signals (e.g. an unsupported claim
+  // just detected from the candidate's last answer) so the assistant's
+  // next reply can react to it immediately, without waiting for it to
+  // notice on its own.
+  send?: (payload: Record<string, unknown>) => void;
 };
 
 export type WorkZoRecruiterId =

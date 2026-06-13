@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
   Briefcase,
@@ -11,6 +11,7 @@ import {
   Minimize2,
   Send,
   Sparkles,
+  User,
   Wand2,
   X,
 } from "lucide-react";
@@ -33,12 +34,22 @@ type SavedSetup = {
   recruiterPersonality?: string;
 };
 
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  mode?: CopilotMode;
+};
+
 type WorkOBotFloatingProps = {
   defaultOpen?: boolean;
   compact?: boolean;
   contextLabel?: string;
   initialMode?: CopilotMode;
 };
+
+const STORAGE_KEY = "workzo-workobot-chat-v1";
+const MAX_STORED_MESSAGES = 40;
 
 const modeOptions: Array<{
   id: CopilotMode;
@@ -105,6 +116,39 @@ function readSetup(): SavedSetup {
   return {};
 }
 
+function readStoredChat(): ChatMessage[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = window.sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) =>
+        item &&
+        typeof item.id === "string" &&
+        (item.role === "user" || item.role === "assistant") &&
+        typeof item.content === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredChat(messages: ChatMessage[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-MAX_STORED_MESSAGES)));
+  } catch {
+    // Ignore storage errors — chat just won't persist across reloads.
+  }
+}
+
+function createId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function placeholderForMode(mode: CopilotMode) {
   switch (mode) {
     case "interview":
@@ -118,7 +162,7 @@ function placeholderForMode(mode: CopilotMode) {
     case "message":
       return "Ask: Write a LinkedIn message, recruiter reply, or HR email...";
     default:
-      return "Ask Work-O-Bot anything about your career journey...";
+      return "Ask Work-O-Bot anything about your career...";
   }
 }
 
@@ -139,6 +183,23 @@ function starterPrompt(mode: CopilotMode, role: string) {
   }
 }
 
+function actionForMode(mode: CopilotMode) {
+  switch (mode) {
+    case "interview":
+      return "magic";
+    case "cv":
+      return "cv_improve";
+    case "jobs":
+      return "find_jobs_strategy";
+    case "cover_letter":
+      return "cover_letter";
+    case "message":
+      return "linkedin_message";
+    default:
+      return "career_chat";
+  }
+}
+
 export default function WorkOBotFloating({
   defaultOpen = false,
   compact = false,
@@ -150,12 +211,24 @@ export default function WorkOBotFloating({
   const [mode, setMode] = useState<CopilotMode>(initialMode);
   const [setup, setSetup] = useState<SavedSetup>({});
   const [message, setMessage] = useState("");
-  const [output, setOutput] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSetup(readSetup());
+    setMessages(readStoredChat());
   }, []);
+
+  useEffect(() => {
+    saveStoredChat(messages);
+  }, [messages]);
+
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, loading, open, minimized]);
 
   const targetRole = setup.targetRole || "your target role";
   const targetMarket = setup.targetMarket || "Global";
@@ -165,40 +238,40 @@ export default function WorkOBotFloating({
     [mode],
   );
 
-  async function askWorkOBot(nextMessage?: string) {
-    const prompt = (nextMessage || message).trim();
-    if (!prompt) return;
+  async function sendMessage(rawText?: string, modeOverride?: CopilotMode) {
+    const prompt = (rawText ?? message).trim();
+    if (!prompt || loading) return;
+
+    const activeModeId = modeOverride ?? mode;
+    const userMessage: ChatMessage = { id: createId(), role: "user", content: prompt, mode: activeModeId };
+
+    const history = [...messages, userMessage];
+    setMessages(history);
+    setMessage("");
+    setError("");
 
     try {
       setLoading(true);
-      setOutput("");
 
       const response = await fetch("/api/copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mode,
-          action:
-            mode === "interview"
-              ? "magic"
-              : mode === "cv"
-                ? "cv_improve"
-                : mode === "jobs"
-                  ? "find_jobs_strategy"
-                  : mode === "cover_letter"
-                    ? "cover_letter"
-                    : mode === "message"
-                      ? "linkedin_message"
-                      : "career_chat",
+          mode: activeModeId,
+          action: actionForMode(activeModeId),
           message: prompt,
-          question: mode === "interview" ? prompt : "",
-          answer: mode === "interview" ? prompt : "",
+          question: activeModeId === "interview" ? prompt : "",
+          answer: activeModeId === "interview" ? prompt : "",
           cvText: setup.cvText || "",
           jobDescription: setup.jobDescription || "",
           targetRole,
           targetMarket,
           recruiterName: "Work-O-Bot",
           recruiterRole: "Career Copilot",
+          // Send recent turns so follow-ups ("make it shorter", "what about X?")
+          // are understood in context, instead of each message being treated
+          // as a one-off, unrelated request.
+          history: history.slice(-9, -1).map((item) => ({ role: item.role, content: item.content })),
         }),
       });
 
@@ -212,17 +285,29 @@ export default function WorkOBotFloating({
         throw new Error(data?.error || "Work-O-Bot could not respond.");
       }
 
-      setOutput(data.output || "Work-O-Bot could not generate a response.");
-      setMessage("");
-    } catch (error) {
-      const fallback =
-        error instanceof Error ? error.message : "Work-O-Bot could not respond.";
-      setOutput(
-        `${fallback}\n\nTry opening the full copilot page, or check that /api/copilot is deployed with OPENROUTER_API_KEY.`,
-      );
+      const replyText = data.output || "Work-O-Bot could not generate a response.";
+      setMessages((current) => [...current, { id: createId(), role: "assistant", content: replyText, mode: activeModeId }]);
+    } catch (err) {
+      const fallback = err instanceof Error ? err.message : "Work-O-Bot could not respond.";
+      setError(fallback);
+      setMessages((current) => [
+        ...current,
+        {
+          id: createId(),
+          role: "assistant",
+          content: `${fallback}\n\nTry opening the full copilot page, or check that /api/copilot is deployed with OPENROUTER_API_KEY.`,
+          mode: activeModeId,
+        },
+      ]);
     } finally {
       setLoading(false);
     }
+  }
+
+  function clearChat() {
+    setMessages([]);
+    setError("");
+    saveStoredChat([]);
   }
 
   if (!open) {
@@ -253,11 +338,11 @@ export default function WorkOBotFloating({
   return (
     <section
       className={cn(
-        "fixed z-[90] overflow-hidden border border-white/[0.08] bg-[#061225]/94 text-white shadow-[0_30px_100px_rgba(0,0,0,0.46)] backdrop-blur-2xl",
+        "fixed z-[90] flex flex-col overflow-hidden border border-white/[0.08] bg-[#061225]/94 text-white shadow-[0_30px_100px_rgba(0,0,0,0.46)] backdrop-blur-2xl",
         compact
-          ? "inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+14px)] rounded-[26px] sm:left-auto sm:right-5 sm:w-[390px]"
-          : "inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+14px)] rounded-[28px] sm:left-auto sm:right-5 sm:w-[430px]",
-        minimized && "sm:w-[340px]",
+          ? "inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+14px)] h-[min(640px,calc(100vh-100px))] rounded-[26px] sm:left-auto sm:right-5 sm:w-[390px]"
+          : "inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+14px)] h-[min(680px,calc(100vh-100px))] rounded-[28px] sm:left-auto sm:right-5 sm:w-[430px]",
+        minimized && "h-auto sm:w-[340px]",
       )}
     >
       <header className="flex items-center justify-between border-b border-white/[0.07] bg-white/[0.035] px-4 py-3">
@@ -274,6 +359,16 @@ export default function WorkOBotFloating({
         </div>
 
         <div className="flex items-center gap-2">
+          {messages.length > 0 && !minimized && (
+            <button
+              type="button"
+              onClick={clearChat}
+              className="hidden rounded-xl border border-white/[0.08] bg-white/[0.04] px-2.5 py-1.5 text-[11px] font-black text-slate-300 hover:text-white sm:block"
+              aria-label="Clear conversation"
+            >
+              New chat
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setMinimized((value) => !value)}
@@ -294,8 +389,11 @@ export default function WorkOBotFloating({
       </header>
 
       {!minimized && (
-        <div className="p-4">
-          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <>
+          {/* Quick-action mode chips — these just set the "lens" for the next
+              message (and are sent to the API as a hint), they no longer
+              gate or reset the conversation. */}
+          <div className="flex gap-2 overflow-x-auto border-b border-white/[0.06] bg-white/[0.02] px-3 py-2 [scrollbar-width:none]">
             {modeOptions.map((item) => {
               const Icon = item.icon;
               const active = item.id === mode;
@@ -305,88 +403,129 @@ export default function WorkOBotFloating({
                   key={item.id}
                   type="button"
                   onClick={() => setMode(item.id)}
+                  title={item.helper}
                   className={cn(
-                    "rounded-2xl border p-3 text-left transition hover:bg-white/[0.07]",
+                    "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-black transition",
                     active
-                      ? "border-cyan-300/28 bg-cyan-400/10 text-white"
-                      : "border-white/[0.07] bg-white/[0.035] text-slate-300",
+                      ? "border-cyan-300/35 bg-cyan-400/15 text-cyan-100"
+                      : "border-white/[0.07] bg-white/[0.03] text-slate-400 hover:text-slate-200",
                   )}
                 >
-                  <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4 text-cyan-200" />
-                    <span className="text-xs font-black">{item.label}</span>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-slate-400">
-                    {item.helper}
-                  </p>
+                  <Icon className="h-3.5 w-3.5" />
+                  {item.label}
                 </button>
               );
             })}
-          </div>
-
-          <div className="rounded-3xl border border-cyan-300/14 bg-cyan-400/[0.055] p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-black">{activeMode.label} mode</p>
-                <p className="mt-1 text-xs leading-5 text-slate-300">
-                  Context: {targetRole} · {targetMarket}
-                </p>
-              </div>
-              <Link
-                href={`/copilot?mode=${encodeURIComponent(mode)}`}
-                className="rounded-xl border border-white/[0.08] bg-white/[0.05] px-3 py-2 text-xs font-black text-cyan-100 hover:bg-white/[0.08]"
-              >
-                Full page
-              </Link>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => askWorkOBot(starterPrompt(mode, targetRole))}
-              className="mt-3 w-full rounded-2xl border border-white/[0.07] bg-white/[0.045] px-3 py-2 text-left text-xs font-semibold text-slate-200 hover:bg-white/[0.075]"
+            <Link
+              href={`/copilot?mode=${encodeURIComponent(mode)}`}
+              className="ml-auto flex shrink-0 items-center gap-1 rounded-full border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-[11px] font-black text-cyan-100 hover:bg-white/[0.07]"
             >
-              Try: {starterPrompt(mode, targetRole)}
-            </button>
+              Full page
+            </Link>
           </div>
 
-          <div className="mt-3">
-            <textarea
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              placeholder={placeholderForMode(mode)}
-              className="h-28 w-full resize-none rounded-3xl border border-white/[0.08] bg-slate-950/70 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/35"
-            />
-            <button
-              type="button"
-              onClick={() => askWorkOBot()}
-              disabled={loading || !message.trim()}
-              className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 text-sm font-black text-white shadow-[0_16px_42px_rgba(14,165,233,0.26)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Ask Work-O-Bot
-            </button>
-          </div>
-
-          <div className="mt-3 max-h-[260px] overflow-y-auto whitespace-pre-line rounded-3xl border border-white/[0.07] bg-black/24 p-4 text-sm leading-6 text-slate-200">
-            {loading ? (
-              <div className="flex h-[140px] items-center justify-center text-center text-slate-400">
-                <div>
-                  <Loader2 className="mx-auto h-7 w-7 animate-spin text-cyan-200" />
-                  <p className="mt-3 text-sm">Thinking like a career coach...</p>
+          {/* Chat thread */}
+          <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+            {messages.length === 0 ? (
+              <div className="rounded-3xl border border-cyan-300/14 bg-cyan-400/[0.055] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-black">{activeMode.label} mode</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-300">
+                      Context: {targetRole} · {targetMarket}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ) : output ? (
-              output
-            ) : (
-              <div className="text-slate-400">
-                <p className="font-semibold text-slate-200">What can I help you with?</p>
-                <p className="mt-2">
-                  Ask about your CV, jobs, cover letters, interview answers, recruiter messages, or your next career step.
+
+                <p className="mt-3 text-xs leading-5 text-slate-400">
+                  Ask anything career-related — CV feedback, interview answers, job search
+                  strategy, cover letters, recruiter messages, salary talk, or general advice.
+                  Switch the chip above any time to change focus.
                 </p>
+
+                <button
+                  type="button"
+                  onClick={() => sendMessage(starterPrompt(mode, targetRole))}
+                  className="mt-3 w-full rounded-2xl border border-white/[0.07] bg-white/[0.045] px-3 py-2 text-left text-xs font-semibold text-slate-200 hover:bg-white/[0.075]"
+                >
+                  Try: {starterPrompt(mode, targetRole)}
+                </button>
+              </div>
+            ) : (
+              messages.map((item) => (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "flex items-start gap-2.5",
+                    item.role === "user" ? "flex-row-reverse" : "flex-row",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full",
+                      item.role === "user"
+                        ? "bg-white/[0.08] text-slate-300"
+                        : "bg-gradient-to-br from-blue-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(34,211,238,0.30)]",
+                    )}
+                  >
+                    {item.role === "user" ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+                  </div>
+                  <div
+                    className={cn(
+                      "max-w-[82%] whitespace-pre-line rounded-3xl px-4 py-2.5 text-sm leading-6",
+                      item.role === "user"
+                        ? "rounded-tr-md bg-cyan-400/15 text-cyan-50"
+                        : "rounded-tl-md border border-white/[0.07] bg-black/24 text-slate-200",
+                    )}
+                  >
+                    {item.content}
+                  </div>
+                </div>
+              ))
+            )}
+
+            {loading && (
+              <div className="flex items-start gap-2.5">
+                <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(34,211,238,0.30)]">
+                  <Bot className="h-3.5 w-3.5" />
+                </div>
+                <div className="flex items-center gap-2 rounded-3xl rounded-tl-md border border-white/[0.07] bg-black/24 px-4 py-2.5 text-sm text-slate-400">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-200" />
+                  Thinking…
+                </div>
               </div>
             )}
           </div>
-        </div>
+
+          {/* Composer */}
+          <div className="border-t border-white/[0.06] bg-white/[0.02] p-3">
+            <div className="flex items-end gap-2">
+              <textarea
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void sendMessage();
+                  }
+                }}
+                placeholder={placeholderForMode(mode)}
+                rows={1}
+                className="max-h-28 min-h-[44px] flex-1 resize-none rounded-2xl border border-white/[0.08] bg-slate-950/70 p-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/35"
+              />
+              <button
+                type="button"
+                onClick={() => void sendMessage()}
+                disabled={loading || !message.trim()}
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 text-white shadow-[0_16px_42px_rgba(14,165,233,0.26)] transition hover:scale-[1.04] disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Send"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </button>
+            </div>
+            {error && <p className="mt-2 text-[11px] font-semibold text-amber-300">{error}</p>}
+          </div>
+        </>
       )}
     </section>
   );

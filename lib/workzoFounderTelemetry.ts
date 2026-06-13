@@ -1,5 +1,7 @@
 "use client";
 
+import { getWorkZoAnalyticsSessionId, getWorkZoVisitorId, trackWorkZoEvent } from "@/lib/workzoAnalytics";
+
 export type WorkZoTelemetryEventName =
   | "interview_started"
   | "interview_completed"
@@ -14,13 +16,15 @@ export type WorkZoTelemetryEvent = {
   id: string;
   event: WorkZoTelemetryEventName;
   createdAt: string;
+  visitorId: string;
+  sessionId: string;
   deviceType: "mobile" | "tablet" | "desktop" | "unknown";
   userAgent?: string;
   data?: Record<string, unknown>;
 };
 
 export type WorkZoFounderTelemetrySummary = {
-  version: 1;
+  version: 2;
   updatedAt: string;
   counters: {
     interviewsStarted: number;
@@ -34,8 +38,9 @@ export type WorkZoFounderTelemetrySummary = {
   events: WorkZoTelemetryEvent[];
 };
 
-const STORAGE_KEY = "workzo-founder-telemetry-v1";
-const MAX_EVENTS = 160;
+const STORAGE_KEY = "workzo-founder-telemetry-v2";
+const OLD_STORAGE_KEY = "workzo-founder-telemetry-v1";
+const MAX_EVENTS = 500;
 
 function getDeviceType(): WorkZoTelemetryEvent["deviceType"] {
   if (typeof navigator === "undefined") return "unknown";
@@ -53,7 +58,7 @@ function getDeviceType(): WorkZoTelemetryEvent["deviceType"] {
 
 function createEmptyTelemetry(): WorkZoFounderTelemetrySummary {
   return {
-    version: 1,
+    version: 2,
     updatedAt: "",
     counters: {
       interviewsStarted: 0,
@@ -68,27 +73,51 @@ function createEmptyTelemetry(): WorkZoFounderTelemetrySummary {
   };
 }
 
+function normalizeTelemetry(raw: unknown): WorkZoFounderTelemetrySummary {
+  const empty = createEmptyTelemetry();
+
+  if (!raw || typeof raw !== "object") return empty;
+  const parsed = raw as Partial<WorkZoFounderTelemetrySummary> & { version?: number };
+  const visitorId = typeof window !== "undefined" ? getWorkZoVisitorId() : "";
+  const sessionId = typeof window !== "undefined" ? getWorkZoAnalyticsSessionId() : "";
+
+  return {
+    version: 2,
+    updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "",
+    counters: {
+      ...empty.counters,
+      ...(parsed.counters || {}),
+    },
+    events: Array.isArray(parsed.events)
+      ? parsed.events.slice(0, MAX_EVENTS).map((event: any) => ({
+          id: String(event?.id || `${event?.event || "event"}-${event?.createdAt || Date.now()}`),
+          event: event?.event || "runtime_issue",
+          createdAt: String(event?.createdAt || new Date().toISOString()),
+          visitorId: String(event?.visitorId || visitorId),
+          sessionId: String(event?.sessionId || sessionId),
+          deviceType: event?.deviceType || "unknown",
+          userAgent: event?.userAgent || "",
+          data: event?.data && typeof event.data === "object" ? event.data : {},
+        }))
+      : [],
+  };
+}
+
 export function readFounderTelemetry(): WorkZoFounderTelemetrySummary {
   if (typeof window === "undefined") return createEmptyTelemetry();
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return createEmptyTelemetry();
+    if (raw) return normalizeTelemetry(JSON.parse(raw));
 
-    const parsed = JSON.parse(raw) as WorkZoFounderTelemetrySummary;
-    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.events)) {
-      return createEmptyTelemetry();
+    const oldRaw = window.localStorage.getItem(OLD_STORAGE_KEY);
+    if (oldRaw) {
+      const migrated = normalizeTelemetry(JSON.parse(oldRaw));
+      saveFounderTelemetry(migrated);
+      return migrated;
     }
 
-    return {
-      version: 1,
-      updatedAt: parsed.updatedAt || "",
-      counters: {
-        ...createEmptyTelemetry().counters,
-        ...(parsed.counters || {}),
-      },
-      events: parsed.events || [],
-    };
+    return createEmptyTelemetry();
   } catch {
     return createEmptyTelemetry();
   }
@@ -102,6 +131,7 @@ export function saveFounderTelemetry(next: WorkZoFounderTelemetrySummary) {
       STORAGE_KEY,
       JSON.stringify({
         ...next,
+        version: 2,
         updatedAt: new Date().toISOString(),
         events: next.events.slice(0, MAX_EVENTS),
       }),
@@ -119,11 +149,15 @@ export function recordFounderTelemetryEvent(
 
   const current = readFounderTelemetry();
   const createdAt = new Date().toISOString();
+  const visitorId = getWorkZoVisitorId();
+  const sessionId = getWorkZoAnalyticsSessionId();
 
   const nextEvent: WorkZoTelemetryEvent = {
     id: `${event}-${createdAt}-${Math.random().toString(36).slice(2, 8)}`,
     event,
     createdAt,
+    visitorId,
+    sessionId,
     deviceType: getDeviceType(),
     userAgent: navigator.userAgent || "",
     data,
@@ -133,6 +167,16 @@ export function recordFounderTelemetryEvent(
     ...current,
     updatedAt: createdAt,
     events: [nextEvent, ...current.events].slice(0, MAX_EVENTS),
+  });
+
+  trackWorkZoEvent({
+    event,
+    visitorId,
+    sessionId,
+    metadata: {
+      telemetry: true,
+      ...data,
+    },
   });
 }
 
@@ -191,6 +235,7 @@ export function clearFounderTelemetry() {
 
   try {
     window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(OLD_STORAGE_KEY);
   } catch {
     // Ignore.
   }

@@ -1,435 +1,277 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  Activity,
   AlertTriangle,
   ArrowLeft,
   BarChart3,
+  Brain,
   CheckCircle2,
-  Clock3,
-  FileText,
-  Laptop,
   Mic,
-  RefreshCcw,
-  Save,
-  Smartphone,
-  Tablet,
+  RefreshCw,
   TrendingDown,
-  TrendingUp,
+  Upload,
   Users,
+  Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
 
-type AnalyticsEvent = {
-  id?: number | string;
-  session_id?: string | null;
-  event?: string | null;
-  path?: string | null;
-  source?: string | null;
-  device?: string | null;
-  recruiter?: string | null;
-  mode?: string | null;
-  role?: string | null;
-  market?: string | null;
-  created_at?: string | null;
-  metadata?: Record<string, unknown> | null;
-};
-
-type AnalyticsSummary = {
-  totalEvents: number;
-  uniqueSessions: number;
-  interviewStarts: number;
-  interviewCompleted: number;
-  completionRate: number;
-  mobileEvents: number;
-  desktopEvents: number;
-  tabletEvents: number;
-  unknownDeviceEvents: number;
-  mobileSessions: number;
-  desktopSessions: number;
-  tabletSessions: number;
-  unknownDeviceSessions: number;
-  recruiterCounts: Record<string, number>;
-  eventCounts: Record<string, number>;
-  errors: AnalyticsEvent[];
-  dropOffSignals: AnalyticsEvent[];
-};
+type FunnelStage = { stage: string; count: number };
+type ModePerformance = { starts: number; completions: number; voiceFailures: number; results: number; avgTrust: number | null };
 
 type AnalyticsResponse = {
-  success?: boolean;
+  ok?: boolean;
+  configured?: boolean;
+  reason?: string;
   error?: string;
-  summary?: AnalyticsSummary;
-  stats?: AnalyticsSummary;
-  recentEvents?: AnalyticsEvent[];
-  events?: AnalyticsEvent[];
-  generatedAt?: string;
+  summary: {
+    totalEvents: number;
+    productionEvents?: number;
+    totalUniqueVisitors?: number;
+    uniqueVisitorsAllTime?: number;
+    uniqueSessions: number;
+    uploads: number;
+    interviewsStarted: number;
+    answersSubmitted: number;
+    voiceStarts: number;
+    voiceFailures: number;
+    voicePaused: number;
+    voiceRecovered: number;
+    completedInterviews: number;
+    resultsViewed: number;
+    answerRate: number;
+    resultRate: number;
+    completionRate: number;
+    voiceFailureRate: number;
+    counts: Record<string, number>;
+    recruiters: Record<string, number>;
+    roles: Record<string, number>;
+    modes: Record<string, number>;
+    trafficSources: Record<string, number>;
+    weakSignals: Record<string, number>;
+    dropoffFunnel: FunnelStage[];
+    modePerformance: Record<string, ModePerformance>;
+    topWeakness: string;
+    insight: string;
+  };
+  events: Array<{
+    event: string;
+    sessionId: string;
+    visitorId?: string;
+    role: string;
+    market: string;
+    recruiter: string;
+    mode: string;
+    score: number | null;
+    trust: number | null;
+    pressure: number | null;
+    path: string;
+    source: string;
+    timestamp: string;
+    receivedAt: string;
+    metadata?: Record<string, unknown>;
+  }>;
 };
 
-const emptySummary: AnalyticsSummary = {
-  totalEvents: 0,
-  uniqueSessions: 0,
-  interviewStarts: 0,
-  interviewCompleted: 0,
-  completionRate: 0,
-  mobileEvents: 0,
-  desktopEvents: 0,
-  tabletEvents: 0,
-  unknownDeviceEvents: 0,
-  mobileSessions: 0,
-  desktopSessions: 0,
-  tabletSessions: 0,
-  unknownDeviceSessions: 0,
-  recruiterCounts: {},
-  eventCounts: {},
-  errors: [],
-  dropOffSignals: [],
+const emptyData: AnalyticsResponse = {
+  ok: true,
+  configured: false,
+  summary: {
+    totalEvents: 0,
+    productionEvents: 0,
+    totalUniqueVisitors: 0,
+    uniqueVisitorsAllTime: 0,
+    uniqueSessions: 0,
+    uploads: 0,
+    interviewsStarted: 0,
+    answersSubmitted: 0,
+    voiceStarts: 0,
+    voiceFailures: 0,
+    voicePaused: 0,
+    voiceRecovered: 0,
+    completedInterviews: 0,
+    resultsViewed: 0,
+    answerRate: 0,
+    resultRate: 0,
+    completionRate: 0,
+    voiceFailureRate: 0,
+    counts: {},
+    recruiters: {},
+    roles: {},
+    modes: {},
+    trafficSources: {},
+    weakSignals: {},
+    dropoffFunnel: [],
+    modePerformance: {},
+    topWeakness: "Not enough data yet",
+    insight: "No analytics collected yet.",
+  },
+  events: [],
 };
 
-function formatNumber(value?: number | null) {
-  return new Intl.NumberFormat("en").format(Number(value || 0));
-}
-
-function formatPercent(value: number) {
-  if (!Number.isFinite(value)) return "0%";
-  return `${Math.round(value * 10) / 10}%`;
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return "Recent";
-
-  try {
-    return new Intl.DateTimeFormat("en", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(value));
-  } catch {
-    return "Recent";
+function normalizeAnalyticsResponse(json: any): AnalyticsResponse {
+  if (json?.summary) {
+    return {
+      ...emptyData,
+      ...json,
+      summary: { ...emptyData.summary, ...json.summary },
+      events: Array.isArray(json.events) ? json.events : [],
+    };
   }
+
+  if (json?.metrics) {
+    return {
+      ...emptyData,
+      ok: json.ok,
+      configured: json.configured,
+      reason: json.reason,
+      error: json.error,
+      summary: {
+        ...emptyData.summary,
+        totalEvents: json.metrics.totalEvents || 0,
+        productionEvents: json.metrics.productionEvents || json.metrics.totalEvents || 0,
+        totalUniqueVisitors: json.metrics.totalUniqueVisitors || 0,
+        uniqueVisitorsAllTime: json.metrics.uniqueVisitorsAllTime || json.metrics.totalUniqueVisitors || 0,
+        uniqueSessions: json.metrics.uniqueSessions || 0,
+        uploads: json.metrics.cvUploads || json.metrics.uploads || 0,
+        interviewsStarted: json.metrics.interviewsStarted || json.metrics.interviewStarts || 0,
+        completedInterviews: json.metrics.completed || json.metrics.interviewCompletions || 0,
+        resultsViewed: json.metrics.resultsViewed || 0,
+        completionRate: json.metrics.completionRate || 0,
+        resultRate: json.metrics.resultViewRate || 0,
+        answerRate: json.metrics.answerRate || 0,
+        voiceFailureRate: json.metrics.voiceFailureRate || 0,
+        insight: json.metrics.totalEvents ? "Live Supabase analytics are connected." : "Supabase analytics are connected, but no events have been collected yet.",
+      },
+      events: [],
+    };
+  }
+
+  return { ...emptyData, ok: json?.ok, configured: json?.configured, reason: json?.reason, error: json?.error };
 }
 
-function cleanLabel(value?: string | null, fallback = "Unknown") {
-  const text = String(value || "").replace(/_/g, " ").replace(/-/g, " ").trim();
-  if (!text) return fallback;
-  return text.charAt(0).toUpperCase() + text.slice(1);
+function StatCard({ label, value, icon, tone = "default" }: { label: string; value: string | number; icon: React.ReactNode; tone?: "default" | "good" | "warn" | "danger" }) {
+  const toneClass =
+    tone === "good" ? "from-emerald-500/12 to-cyan-400/8 text-emerald-200" :
+    tone === "warn" ? "from-amber-500/14 to-orange-400/8 text-amber-200" :
+    tone === "danger" ? "from-red-500/14 to-pink-400/8 text-red-200" :
+    "from-blue-500/12 to-violet-500/8 text-cyan-200";
+
+  return (
+    <div className={`rounded-[24px] border border-white/10 bg-gradient-to-br ${toneClass} p-4 shadow-[0_18px_70px_rgba(0,0,0,0.22)]`}>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">{label}</p>
+        <div>{icon}</div>
+      </div>
+      <p className="mt-3 text-3xl font-black text-white">{value}</p>
+    </div>
+  );
 }
 
-function normalizeEventName(value?: string | null) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+function SortList({ title, data, empty }: { title: string; data: Array<[string, number]>; empty: string }) {
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.28)]">
+      <h2 className="text-xl font-black">{title}</h2>
+      <div className="mt-4 space-y-2">
+        {data.length ? data.map(([label, count]) => (
+          <div key={label} className="flex justify-between gap-3 rounded-2xl bg-white/[0.04] p-3 text-sm">
+            <span className="truncate text-slate-200">{label}</span><b>{count}</b>
+          </div>
+        )) : <p className="text-sm text-slate-500">{empty}</p>}
+      </div>
+    </div>
+  );
 }
 
-function getEventCount(eventCounts: Record<string, number>, aliases: string[]) {
-  const wanted = new Set(aliases.map(normalizeEventName));
-
-  return Object.entries(eventCounts || {}).reduce((total, [event, count]) => {
-    return wanted.has(normalizeEventName(event)) ? total + Number(count || 0) : total;
-  }, 0);
+function completionTone(value: number): "good" | "warn" | "danger" {
+  if (value >= 60) return "good";
+  if (value >= 35) return "warn";
+  return "danger";
 }
 
-function topEntries(map: Record<string, number>, limit = 8) {
-  return Object.entries(map || {})
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit);
-}
-
-function eventTone(event?: string | null) {
-  const text = String(event || "").toLowerCase();
-  if (text.includes("error") || text.includes("failed")) return "border-red-300/20 bg-red-400/[0.07] text-red-100";
-  if (text.includes("saved") || text.includes("completed")) return "border-emerald-300/20 bg-emerald-400/[0.07] text-emerald-100";
-  if (text.includes("started") || text.includes("viewed")) return "border-blue-300/20 bg-blue-400/[0.07] text-blue-100";
-  return "border-white/10 bg-black/20 text-slate-200";
-}
-
-export default function FounderDashboardPage() {
+export default function FounderAnalyticsPage() {
+  const [data, setData] = useState<AnalyticsResponse>(emptyData);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [summary, setSummary] = useState<AnalyticsSummary>(emptySummary);
-  const [recentEvents, setRecentEvents] = useState<AnalyticsEvent[]>([]);
-  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
 
-  const loadAnalytics = useCallback(async () => {
+  async function load() {
     setLoading(true);
-    setError("");
-
     try {
-      const response = await fetch("/api/analytics", {
-        method: "GET",
-        cache: "no-store",
-      });
-
-      const data = (await response.json().catch(() => ({}))) as AnalyticsResponse;
-      const nextSummary = data.summary || data.stats || emptySummary;
-
-      setSummary(nextSummary);
-      setRecentEvents(data.recentEvents || data.events?.slice(0, 50) || []);
-      setGeneratedAt(data.generatedAt || new Date().toISOString());
-
-      if (!data.success && data.error) {
-        setError(data.error);
-      }
-    } catch (requestError) {
-      setSummary(emptySummary);
-      setRecentEvents([]);
-      setError(requestError instanceof Error ? requestError.message : "Could not load founder analytics.");
+      const response = await fetch("/api/analytics", { cache: "no-store", headers: { "Cache-Control": "no-store" } });
+      const json = await response.json();
+      setData(normalizeAnalyticsResponse(json));
+    } catch (error) {
+      setData({ ...emptyData, summary: { ...emptyData.summary, insight: error instanceof Error ? error.message : "Could not load analytics." } });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
-  useEffect(() => {
-    loadAnalytics();
-  }, [loadAnalytics]);
+  useEffect(() => { void load(); }, []);
 
-  const founderMetrics = useMemo(() => {
-    const resultsViewed = getEventCount(summary.eventCounts, [
-      "results_viewed",
-      "result_viewed",
-      "results_page_viewed",
-      "interview_results_viewed",
-    ]);
-
-    const reportsSaved = getEventCount(summary.eventCounts, [
-      "report_saved",
-      "results_saved",
-      "saved_report",
-      "interview_saved",
-      "interview_session_saved",
-      "session_saved",
-      "history_saved",
-    ]);
-
-    const landingViewed = getEventCount(summary.eventCounts, ["landing_viewed", "home_viewed", "landing_page_viewed"]);
-    const onboardingViewed = getEventCount(summary.eventCounts, ["onboarding_viewed", "onboarding_started"]);
-    const interviewRoomViewed = getEventCount(summary.eventCounts, ["interview_room_viewed", "interview_page_viewed"]);
-    const interviewStarted = summary.interviewStarts || getEventCount(summary.eventCounts, ["interview_started"]);
-    const interviewCompleted = summary.interviewCompleted || getEventCount(summary.eventCounts, ["interview_completed", "interview_ended"]);
-    const abandoned = Math.max(0, interviewStarted - interviewCompleted);
-    const resultViewRate = interviewCompleted > 0 ? (resultsViewed / interviewCompleted) * 100 : 0;
-    const saveRate = resultsViewed > 0 ? (reportsSaved / resultsViewed) * 100 : 0;
-
-    const funnel = [
-      { label: "Landing Viewed", value: landingViewed },
-      { label: "Onboarding Viewed", value: onboardingViewed },
-      { label: "Interview Room Viewed", value: interviewRoomViewed },
-      { label: "Interview Started", value: interviewStarted },
-      { label: "Interview Completed", value: interviewCompleted },
-      { label: "Results Viewed", value: resultsViewed },
-      { label: "Report Saved", value: reportsSaved },
-    ];
-
-    return {
-      resultsViewed,
-      reportsSaved,
-      abandoned,
-      resultViewRate,
-      saveRate,
-      funnel,
-      maxFunnelValue: Math.max(1, ...funnel.map((item) => item.value)),
-    };
-  }, [summary]);
-
-  const statCards = useMemo(
-    () => [
-      { label: "Production Events", value: formatNumber(summary.totalEvents), icon: BarChart3 },
-      { label: "Unique Sessions", value: formatNumber(summary.uniqueSessions), icon: Users },
-      { label: "Interviews Started", value: formatNumber(summary.interviewStarts), icon: Mic },
-      { label: "Completed", value: formatNumber(summary.interviewCompleted), icon: CheckCircle2 },
-      { label: "Results Viewed", value: formatNumber(founderMetrics.resultsViewed), icon: FileText },
-      { label: "Result View Rate", value: formatPercent(founderMetrics.resultViewRate), icon: TrendingUp },
-      { label: "Reports Saved", value: formatNumber(founderMetrics.reportsSaved), icon: Save },
-      { label: "Save Rate", value: formatPercent(founderMetrics.saveRate), icon: Save },
-      { label: "Abandoned", value: formatNumber(founderMetrics.abandoned), icon: TrendingDown },
-      { label: "Completion Rate", value: `${summary.completionRate || 0}%`, icon: TrendingUp },
-      { label: "Mobile Sessions", value: formatNumber(summary.mobileSessions), icon: Smartphone },
-      { label: "Desktop Sessions", value: formatNumber(summary.desktopSessions), icon: Laptop },
-      { label: "Tablet Sessions", value: formatNumber(summary.tabletSessions), icon: Tablet },
-    ],
-    [summary, founderMetrics],
-  );
-
-  const eventEntries = topEntries(summary.eventCounts, 10);
-  const recruiterEntries = topEntries(summary.recruiterCounts, 6);
+  const topRoles = useMemo(() => Object.entries(data.summary.roles || {}).sort((a, b) => b[1] - a[1]).slice(0, 8), [data.summary.roles]);
+  const topRecruiters = useMemo(() => Object.entries(data.summary.recruiters || {}).sort((a, b) => b[1] - a[1]).slice(0, 8), [data.summary.recruiters]);
+  const topSources = useMemo(() => Object.entries(data.summary.trafficSources || {}).sort((a, b) => b[1] - a[1]).slice(0, 8), [data.summary.trafficSources]);
+  const topWeakSignals = useMemo(() => Object.entries(data.summary.weakSignals || {}).sort((a, b) => b[1] - a[1]).slice(0, 8), [data.summary.weakSignals]);
+  const modeRows = useMemo(() => Object.entries(data.summary.modePerformance || {}).sort((a, b) => b[1].starts - a[1].starts), [data.summary.modePerformance]);
+  const maxFunnel = Math.max(...data.summary.dropoffFunnel.map((item) => item.count), 1);
 
   return (
-    <main className="min-h-screen bg-[#050b14] px-4 py-6 text-white sm:px-6">
+    <main className="min-h-screen bg-[#020712] px-4 py-5 text-white sm:px-6">
       <div className="mx-auto max-w-7xl">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white">
-            <ArrowLeft className="h-4 w-4" />
-            Back to dashboard
-          </Link>
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.045] p-4 backdrop-blur-2xl">
+          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-black text-slate-200"><ArrowLeft className="h-4 w-4" />Dashboard</Link>
+          <button onClick={() => void load()} className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2 text-sm font-black"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</button>
+        </header>
 
-          <button
-            type="button"
-            onClick={loadAnalytics}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-black text-slate-200 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
-        </div>
-
-        <section className="mt-6 rounded-3xl border border-white/10 bg-gradient-to-br from-blue-500/15 via-violet-500/10 to-white/[0.03] p-6">
-          <p className="text-sm font-black uppercase tracking-[0.18em] text-blue-200">Founder Dashboard</p>
-          <h1 className="mt-2 text-3xl font-black sm:text-4xl">WorkZo Production Signals</h1>
-          <p className="mt-2 max-w-3xl text-slate-300">
-            Production-safe analytics from Supabase. Track the full funnel from landing to interview completion, results viewed, and saved reports.
-          </p>
-
-          <div className="mt-5 flex flex-wrap items-center gap-3 text-xs font-bold text-slate-400">
-            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-1.5 text-emerald-100">
-              <Clock3 className="h-3.5 w-3.5" />
-              {generatedAt ? `Updated ${formatDate(generatedAt)}` : "Waiting for data"}
-            </span>
-            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
-              Local testing excluded
-            </span>
+        <section className="mt-5 rounded-[32px] border border-white/10 bg-gradient-to-br from-blue-600/18 via-white/[0.045] to-cyan-400/10 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.42)] sm:p-8">
+          <div className="flex items-center gap-3"><BarChart3 className="h-7 w-7 text-cyan-200" /><h1 className="text-3xl font-black tracking-tight sm:text-5xl">Founder analytics</h1></div>
+          <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300">Tracks launch readiness, funnel drop-off, voice stability, recruiter usage, weak answer patterns, and traffic sources.</p>
+          <div className="mt-5 rounded-3xl border border-cyan-200/10 bg-cyan-300/[0.045] p-4">
+            <div className="flex items-start gap-3"><Brain className="mt-0.5 h-5 w-5 shrink-0 text-cyan-200" /><div><p className="text-sm font-black uppercase tracking-[0.18em] text-cyan-200">Founder insight</p><p className="mt-2 text-sm leading-6 text-slate-200">{data.summary.insight}</p>{data.reason || data.error ? <p className="mt-2 text-xs text-amber-200">{data.reason ? `Reason: ${data.reason}` : ""} {data.error ? `Error: ${data.error}` : ""}</p> : null}</div></div>
           </div>
         </section>
 
-        {error ? (
-          <section className="mt-5 rounded-3xl border border-amber-300/20 bg-amber-400/[0.07] p-5 text-amber-100">
-            <div className="flex items-center gap-2 font-black">
-              <AlertTriangle className="h-5 w-5" />
-              Analytics warning
-            </div>
-            <p className="mt-2 text-sm leading-6">{error}</p>
-          </section>
-        ) : null}
-
-        <section className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-          {statCards.map((item) => {
-            const Icon = item.icon;
-            return (
-              <div key={item.label} className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-slate-400">{item.label}</p>
-                  <Icon className="h-5 w-5 text-blue-300" />
-                </div>
-                <p className="mt-3 text-3xl font-black">{item.value}</p>
-              </div>
-            );
-          })}
+        <section className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="All-time visitors" value={data.summary.totalUniqueVisitors || data.summary.uniqueVisitorsAllTime || 0} icon={<Users className="h-5 w-5" />} />
+          <StatCard label="Sessions" value={data.summary.uniqueSessions} icon={<Users className="h-5 w-5" />} />
+          <StatCard label="Production events" value={data.summary.productionEvents || data.summary.totalEvents} icon={<Activity className="h-5 w-5" />} />
+          <StatCard label="CV uploads" value={data.summary.uploads} icon={<Upload className="h-5 w-5" />} />
+          <StatCard label="Interviews" value={data.summary.interviewsStarted} icon={<Activity className="h-5 w-5" />} />
+          <StatCard label="Completions" value={`${data.summary.completionRate}%`} icon={<CheckCircle2 className="h-5 w-5" />} tone={completionTone(data.summary.completionRate)} />
+          <StatCard label="Voice starts" value={data.summary.voiceStarts} icon={<Mic className="h-5 w-5" />} />
+          <StatCard label="Voice failure" value={`${data.summary.voiceFailureRate}%`} icon={<AlertTriangle className="h-5 w-5" />} tone={data.summary.voiceFailureRate > 20 ? "danger" : data.summary.voiceFailureRate > 8 ? "warn" : "good"} />
+          <StatCard label="Answer rate" value={`${data.summary.answerRate}%`} icon={<Zap className="h-5 w-5" />} tone={completionTone(data.summary.answerRate)} />
+          <StatCard label="Results rate" value={`${data.summary.resultRate}%`} icon={<BarChart3 className="h-5 w-5" />} tone={completionTone(data.summary.resultRate)} />
         </section>
 
-        <section className="mt-5 rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-xl font-black">User Funnel</h2>
-              <p className="mt-1 text-sm text-slate-400">Use this to see exactly where users drop off after interview completion.</p>
-            </div>
-            <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-xs font-bold text-slate-300">
-              Results viewed: {formatNumber(founderMetrics.resultsViewed)}
+        <section className="mt-5 grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
+          <div className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.28)]">
+            <div className="flex items-center gap-2"><TrendingDown className="h-5 w-5 text-amber-200" /><h2 className="text-xl font-black">Drop-off funnel</h2></div>
+            <div className="mt-5 space-y-4">
+              {data.summary.dropoffFunnel.length ? data.summary.dropoffFunnel.map((stage) => (
+                <div key={stage.stage}><div className="mb-2 flex items-center justify-between text-sm"><span className="font-bold text-slate-200">{stage.stage}</span><span className="text-slate-400">{stage.count}</span></div><div className="h-3 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500" style={{ width: `${Math.max(4, (stage.count / maxFunnel) * 100)}%` }} /></div></div>
+              )) : <p className="text-sm text-slate-500">No funnel data yet.</p>}
             </div>
           </div>
-
-          <div className="mt-5 grid gap-3 lg:grid-cols-7">
-            {founderMetrics.funnel.map((item, index) => (
-              <div key={item.label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <div className="flex items-start justify-between gap-3 lg:block">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Step {index + 1}</p>
-                    <p className="mt-1 text-sm font-black text-slate-200">{item.label}</p>
-                  </div>
-                  <p className="text-2xl font-black text-blue-200 lg:mt-3">{formatNumber(item.value)}</p>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-blue-400"
-                    style={{ width: `${Math.max(4, Math.min(100, (item.value / founderMetrics.maxFunnelValue) * 100))}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+          <SortList title="Weak answer signals" data={topWeakSignals} empty="No weakness data yet." />
         </section>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_380px]">
-          <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-            <h2 className="text-xl font-black">Event Breakdown</h2>
-            <p className="mt-1 text-sm text-slate-400">Launch-critical events including results viewed and report saved.</p>
+        <section className="mt-5 grid gap-4 lg:grid-cols-3">
+          <SortList title="Top roles" data={topRoles} empty="No role data yet." />
+          <SortList title="Recruiter usage" data={topRecruiters} empty="No recruiter data yet." />
+          <SortList title="Traffic sources" data={topSources} empty="No traffic-source data yet." />
+        </section>
 
-            <div className="mt-4 space-y-3">
-              {eventEntries.map(([event, count]) => (
-                <div key={event} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <p className="font-black text-slate-200">{cleanLabel(event)}</p>
-                    <p className="text-xl font-black text-blue-200">{formatNumber(count)}</p>
-                  </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-blue-400"
-                      style={{ width: `${Math.max(4, Math.min(100, (count / Math.max(1, summary.totalEvents)) * 100))}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+        <section className="mt-5 rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.28)]">
+          <h2 className="text-xl font-black">Standard vs Live mode</h2>
+          <div className="mt-4 overflow-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="text-xs uppercase tracking-[0.18em] text-slate-500"><tr><th className="p-3">Mode</th><th className="p-3">Starts</th><th className="p-3">Completions</th><th className="p-3">Results</th><th className="p-3">Voice failures</th><th className="p-3">Avg trust</th></tr></thead><tbody>{modeRows.length ? modeRows.map(([mode, row]) => (<tr key={mode} className="border-t border-white/10"><td className="p-3 font-black capitalize">{mode}</td><td className="p-3 text-slate-300">{row.starts}</td><td className="p-3 text-slate-300">{row.completions}</td><td className="p-3 text-slate-300">{row.results}</td><td className="p-3 text-slate-300">{row.voiceFailures}</td><td className="p-3 text-slate-300">{row.avgTrust ?? "—"}</td></tr>)) : <tr><td className="p-3 text-slate-500" colSpan={6}>No mode data yet.</td></tr>}</tbody></table></div>
+        </section>
 
-              {!eventEntries.length ? (
-                <p className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400">
-                  No production analytics yet. Localhost testing is intentionally not counted.
-                </p>
-              ) : null}
-            </div>
-          </section>
-
-          <aside className="space-y-5">
-            <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-              <h2 className="text-xl font-black">Recruiter Usage</h2>
-
-              <div className="mt-4 space-y-3">
-                {recruiterEntries.map(([recruiter, count]) => (
-                  <div key={recruiter} className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 p-3">
-                    <p className="font-bold text-slate-200">{cleanLabel(recruiter)}</p>
-                    <p className="font-black text-blue-200">{formatNumber(count)}</p>
-                  </div>
-                ))}
-
-                {!recruiterEntries.length ? (
-                  <p className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400">
-                    No recruiter usage yet.
-                  </p>
-                ) : null}
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-              <h2 className="text-xl font-black">Recent Events</h2>
-
-              <div className="mt-4 space-y-3">
-                {recentEvents.slice(0, 10).map((event, index) => (
-                  <div
-                    key={`${event.id || event.session_id || "event"}-${event.created_at || index}`}
-                    className={`rounded-2xl border p-3 ${eventTone(event.event)}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-bold">{cleanLabel(event.event, "Unknown event")}</p>
-                        <p className="mt-1 text-xs opacity-70">{formatDate(event.created_at)}</p>
-                      </div>
-                      <p className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] font-bold opacity-80">
-                        {cleanLabel(event.device, "Unknown")}
-                      </p>
-                    </div>
-                    {event.role ? <p className="mt-2 text-sm opacity-80">{event.role}</p> : null}
-                    {event.source ? <p className="mt-1 text-xs opacity-60">Source: {event.source}</p> : null}
-                  </div>
-                ))}
-
-                {!recentEvents.length ? (
-                  <p className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400">
-                    No recent production events yet.
-                  </p>
-                ) : null}
-              </div>
-            </section>
-          </aside>
-        </div>
+        <section className="mt-5 rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.28)]">
+          <h2 className="text-xl font-black">Recent events</h2>
+          <div className="mt-4 max-h-[520px] overflow-auto"><table className="w-full min-w-[900px] text-left text-sm"><thead className="text-xs uppercase tracking-[0.18em] text-slate-500"><tr><th className="p-3">Event</th><th className="p-3">Role</th><th className="p-3">Recruiter</th><th className="p-3">Mode</th><th className="p-3">Source</th><th className="p-3">Trust</th><th className="p-3">Time</th></tr></thead><tbody>{data.events.slice(0, 120).map((event, index) => (<tr key={`${event.receivedAt}-${event.event}-${index}`} className="border-t border-white/10"><td className="p-3 font-black">{event.event}</td><td className="p-3 text-slate-300">{event.role}</td><td className="p-3 text-slate-300">{event.recruiter}</td><td className="p-3 text-slate-300">{event.mode}</td><td className="p-3 text-slate-300">{event.source}</td><td className="p-3 text-slate-300">{event.trust ?? ""}</td><td className="p-3 text-slate-500">{event.receivedAt ? new Date(event.receivedAt).toLocaleString() : ""}</td></tr>))}{!data.events.length ? <tr><td className="p-3 text-slate-500" colSpan={7}>No recent events yet.</td></tr> : null}</tbody></table></div>
+        </section>
       </div>
     </main>
   );

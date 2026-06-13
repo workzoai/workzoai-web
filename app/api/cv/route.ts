@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createRequire } from "module";
-import { extractResumeProfile, sanitizeResumeProfileIdentity } from "@/lib/workzoResumeParser";
-import { cleanExtractedCvText, diagnoseCvLayout } from "@/lib/workzoCvPdfCleaner";
+import { sanitizeResumeProfileIdentity, normalizeResumeText } from "@/lib/workzoResumeParser";
+import { parseResumeWithAiStructure } from "@/lib/workzoAiCvParser";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 
 const require = createRequire(import.meta.url);
@@ -183,15 +183,12 @@ function normalizeUploadFileName(fileName = "") {
     .replace(/(?:\.txt){2,}$/i, ".txt") || "uploaded-cv.pdf";
 }
 
+// Same rationale as normalizeCvText above: delegate to the single shared,
+// generic normalizer (which has a guarded, less-corruptive camelCase split
+// plus mojibake/encoding-artefact repair) instead of a third divergent copy
+// of similar regex logic.
 function normalizeExtractedText(value: string) {
-  return value
-    .replace(/\u0000/g, " ")
-    .replace(/\r/g, "\n")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n[ \t]+/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .trim();
+  return normalizeResumeText(value);
 }
 
 function jsonFromModel(raw: string) {
@@ -248,18 +245,15 @@ async function extractPdfText(buffer: Buffer) {
   }
 }
 
+// normalizeCvText previously duplicated (and partially diverged from) the
+// normalization logic in workzoResumeParser.ts — including a more aggressive,
+// unguarded camelCase-split regex that could corrupt all-caps spaced headers
+// (e.g. turning "PRODUCT DESIGN ENGINEER\nSURENDER\nDILLIBABU" into
+// "PRODUCTD ESIGNENG INEERSUR ENDERDIL LIBABU" when combined with upstream
+// PDF extraction artefacts). Use the single shared, generic normalizer
+// instead so PDF/DOCX/TXT text is cleaned consistently everywhere.
 function normalizeCvText(raw: string) {
-  return raw
-    .replace(/\x00/g, " ")
-    .replace(/\r/g, "\n")
-    .replace(/[\t ]+/g, " ")
-    .replace(/\n[\t ]+/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/ManageEngine/g, "ManageEngine")
-    .replace(/TextBlob/g, "TextBlob")
-    .replace(/LangChain/g, "LangChain")
-    .trim();
+  return normalizeResumeText(raw);
 }
 
 async function extractDocxText(buffer: Buffer) {
@@ -376,8 +370,7 @@ function fallbackMemory(input: {
 }
 
 async function buildMemoryFromJson(body: RequestBody) {
-  const rawCvInput = text(body.cvText);
-  const cvText = rawCvInput ? cleanExtractedCvText(rawCvInput) : "";
+  const cvText = text(body.cvText);
   const jobDescription = text(body.jobDescription);
   const targetRole = text(body.targetRole) || "General Role";
   const targetMarket = text(body.targetMarket) || "Global";
@@ -513,19 +506,32 @@ export async function POST(request: Request) {
       const extracted = await extractFileText(file);
       debugCvText("api.cv.file_text.extracted", extracted, { fileName: safeFileName, fileType: file.type });
 
-      // Use universal CV cleaner — handles multi-column, sidebar, ATS, modern templates
-      const cleanedCv = cleanExtractedCvText(extracted);
-      const layout = diagnoseCvLayout(extracted);
-      debugCvText("api.cv.file_text.cleaned", cleanedCv, {
+      const cleanedCv = normalizeCvText(extracted);
+      debugCvText("api.cv.file_text.cleaned", cleanedCv, { fileName: safeFileName });
+
+      // ── AI-first extraction ────────────────────────────────────────────────
+      // This is the FIRST profile the user sees after upload (the "Review
+      // your professional profile" preview), so it should use the same
+      // AI-structured extraction (Claude via OpenRouter, with the local
+      // regex parser as its internal fallback) as /api/cv/structure — not
+      // a separate, purely-local extraction. This avoids showing a
+      // local-parser result first and then a different AI result later.
+      const aiResult = await parseResumeWithAiStructure({
+        cvText: cleanedCv,
+        layoutText: extracted,
         fileName: safeFileName,
-        likelySidebar: layout.likelySidebar,
-        sectionOrder: layout.sectionOrder.join(" → "),
-        hasEncodingArtefacts: layout.hasEncodingArtefacts,
       });
 
-      const parsedProfile = extractResumeProfile(cleanedCv);
-      const resumeProfile = sanitizeResumeProfileIdentity(parsedProfile, { rawText: cleanedCv, fileName: safeFileName });
-      debugCvProfile("api.cv.parser.output", resumeProfile, { fileName: safeFileName });
+      const resumeProfile = sanitizeResumeProfileIdentity(aiResult.resumeProfile, {
+        rawText: cleanedCv,
+        fileName: safeFileName,
+      });
+      debugCvProfile("api.cv.parser.output", resumeProfile, {
+        fileName: safeFileName,
+        source: aiResult.source,
+        ok: aiResult.ok,
+        ...(aiResult.error ? { error: aiResult.error } : {}),
+      });
 
       return NextResponse.json({
         text: cleanedCv,
@@ -535,6 +541,7 @@ export async function POST(request: Request) {
         profile: resumeProfile,
         fileName: safeFileName,
         chars: cleanedCv.length,
+        source: aiResult.source,
       });
     } catch (error) {
       return NextResponse.json(

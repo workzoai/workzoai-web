@@ -66,6 +66,7 @@ import {
   readLatestInterviewSetup,
   normalizeCandidateName as normalizeStoredCandidateName,
 } from "@/lib/workzoInterviewSetup";
+import type { ResumeProfile } from "@/lib/workzoResumeParser";
 import {
   analyzeWorkZoActiveDisruption,
   buildWorkZoPersonaOpeningQuestion,
@@ -191,6 +192,7 @@ type InterviewSetup = {
   language: string;
   cvText?: string;
   jobDescription?: string;
+  resumeProfile?: ResumeProfile | null;
   companyBlueprint?: any;
   companyName?: string;
 };
@@ -271,8 +273,134 @@ const recruiterProfiles: Record<
     focusAreas: ["process", "risk", "documentation", "consistency"],
     pressureStyle: "Tests consistency, documentation, and accountability",
   },
-};
 
+  faang_hiring_manager: {
+    name: "Alex Chen",
+    title: "FAANG Hiring Manager",
+    image: "/recruiters/alex.png",
+    voiceHint: "male",
+    companyArchetype: "Big Tech / FAANG",
+    focusAreas: ["technical depth", "structured thinking", "metrics", "trade-offs"],
+    pressureStyle: "Technical, systematic, and probes every assumption",
+  },
+  alex: {
+    name: "Alex Chen",
+    title: "FAANG Hiring Manager",
+    image: "/recruiters/alex.png",
+    voiceHint: "male",
+    companyArchetype: "Big Tech / FAANG",
+    focusAreas: ["technical depth", "structured thinking", "metrics", "trade-offs"],
+    pressureStyle: "Technical, systematic, and probes every assumption",
+  },
+  startup_founder: {
+    name: "Zoe Park",
+    title: "Startup Founder",
+    image: "/recruiters/zoe.png",
+    voiceHint: "female",
+    companyArchetype: "Founder-led startup",
+    focusAreas: ["ownership", "speed", "failure recovery", "scaling decisions"],
+    pressureStyle: "Fast, direct, and challenges buzzwords",
+  },
+  zoe: {
+    name: "Zoe Park",
+    title: "Startup Founder",
+    image: "/recruiters/zoe.png",
+    voiceHint: "female",
+    companyArchetype: "Founder-led startup",
+    focusAreas: ["ownership", "speed", "failure recovery", "scaling decisions"],
+    pressureStyle: "Fast, direct, and challenges buzzwords",
+  },
+  consulting_partner: {
+    name: "James Harrington",
+    title: "Consulting Partner",
+    image: "/recruiters/james.png",
+    voiceHint: "male",
+    companyArchetype: "Strategy consulting",
+    focusAreas: ["case structure", "stakeholder logic", "recommendations", "clarity"],
+    pressureStyle: "Redirects rambling answers into structured reasoning",
+  },
+  james: {
+    name: "James Harrington",
+    title: "Consulting Partner",
+    image: "/recruiters/james.png",
+    voiceHint: "male",
+    companyArchetype: "Strategy consulting",
+    focusAreas: ["case structure", "stakeholder logic", "recommendations", "clarity"],
+    pressureStyle: "Redirects rambling answers into structured reasoning",
+  },
+  sales_director: {
+    name: "Marcus Webb",
+    title: "Sales Director",
+    image: "/recruiters/marcus.png",
+    voiceHint: "male",
+    companyArchetype: "Commercial sales organization",
+    focusAreas: ["revenue", "quota", "deal size", "commercial ownership"],
+    pressureStyle: "Numbers-first and pushes for quantified impact",
+  },
+  marcus: {
+    name: "Marcus Webb",
+    title: "Sales Director",
+    image: "/recruiters/marcus.png",
+    voiceHint: "male",
+    companyArchetype: "Commercial sales organization",
+    focusAreas: ["revenue", "quota", "deal size", "commercial ownership"],
+    pressureStyle: "Numbers-first and pushes for quantified impact",
+  },
+  product_leader: {
+    name: "Aisha Patel",
+    title: "Product Leader",
+    image: "/recruiters/aisha.png",
+    voiceHint: "female",
+    companyArchetype: "Product-led technology company",
+    focusAreas: ["user evidence", "prioritisation", "product sense", "cross-functional influence"],
+    pressureStyle: "Tests product judgment and user-backed decisions",
+  },
+  aisha: {
+    name: "Aisha Patel",
+    title: "Product Leader",
+    image: "/recruiters/aisha.png",
+    voiceHint: "female",
+    companyArchetype: "Product-led technology company",
+    focusAreas: ["user evidence", "prioritisation", "product sense", "cross-functional influence"],
+    pressureStyle: "Tests product judgment and user-backed decisions",
+  },
+  executive_recruiter: {
+    name: "Victoria Stern",
+    title: "Executive Recruiter",
+    image: "/recruiters/victoria.png",
+    voiceHint: "female",
+    companyArchetype: "Executive search",
+    focusAreas: ["leadership narrative", "strategic maturity", "executive presence", "self-awareness"],
+    pressureStyle: "Calm, senior-level, and deeply strategic",
+  },
+  victoria: {
+    name: "Victoria Stern",
+    title: "Executive Recruiter",
+    image: "/recruiters/victoria.png",
+    voiceHint: "female",
+    companyArchetype: "Executive search",
+    focusAreas: ["leadership narrative", "strategic maturity", "executive presence", "self-awareness"],
+    pressureStyle: "Calm, senior-level, and deeply strategic",
+  },
+  enterprise_recruiter: {
+    name: "David Kimura",
+    title: "Enterprise Recruiter",
+    image: "/recruiters/david.png",
+    voiceHint: "male",
+    companyArchetype: "Enterprise HR / governance",
+    focusAreas: ["process", "stakeholders", "escalation", "governance"],
+    pressureStyle: "Structured, calm, and process-focused",
+  },
+  david: {
+    name: "David Kimura",
+    title: "Enterprise Recruiter",
+    image: "/recruiters/david.png",
+    voiceHint: "male",
+    companyArchetype: "Enterprise HR / governance",
+    focusAreas: ["process", "stakeholders", "escalation", "governance"],
+    pressureStyle: "Structured, calm, and process-focused",
+  },
+};
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: Home },
   { label: "Improve CV", href: "/cv", icon: FileText },
@@ -342,13 +470,56 @@ function safeText(value: unknown, fallback = "") {
 
 function normalizeRecruiterId(value: unknown) {
   const raw = safeText(value, "friendly_hr").toLowerCase();
-  if (raw.includes("priya") || raw.includes("startup")) return "startup_recruiter";
-  if (raw.includes("daniel") || raw.includes("analytical") || raw.includes("hiring")) return "analytical_hiring_manager";
-  if (raw.includes("markus") || raw.includes("german") || raw.includes("corporate")) return "german_corporate";
-  if (raw.includes("sarah") || raw.includes("friendly") || raw.includes("hr")) return "friendly_hr";
-  return raw.replace(/[^a-z0-9]+/g, "_");
-}
+  const key = raw.replace(/·/g, " ").replace(/-/g, "_").replace(/\s+/g, "_");
 
+  if (!raw) return "friendly_hr";
+
+  if (key === "friendly_hr" || raw.includes("sarah") || raw.includes("friendly")) {
+    return "friendly_hr";
+  }
+
+  if (key === "startup_recruiter" || raw.includes("priya")) {
+    return "startup_recruiter";
+  }
+
+  if (key === "analytical_hiring_manager" || raw.includes("daniel") || raw.includes("analytical_hiring")) {
+    return "analytical_hiring_manager";
+  }
+
+  if (key === "german_corporate" || raw.includes("markus") || raw.includes("german_corporate")) {
+    return "german_corporate";
+  }
+
+  if (key === "faang_hiring_manager" || raw.includes("alex") || raw.includes("faang")) {
+    return "faang_hiring_manager";
+  }
+
+  if (key === "startup_founder" || raw.includes("zoe") || raw.includes("startup_founder")) {
+    return "startup_founder";
+  }
+
+  if (key === "consulting_partner" || raw.includes("james") || raw.includes("harrington") || raw.includes("consulting")) {
+    return "consulting_partner";
+  }
+
+  if (key === "sales_director" || raw.includes("marcus webb") || raw.includes("sales_director")) {
+    return "sales_director";
+  }
+
+  if (key === "product_leader" || raw.includes("aisha") || raw.includes("product_leader")) {
+    return "product_leader";
+  }
+
+  if (key === "executive_recruiter" || raw.includes("victoria") || raw.includes("stern") || raw.includes("executive_recruiter")) {
+    return "executive_recruiter";
+  }
+
+  if (key === "enterprise_recruiter" || raw.includes("david") || raw.includes("kimura") || raw.includes("enterprise_recruiter")) {
+    return "enterprise_recruiter";
+  }
+
+  return key || "friendly_hr";
+}
 function getNestedValue(source: unknown, paths: string[]) {
   if (!source || typeof source !== "object") return "";
 
@@ -754,6 +925,7 @@ function buildSetupFromStorage(): InterviewSetup {
     language,
     cvText,
     jobDescription,
+    resumeProfile: (resumeProfile as ResumeProfile | null) || null,
   };
 }
 
@@ -772,10 +944,16 @@ function recruiterObjectPosition(recruiterId: string, recruiterName: string) {
   // Safe portrait crop: keeps the face fully visible while filling the frame.
   if (value.includes("daniel") || value.includes("analytical")) return "50% 28%";
   if (value.includes("markus") || value.includes("corporate")) return "50% 28%";
-  if (value.includes("priya") || value.includes("startup")) return "50% 26%";
+  if (value.includes("priya") || value.includes("startup_recruiter")) return "50% 26%";
+  if (value.includes("alex") || value.includes("faang")) return "50% 27%";
+  if (value.includes("zoe") || value.includes("startup_founder")) return "50% 26%";
+  if (value.includes("james") || value.includes("consulting")) return "50% 28%";
+  if (value.includes("marcus") || value.includes("sales")) return "50% 28%";
+  if (value.includes("aisha") || value.includes("product")) return "50% 26%";
+  if (value.includes("victoria") || value.includes("executive")) return "50% 27%";
+  if (value.includes("david") || value.includes("enterprise")) return "50% 28%";
   return "50% 26%";
 }
-
 function timeLabel() {
   return new Date().toLocaleTimeString([], {
     hour: "2-digit",
@@ -1159,9 +1337,21 @@ function getRecognitionConstructor() {
 
 function recruiterLooksMale(setup: InterviewSetup) {
   const value = `${setup.recruiterId} ${setup.recruiterName} ${setup.recruiterTitle}`.toLowerCase();
-  return value.includes("daniel") || value.includes("markus") || value.includes("male");
-}
 
+  return (
+    value.includes("daniel") ||
+    value.includes("markus") ||
+    value.includes("alex") ||
+    value.includes("james") ||
+    value.includes("marcus") ||
+    value.includes("david") ||
+    value.includes("faang") ||
+    value.includes("consulting") ||
+    value.includes("sales") ||
+    value.includes("enterprise") ||
+    value.includes("male")
+  );
+}
 function getAvailableVoices(): Promise<SpeechSynthesisVoice[]> {
   if (typeof window === "undefined" || !window.speechSynthesis) return Promise.resolve([]);
 
@@ -1205,10 +1395,29 @@ function extractYearsClaim(answer: string) {
     thirteen: 13,
     fourteen: 14,
     fifteen: 15,
+    sixteen: 16,
+    seventeen: 17,
+    eighteen: 18,
+    nineteen: 19,
+    twenty: 20,
+    "twenty one": 21,
+    "twenty two": 22,
+    "twenty three": 23,
+    "twenty four": 24,
+    "twenty five": 25,
+    "twenty six": 26,
+    "twenty seven": 27,
+    "twenty eight": 28,
+    "twenty nine": 29,
+    thirty: 30,
   };
 
-  for (const [word, value] of Object.entries(words)) {
-    if (new RegExp(`\\b${word}\\s+(?:years?|yrs?)\\b`).test(lower)) return value;
+  // Check compound numbers ("twenty five") before single words ("twenty"),
+  // since "twenty" alone would otherwise match first inside "twenty five".
+  const sortedWords = Object.entries(words).sort((a, b) => b[0].length - a[0].length);
+
+  for (const [word, value] of sortedWords) {
+    if (new RegExp(`\\b${word.replace(" ", "[\\s-]+")}\\s+(?:years?|yrs?)\\b`).test(lower)) return value;
   }
 
   return null;
@@ -1220,6 +1429,17 @@ function normalizedEvidenceText(setup: InterviewSetup) {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// CV-only evidence — used when checking claims about the candidate's OWN
+// background (companies worked at, roles held, years of experience).
+// Using cvText + jobDescription for these checks is a loophole: job
+// descriptions are full of the target role's title and required skills
+// (e.g. "Customer Success Manager"), so a candidate could claim to already
+// BE whatever the JD asks for and have it "verified" by the JD itself. The
+// JD describes what the employer wants, not what the candidate has done.
+function cvOnlyEvidenceText(setup: InterviewSetup) {
+  return `${setup.cvText || ""}`.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function normalizeClaimText(value: string) {
@@ -1334,6 +1554,7 @@ function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
   const evidence = normalizedEvidenceText(setup);
   if (!evidence) return "";
 
+  const cvEvidence = cvOnlyEvidenceText(setup);
   const lower = answer.toLowerCase();
 
   if (
@@ -1346,14 +1567,14 @@ function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
 
   const companyClaims = extractCompanyClaims(answer);
   for (const company of companyClaims) {
-    if (!evidenceIncludesClaim(evidence, company)) {
-      return `The company "${company}" is not visible in the CV or job context.`;
+    if (!evidenceIncludesClaim(cvEvidence, company)) {
+      return `The company "${company}" is not visible in the candidate's CV.`;
     }
   }
 
   const roleClaims = extractRoleClaims(answer);
   for (const role of roleClaims) {
-    if (!evidenceIncludesClaim(evidence, role)) {
+    if (!evidenceIncludesClaim(cvEvidence, role)) {
       return `The role "${role}" is not clearly supported by the CV.`;
     }
   }
@@ -1377,12 +1598,27 @@ function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
       13: "thirteen",
       14: "fourteen",
       15: "fifteen",
+      16: "sixteen",
+      17: "seventeen",
+      18: "eighteen",
+      19: "nineteen",
+      20: "twenty",
+      21: "twenty one",
+      22: "twenty two",
+      23: "twenty three",
+      24: "twenty four",
+      25: "twenty five",
+      26: "twenty six",
+      27: "twenty seven",
+      28: "twenty eight",
+      29: "twenty nine",
+      30: "thirty",
     };
 
     const word = wordMap[yearsClaim];
     const directWord = word ? new RegExp(`\\b${word}\\s+(?:years?|yrs?)\\b`, "i") : null;
 
-    if (!directDigit.test(evidence) && !(directWord && directWord.test(evidence))) {
+    if (!directDigit.test(cvEvidence) && !(directWord && directWord.test(cvEvidence))) {
       return `${yearsClaim} years of experience is not verified in the CV.`;
     }
   }
@@ -1478,7 +1714,7 @@ function buildRecruiterReply(answer: string, questionIndex: number, setup: Inter
     return "Yes, I can hear you. Let’s begin properly. Give me a short overview of your background and why this role is relevant for you.";
   }
 
-  if (/(can you hear me|do you hear me|hello|hi|how are you)/i.test(lower) && wordCount <= 10) {
+  if (/\b(can you hear me|do you hear me|hello|hi|how are you)\b/i.test(lower) && wordCount <= 10) {
     return "Yes, I can hear you. Let’s begin properly. Give me a short overview of your background and why this role is relevant for you.";
   }
 
@@ -1711,6 +1947,34 @@ function detectCompanyInterviewStyle(setup: InterviewSetup): CompanyInterviewSty
 function recruiterPersonalityInstructions(setup: InterviewSetup) {
   const key = `${setup.recruiterId} ${setup.recruiterName} ${setup.recruiterTitle}`.toLowerCase();
 
+  if (key.includes("alex") || key.includes("faang")) {
+    return "Act like Alex Chen: a FAANG hiring manager. Probe technical depth, exact trade-offs, metrics, assumptions, decision quality, and structured reasoning. Stay calm, analytical, and demanding.";
+  }
+
+  if (key.includes("zoe") || key.includes("startup_founder")) {
+    return "Act like Zoe Park: a startup founder. Move fast, challenge buzzwords, probe radical ownership, failures, speed, and what the candidate would do at 10x scale.";
+  }
+
+  if (key.includes("james") || key.includes("consulting")) {
+    return "Act like James Harrington: a consulting partner. Force structure, situation, stakes, options, recommendation, stakeholder impact, and concise executive communication.";
+  }
+
+  if (key.includes("marcus") || key.includes("sales_director")) {
+    return "Act like Marcus Webb: a sales director. Push for revenue impact, quota, deal size, conversion, pipeline, customer impact, and exact commercial numbers.";
+  }
+
+  if (key.includes("aisha") || key.includes("product_leader")) {
+    return "Act like Aisha Patel: a product leader. Probe user evidence, prioritisation, what was not built, product judgment, cross-functional influence, and measurable product impact.";
+  }
+
+  if (key.includes("victoria") || key.includes("executive")) {
+    return "Act like Victoria Stern: an executive recruiter. Ask senior-level strategic questions, evaluate leadership narrative, communication maturity, self-awareness, and board-ready clarity.";
+  }
+
+  if (key.includes("david") || key.includes("enterprise")) {
+    return "Act like David Kimura: an enterprise recruiter. Probe governance, process, stakeholder management, escalation paths, risk, and structured cross-functional examples.";
+  }
+
   if (key.includes("daniel") || key.includes("analytical")) {
     return "Act like Daniel: analytical hiring manager. Probe metrics, decision-making, ownership, tradeoffs, and exact reasoning. Be calm but skeptical when answers lack proof.";
   }
@@ -1725,7 +1989,6 @@ function recruiterPersonalityInstructions(setup: InterviewSetup) {
 
   return "Act like Sarah: friendly HR recruiter. Be warm and encouraging, but still challenge unsupported claims and ask for clear examples.";
 }
-
 function companyStyleInstructions(style: CompanyInterviewStyle) {
   if (style === "Startup") {
     return "Company style: Startup. Prioritize ownership, speed, ambiguity, practical execution, and learning fast.";
@@ -1881,6 +2144,180 @@ function extractCapitalizedPhrases(text: string) {
   );
 }
 
+// ── CV credibility scan ──────────────────────────────────────────────────────
+// Generic, structure-based checks against the parsed resumeProfile (not the
+// candidate's spoken answers). These produce short factual flags the
+// recruiter can naturally weave into follow-up questions, e.g. overlapping
+// jobs, duplicate degrees, or a CV that doesn't show the seniority the JD
+// asks for. Works for any CV — no hardcoded company/person names.
+
+const MONTH_NAMES: Record<string, number> = {
+  jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2, apr: 3, april: 3,
+  may: 4, jun: 5, june: 5, jul: 6, july: 6, aug: 7, august: 7, sep: 8, sept: 8,
+  september: 8, oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11,
+};
+
+type DateRange = { start: number; end: number; label: string };
+
+/**
+ * parseDateRange — turns a free-text "dates" field (e.g. "Jan 2020 - Present",
+ * "2018-2020", "Mar 2018 – Jul 2022", "10/2015 - 06/2018") into a numeric
+ * [start, end] range in "months since year 0" for easy overlap comparison.
+ * Returns null if no recognizable year is found.
+ */
+function parseDateRange(value: string): DateRange | null {
+  const text = safeText(value);
+  if (!text) return null;
+
+  const lower = text.toLowerCase();
+  const now = new Date();
+  const nowMonths = now.getFullYear() * 12 + now.getMonth();
+
+  // Find all "Month Year" or "MM/YYYY" or bare "YYYY" tokens in order.
+  const tokenRe = /\b(?:(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)[a-z]*\.?\s*)?(\d{1,2}\/)?(\d{4})\b/gi;
+  const points: number[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = tokenRe.exec(lower))) {
+    const monthName = match[1];
+    const monthNum = match[2];
+    const year = Number(match[3]);
+    if (!Number.isFinite(year) || year < 1950 || year > now.getFullYear() + 1) continue;
+
+    let month = 0;
+    if (monthName && MONTH_NAMES[monthName] !== undefined) month = MONTH_NAMES[monthName];
+    else if (monthNum) month = Math.max(0, Math.min(11, Number(monthNum.replace("/", "")) - 1));
+
+    points.push(year * 12 + month);
+  }
+
+  if (!points.length) return null;
+
+  const isPresent = /\b(present|current|heute|now|aktuell|ongoing)\b/i.test(lower);
+  const start = Math.min(...points);
+  const end = isPresent ? nowMonths : points.length > 1 ? Math.max(...points) : start;
+
+  return { start, end: Math.max(start, end), label: text };
+}
+
+function formatMonthIndex(months: number) {
+  const year = Math.floor(months / 12);
+  const month = ((months % 12) + 12) % 12;
+  const monthLabel = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][month];
+  return `${monthLabel} ${year}`;
+}
+
+type CvCredibilityFlag = {
+  topic: string;
+  note: string;
+};
+
+/**
+ * extractCvCredibilityFlags — static, structure-based scan of the parsed
+ * resumeProfile for things worth probing in an interview:
+ *  - Two or more jobs/education entries with significantly overlapping date
+ *    ranges (could be legitimate part-time/concurrent roles, but worth
+ *    asking about).
+ *  - Duplicate-looking degree entries (same degree title appearing more than
+ *    once, e.g. copy-paste errors or two simultaneous full-time master's
+ *    programs).
+ *  - A large gap between the candidate's most senior CV title and the
+ *    seniority implied by the job description (e.g. CV shows only "Intern"
+ *    / "Assistant" titles but the JD is for a "Manager"/"Lead"/"Senior" role).
+ *
+ * Each flag is a short, factual note — never an accusation — so the
+ * recruiter persona can turn it into a natural, curious follow-up question.
+ */
+function extractCvCredibilityFlags(setup: InterviewSetup): CvCredibilityFlag[] {
+  const profile = setup.resumeProfile;
+  const flags: CvCredibilityFlag[] = [];
+  if (!profile || typeof profile !== "object") return flags;
+
+  // ── Overlapping experience entries ────────────────────────────────────────
+  const experience = Array.isArray(profile.experience) ? profile.experience : [];
+  const expRanges = experience
+    .map((job) => ({
+      label: [job.title, job.company].filter(Boolean).join(" at ") || "a role",
+      range: parseDateRange(job.dates || ""),
+    }))
+    .filter((item) => item.range);
+
+  for (let i = 0; i < expRanges.length; i += 1) {
+    for (let j = i + 1; j < expRanges.length; j += 1) {
+      const a = expRanges[i].range!;
+      const b = expRanges[j].range!;
+      const overlapStart = Math.max(a.start, b.start);
+      const overlapEnd = Math.min(a.end, b.end);
+      const overlapMonths = overlapEnd - overlapStart;
+
+      // Ignore trivial 1-month overlaps from rounding (e.g. "Dec 2019" /
+      // "Jan 2020" boundary entries) — only flag overlaps of 3+ months,
+      // which suggest genuinely concurrent roles.
+      if (overlapMonths >= 3) {
+        flags.push({
+          topic: "cv_overlapping_dates",
+          note: `The CV shows "${expRanges[i].label}" (${expRanges[i].range!.label}) and "${expRanges[j].label}" (${expRanges[j].range!.label}) overlapping for about ${overlapMonths} months.`,
+        });
+      }
+    }
+  }
+
+  // ── Duplicate-looking education entries ───────────────────────────────────
+  const education = Array.isArray(profile.education) ? profile.education : [];
+  const eduRanges = education
+    .map((edu) => ({
+      degree: safeText(edu.degree),
+      institution: safeText(edu.institution),
+      range: parseDateRange(edu.dates || ""),
+    }))
+    .filter((item) => item.degree);
+
+  const seenDegrees = new Map<string, { institution: string; range: DateRange | null }>();
+  for (const item of eduRanges) {
+    const key = item.degree.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (!key) continue;
+
+    const existing = seenDegrees.get(key);
+    if (existing) {
+      const sameInstitution = existing.institution.toLowerCase() === item.institution.toLowerCase();
+      const overlaps =
+        existing.range && item.range
+          ? Math.min(existing.range.end, item.range.end) - Math.max(existing.range.start, item.range.start) >= 0
+          : false;
+
+      if (!sameInstitution && overlaps) {
+        flags.push({
+          topic: "cv_duplicate_degree",
+          note: `The CV lists "${item.degree}" twice, at "${existing.institution}" and "${item.institution}", with overlapping dates.`,
+        });
+      }
+    } else {
+      seenDegrees.set(key, { institution: item.institution, range: item.range });
+    }
+  }
+
+  // ── Seniority gap vs. job description ─────────────────────────────────────
+  const jd = safeText(setup.jobDescription).toLowerCase();
+  if (jd) {
+    const SENIOR_JD_RE = /\b(senior|lead|principal|head of|manager|director|staff)\b/i;
+    const jdWantsSenior = SENIOR_JD_RE.test(jd);
+
+    const titles = experience.map((job) => safeText(job.title)).filter(Boolean);
+    const cvHasSeniorTitle = titles.some((title) => SENIOR_JD_RE.test(title));
+    const cvOnlyJuniorTitles =
+      titles.length > 0 &&
+      titles.every((title) => /\b(intern|junior|trainee|assistant|graduate|working student|entry[- ]level)\b/i.test(title) || !SENIOR_JD_RE.test(title));
+
+    if (jdWantsSenior && !cvHasSeniorTitle && cvOnlyJuniorTitles && titles.length) {
+      flags.push({
+        topic: "cv_seniority_gap",
+        note: `The job description suggests a senior/lead-level role, but the CV's titles (${titles.slice(0, 3).join(", ")}) read as junior or individual-contributor level.`,
+      });
+    }
+  }
+
+  return flags.slice(0, 6);
+}
+
 function extractCvFactMemory(setup: InterviewSetup) {
   const cv = safeText(setup.cvText);
   const evidence = normalizedEvidenceText(setup);
@@ -1923,6 +2360,7 @@ function extractJdFactMemory(setup: InterviewSetup) {
 function buildFactualMemoryBrief(setup: InterviewSetup) {
   const cvFacts = extractCvFactMemory(setup);
   const jdFacts = extractJdFactMemory(setup);
+  const credibilityFlags = extractCvCredibilityFlags(setup);
 
   return [
     buildContextQualityNotice(setup),
@@ -1932,10 +2370,45 @@ function buildFactualMemoryBrief(setup: InterviewSetup) {
     cvFacts.metrics.length ? `CV metrics/results: ${cvFacts.metrics.join(", ")}.` : "CV metrics/results: none clearly extracted.",
     jdFacts.requiredSignals.length ? `JD requirements/signals: ${jdFacts.requiredSignals.join(", ")}.` : "JD requirements/signals: none clearly extracted.",
     jdFacts.responsibilities.length ? `JD responsibilities: ${jdFacts.responsibilities.slice(0, 3).join(" | ")}.` : "JD responsibilities: none clearly extracted.",
+    ...(credibilityFlags.length
+      ? [
+          "Possible CV inconsistencies worth a curious, non-accusatory follow-up (verify before judging):",
+          ...credibilityFlags.map((flag) => `- ${flag.note}`),
+        ]
+      : []),
   ].join("\n");
 }
 
+function buildCredibilityFollowUp(setup: InterviewSetup, memory: RecruiterMemoryState) {
+  const flags = extractCvCredibilityFlags(setup);
+  const flag = flags.find((item) => !wasTopicCovered(memory, `${item.topic}_${normalizeClaimText(item.note)}`));
+  if (!flag) return "";
+
+  if (flag.topic === "cv_overlapping_dates") {
+    return `I noticed your CV shows two roles with overlapping dates. ${flag.note} Can you walk me through how that worked — were these concurrent, or is one of the dates a typo?`;
+  }
+
+  if (flag.topic === "cv_duplicate_degree") {
+    return `Quick clarification on your education: ${flag.note} Could you explain how these two relate — was one a transfer, an exchange program, or something else?`;
+  }
+
+  if (flag.topic === "cv_seniority_gap") {
+    return `${flag.note} Tell me about a time you took on responsibilities beyond your formal title — that would help me understand your readiness for this level.`;
+  }
+
+  return "";
+}
+
+function detectCredibilityTopic(setup: InterviewSetup, memory: RecruiterMemoryState) {
+  const flags = extractCvCredibilityFlags(setup);
+  const flag = flags.find((item) => !wasTopicCovered(memory, `${item.topic}_${normalizeClaimText(item.note)}`));
+  return flag ? `${flag.topic}_${normalizeClaimText(flag.note)}` : "";
+}
+
 function buildFactAwareFollowUp(setup: InterviewSetup, memory: RecruiterMemoryState) {
+  const credibilityFollowUp = buildCredibilityFollowUp(setup, memory);
+  if (credibilityFollowUp) return credibilityFollowUp;
+
   const cvFacts = extractCvFactMemory(setup);
   const jdFacts = extractJdFactMemory(setup);
   const company = cvFacts.companies.find((item) => !wasTopicCovered(memory, `cv_company_${normalizeClaimText(item)}`));
@@ -2003,19 +2476,19 @@ function extractMetricSnippets(answer: string) {
 function detectStrengthSnippets(answer: string) {
   const strengths: string[] = [];
 
-  if (/(customer handling|rapport|convincing|patient|step by step)/i.test(answer)) {
+  if (/\b(customer handling|rapport|convincing|patient|step by step)\b/i.test(answer)) {
     strengths.push("customer handling");
   }
 
-  if (/(quick learner|learned|python|sql|new tool)/i.test(answer)) {
+  if (/\b(quick learner|learned|python|sql|new tool)\b/i.test(answer)) {
     strengths.push("quick learner");
   }
 
-  if (/(sold|conversion|router|range extender|buy)/i.test(answer)) {
+  if (/\b(sold|conversion|router|range extender|buy)\b/i.test(answer)) {
     strengths.push("sales conversion");
   }
 
-  if (/(priority|critical|manage multiple|deadline)/i.test(answer)) {
+  if (/\b(priority|critical|manage multiple|deadline)\b/i.test(answer)) {
     strengths.push("prioritization");
   }
 
@@ -2327,7 +2800,7 @@ function cleanVisibleTranscriptText(text: string) {
 }
 
 function countFillerWords(text: string): number {
-  const fillerPattern = /(um+|uh+|er+|hmm+|like[,\s]|you know[,\s]|basically[,\s]|literally[,\s]|sort of[,\s]|kind of[,\s])/gi;
+  const fillerPattern = /\b(um+|uh+|er+|hmm+|like[,\s]|you know[,\s]|basically[,\s]|literally[,\s]|sort of[,\s]|kind of[,\s])\b/gi;
   return (text.match(fillerPattern) || []).length;
 }
 
@@ -3348,7 +3821,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
       });
 
       // 2. Filler word counter
-      const fillers = (answer.match(/(um+|uh+|like|you know|sort of|kind of|basically|literally|right\?|so\.\.\.)/gi) || []).length;
+      const fillers = (answer.match(/\b(um+|uh+|like|you know|sort of|kind of|basically|literally|right\?|so\.\.\.)\b/gi) || []).length;
       if (fillers > 0) setFillerWordCount((c) => c + fillers);
 
       // 3. Shareable moment detection
@@ -3361,6 +3834,26 @@ const [questionIndex, setQuestionIndex] = useState(0);
       });
       if (moment.shouldHighlight) {
         setShareableMoment({ title: moment.shareTitle, text: moment.shareText, category: moment.category });
+      }
+
+      // Push a real-time fact-check signal into the live Vapi call. The
+      // deterministic check above is more reliable than asking the voice
+      // LLM to notice contradictions purely from its system prompt — this
+      // gives it an explicit verdict to act on for its very next reply,
+      // instead of relying on it to catch the mismatch unprompted.
+      if (contradiction) {
+        try {
+          vapiClientRef.current?.send?.({
+            type: "add-message",
+            message: {
+              role: "system",
+              content: `FACT-CHECK ALERT: The candidate's last answer contains a claim that is NOT supported by their CV or the job description. Specifically: ${contradiction} Before responding to anything else in their answer, pause and challenge this claim directly and politely using the required style ("I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?"). Do not move on to a new topic until the candidate has addressed this.`,
+            },
+          });
+        } catch {
+          // If the SDK version doesn't support send(), the prompt-level
+          // instructions remain the only safeguard — fail silently.
+        }
       }
 
       setScoreReady(true);
@@ -3636,8 +4129,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
         });
 
         const variableValues = buildWorkZoVapiVariableValues({
-          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume and job description as the only verified facts. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim is supported by the CV/JD. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV/JD, challenge it immediately and politely. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize evidence, ownership, STAR structure, metrics, and role relevance. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. Do not invent farewell names or phrases. End only with: 'Thank you for your time, {candidateName}. We will be in touch soon. Have a great day.'`,
-          strictGroundingRules: "You are WorkZo AI's realistic recruiter. Treat the CV/resume and job description as the only verified facts. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim is supported by the CV/JD. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV/JD, challenge it immediately and politely. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize evidence, ownership, STAR structure, metrics, and role relevance.",
+          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize evidence, ownership, STAR structure, metrics, and role relevance. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. Do not invent farewell names or phrases. End only with: 'Thank you for your time, {candidateName}. We will be in touch soon. Have a great day.'`,
+          strictGroundingRules: "You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize evidence, ownership, STAR structure, metrics, and role relevance.",
           recruiterMustChallengeUnsupportedClaims: "true",
           antiHallucinationMode: "strict",
           candidateName: safeGreetingName(activeSetup.candidateName),

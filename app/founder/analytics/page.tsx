@@ -25,6 +25,16 @@ type ModePerformance = {
   results: number;
   avgTrust: number | null;
 };
+type PlanPerformance = {
+  sessions: number;
+  uploads: number;
+  interviewsStarted: number;
+  completedInterviews: number;
+  resultsViewed: number;
+  voiceFailures: number;
+  completionRate: number;
+  avgTrust: number | null;
+};
 
 type AnalyticsResponse = {
   summary: {
@@ -51,6 +61,8 @@ type AnalyticsResponse = {
     weakSignals: Record<string, number>;
     dropoffFunnel: FunnelStage[];
     modePerformance: Record<string, ModePerformance>;
+    planBreakdown: Record<string, PlanPerformance>;
+    devTestEvents: number;
     topWeakness: string;
     insight: string;
   };
@@ -70,6 +82,12 @@ type AnalyticsResponse = {
     receivedAt: string;
     metadata?: Record<string, unknown>;
   }>;
+};
+
+const PLAN_LABELS: Record<string, string> = {
+  free: "Free",
+  premium: "Premium",
+  premium_pro: "Premium Pro",
 };
 
 const emptyData: AnalyticsResponse = {
@@ -97,6 +115,8 @@ const emptyData: AnalyticsResponse = {
     weakSignals: {},
     dropoffFunnel: [],
     modePerformance: {},
+    planBreakdown: {},
+    devTestEvents: 0,
     topWeakness: "Not enough data yet",
     insight: "No analytics collected yet.",
   },
@@ -214,6 +234,14 @@ export default function FounderAnalyticsPage() {
     [data.summary.modePerformance],
   );
 
+  const planRows = useMemo(
+    () =>
+      (["free", "premium", "premium_pro"] as const)
+        .map((plan) => [plan, data.summary.planBreakdown?.[plan]] as const)
+        .filter(([, row]) => Boolean(row)),
+    [data.summary.planBreakdown],
+  );
+
   const maxFunnel = Math.max(...data.summary.dropoffFunnel.map((item) => item.count), 1);
 
   return (
@@ -320,6 +348,53 @@ export default function FounderAnalyticsPage() {
                   </tr>
                 )) : (
                   <tr><td className="p-3 text-slate-500" colSpan={6}>No mode data yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="mt-5 rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.28)]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-xl font-black">Plan breakdown</h2>
+            {data.summary.devTestEvents > 0 && (
+              <span className="rounded-full bg-violet-400/15 px-3 py-1 text-xs font-black text-violet-200">
+                {data.summary.devTestEvents} dev-tools test event{data.summary.devTestEvents === 1 ? "" : "s"} excluded
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Free vs Premium vs Premium Pro, based on each visitor&apos;s plan at the time of the event. Sessions
+            created while a /dev-tools plan override was active are excluded from these numbers.
+          </p>
+          <div className="mt-4 overflow-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                <tr>
+                  <th className="p-3">Plan</th>
+                  <th className="p-3">Sessions</th>
+                  <th className="p-3">CV uploads</th>
+                  <th className="p-3">Interviews started</th>
+                  <th className="p-3">Completed</th>
+                  <th className="p-3">Completion rate</th>
+                  <th className="p-3">Voice failures</th>
+                  <th className="p-3">Avg trust</th>
+                </tr>
+              </thead>
+              <tbody>
+                {planRows.length ? planRows.map(([plan, row]) => (
+                  <tr key={plan} className="border-t border-white/10">
+                    <td className="p-3 font-black">{PLAN_LABELS[plan]}</td>
+                    <td className="p-3 text-slate-300">{row!.sessions}</td>
+                    <td className="p-3 text-slate-300">{row!.uploads}</td>
+                    <td className="p-3 text-slate-300">{row!.interviewsStarted}</td>
+                    <td className="p-3 text-slate-300">{row!.completedInterviews}</td>
+                    <td className="p-3 text-slate-300">{row!.completionRate}%</td>
+                    <td className="p-3 text-slate-300">{row!.voiceFailures}</td>
+                    <td className="p-3 text-slate-300">{row!.avgTrust ?? "—"}</td>
+                  </tr>
+                )) : (
+                  <tr><td className="p-3 text-slate-500" colSpan={8}>No plan data yet.</td></tr>
                 )}
               </tbody>
             </table>

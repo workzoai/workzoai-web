@@ -39,6 +39,8 @@ export default function CvWorkspacePage() {
   const [template, setTemplate] = useState<CvTemplate>("ats");
   const [atsText, setAtsText] = useState("");
   const [savedResumeProfile, setSavedResumeProfile] = useState<ResumeProfile | undefined>(undefined);
+  const [setupChecked, setSetupChecked] = useState(false);
+  const [hasCvData, setHasCvData] = useState(true);
 
   useEffect(() => {
     const setup = readLatestInterviewSetup();
@@ -52,7 +54,8 @@ export default function CvWorkspacePage() {
     debugCvProfile("cv.page.setup.resumeProfile", setup?.resumeProfile);
 
     syncCandidateIdentityFromSetup(setup);
-    setCvText(normalizeSetupCvText(setup));
+    const loadedCvText = normalizeSetupCvText(setup);
+    setCvText(loadedCvText);
     setJobDescription(normalizeSetupJobDescription(setup));
     setTargetRole(normalizeSetupTargetRole(setup));
     setTargetMarket(normalizeSetupTargetMarket(setup));
@@ -61,10 +64,26 @@ export default function CvWorkspacePage() {
     // Do not re-parse raw PDF text here unless no profile exists. Re-parsing is what caused
     // projects, education, and summary to drift between Onboarding and Improve CV.
     const profile = setup?.resumeProfile;
+    let loadedProfile: ResumeProfile | undefined;
     if (profile && typeof profile === "object" && "basics" in profile) {
-      setSavedResumeProfile(profile as ResumeProfile);
+      loadedProfile = profile as ResumeProfile;
+      setSavedResumeProfile(loadedProfile);
       debugCvProfile("cv.page.savedResumeProfile.set", profile);
     }
+
+    // Decide whether there's enough real CV data to generate anything
+    // meaningful. Without this, a visitor who lands on /cv before
+    // completing onboarding silently gets a generic "Candidate /
+    // Professional" placeholder CV with no indication anything is missing.
+    const profileHasContent = Boolean(
+      loadedProfile &&
+        (loadedProfile.experience?.length ||
+          loadedProfile.education?.length ||
+          loadedProfile.skills?.length ||
+          (loadedProfile.summary && loadedProfile.summary.trim().length > 20)),
+    );
+    setHasCvData(loadedCvText.trim().length > 40 || profileHasContent);
+    setSetupChecked(true);
   }, []);
 
   const resumeInput = useMemo(
@@ -112,7 +131,7 @@ export default function CvWorkspacePage() {
 
     // Extract 2–4 word phrases that look like skills/requirements
     const phrases: string[] = [];
-    const phrasePattern = /([a-z][a-z+#.\-/]{1,}(?:\s+[a-z][a-z+#.\-/]{1,}){0,3})/g;
+    const phrasePattern = /\b([a-z][a-z+#.\-/]{1,}(?:\s+[a-z][a-z+#.\-/]{1,}){0,3})\b/g;
     let m: RegExpExecArray | null;
     while ((m = phrasePattern.exec(jdLower)) !== null) {
       const phrase = m[1]?.trim() ?? "";
@@ -162,7 +181,7 @@ export default function CvWorkspacePage() {
 
     // Extract meaningful keywords from JD (2+ char, not stopwords)
     const stopwords = new Set(["the","a","an","and","or","but","in","on","at","to","for","of","with","by","from","is","are","be","will","you","we","they","have","has","that","this","as","it","its","was","not","your","our","their","all","more","can","may","who","which","how","each","any","both","do","does"]);
-    const jdWords = jdLower.match(/[a-z][a-z0-9+#.-]{1,25}/g) || [];
+    const jdWords = jdLower.match(/\b[a-z][a-z0-9+#.-]{1,25}\b/g) || [];
     const keywordFreq: Record<string, number> = {};
     for (const word of jdWords) {
       if (!stopwords.has(word)) keywordFreq[word] = (keywordFreq[word] || 0) + 1;
@@ -246,6 +265,26 @@ export default function CvWorkspacePage() {
 
   return (
     <PremiumFeatureGate feature="improve_cv" title="Improve CV is a Premium feature" description="ATS keyword analysis, job-specific CV improvement, exports, and advanced CV targeting are included in Premium.">
+      {setupChecked && !hasCvData ? (
+        <main className="flex min-h-screen items-center justify-center bg-[#020817] px-5 py-6 text-white">
+          <div className="max-w-md rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-200">
+              <FileText className="h-7 w-7" />
+            </div>
+            <h1 className="text-xl font-black">Upload your CV to get started</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Improve CV needs your resume to generate ATS-optimized bullets, summaries, and exports. Upload or
+              paste your CV in onboarding first, then come back here.
+            </p>
+            <Link
+              href="/onboarding"
+              className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 px-6 py-3 text-sm font-black text-white transition hover:scale-[1.02]"
+            >
+              Go to onboarding
+            </Link>
+          </div>
+        </main>
+      ) : (
       <main className="min-h-screen bg-[#020817] px-5 py-6 text-white">
       <header className="mx-auto mb-6 flex max-w-7xl items-center justify-between">
         <Link
@@ -681,6 +720,7 @@ export default function CvWorkspacePage() {
         </div>
       </section>
     </main>
+      )}
     </PremiumFeatureGate>
   );
 }
