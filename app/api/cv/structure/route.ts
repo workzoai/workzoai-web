@@ -1,7 +1,6 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { parseResumeWithAiStructure } from "@/lib/workzoAiCvParser";
-import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import {
   extractResumeProfile,
   sanitizeResumeProfileIdentity,
@@ -45,7 +44,7 @@ function buildFallbackStructuredProfile(input: {
 }
 
 export async function POST(request: Request) {
-  // ── Auth gate ─────────────────────────────────────────────────────────────
+  // â”€â”€ Auth gate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let resolved;
   try {
     resolved = await resolveWorkZoServerPlan();
@@ -55,7 +54,7 @@ export async function POST(request: Request) {
   if (!resolved.authenticated) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const body = await request.json().catch(() => null);
 
