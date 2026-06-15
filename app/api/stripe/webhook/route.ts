@@ -158,6 +158,7 @@ export async function POST(request: Request) {
               await sendWorkZoPurchaseConfirmation({
                 to: email,
                 planLabel: limits.label,
+                plan,
                 startUrl: `${config.appUrl.replace(/\/$/, "")}/onboarding`,
                 manageUrl: `${config.appUrl.replace(/\/$/, "")}/billing/manage`,
               });

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BarChart3,
@@ -66,12 +66,15 @@ type SmartActionId =
   | "career_chat"
   | "interview_coach"
   | "cv_improve"
+  | "cv_rewrite_ats"
   | "cover_letter"
   | "job_fit"
   | "find_jobs_strategy"
   | "linkedin_message"
   | "email_reply"
-  | "career_plan";
+  | "career_plan"
+  | "score"
+  | "followups";
 
 type SmartAction = {
   id: SmartActionId;
@@ -425,11 +428,202 @@ function getCareerGuideStarter(mode: CopilotMode, targetRole: string) {
 
 
 // Premium-only copilot action ids
-const PREMIUM_ONLY_ACTIONS: SmartActionId[] = [
+// Pro-only actions (require premium_pro — career coaching, roadmaps)
+const PRO_ONLY_ACTIONS: SmartActionId[] = [
   "career_plan",
   "email_reply",
   "linkedin_message",
 ];
+// Premium actions (require premium or above — CV, analysis, job fit)
+const PREMIUM_ONLY_ACTIONS: SmartActionId[] = [
+  "cv_improve",
+  "cv_rewrite_ats",
+  "cover_letter",
+  "job_fit",
+  "find_jobs_strategy",
+  "score",
+  "rewrite",
+  "star",
+  "metrics",
+  "ownership",
+  "concise",
+];
+
+// Lightweight markdown → React renderer.
+// Handles headers, bold, italic, inline code, tables, bullet/numbered lists,
+// checkboxes, blockquotes, horizontal rules. No external dependencies needed.
+function renderMarkdown(text: string): React.ReactNode[] {
+  const lines = text.split("\n");
+  const nodes: React.ReactNode[] = [];
+  let i = 0;
+
+  // Strip decorative emoji that clutter structured output
+  const STRIP_EMOJI = /[🔹🔴✅❌⚠️👋🤖📅🗺️👉💡🎯🚀⭐🔧🔑📌📋🗓️]/gu;
+
+  function cleanText(str: string) {
+    return str.replace(STRIP_EMOJI, "").replace(/^\s+/, "");
+  }
+
+  function inlineFormat(str: string): React.ReactNode {
+    const cleaned = cleanText(str);
+    const parts = cleaned.split(/(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_|`[^`]+`)/g);
+    return parts.map((part, idx) => {
+      if ((part.startsWith("**") && part.endsWith("**")) || (part.startsWith("__") && part.endsWith("__"))) {
+        return <strong key={idx} className="font-semibold text-white">{part.slice(2, -2)}</strong>;
+      }
+      if ((part.startsWith("*") && part.endsWith("*") && part.length > 2) ||
+          (part.startsWith("_") && part.endsWith("_") && part.length > 2)) {
+        return <em key={idx} className="italic text-slate-300">{part.slice(1, -1)}</em>;
+      }
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return <code key={idx} className="rounded bg-white/10 px-1 py-0.5 font-mono text-[11px] text-cyan-300">{part.slice(1, -1)}</code>;
+      }
+      return part;
+    });
+  }
+
+  while (i < lines.length) {
+    const raw = lines[i];
+    const line = raw.replace(STRIP_EMOJI, "");
+
+    // Horizontal rule
+    if (/^---+$/.test(line.trim())) {
+      nodes.push(<hr key={i} className="my-3 border-white/[0.08]" />);
+      i++; continue;
+    }
+
+    // Headers — strip leading emoji/symbols from header text
+    const hMatch = line.match(/^(#{1,3})\s+(.+)/);
+    if (hMatch) {
+      const level = hMatch[1].length;
+      const cls = level === 1
+        ? "mt-4 mb-2 text-base font-black text-cyan-100"
+        : level === 2
+          ? "mt-3 mb-1.5 text-[13px] font-black text-slate-100"
+          : "mt-2.5 mb-1 text-[11px] font-black uppercase tracking-wide text-slate-300";
+      nodes.push(<p key={i} className={cls}>{inlineFormat(hMatch[2])}</p>);
+      i++; continue;
+    }
+
+    // Blockquote — collect consecutive > lines into one block
+    // Also handles blockquotes immediately after list items (no blank line)
+    if (line.trimStart().startsWith(">")) {
+      const blockKey = i; // capture before loop advances i
+      const qLines: string[] = [];
+      while (i < lines.length && lines[i].trimStart().startsWith(">")) {
+        qLines.push(lines[i].replace(/^\s*>\s?/, ""));
+        i++;
+      }
+      nodes.push(
+        <blockquote key={`bq-${blockKey}`} className="my-2 rounded-r-xl border-l-2 border-cyan-400/50 bg-white/[0.03] py-2 pl-3 pr-2 text-[12px] italic leading-6 text-slate-300">
+          {qLines.map((ql, qi) => (
+            <span key={qi}>{inlineFormat(ql)}{qi < qLines.length - 1 ? <br /> : null}</span>
+          ))}
+        </blockquote>
+      );
+      continue;
+    }
+
+    // Table — collect all | lines
+    if (line.trim().startsWith("|")) {
+      const tableKey = i; // capture before loop advances i
+      const tableLines: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith("|")) {
+        tableLines.push(lines[i].replace(STRIP_EMOJI, ""));
+        i++;
+      }
+      const rows = tableLines
+        .filter(r => !/^\|[\s|:-]+\|$/.test(r.trim()))
+        .map(r => r.split("|").slice(1, -1).map(c => c.trim()));
+      if (rows.length > 0) {
+        nodes.push(
+          <div key={`tbl-${tableKey}`} className="my-3 overflow-x-auto rounded-2xl border border-white/10 text-[12px]">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-white/[0.06]">
+                  {rows[0].map((cell, ci) => (
+                    <th key={ci} className="border-b border-white/10 px-3 py-2 text-left font-bold text-slate-100">
+                      {inlineFormat(cell)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.slice(1).map((row, ri) => (
+                  <tr key={ri} className={ri % 2 === 0 ? "" : "bg-white/[0.025]"}>
+                    {row.map((cell, ci) => (
+                      <td key={ci} className="border-b border-white/[0.05] px-3 py-2 text-slate-300">
+                        {inlineFormat(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+      continue;
+    }
+
+    // Checkbox list item — [ ] or [x]
+    const checkMatch = raw.match(/^(\s*)- \[( |x|X)\] (.+)/);
+    if (checkMatch) {
+      const checked = checkMatch[2].toLowerCase() === "x";
+      const isNested = checkMatch[1].length > 0;
+      nodes.push(
+        <div key={i} className={`flex items-start gap-2.5 text-[13px] leading-6 ${isNested ? "ml-5 mt-0.5" : "mt-1"}`}>
+          <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-cyan-400 bg-cyan-400/20 text-cyan-300" : "border-white/20 bg-white/[0.04] text-transparent"}`}>
+            {checked && <span className="text-[9px] font-black">✓</span>}
+          </span>
+          <span className={checked ? "text-slate-500 line-through" : "text-slate-300"}>{inlineFormat(checkMatch[3])}</span>
+        </div>
+      );
+      i++; continue;
+    }
+
+    // Bullet list
+    const bulletMatch = raw.match(/^(\s*)[-*+] (.+)/);
+    if (bulletMatch) {
+      const isNested = bulletMatch[1].length > 0;
+      nodes.push(
+        <div key={i} className={`flex items-start gap-2 text-[13px] leading-6 text-slate-300 ${isNested ? "ml-5 mt-0.5" : "mt-1"}`}>
+          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400/70" />
+          <span>{inlineFormat(bulletMatch[2])}</span>
+        </div>
+      );
+      i++; continue;
+    }
+
+    // Numbered list
+    const numMatch = raw.match(/^(\d+)\. (.+)/);
+    if (numMatch) {
+      nodes.push(
+        <div key={i} className="mt-1 flex items-start gap-2.5 text-[13px] leading-6 text-slate-300">
+          <span className="min-w-[18px] shrink-0 font-bold text-cyan-400/80">{numMatch[1]}.</span>
+          <span>{inlineFormat(numMatch[2])}</span>
+        </div>
+      );
+      i++; continue;
+    }
+
+    // Empty line
+    if (line.trim() === "") {
+      nodes.push(<div key={i} className="h-2" />);
+      i++; continue;
+    }
+
+    // Plain paragraph
+    nodes.push(
+      <p key={i} className="text-[13px] leading-6 text-slate-200">
+        {inlineFormat(line)}
+      </p>
+    );
+    i++;
+  }
+
+  return nodes;
+}
 
 export default function WorkOBotCopilotPage() {
   const [setup, setSetup] = useState<SavedSetup>(emptySetup);
@@ -443,7 +637,8 @@ export default function WorkOBotCopilotPage() {
   const [loading, setLoading] = useState(false);
   const [conversation, setConversation] = useState<ChatMessage[]>([]);
   const planState = useWorkZoAuthoritativePlan();
-  const isPremium = Boolean(getWorkZoPlanLimits(planState.plan).advancedReports || getWorkZoPlanLimits(planState.plan).tavus);
+  const isPro = planState.plan === "premium_pro";
+  const isPremium = isPro || planState.plan === "premium";
 
   useEffect(() => {
     setSetup(readSetup());
@@ -495,9 +690,15 @@ export default function WorkOBotCopilotPage() {
           ]
         : conversation;
 
-      // Gate premium-only actions client-side before hitting the API
+      // Gate pro-only actions (career coaching, roadmaps, salary negotiation)
+      if (!isPro && PRO_ONLY_ACTIONS.includes(action as SmartActionId)) {
+        setOutput("This feature is included in Premium Pro. Upgrade to unlock AI career coaching, 30/60/90-day roadmaps, personalised coaching memory, and more.");
+        setLoading(false);
+        return;
+      }
+      // Gate premium actions (CV, analysis, cover letter, job fit)
       if (!isPremium && PREMIUM_ONLY_ACTIONS.includes(action as SmartActionId)) {
-        setOutput("This feature is available on Premium. Upgrade to unlock career plans, salary negotiation, LinkedIn messages, and email replies.");
+        setOutput("This feature is included in Premium. Upgrade to unlock CV improvement, ATS optimisation, cover letters, job fit analysis, and more.");
         setLoading(false);
         return;
       }
@@ -525,7 +726,13 @@ export default function WorkOBotCopilotPage() {
 
       if (!response.ok || !data.success) {
         if (data.error === "upgrade_required" || data.error === "upgrade_required_rate_limit") {
-          setOutput("You have reached the free usage limit for this feature. Upgrade to Premium for unlimited access.");
+          const requiredPlan = (data as { requiredPlan?: string }).requiredPlan;
+          const isProFeature = requiredPlan === "premium_pro";
+          setOutput(
+            isProFeature
+              ? "This feature is included in Premium Pro. Upgrade to unlock AI career coaching, 30/60/90-day roadmaps, personalised coaching memory, and more."
+              : "This feature is included in Premium. Upgrade to unlock CV improvement, ATS optimisation, cover letters, job fit analysis, and more."
+          );
           setLoading(false);
           return;
         }
@@ -841,16 +1048,18 @@ export default function WorkOBotCopilotPage() {
               </div>
             </div>
 
-            <div className="mt-4 min-h-[360px] max-h-[560px] overflow-y-auto whitespace-pre-line rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-7 text-slate-200">
+            <div className="mt-4 min-h-[360px] max-h-[560px] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950/60 p-5">
               {loading ? (
                 <div className="flex h-[260px] items-center justify-center">
                   <div className="text-center">
                     <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
-                    <p className="mt-4 text-sm text-slate-400">Work-O-Bot Career Guide Guide is reading your context...</p>
+                    <p className="mt-4 text-sm text-slate-400">Work-O-Bot is reading your context...</p>
                   </div>
                 </div>
+              ) : output ? (
+                <div className="space-y-0.5">{renderMarkdown(output)}</div>
               ) : (
-                output || "Choose a mode or ask a question to get recruiter-aware career help."
+                <p className="text-sm text-slate-500">Choose a mode or ask a question to get recruiter-aware career help.</p>
               )}
             </div>
 

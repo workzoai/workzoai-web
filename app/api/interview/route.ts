@@ -660,28 +660,114 @@ function withinRateLimit(key: string, limit: number): boolean {
   return true;
 }
 
-async function getPlan(req: Request): Promise<string> {
-  try {
-    const resolved = await resolveWorkZoServerPlan();
-    if (resolved.authenticated) return resolved.plan;
-  } catch {}
-  const cookie = req.headers.get("cookie") || "";
-  return cookie.match(/workzo_plan=([^;]+)/)?.[1] ?? "free";
+// FREE_INTERVIEW_LIMIT: 2 interviews per account, lifetime (tied to user_id).
+// Resets only if the user deletes their account. Never resets on a new month.
+// Enforced server-side by counting rows in interview_sessions for this user_id.
+// Client-side localStorage tracking is kept for UI feedback only.
+const FREE_INTERVIEW_LIMIT = 2;
+
+/**
+ * Count how many interview sessions this user has started (all time for free,
+ * current month for paid plans where limits reset monthly).
+ * Uses the service role client so it works regardless of cookie auth state.
+ */
+async function getServerSideInterviewCount(userId: string, monthOnly: boolean): Promise<number> {
+  const { createClient } = await import("@supabase/supabase-js");
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+
+  let query = supabase
+    .from("interview_sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+
+  if (monthOnly) {
+    // Count only sessions started in the current calendar month
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    query = query.gte("created_at", monthStart);
+  }
+
+  const { count, error } = await query;
+  if (error) {
+    console.warn("[interview] Could not read session count from DB:", error.message);
+    return 0; // fail open — don't block user if DB is unavailable
+  }
+  return count ?? 0;
 }
 
 export async function POST(request: Request) {
   try {
-    const plan = await getPlan(request);
+    // ── Auth + plan resolution (always server-side) ───────────────────────────
+    // We no longer fall back to a cookie-parsed plan for interview gating.
+    // The cookie fallback in workzoServerPlan.ts handles the UX case of a
+    // missed webhook — but for rate/limit enforcement we need the DB plan.
+    let resolved;
+    try {
+      resolved = await resolveWorkZoServerPlan();
+    } catch {
+      return NextResponse.json({ error: "Could not resolve account plan." }, { status: 500 });
+    }
+
+    if (!resolved.authenticated) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const plan = resolved.plan;
     const paid = plan === "premium" || plan === "premium_pro";
+    const userId = resolved.userId!;
     const clientKey = getClientKey(request);
 
-    // Free: 20 req/min (generous for practice), Paid: 60 req/min
+    // ── Per-minute rate limiter (in-memory, protects API cost per burst) ──────
+    // Free: 20 req/min  |  Paid: 60 req/min
     if (!withinRateLimit(clientKey, paid ? 60 : 20)) {
       return NextResponse.json(
         { error: paid ? "Rate limit reached." : "upgrade_required_rate_limit" },
         { status: 429 },
       );
     }
+
+    // ── Server-side interview count enforcement ───────────────────────────────
+    // Free users: lifetime cap of 2 (spec: "2 AI interviews total").
+    // Premium users: 50/month cap.
+    // Premium Pro: unlimited.
+    if (plan === "free") {
+      const used = await getServerSideInterviewCount(userId, false /* all-time */);
+      if (used >= FREE_INTERVIEW_LIMIT) {
+        return NextResponse.json(
+          {
+            error: "interview_limit_reached",
+            plan: "free",
+            used,
+            limit: FREE_INTERVIEW_LIMIT,
+            message: `Free plan includes ${FREE_INTERVIEW_LIMIT} interviews. Upgrade to continue practising.`,
+            requiredPlan: "premium",
+          },
+          { status: 403 },
+        );
+      }
+    } else if (plan === "premium") {
+      const used = await getServerSideInterviewCount(userId, true /* this month */);
+      const PREMIUM_MONTHLY_LIMIT = 50;
+      if (used >= PREMIUM_MONTHLY_LIMIT) {
+        return NextResponse.json(
+          {
+            error: "interview_limit_reached",
+            plan: "premium",
+            used,
+            limit: PREMIUM_MONTHLY_LIMIT,
+            message: `You have used all ${PREMIUM_MONTHLY_LIMIT} interviews this month. Upgrade to Premium Pro for unlimited access.`,
+            requiredPlan: "premium_pro",
+          },
+          { status: 403 },
+        );
+      }
+    }
+    // premium_pro: no interview count check — unlimited
+    // ─────────────────────────────────────────────────────────────────────────
 
     const body = (await request.json()) as InterviewRequest;
     const setup = body.setup || {};

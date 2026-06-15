@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Tavus Live AI Recruiter is a Premium Pro exclusive feature.
+// The 60-minute monthly limit is enforced here server-side via the
+// workzo_subscriptions.tavus_minutes_used column in Supabase.
+// Client-side tracking in localStorage is kept for real-time UI only
+// and must never be the sole enforcement layer.
+
+const TAVUS_MINUTES_LIMIT = 60; // matches spec: 60 Tavus minutes/month for Premium Pro
 
 type TavusRequest = {
   recruiterName?: string;
@@ -16,15 +25,91 @@ type TavusEndRequest = {
 
 function requiredEnv(name: string) {
   const value = process.env[name];
-
   if (!value || !value.trim()) {
     throw new Error(`${name} is missing in .env.local`);
   }
-
   return value.trim();
 }
 
+/** Read Tavus minutes consumed this billing cycle from Supabase. */
+async function getTavusMinutesUsed(userId: string): Promise<number> {
+  const { createClient } = await import("@supabase/supabase-js");
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+
+  const { data, error } = await supabase
+    .from("workzo_subscriptions")
+    .select("tavus_minutes_used, billing_cycle_start")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !data) return 0;
+
+  // Reset counter if we've moved past the billing cycle start month
+  if (data.billing_cycle_start) {
+    const cycleStart = new Date(data.billing_cycle_start);
+    const now = new Date();
+    const sameMonth =
+      cycleStart.getFullYear() === now.getFullYear() &&
+      cycleStart.getMonth() === now.getMonth();
+    if (!sameMonth) return 0;
+  }
+
+  return Number(data.tavus_minutes_used || 0);
+}
+
 export async function POST(request: Request) {
+  // ── Auth + plan gate ────────────────────────────────────────────────────────
+  let resolved;
+  try {
+    resolved = await resolveWorkZoServerPlan();
+  } catch {
+    return NextResponse.json({ error: "Could not resolve account plan." }, { status: 500 });
+  }
+
+  if (!resolved.authenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (resolved.plan !== "premium_pro") {
+    return NextResponse.json(
+      {
+        error: "premium_pro_required",
+        message: "Live AI Recruiter requires Premium Pro.",
+        requiredPlan: "premium_pro",
+      },
+      { status: 403 },
+    );
+  }
+
+  // ── Server-side Tavus minute limit check ────────────────────────────────────
+  // userId is guaranteed non-null here because authenticated is true and
+  // premium_pro plans always have a real Supabase user.
+  const userId = resolved.userId!;
+  let minutesUsed = 0;
+  try {
+    minutesUsed = await getTavusMinutesUsed(userId);
+  } catch (err) {
+    console.warn("[tavus] Could not read minutes used from DB, proceeding:", err);
+  }
+
+  if (minutesUsed >= TAVUS_MINUTES_LIMIT) {
+    return NextResponse.json(
+      {
+        error: "tavus_minutes_exhausted",
+        minutesUsed,
+        minutesLimit: TAVUS_MINUTES_LIMIT,
+        message: `You have used all ${TAVUS_MINUTES_LIMIT} Live AI Recruiter minutes for this billing cycle. Continuing in Vapi voice mode.`,
+        fallbackToVapi: true,
+      },
+      { status: 403 },
+    );
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   try {
     const body = (await request.json().catch(() => ({}))) as TavusRequest;
 
@@ -76,7 +161,7 @@ Do not say you are an AI assistant.
             "Live recruiter unavailable. Continuing interview.",
           raw: data,
         },
-        { status: response.status }
+        { status: response.status },
       );
     }
 
@@ -97,6 +182,9 @@ Do not say you are an AI assistant.
         data?.id ||
         data?.conversation?.id ||
         "",
+      minutesUsed,
+      minutesRemaining: TAVUS_MINUTES_LIMIT - minutesUsed,
+      minutesLimit: TAVUS_MINUTES_LIMIT,
       raw: data,
     });
   } catch (error) {
@@ -107,12 +195,24 @@ Do not say you are an AI assistant.
             ? error.message
             : "Live recruiter unavailable. Continuing interview.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function DELETE(request: Request) {
+  // Auth required to end a conversation too
+  let resolved;
+  try {
+    resolved = await resolveWorkZoServerPlan();
+  } catch {
+    return NextResponse.json({ error: "Could not resolve account plan." }, { status: 500 });
+  }
+
+  if (!resolved.authenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = (await request.json().catch(() => ({}))) as TavusEndRequest;
     const conversationId = body.conversationId?.trim();
@@ -134,7 +234,7 @@ export async function DELETE(request: Request) {
         headers: {
           "x-api-key": apiKey,
         },
-      }
+      },
     );
 
     const data = await response.json().catch(() => ({}));
@@ -146,7 +246,7 @@ export async function DELETE(request: Request) {
           error: data?.message || data?.error || "Could not end video conversation.",
           raw: data,
         },
-        { status: response.status }
+        { status: response.status },
       );
     }
 
@@ -163,7 +263,7 @@ export async function DELETE(request: Request) {
         error:
           error instanceof Error ? error.message : "Could not end video conversation",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

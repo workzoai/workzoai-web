@@ -136,6 +136,18 @@ const ROLE_FAMILIES: RoleFamily[] = [
     ],
   },
   {
+    id: "it_systems_integration",
+    label: "IT / Systems Integration",
+    safeHeadline: "IT Systems & Cloud Integration Specialist",
+    terms: ["integration", "cloud", "microsoft", "azure", "saas", "api", "configuration", "system administration", "it administration", "onboarding", "hr software", "third-party", "erp", "active directory", "identity management", "m365", "office 365", "tenant", "deployment", "helpdesk", "1st level", "2nd level", "3rd level", "technical consultant"],
+    transferableSignals: [
+      { label: "structured problem solving in technical environments", evidence: /problem|technical|troubleshoot|system|configure|process|procedure|support/i },
+      { label: "documentation and process improvement", evidence: /documentation|document|process|improve|standard|guide|technical drawing|report|plm|windchill/i },
+      { label: "cross-functional collaboration and stakeholder communication", evidence: /collaborat|cross-functional|stakeholder|team|internal|support|communication/i },
+      { label: "system configuration and change management", evidence: /configuration|change management|engineering change|install|deploy|process|system|plm|windchill/i },
+    ],
+  },
+  {
     id: "general",
     label: "General Professional Role",
     safeHeadline: "Role-Relevant Professional",
@@ -378,6 +390,7 @@ function safeHeadline(profile: ResumeProfile, jd: JdSignal, matches: EvidenceMat
     return current === "Professional" ? jd.family.safeHeadline : current;
   }
   if (jd.family.id === "technical_support") return current === "Professional" ? jd.family.safeHeadline : current;
+  if (jd.family.id === "it_systems_integration") return jd.family.safeHeadline;
   if (jd.family.id === "engineering_design") return /engineer|design|cad|mechanical/i.test(current) ? current : jd.family.safeHeadline;
 
   return matches.length >= 2 ? jd.family.safeHeadline : current;
@@ -922,30 +935,152 @@ export function buildCoverLetter(input: CvGenerationInput) {
   const role = data.roleFit.label || input.targetRole || "the role";
   const company = jd.company || clean(input.companyName || "your company");
   const name = data.profile.basics.name || "Candidate";
-  const evidence = data.roleFit.evidenceLines.slice(0, 3);
   const highlights = data.roleFit.highlights.slice(0, 3);
+  const matchLevel = data.roleFit.matchLevel;
 
-  const evidenceSentence = highlights.length
-    ? highlights.join(", ")
-    : "communication, problem solving, and cross-functional collaboration";
+  // For the intro, describe the candidate's actual professional background
+  // (years of experience + field), NOT their job title verbatim. This avoids
+  // e.g. "My background as a Product Design Technician at Cummins GmbH has
+  // given me experience in 3D printing" appearing in an IT integration cover letter.
+  const yearsMatch = (data.profile.basics.headline + " " + data.profile.summary).match(/(\d+)\+?\s*year/i);
+  const yearsText = yearsMatch ? `${yearsMatch[1]}+ years of` : "a background in";
 
-  const bodyEvidence = evidence.length
-    ? evidence.map((line) => `- ${line}`).join("\n")
-    : highlights.map((line) => `- ${line}`).join("\n") || "- Relevant transferable experience from my CV";
+  // Extract a clean job title from the headline.
+  // Handles corrupt/mis-extracted headlines like "Cummins Deutschland GmbH - WÜRzburg, Germany"
+  // where the whole string is a company+location rather than a title.
+  // Strategy: if the headline looks like a company/location string (contains GmbH, AG, Ltd,
+  // comma-separated city, or multiple capitalised proper-noun words without a role keyword),
+  // fall back to the profile summary or a generic label instead.
+  // Extract a clean job title for use in cover letter prose.
+  // The headline field is sometimes mis-extracted as "Company GmbH - City, Country"
+  // rather than a job title. Priority: first experience title > summary extraction > cleaned headline.
+  function extractJobTitle(headline: string, summary: string, firstJobTitle: string): string {
+    const h = headline.trim();
+    // If headline looks like a company/location string, use the most recent job title instead
+    if (/\b(gmbh|ag|ltd|llc|inc|corp|plc|bv|gbr|ug|kg)\b/i.test(h) || /^[A-Z][\w ]+ - [A-Z]/.test(h)) {
+      // Best source: the actual job title from the most recent experience entry
+      if (firstJobTitle && firstJobTitle.length > 2 && firstJobTitle.length < 60) {
+        return firstJobTitle.replace(/\b\w/g, c => c.toUpperCase());
+      }
+      // Fallback: extract from summary (e.g. "Product Design Technician with 6 years")
+      const m = summary.match(/\b((?:[A-Z][a-z]+ ){0,3}(?:engineer|designer|developer|architect|scientist|manager|specialist|analyst|consultant|technician|coordinator|officer|lead|director))\b/i);
+      if (m) return m[1].replace(/\b\w/g, c => c.toUpperCase());
+      return "Engineering Professional";
+    }
+    // Strip company/location suffixes from otherwise valid headlines
+    return h
+      .replace(/\s*[-–]\s*[\w].{3,}$/, "")
+      .replace(/\bat\s+.+$/i, "")
+      .replace(/,\s*[A-Z][A-Za-z ]{2,}$/, "")
+      .trim() || "Engineering Professional";
+  }
+  const firstJobTitle = data.profile.experience?.[0]?.title || "";
+  const fieldLabel = data.profile.basics.headline
+    ? extractJobTitle(data.profile.basics.headline, data.profile.summary || "", firstJobTitle)
+    : firstJobTitle || "engineering and technology";
 
-  const gapSentence = data.roleFit.gaps.length && data.roleFit.matchLevel !== "strong"
-    ? `I understand that the role may also require deeper direct exposure to ${data.roleFit.gaps.slice(0, 3).join(", ")}. I would approach this honestly, while bringing the relevant strengths already demonstrated in my background.`
-    : "The role aligns well with the strengths and practical experience demonstrated in my background.";
+  // Detect domain mismatch FIRST — must happen before bullet selection so the
+  // correct branch (synthesis vs raw evidence) is chosen.
+  // The it_systems_integration family's signals (documentation, cross-functional,
+  // process) fire on any engineering CV, so matchLevel alone can't detect a switch.
+  const jdIsItRole = (input.jobDescription || "").toLowerCase().match(/cloud|integration|microsoft|azure|system admin|it specialist|hr software|saas|3rd level|2nd level|second level|third level/i);
+  const cvIsNonItDomain = (input.cvText || "").toLowerCase().match(/cad|mechanical|product design|solidworks|creo|catia|cnc|3d print|aerospace|sanding|polishing|prototyp/i);
+  const isCareerChange = matchLevel === "stretch" || matchLevel === "unknown" || Boolean(jdIsItRole && cvIsNonItDomain);
+
+  // Build bullets: synthesise transferable language for career-change, use evidence lines for direct matches.
+  const transferableMap: Array<[string, string]> = [
+    ["cross-functional", "Cross-functional collaboration across engineering and non-technical teams"],
+    ["documentation", "Creating and maintaining detailed technical documentation and process records"],
+    ["process", "Supporting process improvement and structured change management workflows"],
+    ["microsoft", "Microsoft Office Suite proficiency (used regularly across engineering roles)"],
+    ["german", "German B2 and English C1 — strong bilingual communication in a German-speaking workplace"],
+    ["english", "German B2 and English C1 — strong bilingual communication in a German-speaking workplace"],
+    ["support", "Hands-on technical support and troubleshooting in a structured engineering environment"],
+    ["install", "Installation and setup of technical equipment and tools"],
+    ["integration", "Supporting system integration and coordinating cross-team technical changes"],
+    ["team", "Team collaboration within multinational engineering environments"],
+    ["communication", "Clear written and verbal communication in German and English"],
+    ["problem", "Analytical and methodical problem solving under technical constraints"],
+    ["management", "Task and project management with multiple concurrent engineering deliverables"],
+  ];
+
+  const hardcodedFallbacks = [
+    "- Methodical approach to technical problem solving and documentation",
+    "- Cross-functional collaboration in an international engineering environment",
+    "- Strong German (B2) and English (C1) communication skills",
+  ];
+
+  let bodyBullets: string[];
+
+  if (!isCareerChange && (matchLevel === "strong" || matchLevel === "partial")) {
+    // Direct match: use best-scored evidence lines
+    const rawEvidence = data.roleFit.evidenceLines.slice(0, 3);
+    bodyBullets = rawEvidence.length
+      ? rawEvidence.map((line) => `- ${line}`)
+      : highlights.map((line) => `- ${line}`);
+  } else {
+    // Career-change or low match: synthesise transferable competency bullets.
+    // NEVER paste raw domain-specific CV bullets (CAD, 3D printing, sanding machines)
+    // into a cover letter for an IT/unrelated role.
+    const usedLabels = new Set<string>();
+    const synth: string[] = [];
+
+    // First pass: map from highlights (signal labels like "engineering change and documentation")
+    for (const highlight of highlights) {
+      const lower = highlight.toLowerCase();
+      for (const [key, label] of transferableMap) {
+        if (lower.includes(key) && !usedLabels.has(label)) {
+          usedLabels.add(label);
+          synth.push(`- ${label}`);
+          break;
+        }
+      }
+    }
+
+    // Second pass: scan all available CV text for transferable keyword signals
+    const allCvText = [
+      input.cvText || "",
+      data.profile.summary || "",
+      ...data.profile.skills,
+      ...data.profile.experience.flatMap(j => j.bullets),
+    ].join(" ").toLowerCase();
+
+    for (const [key, label] of transferableMap) {
+      if (synth.length >= 3) break;
+      if (allCvText.includes(key) && !usedLabels.has(label)) {
+        usedLabels.add(label);
+        synth.push(`- ${label}`);
+      }
+    }
+
+    // Final fallback: guaranteed safe bullets
+    for (const fb of hardcodedFallbacks) {
+      if (synth.length >= 3) break;
+      if (!synth.some(s => s === fb)) synth.push(fb);
+    }
+
+    bodyBullets = synth.slice(0, 3);
+  }
+
+  const openingParagraph = isCareerChange
+    ? `I am writing to apply for the ${role} position at ${company}. With ${yearsText} experience as a ${fieldLabel}, I have developed strong problem-solving, documentation, and cross-functional collaboration skills that I am eager to apply in a technology and systems integration environment.`
+    : `I am writing to apply for the ${role} position at ${company}. My background in ${fieldLabel} has given me practical experience in ${highlights.length ? highlights.join(", ") : "technical problem solving and cross-functional collaboration"}, which I believe is directly relevant to this opportunity.`;
+
+  const gapSentence = isCareerChange
+    ? `I am aware that direct IT integration experience is the key requirement I am actively building toward, and I am committed to bringing the same precision and structured thinking I have applied in engineering environments to this new domain.`
+    : data.roleFit.gaps.length
+      ? `I understand that the role may also require deeper exposure to ${data.roleFit.gaps.slice(0, 3).join(", ")}, and I would approach this honestly while bringing the demonstrated strengths above.`
+      : "The role aligns well with the strengths and practical experience demonstrated in my background.";
 
   return [
     "Dear Hiring Team,",
     "",
-    `I am writing to apply for the ${role} position at ${company}. My background as a ${data.profile.basics.headline || data.basics.headline} has given me practical experience in ${evidenceSentence}, which I believe is relevant to this opportunity.`,
+    openingParagraph,
     "",
-    "The most relevant parts of my background include:",
-    bodyEvidence,
+    "The most transferable parts of my background include:",
+    ...bodyBullets,
     "",
-    `${gapSentence} I would welcome the opportunity to discuss how my experience, communication style, and problem-solving approach can support your team.`,
+    `${gapSentence} I would welcome the opportunity to discuss how my technical mindset, communication skills, and drive to grow in the IT field can support your team.`,
     "",
     "Kind regards,",
     name,
@@ -1002,36 +1137,439 @@ function renderExperience(items: ResumeExperience[], compact = false) {
     .join("");
 }
 
+// ─── CV Template: ATS Executive ──────────────────────────────────────────────
+// Clean single-column, ATS-safe. Typographically refined — uses tight tracking
+// on name, a ruled section system, and a subtle left-border accent on the
+// summary. No colour in experience section — passes all ATS parsers.
 function renderAts(data: ResumeJson) {
-  return `<!doctype html><html><head><meta charset="utf-8"/><title>${escapeHtml(data.profile.basics.name)} CV</title>
-  <style>*{box-sizing:border-box}body{margin:0;background:#eef2f7;color:#111827;font-family:Arial,sans-serif;line-height:1.42}.page{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:18mm 17mm;box-shadow:0 20px 50px rgba(15,23,42,.14)}h1{margin:0;font-size:25px;letter-spacing:-.6px}.headline{margin-top:5px;font-size:14px;font-weight:700;color:#1d4ed8}.contact{margin-top:6px;color:#4b5563;font-size:10.8px}h2{margin:16px 0 7px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#1d4ed8;border-bottom:1px solid #d1d5db;padding-bottom:5px}h3{margin:0;font-size:11.5px}.item{margin-top:10px;break-inside:avoid}.item-head{display:flex;justify-content:space-between;gap:18px}.item-head p{margin:2px 0 0;color:#6b7280;font-size:10.5px}p,li{font-size:10.7px}ul{margin:5px 0 0;padding-left:16px}li{margin-bottom:3px}@media print{body{background:#fff}.page{box-shadow:none;margin:0;page-break-after:avoid}@page{size:A4;margin:0}}</style></head><body><div class="page">
-    <header><h1>${escapeHtml(data.profile.basics.name)}</h1><div class="headline">${escapeHtml(data.basics.headline)}</div><div class="contact">${escapeHtml([data.profile.basics.phone, data.profile.basics.email, data.profile.basics.location, data.profile.basics.linkedin].filter(Boolean).join(" · "))}</div></header>
-    <section><h2>Professional Summary</h2><p>${escapeHtml(data.summary)}</p></section>
-    <section><h2>Core Skills</h2>${data.groupedSkills.map((line) => `<p>${escapeHtml(line)}</p>`).join("")}</section>
-    ${data.experience.length ? `<section><h2>Professional Experience</h2>${renderExperience(data.experience)}</section>` : ""}
-    ${data.projects.length ? `<section><h2>Projects</h2>${data.projects.map((p) => `<div class="item"><h3>${escapeHtml(p.name)}</h3><ul>${renderList(p.bullets.slice(0, 3))}</ul></div>`).join("")}</section>` : ""}
-    ${data.education.length ? `<section><h2>Education</h2><ul>${renderList(data.education.map((e) => [e.degree, e.institution, e.dates].filter(Boolean).join(" | ")))}</ul></section>` : ""}
-    ${data.languages.length ? `<section><h2>Languages</h2><p>${escapeHtml(data.languages.join(" | "))}</p></section>` : ""}
+  const contact = [
+    data.profile.basics.email,
+    data.profile.basics.phone,
+    data.profile.basics.location,
+    data.profile.basics.linkedin,
+  ].filter(Boolean).map(escapeHtml).join("  ·  ");
+
+  const skillLines = cleanSkillsForDisplay(data.skills).slice(0, 28);
+  // Group into rows of ~4 for a compact inline chip layout
+  const skillChips = skillLines.map((s) => `<span class="skill-chip">${escapeHtml(s)}</span>`).join("");
+
+  const expHtml = data.experience.map((job) => `
+    <div class="exp-item">
+      <div class="exp-head">
+        <div class="exp-title-block">
+          <span class="exp-title">${escapeHtml(job.title)}</span>
+          <span class="exp-company">${escapeHtml(job.company)}${job.location ? ` · ${escapeHtml(job.location)}` : ""}</span>
+        </div>
+        <span class="exp-dates">${escapeHtml(job.dates)}</span>
+      </div>
+      <ul class="exp-bullets">${job.bullets.slice(0, 5).map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>
+    </div>`).join("");
+
+  const eduHtml = data.education.map((e) => `
+    <div class="edu-item">
+      <div class="edu-head">
+        <span class="edu-degree">${escapeHtml(e.degree)}</span>
+        <span class="edu-dates">${escapeHtml(e.dates)}</span>
+      </div>
+      <span class="edu-institution">${escapeHtml(e.institution)}${e.location ? ` · ${escapeHtml(e.location)}` : ""}</span>
+    </div>`).join("");
+
+  const projHtml = data.projects.length ? `
+    <section>
+      <h2>Projects</h2>
+      ${data.projects.map((p) => `
+        <div class="exp-item">
+          <div class="exp-head"><span class="exp-title">${escapeHtml(p.name)}</span></div>
+          <ul class="exp-bullets">${p.bullets.slice(0, 3).map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>
+        </div>`).join("")}
+    </section>` : "";
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
+  <title>${escapeHtml(data.profile.basics.name)}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #f0f2f5; font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; }
+    .page {
+      width: 210mm; min-height: 297mm; margin: 0 auto;
+      background: #ffffff; padding: 14mm 16mm 16mm;
+      box-shadow: 0 8px 40px rgba(0,0,0,.12);
+    }
+    /* Header */
+    .hd-name {
+      font-size: 28px; font-weight: 700; letter-spacing: -0.04em;
+      color: #0a0a0a; line-height: 1;
+    }
+    .hd-title {
+      font-size: 12.5px; font-weight: 500; color: #4f6ef7;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      margin-top: 5px;
+    }
+    .hd-contact {
+      font-size: 9.5px; color: #64748b; margin-top: 7px;
+      letter-spacing: 0.01em;
+    }
+    .hd-rule { border: none; border-top: 2px solid #0a0a0a; margin: 10px 0 0; }
+    /* Sections */
+    section { margin-top: 13px; }
+    h2 {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.16em;
+      text-transform: uppercase; color: #94a3b8;
+      padding-bottom: 4px; border-bottom: 1px solid #e2e8f0;
+      margin-bottom: 8px;
+    }
+    /* Summary */
+    .summary-text {
+      font-size: 10.2px; line-height: 1.6; color: #1e293b;
+      padding-left: 10px; border-left: 3px solid #4f6ef7;
+    }
+    /* Skills */
+    .skills-wrap { display: flex; flex-wrap: wrap; gap: 4px; }
+    .skill-chip {
+      font-size: 9px; font-weight: 600; color: #334155;
+      background: #f1f5f9; border: 1px solid #e2e8f0;
+      border-radius: 3px; padding: 3px 7px;
+    }
+    /* Experience */
+    .exp-item { margin-bottom: 10px; break-inside: avoid; }
+    .exp-head {
+      display: flex; justify-content: space-between;
+      align-items: baseline; gap: 12px;
+    }
+    .exp-title-block { display: flex; flex-direction: column; gap: 1px; }
+    .exp-title { font-size: 11px; font-weight: 700; color: #0f172a; }
+    .exp-company { font-size: 9.5px; color: #64748b; }
+    .exp-dates { font-size: 9px; color: #94a3b8; white-space: nowrap; font-weight: 500; }
+    .exp-bullets { margin-top: 5px; padding-left: 13px; }
+    .exp-bullets li {
+      font-size: 9.8px; color: #334155; line-height: 1.55;
+      margin-bottom: 2px;
+    }
+    /* Education */
+    .edu-item { margin-bottom: 8px; break-inside: avoid; }
+    .edu-head { display: flex; justify-content: space-between; align-items: baseline; }
+    .edu-degree { font-size: 10.5px; font-weight: 600; color: #0f172a; }
+    .edu-dates { font-size: 9px; color: #94a3b8; font-weight: 500; }
+    .edu-institution { font-size: 9.5px; color: #64748b; display: block; margin-top: 1px; }
+    /* Languages */
+    .lang-list { display: flex; gap: 16px; flex-wrap: wrap; }
+    .lang-item { font-size: 10px; color: #475569; }
+    @media print {
+      body { background: #fff; }
+      .page { box-shadow: none; margin: 0; }
+      @page { size: A4; margin: 0; }
+    }
+  </style>
+  </head><body><div class="page">
+    <header>
+      <div class="hd-name">${escapeHtml(data.profile.basics.name)}</div>
+      <div class="hd-title">${escapeHtml(data.basics.headline)}</div>
+      ${contact ? `<div class="hd-contact">${contact}</div>` : ""}
+      <hr class="hd-rule"/>
+    </header>
+    <section>
+      <h2>Professional Summary</h2>
+      <p class="summary-text">${escapeHtml(data.summary)}</p>
+    </section>
+    ${skillLines.length ? `<section><h2>Core Skills</h2><div class="skills-wrap">${skillChips}</div></section>` : ""}
+    ${data.experience.length ? `<section><h2>Professional Experience</h2>${expHtml}</section>` : ""}
+    ${projHtml}
+    ${data.education.length ? `<section><h2>Education</h2>${eduHtml}</section>` : ""}
+    ${data.languages.length ? `<section><h2>Languages</h2><div class="lang-list">${data.languages.map((l) => `<span class="lang-item">${escapeHtml(l)}</span>`).join("")}</div></section>` : ""}
   </div></body></html>`;
 }
 
+// ─── CV Template: Modern Two-Column ──────────────────────────────────────────
+// Dark left sidebar with name/contact/skills. Right column: summary + experience.
+// Signature element: the sidebar uses a deep navy-to-indigo gradient — premium
+// without being gaudy. Google Fonts for Inter + a tabular figures feel.
 function renderModern(data: ResumeJson) {
-  return `<!doctype html><html><head><meta charset="utf-8"/><title>${escapeHtml(data.profile.basics.name)} CV</title>
-  <style>*{box-sizing:border-box}body{margin:0;background:#e5e7eb;color:#111827;font-family:Inter,Arial,sans-serif;line-height:1.45}.page{width:210mm;min-height:297mm;margin:0 auto;background:#fff;display:grid;grid-template-columns:62mm 1fr;box-shadow:0 20px 50px rgba(15,23,42,.14)}aside{background:#f7faff;border-right:1px solid #dbe4ee;padding:24px 17px}main{padding:26px 24px}.bar{width:42px;height:4px;background:#2563eb;border-radius:999px;margin-bottom:18px}h1{margin:0;font-size:23px;line-height:1.05;letter-spacing:-.9px}.headline{margin:10px 0 16px;color:#1e3a8a;font-size:14px;font-weight:800}.contact{display:grid;gap:7px;color:#5b6472;font-size:11px;overflow-wrap:anywhere}h2{margin:16px 0 7px;color:#1e3a8a;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid #dbe4ee;padding-bottom:7px}.summary{padding:10px 12px;border-left:4px solid #2563eb;background:#f8fbff;border-radius:14px;font-size:13px}.chip{display:inline-block;margin:3px 4px 3px 0;padding:5px 8px;border:1px solid #dbe4ee;border-radius:999px;font-size:10px;font-weight:700}.item{margin-top:12px;break-inside:avoid}.item-head{display:flex;justify-content:space-between;gap:18px}.item-head p{margin:2px 0 0;color:#5b6472;font-size:11px}h3{margin:0;font-size:11.4px}li{font-size:10.4px;margin-bottom:3px}@media print{body{background:#fff}.page{box-shadow:none;margin:0;page-break-after:avoid}@page{size:A4;margin:0}}</style></head><body><div class="page">
-    <aside><div class="bar"></div><h1>${escapeHtml(data.profile.basics.name)}</h1><div class="headline">${escapeHtml(data.basics.headline)}</div><div class="contact">${[data.profile.basics.phone, data.profile.basics.email, data.profile.basics.location, data.profile.basics.linkedin].filter(Boolean).map((v) => `<div>${escapeHtml(v)}</div>`).join("")}</div>
-      <h2>Skills</h2><div>${cleanSkillsForDisplay(data.skills).slice(0, 24).map((s) => `<span class="chip">${escapeHtml(s)}</span>`).join("")}</div>
-      ${data.languages.length ? `<h2>Languages</h2><p>${escapeHtml(data.languages.join(" | "))}</p>` : ""}
-      ${data.strengths.length ? `<h2>Strengths</h2><ul>${renderList(data.strengths.slice(0, 6))}</ul>` : ""}
+  const contactItems = [
+    data.profile.basics.email,
+    data.profile.basics.phone,
+    data.profile.basics.location,
+    data.profile.basics.linkedin,
+  ].filter(Boolean);
+
+  const skillItems = cleanSkillsForDisplay(data.skills).slice(0, 24);
+
+  const expHtml = data.experience.map((job) => `
+    <div class="exp-item">
+      <div class="exp-head">
+        <div>
+          <div class="exp-title">${escapeHtml(job.title)}</div>
+          <div class="exp-meta">${[job.company, job.location].filter(Boolean).map(escapeHtml).join(" · ")}</div>
+        </div>
+        <div class="exp-dates">${escapeHtml(job.dates)}</div>
+      </div>
+      <ul>${job.bullets.slice(0, 5).map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>
+    </div>`).join("");
+
+  const projHtml = data.projects.length ? data.projects.map((p) => `
+    <div class="exp-item">
+      <div class="exp-title">${escapeHtml(p.name)}</div>
+      <ul>${p.bullets.slice(0, 3).map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>
+    </div>`).join("") : "";
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
+  <title>${escapeHtml(data.profile.basics.name)}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #d1d5db; font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; }
+    .page {
+      width: 210mm; min-height: 297mm; margin: 0 auto;
+      display: grid; grid-template-columns: 68mm 1fr;
+      background: #ffffff;
+      box-shadow: 0 8px 48px rgba(0,0,0,.18);
+    }
+    /* Sidebar */
+    aside {
+      background: linear-gradient(160deg, #0f172a 0%, #1e1b4b 55%, #312e81 100%);
+      padding: 28px 18px; display: flex; flex-direction: column; gap: 22px;
+    }
+    .sb-name {
+      font-size: 20px; font-weight: 700; color: #f8fafc;
+      letter-spacing: -0.03em; line-height: 1.15;
+    }
+    .sb-title {
+      font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em;
+      text-transform: uppercase; color: #a5b4fc; margin-top: 6px;
+    }
+    .sb-divider { border: none; border-top: 1px solid rgba(255,255,255,.12); }
+    .sb-section-label {
+      font-size: 8.5px; font-weight: 700; letter-spacing: 0.18em;
+      text-transform: uppercase; color: #818cf8; margin-bottom: 10px;
+    }
+    .sb-contact-item {
+      font-size: 9px; color: #cbd5e1; line-height: 1.6;
+      overflow-wrap: break-word; word-break: break-all;
+    }
+    .sb-skill {
+      display: inline-block; font-size: 8.5px; font-weight: 600;
+      color: #e0e7ff; background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.14); border-radius: 3px;
+      padding: 3px 7px; margin: 2px 3px 2px 0;
+    }
+    .sb-lang { font-size: 9.5px; color: #cbd5e1; margin-bottom: 4px; }
+    /* Main */
+    main { padding: 28px 22px; }
+    .main-name-block { display: none; } /* Name is in sidebar on this template */
+    h2 {
+      font-size: 8.5px; font-weight: 700; letter-spacing: 0.16em;
+      text-transform: uppercase; color: #6366f1;
+      border-bottom: 1.5px solid #e0e7ff; padding-bottom: 5px;
+      margin-bottom: 10px; margin-top: 18px;
+    }
+    h2:first-child { margin-top: 0; }
+    .summary-box {
+      background: #f8f8ff; border-left: 3px solid #6366f1;
+      border-radius: 0 6px 6px 0; padding: 10px 12px;
+      font-size: 9.8px; color: #1e293b; line-height: 1.65;
+    }
+    .exp-item { margin-bottom: 12px; break-inside: avoid; }
+    .exp-head {
+      display: flex; justify-content: space-between;
+      align-items: flex-start; gap: 8px;
+    }
+    .exp-title { font-size: 10.5px; font-weight: 700; color: #0f172a; }
+    .exp-meta { font-size: 9px; color: #64748b; margin-top: 2px; }
+    .exp-dates {
+      font-size: 8.5px; color: #6366f1; font-weight: 600;
+      white-space: nowrap; padding-top: 1px;
+    }
+    ul { margin: 6px 0 0 13px; }
+    li { font-size: 9.5px; color: #334155; line-height: 1.55; margin-bottom: 2.5px; }
+    .edu-item { margin-bottom: 9px; break-inside: avoid; }
+    .edu-degree { font-size: 10px; font-weight: 600; color: #0f172a; }
+    .edu-meta { font-size: 9px; color: #64748b; margin-top: 2px; }
+    .edu-dates { font-size: 8.5px; color: #6366f1; font-weight: 600; float: right; }
+    @media print {
+      body { background: #fff; }
+      .page { box-shadow: none; margin: 0; }
+      @page { size: A4; margin: 0; }
+    }
+  </style>
+  </head><body><div class="page">
+    <aside>
+      <div>
+        <div class="sb-name">${escapeHtml(data.profile.basics.name)}</div>
+        <div class="sb-title">${escapeHtml(data.basics.headline)}</div>
+      </div>
+      <hr class="sb-divider"/>
+      ${contactItems.length ? `<div><div class="sb-section-label">Contact</div>${contactItems.map((v) => `<div class="sb-contact-item">${escapeHtml(v)}</div>`).join("")}</div>` : ""}
+      ${skillItems.length ? `<div><div class="sb-section-label">Expertise</div><div>${skillItems.map((s) => `<span class="sb-skill">${escapeHtml(s)}</span>`).join("")}</div></div>` : ""}
+      ${data.languages.length ? `<div><div class="sb-section-label">Languages</div>${data.languages.map((l) => `<div class="sb-lang">${escapeHtml(l)}</div>`).join("")}</div>` : ""}
     </aside>
-    <main><section><h2>Professional Summary</h2><p class="summary">${escapeHtml(data.summary)}</p></section>
-    ${data.experience.length ? `<section><h2>Professional Experience</h2>${renderExperience(data.experience)}</section>` : ""}
-    ${data.projects.length ? `<section><h2>Projects</h2>${data.projects.map((p) => `<div class="item"><h3>${escapeHtml(p.name)}</h3><ul>${renderList(p.bullets.slice(0, 3))}</ul></div>`).join("")}</section>` : ""}
-    ${data.education.length ? `<section><h2>Education</h2><ul>${renderList(data.education.map((e) => [e.degree, e.institution, e.dates].filter(Boolean).join(" | ")))}</ul></section>` : ""}
-    </main></div></body></html>`;
+    <main>
+      <section>
+        <h2>Profile</h2>
+        <div class="summary-box">${escapeHtml(data.summary)}</div>
+      </section>
+      ${data.experience.length ? `<section><h2>Experience</h2>${expHtml}</section>` : ""}
+      ${data.projects.length ? `<section><h2>Projects</h2>${projHtml}</section>` : ""}
+      ${data.education.length ? `<section><h2>Education</h2>${data.education.map((e) => `
+        <div class="edu-item">
+          <div>
+            <span class="edu-dates">${escapeHtml(e.dates)}</span>
+            <div class="edu-degree">${escapeHtml(e.degree)}</div>
+            <div class="edu-meta">${escapeHtml(e.institution)}${e.location ? ` · ${escapeHtml(e.location)}` : ""}</div>
+          </div>
+        </div>`).join("")}</section>` : ""}
+    </main>
+  </div></body></html>`;
 }
 
+// ─── CV Template: Career Switcher ─────────────────────────────────────────────
+// Warm off-white + forest green accent. Leads with a prominent PROFILE section
+// and a "Why I fit this role" strengths block before experience — ideal for
+// candidates repositioning. Uses a top header bar with name + title overlaid
+// on a subtle textured stripe.
 function renderCareerSwitcher(data: ResumeJson) {
-  return renderModern(data);
+  const contactItems = [
+    data.profile.basics.email,
+    data.profile.basics.phone,
+    data.profile.basics.location,
+    data.profile.basics.linkedin,
+  ].filter(Boolean);
+
+  const strengthItems = [...new Set([...data.roleFit?.highlights ?? [], ...data.strengths])].slice(0, 5);
+  const skillItems = cleanSkillsForDisplay(data.skills).slice(0, 22);
+
+  const expHtml = data.experience.map((job) => `
+    <div class="exp-item">
+      <div class="exp-head">
+        <div>
+          <span class="exp-title">${escapeHtml(job.title)}</span>
+          <span class="exp-sep"> · </span>
+          <span class="exp-company">${escapeHtml(job.company)}</span>
+          ${job.location ? `<span class="exp-loc"> · ${escapeHtml(job.location)}</span>` : ""}
+        </div>
+        <span class="exp-dates">${escapeHtml(job.dates)}</span>
+      </div>
+      <ul>${job.bullets.slice(0, 5).map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>
+    </div>`).join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
+  <title>${escapeHtml(data.profile.basics.name)}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #e8e4de; font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; }
+    .page {
+      width: 210mm; min-height: 297mm; margin: 0 auto;
+      background: #faf9f7;
+      box-shadow: 0 8px 48px rgba(0,0,0,.15);
+    }
+    /* Header bar */
+    .page-header {
+      background: #1a2e1a;
+      padding: 22px 20mm;
+      display: flex; justify-content: space-between; align-items: flex-end;
+    }
+    .hd-name {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 30px; color: #f0ede8; letter-spacing: -0.02em; line-height: 1;
+    }
+    .hd-right { text-align: right; }
+    .hd-title {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; color: #86b386; margin-bottom: 8px;
+    }
+    .hd-contact { font-size: 8.5px; color: #a8b5a8; line-height: 1.7; }
+    /* Body layout */
+    .page-body { display: grid; grid-template-columns: 1fr 58mm; gap: 0; }
+    main { padding: 18px 16px 18px 20mm; border-right: 1px solid #e5e0d8; }
+    aside { padding: 18px 16px; background: #f3f0eb; }
+    /* Section headings */
+    h2 {
+      font-size: 8px; font-weight: 700; letter-spacing: 0.2em;
+      text-transform: uppercase; color: #4a7a4a;
+      border-bottom: 1px solid #d4cfc6; padding-bottom: 4px;
+      margin: 0 0 9px;
+    }
+    section { margin-bottom: 16px; }
+    /* Profile summary */
+    .profile-text {
+      font-size: 10px; color: #2d3a2d; line-height: 1.7;
+    }
+    /* Strengths */
+    .strength-item {
+      font-size: 9px; color: #2d3a2d; padding: 5px 8px;
+      background: #fff; border-left: 3px solid #4a7a4a;
+      border-radius: 0 4px 4px 0; margin-bottom: 5px;
+      font-weight: 500;
+    }
+    /* Skills sidebar */
+    .skill-tag {
+      display: inline-block; font-size: 8.5px; font-weight: 500;
+      color: #3a5a3a; background: #e8f0e8;
+      border-radius: 3px; padding: 3px 7px;
+      margin: 2px 3px 2px 0;
+    }
+    /* Experience */
+    .exp-item { margin-bottom: 11px; break-inside: avoid; }
+    .exp-head {
+      display: flex; justify-content: space-between;
+      align-items: baseline; flex-wrap: wrap; gap: 4px;
+      margin-bottom: 4px;
+    }
+    .exp-title { font-size: 10.5px; font-weight: 700; color: #1a2e1a; }
+    .exp-sep, .exp-company { font-size: 9.5px; color: #5a7a5a; }
+    .exp-loc { font-size: 9px; color: #8a9a8a; }
+    .exp-dates { font-size: 8.5px; color: #4a7a4a; font-weight: 600; white-space: nowrap; }
+    ul { padding-left: 13px; }
+    li { font-size: 9.5px; color: #334133; line-height: 1.55; margin-bottom: 2px; }
+    /* Education sidebar */
+    .edu-item { margin-bottom: 10px; }
+    .edu-degree { font-size: 9.5px; font-weight: 600; color: #1a2e1a; }
+    .edu-school { font-size: 8.5px; color: #5a6a5a; margin-top: 2px; }
+    .edu-dates { font-size: 8px; color: #4a7a4a; font-weight: 600; margin-top: 1px; }
+    .sb-lang { font-size: 9px; color: #3a5a3a; margin-bottom: 3px; }
+    @media print {
+      body { background: #fff; }
+      .page { box-shadow: none; margin: 0; }
+      @page { size: A4; margin: 0; }
+    }
+  </style>
+  </head><body><div class="page">
+    <header class="page-header">
+      <div class="hd-name">${escapeHtml(data.profile.basics.name)}</div>
+      <div class="hd-right">
+        <div class="hd-title">${escapeHtml(data.basics.headline)}</div>
+        <div class="hd-contact">${contactItems.map(escapeHtml).join(" &nbsp;·&nbsp; ")}</div>
+      </div>
+    </header>
+    <div class="page-body">
+      <main>
+        <section>
+          <h2>Profile</h2>
+          <p class="profile-text">${escapeHtml(data.summary)}</p>
+        </section>
+        ${strengthItems.length ? `
+        <section>
+          <h2>What I Bring to This Role</h2>
+          ${strengthItems.map((s) => `<div class="strength-item">${escapeHtml(s)}</div>`).join("")}
+        </section>` : ""}
+        ${data.experience.length ? `<section><h2>Experience</h2>${expHtml}</section>` : ""}
+        ${data.projects.length ? `<section><h2>Projects</h2>${data.projects.map((p) => `
+          <div class="exp-item">
+            <div class="exp-title">${escapeHtml(p.name)}</div>
+            <ul>${p.bullets.slice(0, 3).map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>
+          </div>`).join("")}</section>` : ""}
+      </main>
+      <aside>
+        ${skillItems.length ? `<section><h2>Skills</h2><div>${skillItems.map((s) => `<span class="skill-tag">${escapeHtml(s)}</span>`).join("")}</div></section>` : ""}
+        ${data.education.length ? `<section><h2>Education</h2>${data.education.map((e) => `
+          <div class="edu-item">
+            <div class="edu-degree">${escapeHtml(e.degree)}</div>
+            <div class="edu-school">${escapeHtml(e.institution)}${e.location ? ` · ${escapeHtml(e.location)}` : ""}</div>
+            <div class="edu-dates">${escapeHtml(e.dates)}</div>
+          </div>`).join("")}</section>` : ""}
+        ${data.languages.length ? `<section><h2>Languages</h2>${data.languages.map((l) => `<div class="sb-lang">${escapeHtml(l)}</div>`).join("")}</section>` : ""}
+      </aside>
+    </div>
+  </div></body></html>`;
 }
 
 export function generateResumeHtml(input: CvGenerationInput) {

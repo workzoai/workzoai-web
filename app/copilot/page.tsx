@@ -1,45 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import {
   ArrowLeft,
-  BarChart3,
   Bot,
-  Brain,
   Briefcase,
-  CheckCircle2,
-  ClipboardList,
-  Copy,
   FileText,
-  Flame,
-  Lightbulb,
+  Loader2,
   Mail,
   MessageSquareText,
-  RefreshCcw,
-  Search,
+  Plus,
   Send,
-  ShieldAlert,
   Sparkles,
-  Target,
-  TrendingDown,
-  TrendingUp,
-  Wand2,
-  Zap,
+  Trash2,
+  User,
 } from "lucide-react";
 
-import {
-  buildCvIntelligenceSummary,
-  compareAnswers,
-  detectAnswerSignals,
-  getRecruiterProfile,
-  runWorkobotAction,
-  type WorkobotAction,
-} from "@/lib/launchIntelligenceEngine";
-import { getWorkZoPlanLimits } from "@/lib/workzoPlanLimits";
-import { useWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
-import FeedbackCapture from "@/components/FeedbackCapture";
+import { getRecruiterProfile } from "@/lib/launchIntelligenceEngine";
 import { trackWorkZoLaunchEvent } from "@/lib/workzoLaunchAnalytics";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type SavedSetup = {
   cvText?: string;
@@ -47,805 +28,645 @@ type SavedSetup = {
   targetRole?: string;
   targetMarket?: string;
   recruiterPersonality?: string;
-};
-
-type CopilotMode =
-  | "career_chat"
-  | "interview_coach"
-  | "cv_improve"
-  | "cover_letter"
-  | "job_fit"
-  | "find_jobs_strategy"
-  | "linkedin_message"
-  | "email_reply"
-  | "career_plan";
-
-type SmartActionId =
-  | WorkobotAction
-  | "magic"
-  | "career_chat"
-  | "interview_coach"
-  | "cv_improve"
-  | "cover_letter"
-  | "job_fit"
-  | "find_jobs_strategy"
-  | "linkedin_message"
-  | "email_reply"
-  | "career_plan";
-
-type SmartAction = {
-  id: SmartActionId;
-  title: string;
-  description: string;
-  icon: typeof Sparkles;
-  priority: "high" | "medium" | "normal";
+  resumeProfile?: {
+    basics?: { name?: string; headline?: string };
+    experience?: Array<{ title?: string; company?: string; dates?: string }>;
+    skills?: string[];
+  } | null;
 };
 
 type ChatMessage = {
+  id: string;
   role: "user" | "assistant";
   content: string;
 };
 
-const emptySetup: SavedSetup = {};
+type Conversation = {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: number;
+  updatedAt: number;
+};
 
-function cn(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
+type MemoryItem = {
+  label: string;
+  value: string;
+  kind: "name" | "role" | "company" | "skill" | "jd";
+};
+
+// ── Storage helpers ───────────────────────────────────────────────────────────
+
+const HISTORY_KEY = "workzo-copilot-history-v1";
+const MAX_CONVS = 30;
 
 function readSetup(): SavedSetup {
   if (typeof window === "undefined") return {};
-
-  const keys = [
-    "workzo-latest-interview-setup",
-    "workzo-interview-setup-v4",
-    "workzo-interview-setup-latest",
-  ];
-
-  for (const key of keys) {
+  for (const key of ["workzo-latest-interview-setup", "workzo-interview-setup-v4", "workzo-interview-setup-latest"]) {
     try {
       const raw = window.localStorage.getItem(key);
-      if (raw) return JSON.parse(raw) as SavedSetup;
-    } catch {
-      // ignore broken localStorage
-    }
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as SavedSetup;
+      if (!parsed.resumeProfile) {
+        try {
+          const c = JSON.parse(window.localStorage.getItem("workzoInterviewSetup") || "{}") as SavedSetup;
+          if (c.resumeProfile) parsed.resumeProfile = c.resumeProfile;
+        } catch { /* ignore */ }
+      }
+      return parsed;
+    } catch { /* ignore */ }
   }
-
   return {};
 }
 
-function getMood(score: number) {
-  if (score >= 82) {
-    return {
-      label: "Engaged",
-      tone: "Recruiter is receiving strong signal.",
-      className: "border-emerald-300/25 bg-emerald-400/10 text-emerald-200",
-      icon: TrendingUp,
-    };
-  }
-
-  if (score >= 65) {
-    return {
-      label: "Neutral",
-      tone: "Recruiter needs more proof before trusting the answer.",
-      className: "border-cyan-300/25 bg-cyan-400/10 text-cyan-200",
-      icon: Sparkles,
-    };
-  }
-
-  if (score >= 45) {
-    return {
-      label: "Skeptical",
-      tone: "Recruiter may challenge this answer with follow-ups.",
-      className: "border-amber-300/25 bg-amber-400/10 text-amber-200",
-      icon: ShieldAlert,
-    };
-  }
-
-  return {
-    label: "Concerned",
-    tone: "Recruiter trust is dropping. Recover with proof and ownership.",
-    className: "border-red-300/25 bg-red-400/10 text-red-200",
-    icon: TrendingDown,
-  };
+function loadHistory(): Conversation[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(HISTORY_KEY) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return (parsed as Conversation[])
+      .filter((c) => c && typeof c.id === "string" && Array.isArray(c.messages))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  } catch { return []; }
 }
 
-function buildWeaknessRadar(answer: string) {
-  const signals = detectAnswerSignals(answer);
-
-  return [
-    {
-      label: "Measurable impact",
-      ok: signals.hasMetric,
-      advice: signals.hasMetric
-        ? "Metric signal detected."
-        : "Add scale, time saved, users, tickets, revenue, quality, or customer impact.",
-    },
-    {
-      label: "Ownership",
-      ok: signals.hasOwnership,
-      advice: signals.hasOwnership
-        ? "Ownership signal detected."
-        : "Say what YOU personally owned, decided, fixed, led, or delivered.",
-    },
-    {
-      label: "STAR structure",
-      ok: signals.hasSTAR,
-      advice: signals.hasSTAR
-        ? "Structure is visible."
-        : "Add situation, task, action, and result so the recruiter can follow the story.",
-    },
-    {
-      label: "Concise clarity",
-      ok: !signals.rambling && !signals.vague,
-      advice: signals.rambling
-        ? "Too long. Cut it to 45–75 seconds."
-        : signals.vague
-          ? "Too vague. Use one concrete example."
-          : "Answer length and clarity look usable.",
-    },
-  ];
+function persistHistory(history: Conversation[]) {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, MAX_CONVS))); } catch { /* ignore */ }
 }
 
-function buildFollowUps(answer: string, recruiterName: string) {
-  const signals = detectAnswerSignals(answer);
-  const questions: string[] = [];
-
-  if (!signals.hasMetric) questions.push("What measurable impact did that create?");
-  if (!signals.hasOwnership) questions.push("What exactly did you personally own?");
-  if (signals.vague) questions.push("Can you give me one specific example?");
-  if (signals.rambling) questions.push("Can you summarize that in 60 seconds?");
-  if (!signals.hasSTAR) questions.push("What was the situation, action, and result?");
-
-  questions.push(`${recruiterName} may ask: why is this relevant to this role?`);
-
-  return questions.slice(0, 5);
+function makeTitle(messages: ChatMessage[]): string {
+  const first = messages.find((m) => m.role === "user")?.content || "";
+  const t = first.replace(/\s+/g, " ").trim();
+  return t.length > 50 ? t.slice(0, 50) + "…" : t || "New chat";
 }
 
-function getModeMeta(mode: CopilotMode) {
-  const meta: Record<CopilotMode, { title: string; subtitle: string; icon: typeof Bot }> = {
-    career_chat: {
-      title: "Career copilot",
-      subtitle: "Ask anything about your CV, job search, applications, or interview prep.",
-      icon: Bot,
-    },
-    interview_coach: {
-      title: "Interview coach",
-      subtitle: "Fix answers, decode recruiter intent, and prepare follow-ups.",
-      icon: Brain,
-    },
-    cv_improve: {
-      title: "Improve CV",
-      subtitle: "Make your CV sharper, more ATS-friendly, and role-specific.",
-      icon: FileText,
-    },
-    cover_letter: {
-      title: "Cover letter",
-      subtitle: "Generate a focused cover letter using your CV and job description.",
-      icon: Mail,
-    },
-    job_fit: {
-      title: "Job fit check",
-      subtitle: "Decide whether to apply, tailor first, or skip for now.",
-      icon: Target,
-    },
-    find_jobs_strategy: {
-      title: "Find jobs",
-      subtitle: "Get titles, keywords, platforms, and a 7-day search strategy.",
-      icon: Search,
-    },
-    linkedin_message: {
-      title: "LinkedIn message",
-      subtitle: "Write natural outreach messages to recruiters and hiring managers.",
-      icon: MessageSquareText,
-    },
-    email_reply: {
-      title: "Email reply",
-      subtitle: "Draft professional replies for interviews, recruiters, or applications.",
-      icon: Mail,
-    },
-    career_plan: {
-      title: "Career plan",
-      subtitle: "Build a practical short-term path toward your target role.",
-      icon: ClipboardList,
-    },
-  };
+function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`; }
 
-  return meta[mode];
+function relativeTime(ts: number): string {
+  const d = Date.now() - ts;
+  const m = Math.floor(d / 60000);
+  const h = Math.floor(d / 3600000);
+  const dy = Math.floor(d / 86400000);
+  if (m < 1) return "Just now";
+  if (m < 60) return `${m}m ago`;
+  if (h < 24) return `${h}h ago`;
+  if (dy < 7) return `${dy}d ago`;
+  return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function getSmartActions(answer: string, mode: CopilotMode): SmartAction[] {
-  const signals = detectAnswerSignals(answer);
+// ── Memory ────────────────────────────────────────────────────────────────────
 
-  if (mode === "cv_improve") {
-    return [
-      { id: "cv_improve", title: "Improve CV", description: "Diagnose and rewrite CV positioning for this role.", icon: FileText, priority: "high" },
-      { id: "job_fit", title: "Check role fit", description: "Compare CV evidence with the job requirements.", icon: Target, priority: "medium" },
-      { id: "find_jobs_strategy", title: "Find job strategy", description: "Get job titles, keywords, and search filters.", icon: Search, priority: "normal" },
-    ];
+function buildMemory(setup: SavedSetup): MemoryItem[] {
+  const items: MemoryItem[] = [];
+  const p = setup.resumeProfile;
+  const name = p?.basics?.name;
+  if (name && name !== "Candidate") items.push({ label: "Candidate", value: name, kind: "name" });
+  const headline = p?.basics?.headline;
+  if (headline && headline !== "Professional") items.push({ label: "Role", value: headline, kind: "role" });
+  for (const job of (p?.experience || []).slice(0, 2)) {
+    if (job.title && job.company)
+      items.push({ label: job.dates || "Experience", value: `${job.title} · ${job.company}`, kind: "company" });
   }
-
-  if (mode === "cover_letter") {
-    return [
-      { id: "cover_letter", title: "Generate letter", description: "Draft a focused cover letter from CV and JD.", icon: Mail, priority: "high" },
-      { id: "job_fit", title: "Check fit first", description: "Find strengths and gaps before applying.", icon: Target, priority: "medium" },
-      { id: "email_reply", title: "Application email", description: "Create a short professional application email.", icon: MessageSquareText, priority: "normal" },
-    ];
+  const skills = (p?.skills || []).slice(0, 5);
+  if (skills.length) items.push({ label: "Skills", value: skills.join(", "), kind: "skill" });
+  if (setup.targetRole) items.push({ label: "Applying for", value: setup.targetRole, kind: "jd" });
+  if (setup.jobDescription?.trim()) {
+    const first = setup.jobDescription.split("\n")[0]?.trim() || "";
+    items.push({ label: "JD", value: first.length < 70 ? first : `${setup.jobDescription.length} chars`, kind: "jd" });
   }
-
-  if (mode === "job_fit" || mode === "find_jobs_strategy" || mode === "career_plan") {
-    return [
-      { id: "job_fit", title: "Should I apply?", description: "Get an honest apply/tailor/skip verdict.", icon: Target, priority: "high" },
-      { id: "find_jobs_strategy", title: "Find matching jobs", description: "Get search titles, keywords, and filters.", icon: Search, priority: "high" },
-      { id: "career_plan", title: "30-day plan", description: "Create a realistic next-step plan.", icon: ClipboardList, priority: "medium" },
-    ];
-  }
-
-  const actions: SmartAction[] = [
-    {
-      id: "magic",
-      title: "Save my answer",
-      description: "Rewrite with structure, ownership, proof, and recruiter trust.",
-      icon: Flame,
-      priority: "high",
-    },
-    {
-      id: "expectation",
-      title: "Hidden recruiter intent",
-      description: "See what the recruiter is actually testing.",
-      icon: Target,
-      priority: "medium",
-    },
-  ];
-
-  if (!signals.hasMetric) {
-    actions.push({
-      id: "metrics",
-      title: "Add metrics",
-      description: "Find places where numbers would increase trust.",
-      icon: BarChart3,
-      priority: "high",
-    });
-  }
-
-  if (!signals.hasOwnership) {
-    actions.push({
-      id: "ownership",
-      title: "Show ownership",
-      description: "Make your personal contribution clearer.",
-      icon: CheckCircle2,
-      priority: "high",
-    });
-  }
-
-  if (!signals.hasSTAR) {
-    actions.push({
-      id: "star",
-      title: "STAR conversion",
-      description: "Turn your answer into a recruiter-ready structure.",
-      icon: Brain,
-      priority: "medium",
-    });
-  }
-
-  actions.push(
-    {
-      id: "rewrite",
-      title: "Rewrite stronger",
-      description: "Improve clarity, confidence, and role fit.",
-      icon: Wand2,
-      priority: "normal",
-    },
-    {
-      id: "concise",
-      title: "Make concise",
-      description: "Shorten without losing impact.",
-      icon: MessageSquareText,
-      priority: "normal",
-    },
-  );
-
-  return actions.slice(0, 6);
+  return items.slice(0, 7);
 }
 
-function buildMagicAnswer({ question, answer, targetRole }: { question: string; answer: string; targetRole: string }) {
-  const signals = detectAnswerSignals(answer);
+// ── Suggestions ───────────────────────────────────────────────────────────────
 
-  const missing = [
-    !signals.hasMetric && "a measurable result",
-    !signals.hasOwnership && "clear personal ownership",
-    !signals.hasSTAR && "STAR structure",
-    signals.vague && "one concrete example",
-    signals.rambling && "a shorter version",
-  ].filter(Boolean);
-
-  return [
-    "Recruiter-ready answer:",
-    "",
-    `“One relevant example is from a situation where [specific situation related to ${targetRole || "the role"}]. My responsibility was [your exact ownership]. I handled it by [specific action you took], working with [team/customer/stakeholder] to solve [problem]. The result was [measurable impact — tickets reduced, time saved, customers helped, quality improved, or process improved]. This is relevant to ${targetRole || "this role"} because it shows [role-relevant skill].”`,
-    "",
-    "Why this is stronger:",
-    "• It gives one clear example.",
-    "• It shows what you personally owned.",
-    "• It adds measurable impact.",
-    "• It connects your experience to the target role.",
-    "",
-    missing.length
-      ? `Still missing from your original answer: ${missing.join(", ")}.`
-      : "Your original answer already has useful signal. This version makes it sharper.",
-    "",
-    `Question being answered: ${question}`,
-  ].join("\n");
-}
-
-function modeStarter(mode: CopilotMode, targetRole: string) {
-  const starters: Record<CopilotMode, string> = {
-    career_chat: "What should I improve first in my job search?",
-    interview_coach: "Help me improve this interview answer.",
-    cv_improve: `Improve my CV positioning for ${targetRole || "my target role"}.`,
-    cover_letter: "Generate a cover letter for this job description.",
-    job_fit: "Should I apply to this job based on my CV?",
-    find_jobs_strategy: "Which job titles and keywords should I search for?",
-    linkedin_message: "Write a LinkedIn message to a recruiter.",
-    email_reply: "Help me write a professional reply.",
-    career_plan: "Give me a 30-day plan to get closer to my target role.",
-  };
-
-  return starters[mode];
-}
-
-const PREMIUM_ONLY_ACTIONS: SmartActionId[] = [
-  "career_plan",
-  "email_reply",
-  "linkedin_message",
+const SUGGESTIONS = [
+  { label: "How strong is my CV for this role?", action: "cv_improve" },
+  { label: "What questions will they ask?", action: "interview_coach" },
+  { label: "Write me a cover letter", action: "cover_letter" },
+  { label: "Should I apply for this job?", action: "job_fit" },
+  { label: "Help me find matching job titles", action: "find_jobs_strategy" },
+  { label: "Write a LinkedIn message to a recruiter", action: "linkedin_message" },
+  { label: "Give me a 30-day career plan", action: "career_plan" },
+  { label: "Help me negotiate my salary", action: "career_chat" },
 ];
 
-export default function WorkOBotCopilotPage() {
-  const [setup, setSetup] = useState<SavedSetup>(emptySetup);
-  const [mode, setMode] = useState<CopilotMode>("career_chat");
-  const [question, setQuestion] = useState("Tell me about a challenging project you worked on and how you handled it.");
-  const [answer, setAnswer] = useState("");
-  const [message, setMessage] = useState("");
-  const [output, setOutput] = useState("");
-  const [improvedAnswer, setImprovedAnswer] = useState("");
-  const [comparison, setComparison] = useState<ReturnType<typeof compareAnswers> | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [conversation, setConversation] = useState<ChatMessage[]>([]);
-  const planState = useWorkZoAuthoritativePlan();
-  const isPremium = Boolean(getWorkZoPlanLimits(planState.plan).advancedReports || getWorkZoPlanLimits(planState.plan).tavus);
+const FEATURE_LINKS = [
+  { href: "/cv", label: "Improve CV", icon: FileText },
+  { href: "/cover-letter", label: "Cover letter", icon: Mail },
+  { href: "/jobs", label: "Find jobs", icon: Briefcase },
+  { href: "/interview", label: "Interview room", icon: MessageSquareText },
+];
 
+// ── Component ─────────────────────────────────────────────────────────────────
+
+// Lightweight markdown → React renderer.
+// Handles headers, bold, italic, inline code, tables, bullet/numbered lists,
+// checkboxes, blockquotes, horizontal rules. No external dependencies needed.
+function renderMarkdown(text: string): React.ReactNode[] {
+  const lines = text.split("\n");
+  const nodes: React.ReactNode[] = [];
+  let i = 0;
+
+  // Strip decorative emoji that clutter structured output
+  const STRIP_EMOJI = /[🔹🔴✅❌⚠️👋🤖📅🗺️👉💡🎯🚀⭐🔧🔑📌📋🗓️]/gu;
+
+  function cleanText(str: string) {
+    return str.replace(STRIP_EMOJI, "").replace(/^\s+/, "");
+  }
+
+  function inlineFormat(str: string): React.ReactNode {
+    const cleaned = cleanText(str);
+    const parts = cleaned.split(/(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_|`[^`]+`)/g);
+    return parts.map((part, idx) => {
+      if ((part.startsWith("**") && part.endsWith("**")) || (part.startsWith("__") && part.endsWith("__"))) {
+        return <strong key={idx} className="font-semibold text-white">{part.slice(2, -2)}</strong>;
+      }
+      if ((part.startsWith("*") && part.endsWith("*") && part.length > 2) ||
+          (part.startsWith("_") && part.endsWith("_") && part.length > 2)) {
+        return <em key={idx} className="italic text-slate-300">{part.slice(1, -1)}</em>;
+      }
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return <code key={idx} className="rounded bg-white/10 px-1 py-0.5 font-mono text-[11px] text-cyan-300">{part.slice(1, -1)}</code>;
+      }
+      return part;
+    });
+  }
+
+  while (i < lines.length) {
+    const raw = lines[i];
+    const line = raw.replace(STRIP_EMOJI, "");
+
+    // Horizontal rule
+    if (/^---+$/.test(line.trim())) {
+      nodes.push(<hr key={i} className="my-3 border-white/[0.08]" />);
+      i++; continue;
+    }
+
+    // Headers — strip leading emoji/symbols from header text
+    const hMatch = line.match(/^(#{1,3})\s+(.+)/);
+    if (hMatch) {
+      const level = hMatch[1].length;
+      const cls = level === 1
+        ? "mt-4 mb-2 text-base font-black text-cyan-100"
+        : level === 2
+          ? "mt-3 mb-1.5 text-[13px] font-black text-slate-100"
+          : "mt-2.5 mb-1 text-[11px] font-black uppercase tracking-wide text-slate-300";
+      nodes.push(<p key={i} className={cls}>{inlineFormat(hMatch[2])}</p>);
+      i++; continue;
+    }
+
+    // Blockquote — collect consecutive > lines into one block
+    // Also handles blockquotes immediately after list items (no blank line)
+    if (line.trimStart().startsWith(">")) {
+      const blockKey = i; // capture before loop advances i
+      const qLines: string[] = [];
+      while (i < lines.length && lines[i].trimStart().startsWith(">")) {
+        qLines.push(lines[i].replace(/^\s*>\s?/, ""));
+        i++;
+      }
+      nodes.push(
+        <blockquote key={`bq-${blockKey}`} className="my-2 rounded-r-xl border-l-2 border-cyan-400/50 bg-white/[0.03] py-2 pl-3 pr-2 text-[12px] italic leading-6 text-slate-300">
+          {qLines.map((ql, qi) => (
+            <span key={qi}>{inlineFormat(ql)}{qi < qLines.length - 1 ? <br /> : null}</span>
+          ))}
+        </blockquote>
+      );
+      continue;
+    }
+
+    // Table — collect all | lines
+    if (line.trim().startsWith("|")) {
+      const tableKey = i; // capture before loop advances i
+      const tableLines: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith("|")) {
+        tableLines.push(lines[i].replace(STRIP_EMOJI, ""));
+        i++;
+      }
+      const rows = tableLines
+        .filter(r => !/^\|[\s|:-]+\|$/.test(r.trim()))
+        .map(r => r.split("|").slice(1, -1).map(c => c.trim()));
+      if (rows.length > 0) {
+        nodes.push(
+          <div key={`tbl-${tableKey}`} className="my-3 overflow-x-auto rounded-2xl border border-white/10 text-[12px]">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-white/[0.06]">
+                  {rows[0].map((cell, ci) => (
+                    <th key={ci} className="border-b border-white/10 px-3 py-2 text-left font-bold text-slate-100">
+                      {inlineFormat(cell)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.slice(1).map((row, ri) => (
+                  <tr key={ri} className={ri % 2 === 0 ? "" : "bg-white/[0.025]"}>
+                    {row.map((cell, ci) => (
+                      <td key={ci} className="border-b border-white/[0.05] px-3 py-2 text-slate-300">
+                        {inlineFormat(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+      continue;
+    }
+
+    // Checkbox list item — [ ] or [x]
+    const checkMatch = raw.match(/^(\s*)- \[( |x|X)\] (.+)/);
+    if (checkMatch) {
+      const checked = checkMatch[2].toLowerCase() === "x";
+      const isNested = checkMatch[1].length > 0;
+      nodes.push(
+        <div key={i} className={`flex items-start gap-2.5 text-[13px] leading-6 ${isNested ? "ml-5 mt-0.5" : "mt-1"}`}>
+          <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-cyan-400 bg-cyan-400/20 text-cyan-300" : "border-white/20 bg-white/[0.04] text-transparent"}`}>
+            {checked && <span className="text-[9px] font-black">✓</span>}
+          </span>
+          <span className={checked ? "text-slate-500 line-through" : "text-slate-300"}>{inlineFormat(checkMatch[3])}</span>
+        </div>
+      );
+      i++; continue;
+    }
+
+    // Bullet list
+    const bulletMatch = raw.match(/^(\s*)[-*+] (.+)/);
+    if (bulletMatch) {
+      const isNested = bulletMatch[1].length > 0;
+      nodes.push(
+        <div key={i} className={`flex items-start gap-2 text-[13px] leading-6 text-slate-300 ${isNested ? "ml-5 mt-0.5" : "mt-1"}`}>
+          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400/70" />
+          <span>{inlineFormat(bulletMatch[2])}</span>
+        </div>
+      );
+      i++; continue;
+    }
+
+    // Numbered list
+    const numMatch = raw.match(/^(\d+)\. (.+)/);
+    if (numMatch) {
+      nodes.push(
+        <div key={i} className="mt-1 flex items-start gap-2.5 text-[13px] leading-6 text-slate-300">
+          <span className="min-w-[18px] shrink-0 font-bold text-cyan-400/80">{numMatch[1]}.</span>
+          <span>{inlineFormat(numMatch[2])}</span>
+        </div>
+      );
+      i++; continue;
+    }
+
+    // Empty line
+    if (line.trim() === "") {
+      nodes.push(<div key={i} className="h-2" />);
+      i++; continue;
+    }
+
+    // Plain paragraph
+    nodes.push(
+      <p key={i} className="text-[13px] leading-6 text-slate-200">
+        {inlineFormat(line)}
+      </p>
+    );
+    i++;
+  }
+
+  return nodes;
+}
+
+export default function WorkOBotCopilotPage() {
+  const [setup, setSetup] = useState<SavedSetup>({});
+  const [history, setHistory] = useState<Conversation[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Mount: load setup + history
   useEffect(() => {
     setSetup(readSetup());
+    const h = loadHistory();
+    setHistory(h);
+    if (h.length > 0) {
+      setActiveId(h[0].id);
+      setMessages(h[0].messages);
+    }
   }, []);
 
-  const targetRole = setup.targetRole || "your target role";
+  // Auto-save: persist whenever messages change
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const now = Date.now();
+    const title = makeTitle(messages);
+    setHistory((prev) => {
+      const convId = activeId ?? uid();
+      if (!activeId) setActiveId(convId);
+      const existing = prev.find((c) => c.id === convId);
+      const next: Conversation[] = existing
+        ? prev.map((c) => c.id === convId ? { ...c, title, messages: messages.slice(-60), updatedAt: now } : c)
+        : [{ id: convId, title, messages: messages.slice(-60), createdAt: now, updatedAt: now }, ...prev];
+      persistHistory(next);
+      return next.sort((a, b) => b.updatedAt - a.updatedAt);
+    });
+  }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-scroll
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, loading]);
+
+  const targetRole = setup.targetRole || "";
   const cvText = setup.cvText || "";
   const jobDescription = setup.jobDescription || "";
   const recruiter = getRecruiterProfile(setup.recruiterPersonality);
-  const cvSummary = useMemo(() => buildCvIntelligenceSummary(cvText, targetRole), [cvText, targetRole]);
-
-  const signals = useMemo(() => detectAnswerSignals(answer), [answer]);
-  const mood = useMemo(() => getMood(answer.trim() ? signals.score : 50), [answer, signals.score]);
-  const weaknessRadar = useMemo(() => buildWeaknessRadar(answer), [answer]);
-  const followUps = useMemo(() => buildFollowUps(answer, recruiter.name), [answer, recruiter.name]);
-  const smartActions = useMemo(() => getSmartActions(answer, mode), [answer, mode]);
-  const modeMeta = getModeMeta(mode);
-  const MoodIcon = mood.icon;
-  const ModeIcon = modeMeta.icon;
+  const memory = useMemo(() => buildMemory(setup), [setup]);
 
   useEffect(() => {
-    trackWorkZoLaunchEvent({
-      event: "copilot_opened",
-      role: targetRole,
-      recruiter: recruiter.name,
-      mode: "copilot",
-    });
+    trackWorkZoLaunchEvent({ event: "copilot_opened", role: targetRole, recruiter: recruiter.name, mode: "copilot" });
   }, [targetRole, recruiter.name]);
 
-  async function runAction(action: SmartActionId = mode) {
-    const effectiveMessage = message.trim() || modeStarter(mode, targetRole);
+  // ── Actions ──────────────────────────────────────────────────────────────────
 
-    trackWorkZoLaunchEvent({
-      event: "copilot_action_used",
-      role: targetRole,
-      recruiter: recruiter.name,
-      mode: "copilot",
-      metadata: { action, copilotMode: mode },
-    });
+  async function send(text: string, action = "career_chat") {
+    const prompt = text.trim();
+    if (!prompt || loading) return;
+
+    const userMsg: ChatMessage = { id: uid(), role: "user", content: prompt };
+    const next = [...messages, userMsg];
+    setMessages(next);
+    setInput("");
+    setError("");
 
     try {
       setLoading(true);
-      setComparison(null);
-
-      const nextConversation: ChatMessage[] = effectiveMessage
-        ? [
-            ...conversation,
-            { role: "user" as const, content: effectiveMessage },
-          ]
-        : conversation;
-
-      if (!isPremium && PREMIUM_ONLY_ACTIONS.includes(action as SmartActionId)) {
-        setOutput("This feature is available on Premium. Upgrade to unlock career plans, LinkedIn messages, and email replies.");
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch("/api/copilot", {
+      const res = await fetch("/api/copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action,
-          message: effectiveMessage,
-          question,
-          answer,
+          message: prompt,
           cvText,
           jobDescription,
-          targetRole,
+          targetRole: targetRole || "General Role",
           targetMarket: setup.targetMarket || "Global",
           recruiterName: recruiter.name,
           recruiterRole: recruiter.role,
-          recruiterState: mood.label,
-          conversation: nextConversation,
+          history: next.slice(-9, -1).map((m) => ({ role: m.role, content: m.content })),
         }),
       });
 
-      const data = (await response.json()) as { success?: boolean; output?: string; error?: string };
+      const data = (await res.json().catch(() => null)) as { success?: boolean; output?: string; error?: string; requiredPlan?: string; action?: string } | null;
 
-      if (!response.ok || !data.success) {
-        if (data.error === "upgrade_required" || data.error === "upgrade_required_rate_limit") {
-          setOutput("You have reached the free usage limit. Upgrade to Premium for unlimited access.");
-          setLoading(false);
+      if (!res.ok || !data?.success) {
+        if (data?.error === "upgrade_required" || data?.error === "upgrade_required_rate_limit") {
+          // Show the correct upgrade message based on which plan is actually required.
+          // career_plan, career coaching, roadmaps → Premium Pro only.
+          // CV rewriting, cover letter, job analysis → Premium.
+          // Generic rate limit → whichever plan they need next.
+          const requiredPlan = data?.requiredPlan || "premium";
+          const isPro = requiredPlan === "premium_pro";
+          const upgradeMsg = isPro
+            ? "This feature is part of Premium Pro — AI Career Coach, 30/60/90 day roadmaps, salary coaching, and replay intelligence are all included. Upgrade to Premium Pro to unlock it."
+            : "This feature requires Premium. CV rewriting, cover letters, ATS optimisation, job fit analysis, and more are all included. Upgrade to Premium to unlock it.";
+          setMessages((p) => [...p, { id: uid(), role: "assistant", content: upgradeMsg }]);
           return;
         }
-        throw new Error(data.error || "Copilot failed");
+        if (data?.error === "upgrade_required_rate_limit") {
+          setMessages((p) => [...p, { id: uid(), role: "assistant", content: "You've reached your usage limit for this period. Upgrade for higher limits." }]);
+          return;
+        }
+        throw new Error(data?.error || "Work-O-Bot could not respond.");
       }
 
-      const aiOutput = data.output || "No recruiter analysis generated.";
-      setOutput(aiOutput);
-      setImprovedAnswer(aiOutput);
-      setConversation([
-        ...nextConversation,
-        { role: "assistant" as const, content: aiOutput },
-      ].slice(-12));
-      setMessage("");
+      const reply = (data.output || "").trim();
+      if (!reply) throw new Error("Empty response.");
+      setMessages((p) => [...p, { id: uid(), role: "assistant", content: reply }]);
 
-      if (["magic", "rewrite", "star", "concise"].includes(action)) {
-        setComparison(compareAnswers(answer, aiOutput));
-      }
-    } catch (error) {
-      console.warn("AI copilot failed, using local fallback:", error);
-
-      if (action === "magic" || action === "interview_coach") {
-        const result = buildMagicAnswer({ question, answer, targetRole });
-        setOutput(result);
-        setImprovedAnswer(result);
-        setComparison(compareAnswers(answer, result));
-        return;
-      }
-
-      const fallbackAction: WorkobotAction =
-        action === "expectation"
-          ? ("expectation" as WorkobotAction)
-          : (["rewrite", "star", "metrics", "ownership", "concise", "followups", "score"].includes(action)
-              ? (action as WorkobotAction)
-              : ("magic" as WorkobotAction));
-
-      const result = runWorkobotAction({ action: fallbackAction, question, answer, cvText, targetRole });
-      setOutput(result);
-      setImprovedAnswer(result);
-
-      if (["rewrite", "star", "concise"].includes(action)) {
-        setComparison(compareAnswers(answer, result));
-      }
+      trackWorkZoLaunchEvent({ event: "copilot_action_used", role: targetRole, recruiter: recruiter.name, mode: "copilot", metadata: { action } });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Work-O-Bot could not respond.");
     } finally {
       setLoading(false);
     }
   }
 
-  async function copyOutput() {
-    if (!output || typeof navigator === "undefined") return;
-    try {
-      await navigator.clipboard.writeText(output);
-    } catch {
-      // ignore clipboard failures
-    }
+  function startNewChat() {
+    setActiveId(null);
+    setMessages([]);
+    setError("");
+    setTimeout(() => inputRef.current?.focus(), 50);
   }
 
-  const modes: Array<{ id: CopilotMode; label: string; icon: typeof Bot }> = [
-    { id: "career_chat", label: "Career", icon: Bot },
-    { id: "interview_coach", label: "Interview", icon: Brain },
-    { id: "cv_improve", label: "CV", icon: FileText },
-    { id: "cover_letter", label: "Cover letter", icon: Mail },
-    { id: "job_fit", label: "Job fit", icon: Target },
-    { id: "find_jobs_strategy", label: "Find jobs", icon: Search },
-    { id: "linkedin_message", label: "Messages", icon: MessageSquareText },
-    { id: "career_plan", label: "Plan", icon: ClipboardList },
-  ];
+  function loadConversation(conv: Conversation) {
+    setActiveId(conv.id);
+    setMessages(conv.messages);
+    setError("");
+  }
+
+  function deleteConversation(id: string, e: MouseEvent) {
+    e.stopPropagation();
+    setHistory((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      persistHistory(next);
+      return next;
+    });
+    if (activeId === id) { setActiveId(null); setMessages([]); }
+  }
+
+  const isEmpty = messages.length === 0;
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.14),transparent_32%),linear-gradient(180deg,#06111f_0%,#050816_100%)] p-3 text-white sm:p-4">
-      <div className="mx-auto max-w-[1540px]">
-        <header className="flex flex-col gap-4 rounded-[24px] border border-white/10 bg-white/[0.045] px-4 py-4 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur-2xl lg:flex-row lg:items-center lg:justify-between lg:px-5">
-          <Link href="/dashboard" className="inline-flex items-center gap-3 text-sm font-black text-slate-300 hover:text-white">
-            <ArrowLeft className="h-5 w-5" />
-            Back to dashboard
-          </Link>
+    <div className="flex h-screen flex-col overflow-hidden bg-[#050a12] text-white">
 
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/16 text-blue-200">
-              <Wand2 className="h-5 w-5" />
+      {/* Top bar */}
+      <header className="flex shrink-0 items-center justify-between border-b border-white/[0.07] bg-[#050a12]/90 px-4 py-3 backdrop-blur-xl">
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-slate-400 transition hover:text-white">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div className="flex items-center gap-2.5">
+            <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.3)]">
+              <Bot className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-lg font-black">Work-O-Bot</p>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">Career copilot · not just interview answers</p>
+              <p className="text-sm font-black">Work-O-Bot</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-200/70">Career copilot</p>
             </div>
           </div>
-        </header>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-1.5 sm:flex">
+            {FEATURE_LINKS.map(({ href, label, icon: Icon }) => (
+              <Link key={href} href={href} className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/[0.08] hover:text-white">
+                <Icon className="h-3.5 w-3.5" />{label}
+              </Link>
+            ))}
+          </div>
+          <button type="button" onClick={startNewChat} className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-slate-400 transition hover:text-white">
+            <Plus className="h-3.5 w-3.5" />New chat
+          </button>
+        </div>
+      </header>
 
-        <section className="mt-4 grid gap-4 xl:grid-cols-[0.76fr_1.18fr_0.9fr]">
-          <aside className="rounded-[26px] border border-white/10 bg-white/[0.045] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl lg:p-5">
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/8 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
-              <FileText className="h-4 w-4" />
-              Career context
-            </div>
+      {/* Body */}
+      <div className="flex min-h-0 flex-1">
 
-            <h1 className="mt-4 text-2xl font-black tracking-tight">What Work-O-Bot knows</h1>
+        {/* ── Left sidebar: history + memory ───────────────────────────── */}
+        <aside className="hidden w-64 shrink-0 flex-col border-r border-white/[0.06] bg-[#040810] lg:flex">
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              {cvSummary.bullets.map((item) => (
-                <div key={item} className="rounded-2xl border border-white/10 bg-black/18 p-3 text-sm leading-6 text-slate-300">
-                  {item}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-400/8 p-4">
-              <p className="text-sm font-black text-cyan-100">{recruiter.name} · {recruiter.role}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">Focus: {recruiter.focus.join(", ")}.</p>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-400/8 p-4 text-sm leading-6 text-amber-100">
-              Work-O-Bot now helps with CV, jobs, cover letters, messages, and interview recovery — not only answer rewriting.
-            </div>
-          </aside>
-
-          <section className="rounded-[26px] border border-white/10 bg-white/[0.045] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl lg:p-5">
-            <div className="flex flex-col gap-3">
-              <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-200">
-                  <ModeIcon className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-2xl font-black tracking-tight">{modeMeta.title}</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-400">{modeMeta.subtitle}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {modes.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setMode(item.id);
-                        setMessage(modeStarter(item.id, targetRole));
-                      }}
-                      className={cn(
-                        "flex h-11 items-center justify-center gap-2 rounded-2xl border px-3 text-xs font-black transition",
-                        mode === item.id
-                          ? "border-cyan-300/35 bg-cyan-400/12 text-cyan-100"
-                          : "border-white/10 bg-white/[0.035] text-slate-300 hover:bg-white/[0.07]",
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_230px] lg:items-start">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Ask Work-O-Bot</p>
-                <textarea
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                  placeholder="Ask about your CV, a job, cover letter, recruiter reply, interview answer, or career plan..."
-                  className="mt-2 h-24 w-full resize-none rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
-                />
-              </div>
-
-              <div className={`rounded-3xl border px-4 py-3 ${mood.className}`}>
-                <div className="flex items-center gap-2">
-                  <MoodIcon className="h-5 w-5" />
-                  <p className="text-sm font-black">{mood.label}</p>
-                </div>
-                <p className="mt-1 text-xs leading-5 opacity-90">{mood.tone}</p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              <div>
-                <label className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Recruiter question / prompt</label>
-                <textarea
-                  value={question}
-                  onChange={(event) => setQuestion(event.target.value)}
-                  className="mt-2 h-24 w-full resize-none rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none focus:border-cyan-300/40"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Your answer / draft</label>
-                <textarea
-                  value={answer}
-                  onChange={(event) => {
-                    setAnswer(event.target.value);
-                    setComparison(null);
-                  }}
-                  placeholder="Paste an interview answer, CV bullet, cover letter draft, or recruiter message..."
-                  className="mt-2 h-24 w-full resize-none rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <div className="rounded-3xl border border-white/10 bg-black/18 p-4">
-                <div className="flex items-center gap-2">
-                  <ShieldAlert className="h-5 w-5 text-amber-200" />
-                  <h2 className="font-black">Weakness radar</h2>
-                </div>
-
-                <div className="mt-3 space-y-2">
-                  {weaknessRadar.map((item) => (
-                    <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-black">{item.label}</p>
-                        <span className={item.ok ? "rounded-full bg-emerald-400/12 px-2 py-1 text-xs font-black text-emerald-200" : "rounded-full bg-red-400/12 px-2 py-1 text-xs font-black text-red-200"}>
-                          {item.ok ? "OK" : "Weak"}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs leading-5 text-slate-400">{item.advice}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-white/10 bg-black/18 p-4">
-                <div className="flex items-center gap-2">
-                  <Lightbulb className="h-5 w-5 text-cyan-200" />
-                  <h2 className="font-black">Likely recruiter follow-ups</h2>
-                </div>
-
-                <div className="mt-3 space-y-2">
-                  {followUps.map((item) => (
-                    <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-slate-300">
-                      “{item}”
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {smartActions.map((action) => {
-                const Icon = action.icon;
-                return (
-                  <button
-                    key={action.id}
-                    type="button"
-                    onClick={() => runAction(action.id)}
-                    className={cn(
-                      "rounded-2xl border p-4 text-left transition hover:scale-[1.01]",
-                      action.priority === "high"
-                        ? "border-cyan-300/30 bg-cyan-400/8"
-                        : "border-white/10 bg-white/[0.045] hover:border-cyan-300/25 hover:bg-white/[0.07]",
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon className="h-5 w-5 text-cyan-200" />
-                      <p className="font-black">{action.title}</p>
-                    </div>
-                    <p className="mt-2 text-xs leading-5 text-slate-400">{action.description}</p>
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => runAction(mode)}
-              disabled={loading}
-              className="mt-4 flex h-13 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 px-5 py-4 text-sm font-black text-white shadow-[0_14px_34px_rgba(59,130,246,0.25)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Send className="h-5 w-5" />
-              {loading ? "Work-O-Bot is thinking..." : "Ask Work-O-Bot"}
+          {/* New chat */}
+          <div className="shrink-0 border-b border-white/[0.06] p-3">
+            <button type="button" onClick={startNewChat} className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2.5 text-xs font-black text-slate-300 transition hover:bg-white/[0.07] hover:text-white">
+              <Plus className="h-3.5 w-3.5" />New chat
             </button>
-          </section>
+          </div>
 
-          <aside className="rounded-[26px] border border-white/10 bg-white/[0.045] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl lg:p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-black">Copilot output</h2>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={copyOutput} className="rounded-xl border border-white/10 bg-white/[0.05] p-2 text-slate-300 hover:text-white" aria-label="Copy output">
-                  <Copy className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOutput("");
-                    setImprovedAnswer("");
-                    setComparison(null);
-                    setConversation([]);
-                  }}
-                  className="rounded-xl border border-white/10 bg-white/[0.05] p-2 text-slate-300 hover:text-white"
-                  aria-label="Reset output"
-                >
-                  <RefreshCcw className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 min-h-[360px] max-h-[560px] overflow-y-auto whitespace-pre-line rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-7 text-slate-200">
-              {loading ? (
-                <div className="flex h-[260px] items-center justify-center">
-                  <div className="text-center">
-                    <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
-                    <p className="mt-4 text-sm text-slate-400">Work-O-Bot is reading your context...</p>
+          {/* Conversation history */}
+          <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            {history.length > 0 ? (
+              <>
+                <p className="mb-1 px-2 pt-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Recent</p>
+                {history.map((conv) => (
+                  <div
+                    key={conv.id}
+                    onClick={() => loadConversation(conv)}
+                    className={`group relative mb-0.5 flex cursor-pointer items-start rounded-xl px-3 py-2.5 transition ${activeId === conv.id ? "bg-white/[0.08] text-white" : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200"}`}
+                  >
+                    <div className="min-w-0 flex-1 pr-5">
+                      <p className="truncate text-xs font-semibold leading-5">{conv.title}</p>
+                      <p className="text-[10px] text-slate-600">{relativeTime(conv.updatedAt)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => deleteConversation(conv.id, e)}
+                      className="absolute right-2 top-2.5 opacity-0 transition group-hover:opacity-100 text-slate-600 hover:text-red-400"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
                   </div>
-                </div>
-              ) : (
-                output || "Choose a mode or ask a question to get recruiter-aware career help."
-              )}
-            </div>
-
-            {comparison && (
-              <div className="mt-4 rounded-3xl border border-emerald-300/20 bg-emerald-400/8 p-4">
-                <div className="flex items-center gap-3">
-                  <Zap className="h-5 w-5 text-emerald-200" />
-                  <p className="font-black">Before vs after</p>
-                </div>
-
-                <div className="mt-3 grid grid-cols-3 gap-3">
-                  <div className="rounded-2xl bg-black/18 p-3">
-                    <p className="text-xs text-slate-500">Original</p>
-                    <p className="text-2xl font-black">{comparison.oldScore}</p>
-                  </div>
-                  <div className="rounded-2xl bg-black/18 p-3">
-                    <p className="text-xs text-slate-500">Improved</p>
-                    <p className="text-2xl font-black">{comparison.newScore}</p>
-                  </div>
-                  <div className="rounded-2xl bg-black/18 p-3">
-                    <p className="text-xs text-slate-500">Trust</p>
-                    <p className="text-2xl font-black">{comparison.trustDelta > 0 ? "+" : ""}{comparison.trustDelta}</p>
-                  </div>
-                </div>
-
-                <p className="mt-3 text-sm leading-6 text-slate-300">{comparison.message}</p>
+                ))}
+              </>
+            ) : (
+              <div className="px-3 py-4 text-center">
+                <p className="text-xs text-slate-600">No conversations yet.</p>
+                <p className="mt-0.5 text-[11px] text-slate-700">Start chatting to build history.</p>
               </div>
             )}
+          </div>
 
-            {improvedAnswer && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAnswer(improvedAnswer);
-                  setOutput("Saved as your new draft. Run another action to improve it further.");
-                  setComparison(null);
-                }}
-                className="mt-4 h-12 w-full rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 text-sm font-black text-white shadow-[0_14px_34px_rgba(59,130,246,0.25)]"
-              >
-                Use improved draft
-              </button>
-            )}
-
-            <div className="mt-4">
-              <FeedbackCapture source="copilot" />
+          {/* Memory panel */}
+          {memory.length > 0 && (
+            <div className="shrink-0 border-t border-white/[0.06] p-3">
+              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">What I know</p>
+              <div className="space-y-1.5">
+                {memory.map((item, i) => (
+                  <div key={i} className={`rounded-xl border px-3 py-1.5 ${item.kind === "name" ? "border-white/[0.10] bg-white/[0.05]" : item.kind === "jd" ? "border-cyan-300/15 bg-cyan-400/[0.05]" : "border-white/[0.06] bg-white/[0.02]"}`}>
+                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-600">{item.label}</p>
+                    <p className={`mt-0.5 truncate text-xs leading-5 ${item.kind === "name" ? "font-bold text-white" : item.kind === "jd" ? "text-cyan-200/80" : "text-slate-300"}`}>{item.value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </aside>
-        </section>
+          )}
+        </aside>
+
+        {/* ── Chat area ────────────────────────────────────────────────── */}
+        <div className="flex min-w-0 flex-1 flex-col">
+
+          {/* Thread */}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
+            {isEmpty ? (
+              <div className="mx-auto max-w-2xl">
+                <div className="mb-8 text-center">
+                  <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_40px_rgba(34,211,238,0.3)]">
+                    <Bot className="h-8 w-8" />
+                  </div>
+                  <h1 className="text-2xl font-black">Ask Work-O-Bot anything</h1>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    Career advice, interview prep, salary negotiation, job search strategy — whatever you need.
+                    {memory.length > 0 && " I already have your CV and JD loaded."}
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {SUGGESTIONS.map(({ label, action }) => (
+                    <button key={label} type="button" onClick={() => void send(label, action)}
+                      className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-left text-sm text-slate-300 transition hover:border-cyan-300/25 hover:bg-cyan-400/[0.06] hover:text-white">
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-6 text-center text-xs text-slate-600">
+                  For structured tools, use{" "}
+                  {FEATURE_LINKS.map(({ href, label }, i) => (
+                    <span key={href}><Link href={href} className="text-slate-500 underline hover:text-slate-300">{label}</Link>{i < FEATURE_LINKS.length - 1 ? ", " : ""}</span>
+                  ))}.
+                </p>
+              </div>
+            ) : (
+              <div className="mx-auto max-w-2xl space-y-4">
+                {messages.map((msg) => (
+                  <div key={msg.id} className={`flex items-start gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                    <div className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${msg.role === "user" ? "bg-white/[0.08]" : "bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_16px_rgba(34,211,238,0.25)]"}`}>
+                      {msg.role === "user" ? <User className="h-4 w-4 text-slate-300" /> : <Bot className="h-4 w-4 text-white" />}
+                    </div>
+                    <div className={`max-w-[85%] rounded-3xl px-4 py-3 ${msg.role === "user" ? "rounded-tr-md bg-cyan-400/15 text-sm leading-6 text-cyan-50 whitespace-pre-line" : "rounded-tl-md border border-white/[0.07] bg-white/[0.04]"}`}>
+                      {msg.role === "user"
+                        ? msg.content
+                        : <div className="space-y-0.5">{renderMarkdown(msg.content)}</div>
+                      }
+                    </div>
+                  </div>
+                ))}
+                {loading && (
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_16px_rgba(34,211,238,0.25)]">
+                      <Bot className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex items-center gap-2 rounded-3xl rounded-tl-md border border-white/[0.07] bg-white/[0.04] px-4 py-3 text-sm text-slate-400">
+                      <Loader2 className="h-4 w-4 animate-spin text-cyan-300" />Thinking…
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Input */}
+          <div className="shrink-0 border-t border-white/[0.07] bg-[#050a12]/80 px-4 py-4 backdrop-blur-xl">
+            <div className="mx-auto max-w-2xl">
+              {error && <p className="mb-2 text-xs font-semibold text-amber-300">{error}</p>}
+              <div className="flex items-end gap-3">
+                <div className="relative flex-1">
+                  <textarea
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(input); } }}
+                    placeholder="Ask anything about your career, CV, interviews, salary, applications…"
+                    rows={1}
+                    className="max-h-36 min-h-[52px] w-full resize-none rounded-2xl border border-white/[0.10] bg-white/[0.05] px-4 py-3.5 pr-10 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/35 focus:bg-white/[0.07]"
+                  />
+                  <Sparkles className="absolute bottom-4 right-3 h-3.5 w-3.5 text-slate-700" />
+                </div>
+                <button type="button" onClick={() => void send(input)} disabled={loading || !input.trim()}
+                  className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 text-white shadow-[0_8px_30px_rgba(14,165,233,0.3)] transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-40">
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                </button>
+              </div>
+              <p className="mt-2 text-center text-[10px] text-slate-700">
+                Work-O-Bot uses your CV and JD context · Shift+Enter for new line · Answers are AI-generated
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }

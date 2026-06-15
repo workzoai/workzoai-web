@@ -15,22 +15,31 @@ import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
 
 export default function CoverLetterWorkspacePage() {
   const [cvText, setCvText] = useState("");
+  const [resumeProfile, setResumeProfile] = useState<any>(null);
   const [jobDescription, setJobDescription] = useState("");
   const [targetRole, setTargetRole] = useState("");
+  const [targetMarket, setTargetMarket] = useState("");
   const [generated, setGenerated] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const setup = readLatestInterviewSetup();
-    import("@/lib/workzoInterviewSetup").then(({ normalizeSetupCvText: normCv, normalizeSetupJobDescription: normJd, normalizeSetupTargetRole: normRole }) => {
+    import("@/lib/workzoInterviewSetup").then(({ normalizeSetupCvText: normCv, normalizeSetupJobDescription: normJd, normalizeSetupTargetRole: normRole, normalizeSetupTargetMarket: normMarket }) => {
       setCvText(normCv(setup));
       setJobDescription(normJd(setup));
       setTargetRole(normRole(setup));
+      setTargetMarket(normMarket ? normMarket(setup) : String(setup?.targetMarket || setup?.country || "Global"));
+      if (setup?.resumeProfile && typeof setup.resumeProfile === "object") {
+        setResumeProfile(setup.resumeProfile);
+      }
     }).catch(() => {
       // fallback
       setCvText(String(setup?.cvText || setup?.uploadedCvText || setup?.resumeText || ""));
       setJobDescription(String(setup?.jobDescription || setup?.jdText || ""));
       setTargetRole(String(setup?.targetRole || setup?.role || ""));
+      if (setup?.resumeProfile && typeof setup.resumeProfile === "object") {
+        setResumeProfile(setup.resumeProfile);
+      }
     });
   }, []);
 
@@ -48,49 +57,35 @@ export default function CoverLetterWorkspacePage() {
     setLoading(true);
     setGenerated("");
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [
-            {
-              role: "user",
-              content: `Write a professional, tailored cover letter for this candidate.
-
-CANDIDATE CV:
-${cvText.slice(0, 3000)}
-
-JOB DESCRIPTION:
-${jobDescription.slice(0, 2000)}
-
-TARGET ROLE: ${targetRole}
-
-Requirements:
-- Address it to the hiring team ("Dear Hiring Team" if no name available)
-- Open with a specific hook tied to one real CV achievement that matches the JD
-- Body: 2 paragraphs — one on relevant experience with a metric, one on why this specific role
-- Close with a confident call to action
-- Max 350 words, no generic filler like "I am writing to apply"
-- Match the tone to the role seniority
-- Only use experience visible in the CV — do not fabricate anything`,
-            },
-          ],
+          action: "cover_letter",
+          cvText,
+          jobDescription,
+          targetRole,
+          targetMarket,
         }),
       });
-      const data = await res.json() as { content?: Array<{ type: string; text?: string }> };
-      const text = data.content?.map((b) => (b.type === "text" ? b.text ?? "" : "")).join("").trim();
-      if (text) {
+
+      const data = (await res.json().catch(() => null)) as { success?: boolean; output?: string; error?: string } | null;
+      const text = data?.output?.trim();
+
+      if (data?.success && text) {
         setGenerated(text);
       } else {
-        throw new Error("empty response");
+        throw new Error(data?.error || "empty response");
       }
     } catch {
-      // Fallback to local generator
+      // Fallback to local generator. Pass the structured resumeProfile if we
+      // have one — without it, generateCoverLetter has to re-parse cvText,
+      // which (for this page) is the labeled "Candidate name: X / Headline: Y"
+      // interview-context format, not raw CV text, and can produce garbled
+      // output like "Candidate name Olivia Wilson" as the signature.
       try {
         const mod = await import("@/lib/workzoWorkspaceGenerators");
-        setGenerated(mod.generateCoverLetter({ cvText, jobDescription, targetRole }));
+        setGenerated(mod.generateCoverLetter({ cvText, jobDescription, targetRole, targetMarket, resumeProfile }));
       } catch {
         setGenerated("Generation failed. Please check your connection and try again.");
       }

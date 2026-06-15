@@ -127,7 +127,7 @@ const COMPARISON_ROWS = [
   ["Recruiter Trust Analysis", "Live trust score per answer with a timeline showing why it dropped", "Not available"],
   ["Dynamic Follow-Ups", "Recruiter reacts to your specific answer — not a fixed script", "Preset question order"],
   ["Weakest Answer Detection", "Flags your lowest-scoring answer with a specific, actionable fix", "Not available"],
-  ["Recruiter Personalities", "11 recruiter personas — 4 standard, 7 Premium Pro", "Not available"],
+  ["Recruiter Personalities", "4 recruiter personas with distinct styles and pressure levels", "Not available"],
   ["Trust Timeline", "Visual graph of recruiter confidence question by question", "Not available"],
   ["Improvement Plan", "Specific metrics, ownership, and structure fixes tied to your session", "Generic tips"],
 ];
@@ -782,7 +782,7 @@ export default function LandingPage() {
               ["500+", "simulations completed"],
               ["74", "Avg. trust improvement"],
               ["10+", "Countries"],
-              ["11", "recruiter personas"],
+              ["4", "recruiter personas"],
             ].map(([number, label]) => (
               <div key={label} className="rounded-2xl border border-white/[0.10] bg-black/20 p-6 text-center backdrop-blur-sm">
                 <p className="text-4xl font-black text-white">{number}</p>
