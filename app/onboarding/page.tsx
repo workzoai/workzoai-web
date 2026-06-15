@@ -484,6 +484,13 @@ export default function OnboardingPage() {
   const [recruiter, setRecruiter] = useState<RecruiterKey>(normalizeRecruiterKey(setup.recruiterPersonality));
   const planState = useWorkZoAuthoritativePlan();
   const isProUser = planState.plan === "premium_pro";
+
+  // Redirect unauthenticated users to login
+  useEffect(() => {
+    if (!planState.loading && !planState.authenticated) {
+      router.push("/login?next=/onboarding");
+    }
+  }, [planState.loading, planState.authenticated, router]);
   const [interviewLanguage, setInterviewLanguage] = useState<InterviewLanguage>(normalizeInterviewLanguage(setup.language));
   const [, setAiResumeProfile] = useState<ResumeProfile | null>(null);
   const [aiCvStructuringStatus, setAiCvStructuringStatus] = useState<"idle" | "structuring" | "ready" | "fallback">("idle");
@@ -660,7 +667,13 @@ export default function OnboardingPage() {
       form.append("file", file);
       const response = await fetch("/api/cv", { method: "POST", body: form, credentials: "include" });
       const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(data?.error || "CV extraction failed");
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push("/login?next=/onboarding");
+          return;
+        }
+        throw new Error(data?.error || "CV extraction failed");
+      }
       debugCvPipeline("onboarding.upload.api_response", { keys: data && typeof data === "object" ? Object.keys(data) : [], fileName: file.name, chars: data?.chars || null });
       const extracted = data?.text || data?.cvText || data?.content || data?.resumeText || data?.extractedText || "";
       if (!String(extracted).trim()) throw new Error("PDF uploaded, but no readable CV text was found. Paste the CV text manually.");
@@ -707,6 +720,15 @@ export default function OnboardingPage() {
 
   const hasContext = checks.cv || checks.jd;
   const showRestoredBanner = Boolean(restoredCvText.trim()) && !restoredCvDismissed && !manualCv && !useRestoredCv;
+
+  // Don't render until auth is confirmed — prevents flash of content for unauthenticated users
+  if (planState.loading || !planState.authenticated) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#020712]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+      </main>
+    );
+  }
 
   return (
     <main className="wz-mobile-no-animation wz-mobile-bottom-safe min-h-screen overflow-x-hidden overflow-y-auto bg-[#020712] pb-[calc(env(safe-area-inset-bottom)+110px)] text-white xl:pb-8">
