@@ -2,13 +2,27 @@ export type RecruiterPersonality =
   | "friendly_hr"
   | "analytical_hiring_manager"
   | "startup_recruiter"
-  | "corporate_recruiter";
+  | "corporate_recruiter"
+  | "faang_hiring_manager"
+  | "startup_founder"
+  | "consulting_partner"
+  | "sales_director"
+  | "product_leader"
+  | "executive_recruiter"
+  | "enterprise_recruiter";
 
 export type NormalizedRecruiterPersonality =
   | "friendly_hr"
   | "analytical_hiring_manager"
   | "startup_recruiter"
-  | "corporate_recruiter";
+  | "corporate_recruiter"
+  | "faang_hiring_manager"
+  | "startup_founder"
+  | "consulting_partner"
+  | "sales_director"
+  | "product_leader"
+  | "executive_recruiter"
+  | "enterprise_recruiter";
 
 export type RecruiterVoiceProfile = {
   key: NormalizedRecruiterPersonality;
@@ -21,9 +35,74 @@ export type RecruiterVoiceProfile = {
   pacing: "calm" | "balanced" | "fast" | "structured";
 };
 
+type VoiceTableEntry = {
+  gender: "female" | "male";
+  vapiEnv: string;
+  elevenEnv: string;
+  openAiVoice: "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
+};
+
+// Single source of truth for all 11 persona voice wiring.
+// Gender defaults for ElevenLabs: female=EXAVITQu4vr4xnSDxMaL (Rachel), male=VR6AewLTigWG4xSOukaG (Arnold).
+// Distinct voices come from optional env vars (vapiEnv / elevenEnv); no new env var required for basic gender-correct audio.
+export const RECRUITER_VOICE_TABLE: Record<NormalizedRecruiterPersonality, VoiceTableEntry> = {
+  friendly_hr:               { gender: "female", vapiEnv: "NEXT_PUBLIC_VAPI_SARAH_ASSISTANT_ID",    elevenEnv: "ELEVENLABS_VOICE_SARAH",    openAiVoice: "shimmer" },
+  startup_recruiter:         { gender: "female", vapiEnv: "NEXT_PUBLIC_VAPI_PRIYA_ASSISTANT_ID",    elevenEnv: "ELEVENLABS_VOICE_PRIYA",    openAiVoice: "nova"    },
+  analytical_hiring_manager: { gender: "male",   vapiEnv: "NEXT_PUBLIC_VAPI_DANIEL_ASSISTANT_ID",   elevenEnv: "ELEVENLABS_VOICE_DANIEL",   openAiVoice: "onyx"    },
+  corporate_recruiter:       { gender: "male",   vapiEnv: "NEXT_PUBLIC_VAPI_MARKUS_ASSISTANT_ID",   elevenEnv: "ELEVENLABS_VOICE_MARKUS",   openAiVoice: "echo"    },
+  faang_hiring_manager:      { gender: "male",   vapiEnv: "NEXT_PUBLIC_VAPI_ALEX_ASSISTANT_ID",     elevenEnv: "ELEVENLABS_VOICE_ALEX",     openAiVoice: "fable"   },
+  startup_founder:           { gender: "female", vapiEnv: "NEXT_PUBLIC_VAPI_ZOE_ASSISTANT_ID",      elevenEnv: "ELEVENLABS_VOICE_ZOE",      openAiVoice: "shimmer" },
+  consulting_partner:        { gender: "male",   vapiEnv: "NEXT_PUBLIC_VAPI_JAMES_ASSISTANT_ID",    elevenEnv: "ELEVENLABS_VOICE_JAMES",    openAiVoice: "onyx"    },
+  sales_director:            { gender: "male",   vapiEnv: "NEXT_PUBLIC_VAPI_MARCUS_ASSISTANT_ID",   elevenEnv: "ELEVENLABS_VOICE_MARCUS",   openAiVoice: "echo"    },
+  product_leader:            { gender: "female", vapiEnv: "NEXT_PUBLIC_VAPI_AISHA_ASSISTANT_ID",    elevenEnv: "ELEVENLABS_VOICE_AISHA",    openAiVoice: "nova"    },
+  executive_recruiter:       { gender: "female", vapiEnv: "NEXT_PUBLIC_VAPI_VICTORIA_ASSISTANT_ID", elevenEnv: "ELEVENLABS_VOICE_VICTORIA", openAiVoice: "shimmer" },
+  enterprise_recruiter:      { gender: "male",   vapiEnv: "NEXT_PUBLIC_VAPI_DAVID_ASSISTANT_ID",    elevenEnv: "ELEVENLABS_VOICE_DAVID",    openAiVoice: "alloy"   },
+};
+
+export const ELEVEN_DEFAULT_BY_GENDER: Record<"female" | "male", string> = {
+  female: "EXAVITQu4vr4xnSDxMaL",
+  male: "VR6AewLTigWG4xSOukaG",
+};
+
 function cleanEnv(value?: string) {
   const cleaned = (value || "").trim();
   return cleaned.length > 0 ? cleaned : undefined;
+}
+
+// Resolves any recruiterId/recruiterName combination to a canonical table key.
+// Exact key match runs first to prevent substring collisions (e.g. startup_founder ≠ startup_recruiter).
+export function resolveRecruiterVoiceKey(
+  recruiterId?: string,
+  recruiterName?: string,
+): NormalizedRecruiterPersonality {
+  const id = (recruiterId || "").trim().toLowerCase().replace(/-/g, "_");
+  const name = (recruiterName || "").trim().toLowerCase();
+
+  if (id in RECRUITER_VOICE_TABLE) return id as NormalizedRecruiterPersonality;
+
+  // Premium-pro name/alias bridges
+  if (id.includes("faang") || name.includes("alex")) return "faang_hiring_manager";
+  if (id.includes("startup_founder") || name.includes("zoe")) return "startup_founder";
+  if (id.includes("consulting") || id.includes("partner") || name.includes("james")) return "consulting_partner";
+  if (id.includes("sales_director") || name.includes("marcus")) return "sales_director";
+  if (id.includes("product_leader") || name.includes("aisha")) return "product_leader";
+  if (id.includes("executive_recruiter") || name.includes("victoria")) return "executive_recruiter";
+  if (id.includes("enterprise_recruiter") || name.includes("david")) return "enterprise_recruiter";
+
+  // Standard-4 bridges (order matters: startup after startup_founder)
+  if (id.includes("friendly") || name.includes("sarah")) return "friendly_hr";
+  if (id.includes("analytical") || id.includes("hiring_manager") || name.includes("daniel")) return "analytical_hiring_manager";
+  if (id === "german_corporate" || id.includes("corporate") || name.includes("markus")) return "corporate_recruiter";
+  if (id.includes("startup") || name.includes("priya")) return "startup_recruiter";
+
+  return "analytical_hiring_manager";
+}
+
+export function getRecruiterVoiceGender(
+  recruiterId?: string,
+  recruiterName?: string,
+): "female" | "male" {
+  return RECRUITER_VOICE_TABLE[resolveRecruiterVoiceKey(recruiterId, recruiterName)].gender;
 }
 
 export const recruiterVoiceProfiles: Record<NormalizedRecruiterPersonality, RecruiterVoiceProfile> = {
@@ -75,6 +154,90 @@ export const recruiterVoiceProfiles: Record<NormalizedRecruiterPersonality, Recr
     behaviorPrompt:
       "You are Markus, a structured corporate recruiter. You value clarity, professionalism, concise communication, process thinking, and role relevance. Ask structured questions and expect organized answers with clear examples.",
   },
+  faang_hiring_manager: {
+    key: "faang_hiring_manager",
+    name: "Alex Chen",
+    role: "FAANG Hiring Manager",
+    voiceGender: "male",
+    assistantId: cleanEnv(process.env.NEXT_PUBLIC_VAPI_ALEX_ASSISTANT_ID),
+    pacing: "balanced",
+    interruptionStyle:
+      "Interrupt when system design, scalability thinking, or impact at scale is missing.",
+    behaviorPrompt:
+      "You are Alex Chen, a senior hiring manager at a top-tier tech company. You assess technical depth, system thinking, leadership at scale, and cultural alignment. Ask bar-raising questions and probe for the nuance behind the candidate's achievements.",
+  },
+  startup_founder: {
+    key: "startup_founder",
+    name: "Zoe Martinez",
+    role: "Startup Founder",
+    voiceGender: "female",
+    assistantId: cleanEnv(process.env.NEXT_PUBLIC_VAPI_ZOE_ASSISTANT_ID),
+    pacing: "fast",
+    interruptionStyle:
+      "Interrupt when the candidate is theoretical, risk-averse, or can't explain real ownership.",
+    behaviorPrompt:
+      "You are Zoe Martinez, a startup founder who has built and scaled teams. You care deeply about ownership, speed, and founder-level thinking. Push the candidate on what they would do day one, how they handle ambiguity, and whether they can move without instructions.",
+  },
+  consulting_partner: {
+    key: "consulting_partner",
+    name: "James Okafor",
+    role: "Consulting Partner",
+    voiceGender: "male",
+    assistantId: cleanEnv(process.env.NEXT_PUBLIC_VAPI_JAMES_ASSISTANT_ID),
+    pacing: "structured",
+    interruptionStyle:
+      "Interrupt when the candidate lacks structure, skips the hypothesis, or gives data without insight.",
+    behaviorPrompt:
+      "You are James Okafor, a consulting partner with a top-tier firm. You expect structured thinking, clear hypotheses, and client-ready communication. Use case-style questioning and probe for data-driven reasoning and business acumen.",
+  },
+  sales_director: {
+    key: "sales_director",
+    name: "Marcus Williams",
+    role: "Sales Director",
+    voiceGender: "male",
+    assistantId: cleanEnv(process.env.NEXT_PUBLIC_VAPI_MARCUS_ASSISTANT_ID),
+    pacing: "fast",
+    interruptionStyle:
+      "Interrupt when numbers are vague, the pipeline isn't described, or the candidate avoids accountability.",
+    behaviorPrompt:
+      "You are Marcus Williams, a sales director who drives revenue. You want quota attainment, deal size, pipeline discipline, and objection handling. Ask about real numbers and push back when answers are generic.",
+  },
+  product_leader: {
+    key: "product_leader",
+    name: "Aisha Patel",
+    role: "Product Leader",
+    voiceGender: "female",
+    assistantId: cleanEnv(process.env.NEXT_PUBLIC_VAPI_AISHA_ASSISTANT_ID),
+    pacing: "balanced",
+    interruptionStyle:
+      "Interrupt when user empathy is missing, tradeoffs are ignored, or metrics aren't tied to outcomes.",
+    behaviorPrompt:
+      "You are Aisha Patel, a product leader who has shipped at scale. You probe for user empathy, prioritization discipline, cross-functional influence, and metric-driven decisions. Ask the candidate to walk through a product decision and defend the tradeoffs.",
+  },
+  executive_recruiter: {
+    key: "executive_recruiter",
+    name: "Victoria Reeves",
+    role: "Executive Recruiter",
+    voiceGender: "female",
+    assistantId: cleanEnv(process.env.NEXT_PUBLIC_VAPI_VICTORIA_ASSISTANT_ID),
+    pacing: "calm",
+    interruptionStyle:
+      "Interrupt when the narrative is unclear, leadership philosophy is generic, or executive presence is missing.",
+    behaviorPrompt:
+      "You are Victoria Reeves, an executive recruiter who places C-suite and VP-level leaders. You assess executive presence, board communication, organizational impact, and vision. Ask the candidate to articulate their leadership philosophy and probe for real examples of transformational leadership.",
+  },
+  enterprise_recruiter: {
+    key: "enterprise_recruiter",
+    name: "David Park",
+    role: "Enterprise Recruiter",
+    voiceGender: "male",
+    assistantId: cleanEnv(process.env.NEXT_PUBLIC_VAPI_DAVID_ASSISTANT_ID),
+    pacing: "structured",
+    interruptionStyle:
+      "Interrupt when the candidate is vague about stakeholder management, timelines, or enterprise processes.",
+    behaviorPrompt:
+      "You are David Park, an enterprise recruiter who places candidates in large complex organizations. You care about stakeholder alignment, process adherence, cross-team collaboration, and navigating organizational complexity. Ask for specific examples of working across departments and driving outcomes in a matrixed environment.",
+  },
 };
 
 export function normalizeRecruiterPersonality(value?: string): NormalizedRecruiterPersonality {
@@ -85,6 +248,7 @@ export function normalizeRecruiterPersonality(value?: string): NormalizedRecruit
   if (key === "analytical_hiring_manager" || key.includes("daniel") || key.includes("hiring_manager")) {
     return "analytical_hiring_manager";
   }
+  if (key === "startup_founder" || key.includes("zoe")) return "startup_founder";
   if (key === "startup_recruiter" || key.includes("priya") || key.includes("startup")) {
     return "startup_recruiter";
   }
@@ -96,6 +260,12 @@ export function normalizeRecruiterPersonality(value?: string): NormalizedRecruit
   ) {
     return "corporate_recruiter";
   }
+  if (key === "faang_hiring_manager" || key.includes("faang") || key.includes("alex")) return "faang_hiring_manager";
+  if (key === "consulting_partner" || key.includes("consulting") || key.includes("james")) return "consulting_partner";
+  if (key === "sales_director" || key.includes("sales_director") || key.includes("marcus")) return "sales_director";
+  if (key === "product_leader" || key.includes("product_leader") || key.includes("aisha")) return "product_leader";
+  if (key === "executive_recruiter" || key.includes("victoria")) return "executive_recruiter";
+  if (key === "enterprise_recruiter" || key.includes("enterprise") || key.includes("david")) return "enterprise_recruiter";
 
   return "analytical_hiring_manager";
 }

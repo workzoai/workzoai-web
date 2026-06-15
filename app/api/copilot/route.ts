@@ -403,7 +403,7 @@ ${outputFormat(action)}
     }
 
     // Use structured profile for CV actions if available; fall back to raw cvText
-    const cvIsForRewrite = action === "cv_rewrite_ats" || action === "cv_improve";
+    const cvIsForRewrite = action === "cv_rewrite_ats" || action === "cv_improve" || action === "cover_letter";
     const structuredCv = cvIsForRewrite && resumeProfileRaw
       ? buildStructuredCvBlock(resumeProfileRaw)
       : null;

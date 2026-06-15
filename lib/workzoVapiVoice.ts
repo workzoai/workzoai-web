@@ -1,4 +1,5 @@
 import { getOpenAiTtsInstructions } from "@/lib/workzoVoiceHumanizer";
+import { resolveRecruiterVoiceKey, RECRUITER_VOICE_TABLE } from "@/lib/recruiterVoiceConfig";
 
 export type WorkZoVapiTranscriptMessage = {
   role: "assistant" | "user" | "system" | string;
@@ -32,29 +33,18 @@ export type WorkZoVapiConfig = {
   publicKey: string;
   assistantId: string;
   enabled: boolean;
-  recruiterKey: "sarah" | "daniel" | "priya" | "markus";
+  recruiterKey: string;
 };
 
-export function getWorkZoVapiRecruiterKey(recruiterId?: WorkZoRecruiterId, recruiterName?: string) {
-  const raw = `${recruiterId || ""} ${recruiterName || ""}`.toLowerCase();
-  if (raw.includes("friendly_hr") || raw.includes("sarah") || raw.includes("friendly")) return "sarah" as const;
-  if (raw.includes("analytical_hiring_manager") || raw.includes("daniel") || raw.includes("analytical") || raw.includes("hiring")) return "daniel" as const;
-  if (raw.includes("startup_recruiter") || raw.includes("priya") || raw.includes("startup")) return "priya" as const;
-  if (raw.includes("corporate_recruiter") || raw.includes("markus") || raw.includes("corporate")) return "markus" as const;
-  return "sarah" as const;
+export function getWorkZoVapiRecruiterKey(recruiterId?: WorkZoRecruiterId, recruiterName?: string): string {
+  return resolveRecruiterVoiceKey(recruiterId, recruiterName);
 }
 
 export function getWorkZoVapiAssistantId(recruiterId?: WorkZoRecruiterId, recruiterName?: string) {
-  const key = getWorkZoVapiRecruiterKey(recruiterId, recruiterName);
-
-  const assistantIds: Record<ReturnType<typeof getWorkZoVapiRecruiterKey>, string> = {
-    sarah: process.env.NEXT_PUBLIC_VAPI_SARAH_ASSISTANT_ID || "",
-    daniel: process.env.NEXT_PUBLIC_VAPI_DANIEL_ASSISTANT_ID || "",
-    priya: process.env.NEXT_PUBLIC_VAPI_PRIYA_ASSISTANT_ID || "",
-    markus: process.env.NEXT_PUBLIC_VAPI_MARKUS_ASSISTANT_ID || "",
-  };
-
-  return { key, assistantId: assistantIds[key] || "" };
+  const key = resolveRecruiterVoiceKey(recruiterId, recruiterName);
+  const envVar = RECRUITER_VOICE_TABLE[key].vapiEnv;
+  const assistantId = (process.env[envVar] || "").trim();
+  return { key, assistantId };
 }
 
 export function getWorkZoVapiConfig(recruiterId?: WorkZoRecruiterId, recruiterName?: string): WorkZoVapiConfig {
