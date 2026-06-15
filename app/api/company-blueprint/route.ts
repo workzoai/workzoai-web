@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildWorkZoCompanyBlueprint } from "@/lib/workzoCompanyBlueprint";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 
 export async function POST(request: NextRequest) {
+  // ── Auth gate (pure JS, no LLM cost, but exposes company/role data) ───────
+  let resolved;
+  try {
+    resolved = await resolveWorkZoServerPlan();
+  } catch {
+    return NextResponse.json({ error: "Could not resolve account plan." }, { status: 500 });
+  }
+  if (!resolved.authenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   try {
     const body = await request.json().catch(() => ({}));
     const blueprint = buildWorkZoCompanyBlueprint({

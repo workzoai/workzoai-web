@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +18,18 @@ function normalizeLanguage(value: FormDataEntryValue | null) {
 export async function OPTIONS() { return new Response(null, { status: 204 }); }
 
 export async function POST(request: Request) {
+  // ── Auth gate ─────────────────────────────────────────────────────────────
+  let resolved;
+  try {
+    resolved = await resolveWorkZoServerPlan();
+  } catch {
+    return Response.json({ error: "Could not resolve account plan." }, { status: 500 });
+  }
+  if (!resolved.authenticated) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   try {
     if (!process.env.OPENAI_API_KEY) {
       return Response.json({ error: "Missing OPENAI_API_KEY" }, { status: 500 });
