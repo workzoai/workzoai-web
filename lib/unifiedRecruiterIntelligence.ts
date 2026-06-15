@@ -1222,7 +1222,7 @@ function recruiterDisplayNameFromSetup(setup?: UnifiedRecruiterInput["setup"]) {
     return "Priya";
   if (
     raw.includes("markus") ||
-    raw.includes("german_corporate") ||
+    raw.includes("corporate_recruiter") ||
     raw.includes("corporate")
   )
     return "Markus";

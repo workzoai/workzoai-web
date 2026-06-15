@@ -2,14 +2,13 @@ export type RecruiterPersonality =
   | "friendly_hr"
   | "analytical_hiring_manager"
   | "startup_recruiter"
-  | "german_corporate"
   | "corporate_recruiter";
 
 export type NormalizedRecruiterPersonality =
   | "friendly_hr"
   | "analytical_hiring_manager"
   | "startup_recruiter"
-  | "german_corporate";
+  | "corporate_recruiter";
 
 export type RecruiterVoiceProfile = {
   key: NormalizedRecruiterPersonality;
@@ -64,8 +63,8 @@ export const recruiterVoiceProfiles: Record<NormalizedRecruiterPersonality, Recr
     behaviorPrompt:
       "You are Priya, a fast-paced startup recruiter. You care about ownership, speed, execution, adaptability, and practical results. Ask concise follow-ups. Push the candidate to explain what they personally owned and how they created value.",
   },
-  german_corporate: {
-    key: "german_corporate",
+  corporate_recruiter: {
+    key: "corporate_recruiter",
     name: "Markus",
     role: "Corporate Recruiter",
     voiceGender: "male",
@@ -90,12 +89,12 @@ export function normalizeRecruiterPersonality(value?: string): NormalizedRecruit
     return "startup_recruiter";
   }
   if (
-    key === "german_corporate" ||
     key === "corporate_recruiter" ||
+    key === "german_corporate" || // legacy persisted value
     key.includes("markus") ||
     key.includes("corporate")
   ) {
-    return "german_corporate";
+    return "corporate_recruiter";
   }
 
   return "analytical_hiring_manager";

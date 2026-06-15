@@ -25,7 +25,7 @@ export type WorkZoRecruiterId =
   | "friendly_hr"
   | "analytical_hiring_manager"
   | "startup_recruiter"
-  | "german_corporate"
+  | "corporate_recruiter"
   | string;
 
 export type WorkZoVapiConfig = {
@@ -40,7 +40,7 @@ export function getWorkZoVapiRecruiterKey(recruiterId?: WorkZoRecruiterId, recru
   if (raw.includes("friendly_hr") || raw.includes("sarah") || raw.includes("friendly")) return "sarah" as const;
   if (raw.includes("analytical_hiring_manager") || raw.includes("daniel") || raw.includes("analytical") || raw.includes("hiring")) return "daniel" as const;
   if (raw.includes("startup_recruiter") || raw.includes("priya") || raw.includes("startup")) return "priya" as const;
-  if (raw.includes("german_corporate") || raw.includes("markus") || raw.includes("corporate")) return "markus" as const;
+  if (raw.includes("corporate_recruiter") || raw.includes("markus") || raw.includes("corporate")) return "markus" as const;
   return "sarah" as const;
 }
 
