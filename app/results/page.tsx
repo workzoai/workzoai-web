@@ -29,7 +29,7 @@ import UpgradeModal from "@/components/premium/UpgradeModal";
 import PremiumUsageBadge from "@/components/premium/PremiumUsageBadge";
 import WorkZoPremiumProSuitePanel from "@/components/premium/WorkZoPremiumProSuitePanel";
 import { recordWorkZoReportViewed } from "@/lib/workzoUsageTracker";
-import { useWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
+import { useWorkZoAdvancedReportGate } from "@/lib/workzoAdvancedReportGate";
 import { readLatestInterviewSetup } from "@/lib/workzoInterviewSetup";
 import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
 import { buildCareerBrain, updateCareerMemoryFromReport, type PhaseCCareerBrain } from "@/lib/workzoCareerMemory";
@@ -1089,7 +1089,7 @@ export default function ResultsPage() {
   const [loadState, setLoadState] = useState<ResultsLoadState>("loading");
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [careerBrain, setCareerBrain] = useState<PhaseCCareerBrain | null>(null);
-  const planState = useWorkZoAuthoritativePlan();
+  const reportGate = useWorkZoAdvancedReportGate();
 
   useEffect(() => {
     let cancelled = false;
@@ -1112,7 +1112,7 @@ export default function ResultsPage() {
       setLoadState(nextLoadState);
 
       try {
-        const premiumNow = ["premium", "premium_pro"].includes(planState.plan);
+        const premiumNow = reportGate.allowed;
         const immediateReport = buildRichReport(sourceResult, premiumNow);
         const brain = updateCareerMemoryFromReport({
           targetRole: immediateReport.roleLabel,
@@ -1147,11 +1147,11 @@ export default function ResultsPage() {
     return () => {
       cancelled = true;
     };
-  }, [planState.plan]);
+  }, [reportGate.allowed]);
 
-  const isPremium = useMemo(() => ["premium", "premium_pro"].includes(planState.plan), [planState.plan]);
+  const isPremium = reportGate.allowed;
 
-  const isProPlan = useMemo(() => planState.plan === "premium_pro", [planState.plan]);
+  const isProPlan = reportGate.plan === "premium_pro";
 
   const report = useMemo(() => buildRichReport(result, isPremium), [result, isPremium]);
   const phaseB = useMemo(

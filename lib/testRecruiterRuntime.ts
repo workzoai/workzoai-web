@@ -139,7 +139,7 @@ function runPersonalityBlock() {
     { label: "Daniel", id: "analytical_hiring_manager" },
     { label: "Sarah", id: "friendly_hr" },
     { label: "Priya", id: "startup_recruiter" },
-    { label: "Markus", id: "german_corporate" },
+    { label: "Markus", id: "corporate_recruiter" },
   ];
 
   for (const recruiter of recruiters) {

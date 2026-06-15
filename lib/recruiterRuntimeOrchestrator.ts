@@ -41,7 +41,7 @@ export type RecruiterRuntimePersonality =
   | "analytical_hiring_manager"
   | "friendly_hr"
   | "startup_recruiter"
-  | "german_corporate";
+  | "corporate_recruiter";
 
 export type RecruiterTrustTrend =
   | "increasing"
@@ -1281,42 +1281,42 @@ function chooseMicroReaction({
         ? "Let me pause you there."
         : "Can I stop you for a second?";
     if (family === "startup_recruiter") return "Hold on.";
-    if (family === "german_corporate") return "Please be precise.";
+    if (family === "corporate_recruiter") return "Please be precise.";
     return memoryLine ? "Hold on." : "Let me stop you there.";
   }
 
   if (runtimeDecision === "interrupt") {
     if (family === "friendly_hr") return "Let me pause you there.";
     if (family === "startup_recruiter") return "Wait.";
-    if (family === "german_corporate") return "One moment.";
+    if (family === "corporate_recruiter") return "One moment.";
     return "Wait.";
   }
 
   if (runtimeDecision === "recover" || recoveryLine) {
     if (family === "friendly_hr") return "That’s better.";
     if (family === "startup_recruiter") return "Better.";
-    if (family === "german_corporate") return "That is clearer.";
+    if (family === "corporate_recruiter") return "That is clearer.";
     return "That’s stronger.";
   }
 
   if (runtimeDecision === "memory_callback") {
     if (family === "friendly_hr") return "I’m noticing this again.";
     if (family === "startup_recruiter") return "Same pattern.";
-    if (family === "german_corporate") return "This pattern is repeating.";
+    if (family === "corporate_recruiter") return "This pattern is repeating.";
     return "I’m noticing a pattern.";
   }
 
   if (answerSignals.concreteExample && answerSignals.hasOwnership) {
     if (family === "friendly_hr") return "Good, I’m with you.";
     if (family === "startup_recruiter") return "Good.";
-    if (family === "german_corporate") return "Good. That is specific.";
+    if (family === "corporate_recruiter") return "Good. That is specific.";
     return "Good.";
   }
 
   if (answerSignals.strong || score >= 85 || mood === "impressed") {
     if (family === "friendly_hr") return "That’s a strong example.";
     if (family === "startup_recruiter") return "Strong.";
-    if (family === "german_corporate") return "That is a solid answer.";
+    if (family === "corporate_recruiter") return "That is a solid answer.";
     return "Strong.";
   }
 
@@ -1324,27 +1324,27 @@ function chooseMicroReaction({
     if (answerSignals.vague || answerSignals.missingMetrics) {
       if (family === "friendly_hr") return "Okay, let’s make that clearer.";
       if (family === "startup_recruiter") return "Get to the impact.";
-      if (family === "german_corporate") return "Please be precise.";
+      if (family === "corporate_recruiter") return "Please be precise.";
       return "Hmm.";
     }
 
     if (family === "friendly_hr") return "I need a little more clarity.";
     if (family === "startup_recruiter") return "Not enough yet.";
-    if (family === "german_corporate") return "That is not precise enough.";
+    if (family === "corporate_recruiter") return "That is not precise enough.";
     return "I’m not convinced yet.";
   }
 
   if (runtimeDecision === "probe") {
     if (family === "friendly_hr") return "Okay, let’s go deeper.";
     if (family === "startup_recruiter") return "Go deeper.";
-    if (family === "german_corporate") return "Let’s structure this.";
+    if (family === "corporate_recruiter") return "Let’s structure this.";
     return "Okay.";
   }
 
   if (mood === "interested") {
     if (family === "friendly_hr") return "Interesting.";
     if (family === "startup_recruiter") return "Right.";
-    if (family === "german_corporate") return "Understood.";
+    if (family === "corporate_recruiter") return "Understood.";
     return "Interesting.";
   }
 
@@ -2238,7 +2238,7 @@ function determineMaskingStrength({
 
   let score = 35;
 
-  if (recruiterId === "german_corporate") score += 35;
+  if (recruiterId === "corporate_recruiter") score += 35;
   if (recruiterId === "friendly_hr") score += 25;
   if (recruiterId === "analytical_hiring_manager") score += 18;
   if (recruiterId === "startup_recruiter") score -= 8;
@@ -2266,7 +2266,7 @@ function determineProfessionalContainment({
 }): RecruiterProfessionalContainment {
   if (
     maskingStrength === "high" ||
-    recruiterId === "german_corporate" ||
+    recruiterId === "corporate_recruiter" ||
     silentJudgment === "mentally_rejecting"
   ) {
     return "strongly_contained";
@@ -2464,7 +2464,7 @@ function applyProfessionalMaskingToLine({
         .trim();
     }
 
-    if (recruiterId === "german_corporate") {
+    if (recruiterId === "corporate_recruiter") {
       return `Thank you. Let’s keep this structured. ${baseLine}`
         .replace(/\s+/g, " ")
         .trim();

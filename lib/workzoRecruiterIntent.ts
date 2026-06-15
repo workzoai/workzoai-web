@@ -39,7 +39,7 @@ export function getRecruiterIntentInsight({
     };
   }
 
-  if (recruiterId === "german_corporate") {
+  if (recruiterId === "corporate_recruiter") {
     return {
       headline: "Markus is testing structure and precision.",
       recruiterFocus:
@@ -118,7 +118,7 @@ export function getRecruiterSpecificFollowUp({
     return "What would you do differently if you had to move twice as fast?";
   }
 
-  if (recruiterId === "german_corporate") {
+  if (recruiterId === "corporate_recruiter") {
     if (!hasMetric) return "What exact measurable result can you verify?";
     if (!hasOwnership) return "What was your precise responsibility in that situation?";
     return "Can you explain the situation, action, and result in a more structured way?";

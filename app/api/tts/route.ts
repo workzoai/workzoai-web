@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { getOpenAiTtsInstructions, humanizeRecruiterSpokenText } from "@/lib/workzoVoiceHumanizer";
+import { resolveRecruiterVoiceKey, RECRUITER_VOICE_TABLE } from "@/lib/recruiterVoiceConfig";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,7 +74,9 @@ export async function POST(request: Request) {
 
     const requestedVoice =
       typeof body.voice === "string" ? body.voice.trim().toLowerCase() : "";
-    const voice = allowedVoices.has(requestedVoice) ? requestedVoice : "shimmer";
+    // Fall back to gender-appropriate voice from the persona table instead of always "shimmer".
+    const defaultVoice = RECRUITER_VOICE_TABLE[resolveRecruiterVoiceKey(body.recruiterId)].openAiVoice;
+    const voice = allowedVoices.has(requestedVoice) ? requestedVoice : defaultVoice;
 
     if (!text) {
       return Response.json({ error: "Missing text" }, { status: 400 });

@@ -101,8 +101,8 @@ const DEFAULT_PERSONAS: Record<string, WorkZoSimulationPersona> = {
     openingFrame: "Priya is checking whether you can operate with limited structure and still deliver outcomes.",
     noteTakingStyle: "Priya is looking for evidence that you can move without waiting for perfect instructions.",
   },
-  german_corporate: {
-    id: "german_corporate",
+  corporate_recruiter: {
+    id: "corporate_recruiter",
     name: "Markus Weber",
     title: "Corporate Hiring Lead",
     companyArchetype: "process-oriented enterprise",
