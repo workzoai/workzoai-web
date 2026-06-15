@@ -1,14 +1,9 @@
+import { getRecruiterVoiceGender, ELEVEN_DEFAULT_BY_GENDER } from "@/lib/recruiterVoiceConfig";
+
 const ELEVENLABS_API_KEY =
   process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || "";
 
 const ELEVENLABS_MODEL = "eleven_turbo_v2_5";
-
-const VOICE_MAP: Record<string, string> = {
-  friendly_hr: "Sarah",
-  startup_recruiter: "Sarah",
-  corporate_recruiter: "Brian",
-  analytical_hiring_manager: "Brian",
-};
 
 export async function speakWithElevenLabs(
   recruiterId: string,
@@ -18,14 +13,8 @@ export async function speakWithElevenLabs(
     throw new Error("Missing ElevenLabs API key");
   }
 
-  const voiceId =
-    recruiterId === "friendly_hr"
-      ? "EXAVITQu4vr4xnSDxMaL"
-      : recruiterId === "startup_recruiter"
-        ? "EXAVITQu4vr4xnSDxMaL"
-        : recruiterId === "corporate_recruiter"
-          ? "VR6AewLTigWG4xSOukaG"
-          : "VR6AewLTigWG4xSOukaG";
+  const gender = getRecruiterVoiceGender(recruiterId);
+  const voiceId = ELEVEN_DEFAULT_BY_GENDER[gender];
 
   const response = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,

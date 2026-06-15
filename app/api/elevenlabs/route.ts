@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
+import { resolveRecruiterVoiceKey, RECRUITER_VOICE_TABLE, ELEVEN_DEFAULT_BY_GENDER } from "@/lib/recruiterVoiceConfig";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,39 +9,10 @@ export const dynamic = "force-dynamic";
 // Free users fall back to browser TTS — they never hit this route.
 // Premium and Premium Pro both get ElevenLabs access.
 
-type RecruiterId =
-  | "friendly_hr"
-  | "analytical_hiring_manager"
-  | "startup_recruiter"
-  | "corporate_recruiter"; // was "german_corporate" — now matches recruiterAssets.ts
-
-const DEFAULT_VOICE_IDS: Record<RecruiterId, string> = {
-  friendly_hr: "EXAVITQu4vr4xnSDxMaL",
-  startup_recruiter: "EXAVITQu4vr4xnSDxMaL",
-  corporate_recruiter: "VR6AewLTigWG4xSOukaG",
-  analytical_hiring_manager: "VR6AewLTigWG4xSOukaG",
-};
-
-function getVoiceId(recruiterId: RecruiterId) {
-  if (recruiterId === "friendly_hr") {
-    return process.env.ELEVENLABS_VOICE_SARAH || DEFAULT_VOICE_IDS.friendly_hr;
-  }
-  if (recruiterId === "startup_recruiter") {
-    return process.env.ELEVENLABS_VOICE_PRIYA || DEFAULT_VOICE_IDS.startup_recruiter;
-  }
-  if (recruiterId === "corporate_recruiter") {
-    return process.env.ELEVENLABS_VOICE_MARKUS || DEFAULT_VOICE_IDS.corporate_recruiter;
-  }
-  return process.env.ELEVENLABS_VOICE_DANIEL || DEFAULT_VOICE_IDS.analytical_hiring_manager;
-}
-
-function normalizeRecruiterId(value: unknown): RecruiterId {
-  if (value === "friendly_hr") return "friendly_hr";
-  if (value === "startup_recruiter") return "startup_recruiter";
-  // Accept both old "german_corporate" key and canonical "corporate_recruiter"
-  if (value === "corporate_recruiter" || value === "german_corporate") return "corporate_recruiter";
-  if (value === "analytical_hiring_manager") return "analytical_hiring_manager";
-  return "startup_recruiter";
+function getVoiceId(recruiterId: string) {
+  const key = resolveRecruiterVoiceKey(recruiterId);
+  const entry = RECRUITER_VOICE_TABLE[key];
+  return process.env[entry.elevenEnv] || ELEVEN_DEFAULT_BY_GENDER[entry.gender];
 }
 
 export async function POST(request: NextRequest) {
@@ -86,7 +58,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing text" }, { status: 400 });
     }
 
-    const recruiterId = normalizeRecruiterId(body.recruiterId);
+    const recruiterId = typeof body.recruiterId === "string" ? body.recruiterId : "";
     const voiceId = getVoiceId(recruiterId);
     const modelId = process.env.ELEVENLABS_MODEL_ID || "eleven_turbo_v2_5";
 

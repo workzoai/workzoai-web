@@ -33,6 +33,15 @@ function clamp(value: number, min: number, max: number) {
 
 function normalizeRecruiter(recruiterId?: WorkZoVoiceRecruiterId) {
   const raw = String(recruiterId || "").toLowerCase();
+  // Premium-pro personas mapped to same-gender existing style buckets.
+  if (raw.includes("faang") || raw.includes("alex")) return "daniel";        // male → analytical
+  if (raw.includes("startup_founder") || raw.includes("zoe")) return "priya"; // female → startup
+  if (raw.includes("consulting") || raw.includes("james")) return "daniel";  // male → analytical
+  if (raw.includes("sales_director") || raw.includes("marcus")) return "markus"; // male → corporate
+  if (raw.includes("product_leader") || raw.includes("aisha")) return "sarah"; // female → friendly
+  if (raw.includes("executive_recruiter") || raw.includes("victoria")) return "sarah"; // female → friendly
+  if (raw.includes("enterprise_recruiter") || raw.includes("david")) return "markus"; // male → corporate
+  // Standard 4 (order matters: startup_founder handled above before generic startup check)
   if (raw.includes("startup") || raw.includes("priya")) return "priya";
   if (raw.includes("friendly") || raw.includes("sarah")) return "sarah";
   if (raw.includes("german") || raw.includes("corporate") || raw.includes("markus")) return "markus";
