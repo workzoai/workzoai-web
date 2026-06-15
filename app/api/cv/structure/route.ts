@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { parseResumeWithAiStructure } from "@/lib/workzoAiCvParser";
 import {
   extractResumeProfile,
@@ -43,6 +44,22 @@ function buildFallbackStructuredProfile(input: {
 }
 
 export async function POST(request: Request) {
+  // ── Auth gate ───────────────────────────────────────────────────────────────
+  // This runs the AI CV structuring (LLM) parser. Require a signed-in user so
+  // anonymous traffic cannot burn the LLM budget. CV parsing is part of
+  // onboarding for all tiers, so no plan/tier gate here (mirrors /api/cv).
+  let resolved;
+  try {
+    resolved = await resolveWorkZoServerPlan();
+  } catch {
+    return NextResponse.json({ error: "Could not resolve account plan." }, { status: 500 });
+  }
+
+  if (!resolved.authenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   const body = await request.json().catch(() => null);
 
   const cvText =

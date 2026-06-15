@@ -2,7 +2,7 @@ export type WorkZoVoiceRecruiterId =
   | "friendly_hr"
   | "startup_recruiter"
   | "analytical_hiring_manager"
-  | "german_corporate"
+  | "corporate_recruiter"
   | string;
 
 export type WorkZoVoiceRecruiterState =

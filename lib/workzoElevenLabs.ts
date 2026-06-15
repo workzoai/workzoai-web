@@ -6,7 +6,7 @@ const ELEVENLABS_MODEL = "eleven_turbo_v2_5";
 const VOICE_MAP: Record<string, string> = {
   friendly_hr: "Sarah",
   startup_recruiter: "Sarah",
-  german_corporate: "Brian",
+  corporate_recruiter: "Brian",
   analytical_hiring_manager: "Brian",
 };
 
@@ -23,7 +23,7 @@ export async function speakWithElevenLabs(
       ? "EXAVITQu4vr4xnSDxMaL"
       : recruiterId === "startup_recruiter"
         ? "EXAVITQu4vr4xnSDxMaL"
-        : recruiterId === "german_corporate"
+        : recruiterId === "corporate_recruiter"
           ? "VR6AewLTigWG4xSOukaG"
           : "VR6AewLTigWG4xSOukaG";
 

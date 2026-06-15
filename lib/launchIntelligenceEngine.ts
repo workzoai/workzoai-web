@@ -12,7 +12,7 @@ export type RecruiterPersonality =
   | "friendly_hr"
   | "analytical_hiring_manager"
   | "startup_recruiter"
-  | "german_corporate";
+  | "corporate_recruiter";
 
 export type RecruiterProfile = {
   id: RecruiterPersonality;
@@ -78,8 +78,8 @@ export const RECRUITER_PROFILES: Record<RecruiterPersonality, RecruiterProfile> 
     focus: ["initiative", "adaptability", "speed", "impact"],
     pressure: 4,
   },
-  german_corporate: {
-    id: "german_corporate",
+  corporate_recruiter: {
+    id: "corporate_recruiter",
     name: "Markus",
     role: "Corporate Recruiter",
     tone: "structured and professional",
@@ -96,7 +96,7 @@ export function normalizeRecruiterPersonality(value?: unknown): RecruiterPersona
 
   if (key === "friendly_hr" || raw.includes("sarah")) return "friendly_hr";
   if (key === "startup_recruiter" || raw.includes("priya")) return "startup_recruiter";
-  if (key === "german_corporate" || key === "corporate_recruiter" || raw.includes("markus")) return "german_corporate";
+  if (key === "corporate_recruiter" || key === "german_corporate" || raw.includes("markus")) return "corporate_recruiter";
   if (key === "analytical_hiring_manager" || raw.includes("daniel")) return "analytical_hiring_manager";
   return "analytical_hiring_manager";
 }

@@ -255,7 +255,7 @@ const recruiterProfiles: Record<
     focusAreas: ["metrics", "trade-offs", "technical reasoning", "decision quality"],
     pressureStyle: "Drills into numbers, trade-offs, and individual ownership",
   },
-  german_corporate: {
+  corporate_recruiter: {
     name: "Markus Weber",
     title: "Corporate Hiring Lead",
     image: "/recruiters/markus.png",
@@ -486,8 +486,8 @@ function normalizeRecruiterId(value: unknown) {
     return "analytical_hiring_manager";
   }
 
-  if (key === "german_corporate" || raw.includes("markus") || raw.includes("german_corporate")) {
-    return "german_corporate";
+  if (key === "corporate_recruiter" || key === "german_corporate" || raw.includes("markus") || raw.includes("corporate")) {
+    return "corporate_recruiter";
   }
 
   if (key === "faang_hiring_manager" || raw.includes("alex") || raw.includes("faang")) {
@@ -3159,7 +3159,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
     trackWorkZoInterviewEvent("interview_recruiter_changed", {
       recruiter: profile.name,
       role: setup.targetRole,
-      premium: recruiterId === "startup_recruiter" || recruiterId === "german_corporate",
+      premium: recruiterId === "startup_recruiter" || recruiterId === "corporate_recruiter",
     });
   }, [setup.targetRole]);
 
@@ -4827,7 +4827,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
                             { id: "friendly_hr", name: "Sarah Chen", label: "Talent Partner", premium: false },
                             { id: "analytical_hiring_manager", name: "Daniel Reed", label: "Hiring Manager", premium: false },
                             { id: "startup_recruiter", name: "Priya Raman", label: "Startup Lead", premium: true },
-                            { id: "german_corporate", name: "Markus Weber", label: "Corporate Lead", premium: true },
+                            { id: "corporate_recruiter", name: "Markus Weber", label: "Corporate Lead", premium: true },
                           ] as const).map((recruiter) => {
                             const locked = recruiter.premium && !premiumUnlocked;
                             const selected = setup.recruiterName === recruiter.name || setup.recruiterId === recruiter.id;

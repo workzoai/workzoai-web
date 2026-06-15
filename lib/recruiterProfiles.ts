@@ -23,7 +23,7 @@ export const RECRUITER_PROFILES = {
     pressure: 4,
   },
 
-  german_corporate: {
+  corporate_recruiter: {
     name: "Markus",
     tone: "structured",
     style: "process-oriented",
