@@ -291,7 +291,8 @@ function extractNameFromFileName(fileName = "") {
     .split(/\s+/)
     .filter(
       (w) =>
-        !/^(cv|resume|lebenslauf|bewerbung|curriculum|vitae|updated|final|copy|draft|template|sample|example|untitled|design|new|old|my|the|test|advanced|professional)$/i.test(
+        w.length >= 4 && // reject short acronyms like CSM, DEU, CV, etc.
+        !/^(resume|lebenslauf|bewerbung|curriculum|vitae|updated|final|copy|draft|template|sample|example|untitled|design|new|old|my|the|test|advanced|professional)$/i.test(
           w,
         ),
     )
@@ -321,16 +322,15 @@ function extractNameFromEmail(rawText: string) {
   const fromCamel = isHumanName(camelSplit);
   if (fromCamel) return fromCamel;
 
-  // Last resort: if the local part (stripped of digits) is 8-26 chars,
-  // try splitting it into two roughly equal parts as first/last name.
-  // This handles "harithavijayakumar" → "Haritha Vijayakumar" via known suffixes.
+  // Last resort: if the local part (stripped of digits) is 10-28 chars,
+  // try splitting it into first/last name parts.
+  // Require both parts >= 5 chars to avoid garbage like "Sure Nderdillibabu".
   const stripped = local.replace(/\s+/g, "").toLowerCase();
-  if (stripped.length >= 6 && stripped.length <= 28) {
-    // Try splitting after known Indian/European name prefixes (3-8 chars for first name)
-    for (let split = 4; split <= Math.min(10, stripped.length - 3); split++) {
+  if (stripped.length >= 10 && stripped.length <= 28) {
+    for (let split = 5; split <= Math.min(10, stripped.length - 5); split++) {
       const first = stripped.slice(0, split);
       const last = stripped.slice(split);
-      if (first.length >= 3 && last.length >= 3) {
+      if (first.length >= 5 && last.length >= 5) {
         const candidate = `${first.charAt(0).toUpperCase()}${first.slice(1)} ${last.charAt(0).toUpperCase()}${last.slice(1)}`;
         const validated = isHumanName(candidate);
         if (validated) return validated;
