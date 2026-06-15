@@ -4314,14 +4314,15 @@ const [questionIndex, setQuestionIndex] = useState(0);
       setQuestionIndex(nextQuestionIndex);
 
       const currentPlanForRestore = serverPlan;
-      if (currentPlanForRestore === "premium_pro" && premiumVoiceEnabledRef.current && audioEnabledRef.current) {
+      const restoreVapiEligible = currentPlanForRestore === "premium" || currentPlanForRestore === "premium_pro";
+      if (restoreVapiEligible && premiumVoiceEnabledRef.current && audioEnabledRef.current) {
         const reconnectedPremiumVoice = await startPremiumVoice(restoredSetup);
 
         if (reconnectedPremiumVoice) {
           addTranscript({
             role: "system",
             speaker: "System",
-            text: "Interview restored. Premium voice reconnected.",
+            text: "Interview restored. Live AI voice reconnected.",
           });
           setStatus("listening");
           return;
@@ -4409,12 +4410,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
     setShareableMoment(null);
 
     // ── Plan-gated voice routing ─────────────────────────────────────────────
-    // Free + Premium: browser STT/TTS only — never initialize Vapi
-    // Premium Pro: try Vapi → if it fails, browser fallback
+    // Free:         browser STT/TTS only — no Vapi
+    // Premium:      Vapi voice → browser fallback on failure  (spec: Vapi for Premium)
+    // Premium Pro:  Vapi voice → browser fallback on failure  (Tavus handled separately)
     // currentPlan already declared above for the limit check — reuse it
-    const isProPlan = currentPlan === "premium_pro";
+    const isVapiEligible = currentPlan === "premium" || currentPlan === "premium_pro";
 
-    if (isProPlan && premiumVoiceEnabledRef.current && audioEnabledRef.current) {
+    if (isVapiEligible && premiumVoiceEnabledRef.current && audioEnabledRef.current) {
       const startedPremiumVoice = await startPremiumVoice(freshSetup);
 
       if (startedPremiumVoice) {
@@ -4427,8 +4429,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
         return;
       }
 
-
-      // Vapi failed for Pro user — fall back to browser voice automatically
+      // Vapi failed — fall back to browser voice automatically
       addTranscript({
         role: "system",
         speaker: "System",
@@ -4438,7 +4439,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
       return;
     }
 
-    // Free or Premium: go straight to browser voice — no Vapi attempt
+    // Free: go straight to browser voice — no Vapi attempt
     startBrowserFallbackInterview(freshSetup);
   }, [
     addTranscript,

@@ -41,6 +41,7 @@ import PrivacyNotice from "@/components/BetaPrivacyNotice";
 import { trackWorkZoLaunchEvent } from "@/lib/workzoLaunchAnalytics";
 import { useWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
+import { cleanCvHeadline } from "@/lib/workzoCvPdfCleaner";
 import { buildWorkZoCompanyBlueprint } from "@/lib/workzoCompanyBlueprint";
 
 type Market = "Global" | "Germany" | "US" | "UK" | "India" | "Netherlands";
@@ -272,6 +273,30 @@ function compactText(value?: string, fallback = "Missing") {
   return text.length > 70 ? `${text.slice(0, 70)}...` : text;
 }
 
+function isUsableResumeProfile(value: unknown): value is ResumeProfile {
+  if (!value || typeof value !== "object" || !("basics" in value)) return false;
+  const profile = value as ResumeProfile;
+  const name = profile.basics?.name?.trim() || "";
+  const headline = profile.basics?.headline?.trim() || "";
+  const hasRealIdentity = Boolean(name || headline || profile.basics?.email);
+  const hasRealContent =
+    Boolean(profile.summary?.trim()) ||
+    Boolean(profile.experience?.length) ||
+    Boolean(profile.education?.length) ||
+    Boolean(profile.skills?.length);
+  return hasRealIdentity && hasRealContent;
+}
+
+function pickCanonicalResumeProfile(options: {
+  aiProfile?: ResumeProfile | null;
+  setupProfile?: unknown;
+  rawCvText: string;
+}) {
+  if (isUsableResumeProfile(options.aiProfile)) return options.aiProfile;
+  if (isUsableResumeProfile(options.setupProfile)) return options.setupProfile;
+  return extractResumeProfileComplex(options.rawCvText);
+}
+
 function getStoreSetup(store: unknown): SetupState {
   const value = store as { setup?: SetupState; interviewSetup?: SetupState };
   return value?.setup || value?.interviewSetup || {};
@@ -346,7 +371,13 @@ function buildInterviewCvContext(profile: ResumeProfile, fallbackRawText: string
   const basics = profile.basics || {};
 
   if (basics.name?.trim()) lines.push(`Candidate name: ${basics.name.trim()}`);
-  if (basics.headline?.trim()) lines.push(`Headline: ${basics.headline.trim()}`);
+  // Use cleanCvHeadline to avoid showing company names as the headline
+  // (common with two-column PDFs where company name gets extracted as headline)
+  const firstJobTitle = profile.experience?.[0]?.title || "";
+  const displayHeadline = basics.headline?.trim()
+    ? cleanCvHeadline(basics.headline.trim(), profile.summary || "", firstJobTitle)
+    : firstJobTitle;
+  if (displayHeadline) lines.push(`Headline: ${displayHeadline}`);
   const contact = [basics.email, basics.phone, basics.location, basics.linkedin].filter(Boolean).join(" • ");
   if (contact) lines.push(`Contact: ${contact}`);
   if (profile.summary?.trim()) lines.push(`Summary: ${profile.summary.trim()}`);
@@ -393,7 +424,11 @@ function buildCanonicalCvSetup(input: {
   language: string;
   profile?: ResumeProfile | null;
 }) {
-  const profile = input.profile || extractResumeProfileComplex(input.rawCvText);
+  const profile = pickCanonicalResumeProfile({
+    aiProfile: input.profile || null,
+    setupProfile: input.setup.resumeProfile,
+    rawCvText: input.rawCvText,
+  });
 
   const companyBlueprint = buildWorkZoCompanyBlueprint({
     companyName: String(input.setup.companyName || input.setup.targetCompany || "Target company"),
@@ -785,6 +820,7 @@ export default function OnboardingPage() {
         companyStyle: (draft.companyStyle as CompanyStyle) || companyStyle,
         recruiterPersonality: normalizeRecruiterKey(draft.recruiterPersonality),
         language: normalizeInterviewLanguage(draft.language) || interviewLanguage,
+        save: false,
       })
         .then((nextSetup) => {
           // Keep the canonical local CV parse as the source of truth.
@@ -806,7 +842,11 @@ export default function OnboardingPage() {
   function persistFast(nextStep?: number) {
     const draft = buildDraftSetup();
     const rawCvText = normalizeResumeText(draft.cvText || effectiveCvText || "");
-    const profile = extractResumeProfileComplex(rawCvText);
+    const profile = pickCanonicalResumeProfile({
+      aiProfile: aiResumeProfile,
+      setupProfile: setup.resumeProfile,
+      rawCvText,
+    });
     const fastBlueprint = buildWorkZoCompanyBlueprint({
       companyName: companyName || String(draft.companyName || draft.targetCompany || "Target company"),
       targetRole: role || profile.basics.headline || "General Role",
@@ -895,6 +935,11 @@ export default function OnboardingPage() {
           companyStyle,
           recruiter,
           language: interviewLanguage,
+          profile: pickCanonicalResumeProfile({
+            aiProfile: aiResumeProfile,
+            setupProfile: setup.resumeProfile,
+            rawCvText,
+          }),
         })
       : ({
           ...setup,
@@ -918,6 +963,7 @@ export default function OnboardingPage() {
         targetMarket: market,
         companyStyle,
         recruiterPersonality: normalizeRecruiterKey(recruiter),
+        save: false,
       })) as SetupState;
 
       nextSetup = {
@@ -1016,18 +1062,18 @@ export default function OnboardingPage() {
       debugCvText("onboarding.upload.cleaned_text", rawCvText, { fileName: file.name });
 
       const apiProfile = data?.resumeProfile || data?.profile;
-      const localProfile = apiProfile && typeof apiProfile === "object" && "basics" in apiProfile
+      const profile = isUsableResumeProfile(apiProfile)
         ? (apiProfile as ResumeProfile)
-        : extractResumeProfileComplex(rawCvText);
+        : await structureCvWithAi(rawCvText, file.name);
 
-      // Do not briefly show/save the rough parser profile here.
-      // Wait for the structured profile so the UI and interviewer use the clean version.
-      setAiCvStructuringStatus("structuring");
-
-      const profile = await structureCvWithAi(rawCvText, file.name);
+      // The upload API profile is now the canonical source of truth.
+      // Do not immediately re-parse the same CV locally, because local fallback
+      // can confuse skills/headlines/company names with candidate identity.
+      setAiResumeProfile(profile);
+      setAiCvStructuringStatus(data?.source === "ai_structured_cv" ? "ready" : "fallback");
 
       debugCvProfile("onboarding.upload.profile_selected", profile, {
-        source: profile === localProfile ? "local_profile" : "ai_structured_profile",
+        source: data?.source || "api_profile",
         fileName: file.name,
       });
 
@@ -1051,37 +1097,11 @@ export default function OnboardingPage() {
       saveCanonicalCvSetup(canonicalSetup, store);
       debugCvProfile("onboarding.upload.canonical_saved", canonicalSetup.resumeProfile, { setupId: canonicalSetup.setupId });
 
-      // Optional interview enrichment must never overwrite the CV extraction result.
-      void buildAndSaveInterviewSetup({
-        cvText: rawCvText,
-        jobDescription: jobDescription.trim(),
-        targetRole: role || profile.basics.headline || "General Role",
-        targetMarket: market,
-        companyStyle,
-        recruiterPersonality: normalizeRecruiterKey(recruiter),
-      })
-        .then((nextSetup) => {
-          const enrichedSetup = {
-            ...(nextSetup as SetupState),
-            ...canonicalSetup,
-            cvText: buildInterviewCvContext(profile, rawCvText),
-            uploadedCvText: rawCvText,
-            resumeText: buildInterviewCvContext(profile, rawCvText),
-            candidateCv: buildInterviewCvContext(profile, rawCvText),
-            rawCvText,
-            previewText: profile.previewText,
-            resumeProfile: profile,
-            updatedAt: new Date().toISOString(),
-          } as SetupState;
-
-          debugCvProfile("onboarding.upload.enriched_before_save", enrichedSetup.resumeProfile, {
-            note: "This should still match canonical parser profile. AI memory must not replace structure.",
-          });
-          saveCanonicalCvSetup(enrichedSetup, store);
-        })
-        .catch(() => {
-          // Keep canonical parser extraction. Do not fallback to stale data.
-        });
+      // Keep the upload response as the single canonical CV profile.
+      // Do not call buildAndSaveInterviewSetup here; it makes a second /api/cv JSON request
+      // and can create confusing stale-parser logs after a successful upload.
+      // Recruiter memory is still built from the saved canonical setup when the interview starts.
+      setStep(2);
     } catch (error) {
       const message =
         error instanceof Error
@@ -1400,7 +1420,11 @@ export default function OnboardingPage() {
                         const rawCvText = normalizeResumeText(nextCv);
                         if (!rawCvText.trim()) return;
 
-                        const profile = extractResumeProfileComplex(rawCvText);
+                        const profile = pickCanonicalResumeProfile({
+      aiProfile: aiResumeProfile,
+      setupProfile: setup.resumeProfile,
+      rawCvText,
+    });
                         const canonicalSetup = buildCanonicalCvSetup({
                           setup,
                           rawCvText,

@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// ElevenLabs is used for premium voice quality.
+// Free users fall back to browser TTS — they never hit this route.
+// Premium and Premium Pro both get ElevenLabs access.
 
 type RecruiterId =
   | "friendly_hr"
   | "analytical_hiring_manager"
   | "startup_recruiter"
-  | "german_corporate";
+  | "corporate_recruiter"; // was "german_corporate" — now matches recruiterAssets.ts
 
 const DEFAULT_VOICE_IDS: Record<RecruiterId, string> = {
   friendly_hr: "EXAVITQu4vr4xnSDxMaL",
   startup_recruiter: "EXAVITQu4vr4xnSDxMaL",
-  german_corporate: "VR6AewLTigWG4xSOukaG",
+  corporate_recruiter: "VR6AewLTigWG4xSOukaG",
   analytical_hiring_manager: "VR6AewLTigWG4xSOukaG",
 };
 
@@ -17,27 +25,46 @@ function getVoiceId(recruiterId: RecruiterId) {
   if (recruiterId === "friendly_hr") {
     return process.env.ELEVENLABS_VOICE_SARAH || DEFAULT_VOICE_IDS.friendly_hr;
   }
-
   if (recruiterId === "startup_recruiter") {
     return process.env.ELEVENLABS_VOICE_PRIYA || DEFAULT_VOICE_IDS.startup_recruiter;
   }
-
-  if (recruiterId === "german_corporate") {
-    return process.env.ELEVENLABS_VOICE_MARKUS || DEFAULT_VOICE_IDS.german_corporate;
+  if (recruiterId === "corporate_recruiter") {
+    return process.env.ELEVENLABS_VOICE_MARKUS || DEFAULT_VOICE_IDS.corporate_recruiter;
   }
-
   return process.env.ELEVENLABS_VOICE_DANIEL || DEFAULT_VOICE_IDS.analytical_hiring_manager;
 }
 
 function normalizeRecruiterId(value: unknown): RecruiterId {
   if (value === "friendly_hr") return "friendly_hr";
   if (value === "startup_recruiter") return "startup_recruiter";
-  if (value === "german_corporate") return "german_corporate";
+  // Accept both old "german_corporate" key and canonical "corporate_recruiter"
+  if (value === "corporate_recruiter" || value === "german_corporate") return "corporate_recruiter";
   if (value === "analytical_hiring_manager") return "analytical_hiring_manager";
   return "startup_recruiter";
 }
 
 export async function POST(request: NextRequest) {
+  // ── Auth + plan gate ────────────────────────────────────────────────────────
+  let resolved;
+  try {
+    resolved = await resolveWorkZoServerPlan();
+  } catch {
+    return NextResponse.json({ error: "Could not resolve account plan." }, { status: 500 });
+  }
+
+  if (!resolved.authenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // ElevenLabs is premium voice — free users use browser TTS instead.
+  if (resolved.plan === "free") {
+    return NextResponse.json(
+      { error: "upgrade_required", requiredPlan: "premium", message: "Premium voice requires an upgrade." },
+      { status: 403 },
+    );
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   try {
     const apiKey = process.env.ELEVENLABS_API_KEY || process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY;
 

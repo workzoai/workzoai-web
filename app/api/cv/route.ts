@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
 import { createRequire } from "module";
-import { sanitizeResumeProfileIdentity, normalizeResumeText } from "@/lib/workzoResumeParser";
-import { parseResumeWithAiStructure } from "@/lib/workzoAiCvParser";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
+import {
+  normalizeResumeText,
+  type ResumeProfile,
+} from "@/lib/workzoResumeParser";
+import { cleanExtractedCvText } from "@/lib/workzoCvPdfCleaner";
+import {
+  parseResumeWithAiStructure,
+  repairResumeProfileAfterParsing,
+} from "@/lib/workzoAiCvParser";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 
 const require = createRequire(import.meta.url);
@@ -12,11 +19,17 @@ export const dynamic = "force-dynamic";
 
 type RequestBody = {
   cvText?: string;
+  layoutText?: string;
+  rawCvText?: string;
+  uploadedCvText?: string;
+  resumeProfile?: ResumeProfile;
+  profile?: ResumeProfile;
   jobDescription?: string;
   targetRole?: string;
   targetMarket?: string;
   fileName?: string;
   language?: string;
+  mode?: string;
 };
 
 type PdfParseResult = {
@@ -25,40 +38,146 @@ type PdfParseResult = {
   info?: unknown;
   metadata?: unknown;
 };
-
 type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>;
+type AnyRecord = Record<string, unknown>;
 
-function text(value: unknown) {
-  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+type AffindaResult = {
+  ok: boolean;
+  source: "affinda_resume_parser" | "affinda_failed" | "affinda_not_configured";
+  resumeProfile?: ResumeProfile;
+  raw?: unknown;
+  error?: string;
+};
+
+function normalizeUploadFileName(fileName = "") {
+  const clean = String(fileName || "uploaded-cv.pdf")
+    .replace(/\s+/g, " ")
+    .trim();
+  return (
+    clean
+      .replace(/(?:\.pdf){2,}$/i, ".pdf")
+      .replace(/(?:\.docx){2,}$/i, ".docx")
+      .replace(/(?:\.txt){2,}$/i, ".txt") || "uploaded-cv.pdf"
+  );
 }
 
+function normalizeCvText(value: string) {
+  return cleanExtractedCvText(normalizeResumeText(value || ""));
+}
 
-const INVALID_CANDIDATE_NAME_WORDS = [
-  "public relations",
-  "project management",
-  "teamwork",
-  "time management",
-  "leadership",
-  "effective communication",
-  "critical thinking",
-  "english",
-  "german",
-  "programming",
-  "machine learning",
-  "data visualization",
-  "data engineering",
-  "generative ai",
-  "skills",
-  "contact",
-  "education",
-  "expertise",
-  "languages",
-  "projects",
-  "professional experience",
-  "profile summary",
-  "technical support engineer",
-  "application engineer",
-];
+async function parsePdf(buffer: Buffer) {
+  const pdfParseModule = require("pdf-parse");
+  const pdfParse: PdfParseFn = pdfParseModule.default || pdfParseModule;
+  const result = await pdfParse(buffer);
+  return result.text || "";
+}
+
+async function extractFileTextFromBuffer(
+  buffer: Buffer,
+  fileName: string,
+  fileType: string,
+) {
+  const lowerName = fileName.toLowerCase();
+  const lowerType = fileType.toLowerCase();
+
+  if (lowerType.includes("pdf") || lowerName.endsWith(".pdf"))
+    return parsePdf(buffer);
+  if (lowerType.includes("text") || lowerName.endsWith(".txt"))
+    return buffer.toString("utf8");
+
+  throw new Error("Unsupported file type. Please upload a PDF or TXT CV.");
+}
+
+function cleanText(value: unknown) {
+  if (typeof value === "string")
+    return normalizeResumeText(value).replace(/\s+/g, " ").trim();
+  if (typeof value === "number") return String(value);
+  return "";
+}
+
+function asRecord(value: unknown): AnyRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as AnyRecord)
+    : null;
+}
+
+function asArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  return [value];
+}
+
+function valueAt(obj: AnyRecord | null | undefined, keys: string[]) {
+  if (!obj) return undefined;
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null) return obj[key];
+  }
+  return undefined;
+}
+
+function deepText(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number")
+    return cleanText(value);
+  if (Array.isArray(value))
+    return value.map(deepText).filter(Boolean).join(" ").trim();
+
+  const obj = asRecord(value);
+  if (!obj) return "";
+
+  // Affinda fields often expose raw/parsed/value/text/name/inputStr.
+  const direct = valueAt(obj, [
+    "raw",
+    "parsed",
+    "value",
+    "text",
+    "name",
+    "formatted",
+    "inputStr",
+    "display",
+    "label",
+  ]);
+  if (direct !== value && direct !== undefined && direct !== null) {
+    const text = deepText(direct);
+    if (text) return text;
+  }
+
+  const first = deepText(valueAt(obj, ["first", "firstName", "givenName"]));
+  const middle = deepText(valueAt(obj, ["middle", "middleName"]));
+  const last = deepText(
+    valueAt(obj, ["last", "lastName", "familyName", "surname"]),
+  );
+  return [first, middle, last].filter(Boolean).join(" ").trim();
+}
+
+function unique(items: string[], limit = 80) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of items) {
+    const value = cleanText(item);
+    const key = value
+      .toLowerCase()
+      .replace(/[^a-z0-9äöüßà-ÿ]+/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function splitBullets(value: unknown): string[] {
+  const text = deepText(value);
+  if (!text) return [];
+  return unique(
+    text
+      .split(/\n|•|\u2022|\s+-\s+|(?<=[.!?])\s+(?=[A-ZÄÖÜ])/g)
+      .map((item) => item.replace(/^[-*•\s]+/, "").trim())
+      .filter((item) => item.length > 12),
+    8,
+  );
+}
 
 function titleCaseName(value: string) {
   return value
@@ -69,493 +188,1041 @@ function titleCaseName(value: string) {
     .join(" ");
 }
 
-function normalizeSpacedCapsLine(line: string) {
-  const trimmed = line.trim();
-  const lettersOnly = trimmed.replace(/[^A-Za-z]/g, "");
-  const spacedUppercase = /^(?:[A-Z]\s*){6,}$/.test(trimmed.replace(/[^A-Z\s]/g, ""));
+function normalizeForCompare(value: string) {
+  return cleanText(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  if (lettersOnly.length >= 8 && spacedUppercase) {
-    return lettersOnly;
-  }
+const SECTION_OR_FAKE_NAME_RE =
+  /\b(profile\s*summary|profilesummary|work\s*experience|workexperience|professional\s*summary|summary|skills?|expertise|competencies|core\s*competencies|languages?|education|contact|projects?|certifications?|awards?|interests?|references?|berufserfahrung|bildungsweg|bildung|kenntnisse|fähigkeiten|fahigkeiten|ausbildung|sprachen|kontakt|programm|programming|program|data\s*visuali[sz]ation|machine\s*learning|generative\s*ai|matplotlib|seaborn|tableau|python|sql|tensorflow|sklearn|langchain|leadership|teamwork|critical\s*thinking|time\s*management|public\s*relations|effective\s*communication|english|german|deutsch|fluent|native|conversational|professional\s+working|intermediate|basic|basics|c1|c2|b1|b2|a1|a2|datenanalyse|markenmanagement|kommunikation|kreativität|kreativitat|betriebssysteme|netzwerke|programmierung|übersicht|ubersicht|profil|profilu\s*bersicht|berufsprofil)\b/i;
+const ORG_RE =
+  /\b(gmbh|ug|ag|kg|ltd|limited|llc|inc|corp|corporation|company|co\.?|group|holding|services|solutions|systems|technolog(?:y|ies)|software|digital|media|productions?|industries|studio|agency|partners|consulting|ventures|labs?|university|universität|universitaet|college|school|schule|hochschule|institute|institut|academy|akademie|preschool|kindergarten|department|ministry|state\s+education|community)\b/i;
+const LOCATION_RE =
+  /\b(street|straße|strasse|road|avenue|ave|weg|platz|city|stadt|town|village|germany|deutschland|india|france|italy|spain|usa|canada|berlin|munich|münchen|würzburg|wurzburg|chennai|london|frankfurt|anywhere|jeder?|jede)\b/i;
+const ROLE_RE =
+  /\b(project|product|program|programme|portfolio|it|ux|ui|software|data|business|marketing|sales|account|customer|success|support|technical|system|network|cloud|frontend|backend|full[ -]?stack|devops|hr|finance|operations|teacher|tutor|engineer|developer|designer|analyst|specialist|consultant|coordinator|administrator|assistant|manager|director|lead|head|officer|executive|intern|trainee|technician|scientist|researcher|planner|berater|entwickler|leiter|managerin|assistent)\b/i;
+const CONTACT_RE = /@|www\.|https?:|linkedin|github|\+?\d[\d\s()./-]{5,}/i;
+const NAME_SECTION_HEADERS = new Set([
+  "CONTACT",
+  "CONTACTS",
+  "KONTAKT",
+  "SKILLS",
+  "EXPERTISE",
+  "LANGUAGES",
+  "SPRACHEN",
+  "EDUCATION",
+  "BILDUNG",
+  "BILDUNGSWEG",
+  "PROJECTS",
+  "PROJEKTE",
+  "PROFILE",
+  "PROFIL",
+  "SUMMARY",
+  "OVERVIEW",
+  "WORKEXPERIENCE",
+  "BERUFSERFAHRUNG",
+  "PROFILESUMMARY",
+  "PROFESSIONALSUMMARY",
+]);
+const TITLE_HINT_RE =
+  /\b(manager|managerin|engineer|designer|analyst|specialist|consultant|teacher|tutor|scientist|developer|assistant|assistent|support|data|marketing|product|project|preschool|cybersecurity|ai|ux|ui|it)\b/i;
 
+function compactDecorativeLine(line: string) {
+  const trimmed = line
+    .replace(/[•●▪◦]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  if (tokens.length >= 4 && tokens.every((t) => /^\p{Lu}$/u.test(t)))
+    return tokens.join("");
   return trimmed;
 }
 
-function isBadCandidateName(value: unknown) {
-  const name = text(value);
-  if (!name) return true;
-
-  const lower = name.toLowerCase();
-  if (INVALID_CANDIDATE_NAME_WORDS.some((item) => lower === item || lower.includes(item))) {
-    return true;
-  }
-
-  if (/@|linkedin|github|http|www|phone|email|address|street|straße|strasse|weg|germany|deutschland|würzburg|wurzburg|\d/.test(lower)) {
-    return true;
-  }
-
-  const words = name.split(/\s+/).filter(Boolean);
-  if (words.length < 2 || words.length > 5) return true;
-
-  return false;
+function prepareLines(rawText: string) {
+  return String(rawText || "")
+    .split(/\n+/)
+    .map(compactDecorativeLine)
+    .map((line) => line.replace(/[\t]+/g, " ").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
 }
 
-function deriveCandidateNameFromCv(rawText = "", fileName = "", currentName = "") {
-  if (!isBadCandidateName(currentName)) {
-    return titleCaseName(text(currentName));
-  }
-
-  const lines = String(rawText || "")
-    .split(/\n+/)
-    .map((line) => normalizeSpacedCapsLine(line))
-    .map((line) => line.replace(/[^A-Za-zÀ-ÿ.' -]/g, " ").replace(/\s+/g, " ").trim())
-    .filter(Boolean);
-
-  for (const line of lines.slice(0, 80)) {
-    const words = line.split(/\s+/).filter(Boolean);
-    const compactUpper = line.replace(/\s+/g, "");
-
-    if (/^[A-Z]{8,}$/.test(compactUpper) && compactUpper.length <= 40) {
-      const split = compactUpper.match(/[A-Z][a-z]*|[A-Z]+(?=[A-Z]|$)/g);
-      if (split && split.length >= 2 && split.length <= 5) {
-        const candidate = split.join(" ");
-        if (!isBadCandidateName(candidate)) return titleCaseName(candidate);
-      }
-    }
-
-    if (words.length >= 2 && words.length <= 5 && !isBadCandidateName(line)) {
-      const mostlyLetters = words.every((word) => /^[A-Za-zÀ-ÿ.'-]+$/.test(word));
-      const looksLikeName =
-        mostlyLetters &&
-        words.every((word) => word.length >= 2) &&
-        words.filter((word) => /^[A-ZÀ-Ý]/.test(word)).length >= 2;
-
-      if (looksLikeName) {
-        return titleCaseName(line);
-      }
-    }
-  }
-
-  const cleanFileName = String(fileName || "")
-    .replace(/\.(pdf|docx|doc|txt)$/gi, "")
-    .replace(/\.(pdf|docx|doc|txt)$/gi, "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\d+/g, " ")
+function isHumanName(value: unknown) {
+  const raw = cleanText(value)
+    .replace(/^(candidate\s*name|name|applicant)\s*[:\-]\s*/i, "")
+    .replace(/[^\p{L}' .-]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-  if (cleanFileName && !isBadCandidateName(cleanFileName)) {
-    return titleCaseName(cleanFileName);
-  }
+  if (!raw || raw.length < 3 || raw.length > 70) return "";
+  if (CONTACT_RE.test(raw)) return "";
+  if (SECTION_OR_FAKE_NAME_RE.test(raw)) return "";
+  if (ORG_RE.test(raw)) return "";
+  if (LOCATION_RE.test(raw)) return "";
 
-  const email = String(rawText || "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
-  const local = email.split("@")[0]?.replace(/[._-]+/g, " ").replace(/\d+/g, " ").trim() || "";
-  if (local && !isBadCandidateName(local)) {
-    return titleCaseName(local);
+  const parts = raw.split(/\s+/).filter(Boolean);
+  if (parts.length < 2 || parts.length > 5) return "";
+  if (new Set(parts.map((p) => p.toLowerCase())).size === 1) return "";
+  if (!parts.every((part) => /^[\p{L}'-]{2,25}$/u.test(part))) return "";
+
+  const roleWords = parts.filter((part) => ROLE_RE.test(part)).length;
+  if (roleWords >= Math.ceil(parts.length / 2)) return "";
+
+  return raw === raw.toUpperCase() ? titleCaseName(raw) : raw;
+}
+
+function extractEmail(rawText: string) {
+  const compact = rawText.replace(
+    /([A-Z0-9._%+-]+)\s*\n\s*@\s*([A-Z0-9.-]+\.[A-Z]{2,})/gi,
+    "$1@$2",
+  );
+  return compact.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
+}
+
+function extractNameFromFileName(fileName = "") {
+  const value = fileName
+    .replace(/\.(pdf|docx|doc|txt)$/gi, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\d+/g, " ")
+    .split(/\s+/)
+    .filter(
+      (w) =>
+        !/^(cv|resume|lebenslauf|bewerbung|curriculum|vitae|updated|final|copy|draft|template|sample|example|untitled|design|new|old|my|the|test|advanced|professional)$/i.test(
+          w,
+        ),
+    )
+    .join(" ")
+    .trim();
+  return isHumanName(value);
+}
+
+function extractNameFromEmail(rawText: string) {
+  const email = extractEmail(rawText);
+  if (!email) return "";
+  const local = email
+    .split("@")[0]
+    .replace(/\d+/g, " ")   // strip numbers first
+    .replace(/[._-]+/g, " ") // split on separators
+    .trim();
+
+  // Try direct split first (e.g. "john.doe" or "john_doe")
+  const direct = isHumanName(local);
+  if (direct) return direct;
+
+  // Try camelCase split (e.g. "JohnDoe" or "johnDoe")
+  const camelSplit = local
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .trim();
+  const fromCamel = isHumanName(camelSplit);
+  if (fromCamel) return fromCamel;
+
+  // Last resort: if the local part (stripped of digits) is 8-26 chars,
+  // try splitting it into two roughly equal parts as first/last name.
+  // This handles "harithavijayakumar" → "Haritha Vijayakumar" via known suffixes.
+  const stripped = local.replace(/\s+/g, "").toLowerCase();
+  if (stripped.length >= 6 && stripped.length <= 28) {
+    // Try splitting after known Indian/European name prefixes (3-8 chars for first name)
+    for (let split = 4; split <= Math.min(10, stripped.length - 3); split++) {
+      const first = stripped.slice(0, split);
+      const last = stripped.slice(split);
+      if (first.length >= 3 && last.length >= 3) {
+        const candidate = `${first.charAt(0).toUpperCase()}${first.slice(1)} ${last.charAt(0).toUpperCase()}${last.slice(1)}`;
+        const validated = isHumanName(candidate);
+        if (validated) return validated;
+      }
+    }
   }
 
   return "";
 }
 
-function applySafeRecruiterCandidateName<T extends { recruiterMemoryProfile?: { candidateName?: string } }>(
-  payload: T,
-  rawText = "",
-  fileName = "",
-): T {
-  const profile = payload?.recruiterMemoryProfile;
-  if (!profile) return payload;
+function isSectionHeaderLine(line: string) {
+  const key = line.replace(/[^A-Za-zÄÖÜäöüß]/g, "").toUpperCase();
+  return NAME_SECTION_HEADERS.has(key) || SECTION_OR_FAKE_NAME_RE.test(line);
+}
 
-  const safeName = deriveCandidateNameFromCv(rawText, fileName, profile.candidateName || "");
-  if (safeName) {
-    profile.candidateName = safeName;
-  } else if (isBadCandidateName(profile.candidateName)) {
-    profile.candidateName = "";
+function splitCompactNameByFile(compact: string, fileName = "") {
+  const fileCandidate = extractNameFromFileName(fileName);
+  if (!fileCandidate) return "";
+  const compactFile = normalizeForCompare(fileCandidate).replace(/\s+/g, "");
+  const compactLine = normalizeForCompare(compact).replace(/\s+/g, "");
+  return compactFile && compactLine && compactFile === compactLine
+    ? fileCandidate
+    : "";
+}
+
+function extractHeaderName(rawText: string, fileName = "", parserName = "") {
+  const lines = prepareLines(rawText); // scan full document — two-column PDFs often place the name after line 220
+  const candidates: Array<{ name: string; score: number; reason: string }> = [];
+
+  // Highest trust: user-uploaded filename when it contains a real name.
+  const fromFile = extractNameFromFileName(fileName);
+  if (fromFile) candidates.push({ name: fromFile, score: 95, reason: "file" });
+
+  const fromEmail = extractNameFromEmail(rawText);
+  if (fromEmail)
+    candidates.push({ name: fromEmail, score: 30, reason: "email" });
+
+  // Lowest trust: parser/model name. It often returns skills, languages, companies, or schools.
+  const fromParser = isHumanName(parserName);
+  if (fromParser)
+    candidates.push({ name: fromParser, score: 8, reason: "parser-low-trust" });
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (isSectionHeaderLine(line)) continue;
+
+    const compactFileName = /^[A-ZÄÖÜ]{10,}$/u.test(line)
+      ? splitCompactNameByFile(line, fileName)
+      : "";
+    if (compactFileName) {
+      candidates.push({
+        name: compactFileName,
+        score: 110,
+        reason: "compact-file-confirmed",
+      });
+      continue;
+    }
+
+    const name = isHumanName(line);
+    if (!name) continue;
+
+    const prev = lines[index - 1] || "";
+    const next = lines[index + 1] || "";
+    const prev2 = lines[index - 2] || "";
+    const next2 = lines[index + 2] || "";
+    const near = [prev2, prev, next, next2].join(" ");
+
+    let score = 0;
+    if (index < 15) score += 34;
+    else if (index < 50) score += 22;
+    else if (index < 120) score += 12;
+
+    if (line === line.toUpperCase()) score += 14;
+    if (TITLE_HINT_RE.test(prev) && !isHumanName(prev)) score += 22;
+    if (TITLE_HINT_RE.test(next) && !isHumanName(next)) score += 26;
+    if (CONTACT_RE.test(near)) score += 12;
+
+    if (SECTION_OR_FAKE_NAME_RE.test(near)) score -= 18;
+    if (ORG_RE.test(line) || ORG_RE.test(near)) score -= 22;
+    if (LOCATION_RE.test(line)) score -= 30;
+    if (
+      /\b(fluent|native|conversational|intermediate|professional|basic|b1|b2|c1|c2|a1|a2)\b/i.test(
+        line,
+      )
+    )
+      score -= 40;
+    if (
+      /\b(matplotlib|seaborn|tableau|python|sql|programm|programming|profile\s*summary|work\s*experience)\b/i.test(
+        line,
+      )
+    )
+      score -= 50;
+
+    candidates.push({ name, score, reason: "line" });
   }
 
-  return payload;
-}
+  // Handles split layout: ADELINE / ENGLISH TEACHER / PALMERSTON.
+  for (let i = 0; i < Math.min(lines.length - 2, 80); i += 1) {
+    const first = cleanText(lines[i]);
+    const middle = cleanText(lines[i + 1]);
+    const last = cleanText(lines[i + 2]);
+    if (
+      /^[A-ZÄÖÜ][A-ZÄÖÜ'-]{2,}$/u.test(first) &&
+      TITLE_HINT_RE.test(middle) &&
+      /^[A-ZÄÖÜ][A-ZÄÖÜ'-]{2,}$/u.test(last)
+    ) {
+      const combined = isHumanName(`${first} ${last}`);
+      if (combined)
+        candidates.push({
+          name: combined,
+          score: 110,
+          reason: "split-title-name",
+        });
+    }
+  }
 
-function normalizeUploadFileName(fileName = "") {
-  const clean = String(fileName || "uploaded-cv.pdf").replace(/\s+/g, " ").trim();
-  return clean
-    .replace(/(?:\.pdf){2,}$/i, ".pdf")
-    .replace(/(?:\.docx){2,}$/i, ".docx")
-    .replace(/(?:\.txt){2,}$/i, ".txt") || "uploaded-cv.pdf";
-}
-
-// Same rationale as normalizeCvText above: delegate to the single shared,
-// generic normalizer (which has a guarded, less-corruptive camelCase split
-// plus mojibake/encoding-artefact repair) instead of a third divergent copy
-// of similar regex logic.
-function normalizeExtractedText(value: string) {
-  return normalizeResumeText(value);
-}
-
-function jsonFromModel(raw: string) {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    const first = raw.indexOf("{");
-    const last = raw.lastIndexOf("}");
-
-    if (first >= 0 && last > first) {
-      try {
-        return JSON.parse(raw.slice(first, last + 1));
-      } catch {
-        return null;
+  // Handles two consecutive compact all-caps spaced-letter lines that together form a name.
+  // Example: "S U R E N D E R" (compacted to "SURENDER") followed by "D I L L I B A B U"
+  // ("DILLIBABU") — neither alone passes isHumanName (1 part), but together they do.
+  for (let i = 0; i < Math.min(lines.length - 1, 80); i += 1) {
+    const lineA = cleanText(lines[i]);
+    const lineB = cleanText(lines[i + 1]);
+    // Only attempt if both compact to 1-word all-caps tokens (the spaced-letter pattern)
+    if (
+      /^[A-ZÄÖÜ]{4,}$/u.test(lineA) &&
+      /^[A-ZÄÖÜ]{3,}$/u.test(lineB) &&
+      !isSectionHeaderLine(lineA) &&
+      !isSectionHeaderLine(lineB)
+    ) {
+      const combined = isHumanName(titleCaseName(`${lineA} ${lineB}`));
+      if (combined) {
+        // Cross-check: if filename contains something matching, boost confidence
+        const fileCandidate = extractNameFromFileName(fileName);
+        const fileKey = normalizeForCompare(fileCandidate).replace(/\s+/g, "");
+        const combinedKey = normalizeForCompare(combined).replace(/\s+/g, "");
+        const score =
+          fileKey && combinedKey && fileKey === combinedKey ? 115 : 85;
+        candidates.push({ name: combined, score, reason: "two-line-compact" });
       }
     }
-
-    return null;
-  }
-}
-
-function sentences(value: string, limit = 8) {
-  return value
-    .split(/[.!?]/)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 35)
-    .slice(0, limit);
-}
-
-async function extractPdfText(buffer: Buffer) {
-  debugCvPipeline("api.cv.pdf_parse.before", { bytes: buffer.length });
-  try {
-    type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>;
-
-    const pdfParse = require("pdf-parse/lib/pdf-parse.js") as PdfParseFn;
-
-    const result = await pdfParse(buffer);
-    const extracted = normalizeExtractedText(result.text || "");
-    debugCvText("api.cv.pdf_parse.after", extracted, { pages: result.numpages || null });
-
-    if (extracted.length > 30) {
-      return extracted;
-    }
-
-    throw new Error("PDF parser returned empty text.");
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "PDF extraction failed.";
-
-    throw new Error(
-      "PDF uploaded, but WorkZo could not extract readable text. Parser note: " +
-        message
-    );
-  }
-}
-
-// normalizeCvText previously duplicated (and partially diverged from) the
-// normalization logic in workzoResumeParser.ts — including a more aggressive,
-// unguarded camelCase-split regex that could corrupt all-caps spaced headers
-// (e.g. turning "PRODUCT DESIGN ENGINEER\nSURENDER\nDILLIBABU" into
-// "PRODUCTD ESIGNENG INEERSUR ENDERDIL LIBABU" when combined with upstream
-// PDF extraction artefacts). Use the single shared, generic normalizer
-// instead so PDF/DOCX/TXT text is cleaned consistently everywhere.
-function normalizeCvText(raw: string) {
-  return normalizeResumeText(raw);
-}
-
-async function extractDocxText(buffer: Buffer) {
-  try {
-    const mammoth = await import("mammoth");
-    const result = await mammoth.extractRawText({ buffer });
-    const extracted = normalizeExtractedText(result.value || "");
-
-    if (extracted.length > 20) {
-      return extracted;
-    }
-  } catch {
-    // Continue to error below.
   }
 
-  throw new Error("DOCX uploaded, but no readable CV text was found.");
+  const deduped = new Map<
+    string,
+    { name: string; score: number; reason: string }
+  >();
+  for (const candidate of candidates) {
+    const key = normalizeForCompare(candidate.name);
+    const existing = deduped.get(key);
+    if (!existing || candidate.score > existing.score)
+      deduped.set(key, candidate);
+  }
+
+  const best = [...deduped.values()].sort((a, b) => b.score - a.score)[0];
+
+  // Primary: return the best scoring candidate if it clears the threshold.
+  if (best && best.score >= 14) return best.name;
+
+  // Last resort: if no candidate scored well enough but the AI parser gave us
+  // something that passes isHumanName validation, trust it — it was trained
+  // specifically to extract names and often gets it right even when position
+  // scoring fails (e.g. names buried deep in two-column PDF extraction order).
+  if (parserName) {
+    const parserValidated = isHumanName(parserName);
+    if (parserValidated) return parserValidated;
+  }
+
+  return "";
 }
 
-async function extractFileText(file: File) {
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-
-  const name = file.name.toLowerCase();
-  const type = file.type.toLowerCase();
-
-  if (name.endsWith(".txt") || type.includes("text/plain")) {
-    const extracted = normalizeExtractedText(buffer.toString("utf-8"));
-
-    if (extracted.length > 5) {
-      return extracted;
-    }
-
-    throw new Error("TXT uploaded, but no readable text was found.");
+function pickFirstText(...values: unknown[]) {
+  for (const value of values) {
+    const text = deepText(value);
+    if (text) return text;
   }
-
-  if (name.endsWith(".pdf") || type.includes("pdf")) {
-    return extractPdfText(buffer);
-  }
-
-  if (name.endsWith(".docx") || type.includes("wordprocessingml")) {
-    return extractDocxText(buffer);
-  }
-
-  if (name.endsWith(".doc")) {
-    throw new Error("Old .doc files are not supported yet. Please upload PDF/DOCX/TXT or paste text.");
-  }
-
-  throw new Error("Unsupported file type. Please upload PDF, DOCX, or TXT.");
+  return "";
 }
 
-function emptyMemory(targetRole: string, targetMarket: string) {
-  return {
-    recruiterMemoryProfile: {
-      candidateName: "",
-      location: targetMarket || "Global",
-      targetRole: targetRole || "General Role",
-      summary: [],
-      skills: { technical: [], business: [], tools: [] },
-      experience: [],
-      projects: [],
-      education: [],
-      languages: [],
-      recruiterMemory: [],
-      possibleConcerns: ["No CV or job description was provided yet."],
-    },
-    jobMemoryProfile: {
-      roleTitle: targetRole || "General Role",
-      businessContext: "",
-      responsibilities: [],
-      requiredSkills: [],
-      softSkills: [],
-      interviewFocus: [
-        "Ask the candidate to provide CV and job description context before a full interview.",
-      ],
-    },
-    confidence: "skipped",
-  };
+function pickArrayText(value: unknown, limit = 80) {
+  const arr = asArray(value);
+  const items = arr.map(deepText).filter(Boolean);
+  return unique(items, limit);
 }
 
-function fallbackMemory(input: {
-  cvText: string;
-  jobDescription: string;
-  targetRole: string;
-  targetMarket: string;
-  warning?: string;
-}) {
-  const cvLines = sentences(input.cvText, 12);
-  const jdLines = sentences(input.jobDescription, 8);
-
-  return {
-    recruiterMemoryProfile: {
-      candidateName: "",
-      location: input.targetMarket,
-      targetRole: input.targetRole,
-      summary: cvLines.slice(0, 4),
-      skills: { technical: [], business: [], tools: [] },
-      experience: [],
-      projects: [],
-      education: [],
-      languages: [],
-      recruiterMemory: cvLines,
-      possibleConcerns: [input.warning || "Fallback recruiter memory generated."],
-    },
-    jobMemoryProfile: {
-      roleTitle: input.targetRole,
-      businessContext: input.jobDescription.slice(0, 700),
-      responsibilities: jdLines,
-      requiredSkills: [],
-      softSkills: [],
-      interviewFocus: ["Ask for measurable examples.", "Ask for role-specific proof."],
-    },
-    confidence: "fallback",
-  };
+function findAffindaData(document: unknown): AnyRecord {
+  const root = asRecord(document) || {};
+  const direct = asRecord(root.data);
+  if (direct) return direct;
+  const innerDocument = asRecord(root.document);
+  if (innerDocument && asRecord(innerDocument.data))
+    return asRecord(innerDocument.data) || {};
+  const result = asRecord(root.result);
+  if (result && asRecord(result.data)) return asRecord(result.data) || {};
+  return root;
 }
 
-async function buildMemoryFromJson(body: RequestBody) {
-  const cvText = text(body.cvText);
-  const jobDescription = text(body.jobDescription);
-  const targetRole = text(body.targetRole) || "General Role";
-  const targetMarket = text(body.targetMarket) || "Global";
-  const fileName = text(body.fileName);
-  const language = text(body.language) || "English";
+function mapAffindaProfile(
+  document: unknown,
+  rawText: string,
+  fileName: string,
+): ResumeProfile {
+  const data = findAffindaData(document);
 
-  if (!cvText && !jobDescription) {
-    return NextResponse.json(emptyMemory(targetRole, targetMarket));
-  }
+  const nameObj = valueAt(data, [
+    "name",
+    "fullName",
+    "candidateName",
+    "candidate",
+    "personName",
+  ]);
+  const parserName = deepText(nameObj);
+  const lockedName = extractHeaderName(rawText, fileName, parserName);
 
-  const fallback = applySafeRecruiterCandidateName(
-    fallbackMemory({
-      cvText,
-      jobDescription,
-      targetRole,
-      targetMarket,
-    }),
-    cvText,
-    fileName,
+  const email = pickFirstText(
+    valueAt(data, ["email", "emailAddress"]),
+    valueAt(data, ["emails", "emailAddresses"]),
+    extractEmail(rawText),
+  );
+  const phone = pickFirstText(
+    valueAt(data, ["phone", "phoneNumber"]),
+    valueAt(data, ["phoneNumbers", "phones", "mobile"]),
+  );
+  const linkedin = pickFirstText(
+    valueAt(data, ["linkedin", "linkedIn", "linkedInUrl"]),
+    valueAt(data, ["websites", "urls", "links"]),
+  );
+  const location = pickFirstText(
+    valueAt(data, ["location", "address", "locationName", "city", "country"]),
+  );
+  const headline = pickFirstText(
+    valueAt(data, [
+      "profession",
+      "headline",
+      "jobTitle",
+      "currentJobTitle",
+      "objective",
+    ]),
+  );
+  const summary = pickFirstText(
+    valueAt(data, [
+      "summary",
+      "professionalSummary",
+      "objective",
+      "profile",
+      "about",
+    ]),
   );
 
-  try {
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json(fallback);
-    }
+  const experienceSource = valueAt(data, [
+    "workExperience",
+    "experience",
+    "employment",
+    "employmentHistory",
+    "positions",
+  ]);
+  const experience = asArray(experienceSource)
+    .map((item) => {
+      const obj = asRecord(item) || {};
+      const org = valueAt(obj, [
+        "organization",
+        "company",
+        "employer",
+        "employerName",
+        "organizationName",
+      ]);
+      const dates = valueAt(obj, ["dates", "dateRange", "period", "duration"]);
+      return {
+        title: pickFirstText(
+          valueAt(obj, ["jobTitle", "title", "position", "role"]),
+        ),
+        company: pickFirstText(org),
+        location: pickFirstText(valueAt(obj, ["location", "address"])),
+        dates: pickFirstText(dates, [
+          valueAt(obj, ["startDate", "from"]),
+          valueAt(obj, ["endDate", "to"]),
+        ]),
+        bullets: unique(
+          [
+            ...splitBullets(
+              valueAt(obj, [
+                "jobDescription",
+                "description",
+                "responsibilities",
+                "achievements",
+                "text",
+                "summary",
+              ]),
+            ),
+            ...pickArrayText(
+              valueAt(obj, ["bulletPoints", "bullets", "tasks"]),
+              8,
+            ),
+          ],
+          8,
+        ),
+      };
+    })
+    .filter((item) => item.title || item.company || item.bullets.length)
+    .slice(0, 12);
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const educationSource = valueAt(data, [
+    "education",
+    "educationHistory",
+    "qualifications",
+  ]);
+  const education = asArray(educationSource)
+    .map((item) => {
+      const obj = asRecord(item) || {};
+      const accreditation = asRecord(
+        valueAt(obj, ["accreditation", "degree", "qualification"]),
+      );
+      const org = valueAt(obj, [
+        "organization",
+        "institution",
+        "school",
+        "university",
+        "organizationName",
+      ]);
+      return {
+        degree: pickFirstText(
+          valueAt(obj, [
+            "degree",
+            "qualification",
+            "title",
+            "course",
+            "education",
+          ]),
+          accreditation?.education,
+          accreditation?.inputStr,
+        ),
+        institution: pickFirstText(org),
+        location: pickFirstText(valueAt(obj, ["location", "address"])),
+        dates: pickFirstText(valueAt(obj, ["dates", "dateRange", "period"]), [
+          valueAt(obj, ["startDate", "from"]),
+          valueAt(obj, ["endDate", "to"]),
+        ]),
+      };
+    })
+    .filter((item) => item.degree || item.institution)
+    .slice(0, 10);
 
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_CV_MODEL || "gpt-4o-mini",
-      temperature: 0,
-      max_tokens: 2500,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: `
-You are WorkZo AI's Recruiter Memory Builder.
+  const skills = unique(
+    [
+      ...pickArrayText(
+        valueAt(data, ["skills", "skill", "competencies", "technicalSkills"]),
+        80,
+      ),
+      ...pickArrayText(valueAt(data, ["professionSkills", "parsedSkills"]), 80),
+    ],
+    80,
+  ).filter(
+    (skill) =>
+      !SECTION_OR_FAKE_NAME_RE.test(skill) ||
+      /python|sql|tableau|matplotlib|seaborn|tensorflow|sklearn/i.test(skill),
+  );
 
-Extract compact recruiter memory from the uploaded CV and job description.
+  const projects = asArray(
+    valueAt(data, ["projects", "projectExperience", "accomplishments"]),
+  )
+    .map((item) => {
+      const obj = asRecord(item) || {};
+      return {
+        name:
+          pickFirstText(valueAt(obj, ["name", "title", "projectName"])) ||
+          deepText(item),
+        bullets: splitBullets(
+          valueAt(obj, ["description", "summary", "text", "bullets"]),
+        ),
+      };
+    })
+    .filter((item) => item.name)
+    .slice(0, 10);
 
-Return valid JSON only:
-{
-  "recruiterMemoryProfile": {
-    "candidateName": "",
-    "location": "",
-    "targetRole": "",
-    "summary": [],
-    "skills": { "technical": [], "business": [], "tools": [] },
-    "experience": [{ "company": "", "role": "", "dates": "", "highlights": [] }],
-    "projects": [{ "name": "", "summary": "" }],
-    "education": [],
-    "languages": [],
-    "recruiterMemory": [],
-    "possibleConcerns": []
-  },
-  "jobMemoryProfile": {
-    "roleTitle": "",
-    "businessContext": "",
-    "responsibilities": [],
-    "requiredSkills": [],
-    "softSkills": [],
-    "interviewFocus": []
-  },
-  "confidence": "high"
+  const languages = pickArrayText(
+    valueAt(data, ["languages", "languageSkills"]),
+    20,
+  );
+  const certifications = pickArrayText(
+    valueAt(data, [
+      "certifications",
+      "certificates",
+      "licenses",
+      "accreditations",
+    ]),
+    20,
+  );
+
+  const profile = {
+    rawText,
+    basics: {
+      name: lockedName || parserName || "",
+      headline: headline || experience[0]?.title || "Professional",
+      email,
+      phone,
+      location,
+      linkedin,
+    },
+    summary,
+    experience,
+    education,
+    skills,
+    projects,
+    languages,
+    certifications,
+    strengths: [],
+    additionalEvidence: [],
+    warnings: [],
+    previewText: rawText.slice(0, 1200),
+  } as ResumeProfile;
+
+  // Final identity repair using WorkZo rules, but keep Affinda structure.
+  const repaired = repairResumeProfileAfterParsing(profile, rawText, fileName);
+  const finalName = extractHeaderName(
+    rawText,
+    fileName,
+    repaired.basics?.name || profile.basics.name || "",
+  );
+  if (finalName) repaired.basics.name = finalName;
+  return repaired;
 }
-`.trim(),
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            targetRole,
-            targetMarket,
-            language,
-            rawCvText: cvText.slice(0, 12000),
-            rawJobDescription: jobDescription.slice(0, 8000),
-          }),
-        },
-      ],
+
+async function sleep(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchAffindaDocument(
+  identifier: string,
+  headers: HeadersInit,
+  baseUrl: string,
+) {
+  const response = await fetch(
+    `${baseUrl}/v3/documents/${encodeURIComponent(identifier)}`,
+    { headers, cache: "no-store" },
+  );
+  if (!response.ok)
+    throw new Error(
+      `Affinda fetch failed (${response.status}): ${await response.text()}`,
+    );
+  return response.json();
+}
+
+function affindaIsReady(document: unknown) {
+  const obj = asRecord(document) || {};
+  const status = cleanText(
+    valueAt(obj, ["status", "processingStatus", "state"]),
+  ).toLowerCase();
+  if (!status) return true;
+  return [
+    "ready",
+    "complete",
+    "completed",
+    "success",
+    "done",
+    "processed",
+  ].includes(status);
+}
+
+async function parseWithAffinda(input: {
+  buffer: Buffer;
+  fileName: string;
+  fileType: string;
+  rawText: string;
+}): Promise<AffindaResult> {
+  const apiKey = process.env.AFFINDA_API_KEY?.trim();
+  const workspace = process.env.AFFINDA_WORKSPACE_ID?.trim();
+  const documentType = process.env.AFFINDA_DOCUMENT_TYPE_ID?.trim();
+  const organization = process.env.AFFINDA_ORGANIZATION_ID?.trim();
+  const baseUrl = (
+    process.env.AFFINDA_API_BASE || "https://api.eu1.affinda.com"
+  ).replace(/\/+$/, "");
+
+  if (!apiKey || !workspace) {
+    return {
+      ok: false,
+      source: "affinda_not_configured",
+      error: "AFFINDA_API_KEY or AFFINDA_WORKSPACE_ID is missing.",
+    };
+  }
+
+  try {
+    const headers = { Authorization: `Bearer ${apiKey}` };
+    const formData = new FormData();
+    const fileBlob = new Blob([new Uint8Array(input.buffer)], {
+      type: input.fileType || "application/pdf",
+    });
+    formData.append("file", fileBlob, input.fileName);
+    formData.append("workspace", workspace);
+    if (documentType) formData.append("documentType", documentType);
+    if (organization) formData.append("organization", organization);
+    formData.append("wait", "true");
+
+    const upload = await fetch(`${baseUrl}/v3/documents`, {
+      method: "POST",
+      headers,
+      body: formData,
+      cache: "no-store",
     });
 
-    const raw = completion.choices[0]?.message?.content || "";
-    const parsed = jsonFromModel(raw);
-
-    if (!parsed?.recruiterMemoryProfile || !parsed?.jobMemoryProfile) {
-      return NextResponse.json(fallback);
+    if (!upload.ok) {
+      return {
+        ok: false,
+        source: "affinda_failed",
+        error: `Affinda upload failed (${upload.status}): ${await upload.text()}`,
+      };
     }
 
-    return NextResponse.json(
-      applySafeRecruiterCandidateName(
-        {
-          recruiterMemoryProfile: parsed.recruiterMemoryProfile,
-          jobMemoryProfile: parsed.jobMemoryProfile,
-          confidence: parsed.confidence || "medium",
-        },
-        cvText,
-        fileName,
-      ),
+    let document = await upload.json();
+    const identifier = cleanText(
+      valueAt(asRecord(document), ["identifier", "id"]),
     );
+
+    // Some Affinda configurations return before parsing is complete.
+    for (
+      let attempt = 0;
+      identifier && !affindaIsReady(document) && attempt < 20;
+      attempt += 1
+    ) {
+      await sleep(750);
+      document = await fetchAffindaDocument(identifier, headers, baseUrl);
+    }
+
+    const resumeProfile = mapAffindaProfile(
+      document,
+      input.rawText,
+      input.fileName,
+    );
+    return {
+      ok: true,
+      source: "affinda_resume_parser",
+      resumeProfile,
+      raw: document,
+    };
   } catch (error) {
+    return {
+      ok: false,
+      source: "affinda_failed",
+      error: error instanceof Error ? error.message : "Affinda parser failed.",
+    };
+  }
+}
+
+function isProfileUsable(profile: ResumeProfile) {
+  const name = isHumanName(profile.basics?.name || "");
+  const expCount = profile.experience?.length || 0;
+  const eduCount = profile.education?.length || 0;
+  const skillsCount = profile.skills?.length || 0;
+
+  // Bad Affinda run pattern: no jobs/education but huge skill dump.
+  if (expCount === 0 && eduCount === 0 && skillsCount > 25) return false;
+
+  // If both identity and structure are weak, reject the parser output.
+  if (!name && expCount === 0 && eduCount === 0) return false;
+
+  return expCount > 0 || eduCount > 0 || skillsCount >= 3;
+}
+
+function buildProfileText(profile: ResumeProfile, fallbackText: string) {
+  const lines: string[] = [];
+  const basics = profile.basics || {};
+
+  if (basics.name) lines.push(`Candidate name: ${basics.name}`);
+  if (basics.headline) lines.push(`Headline: ${basics.headline}`);
+  const contact = [basics.email, basics.phone, basics.location, basics.linkedin]
+    .filter(Boolean)
+    .join(" • ");
+  if (contact) lines.push(`Contact: ${contact}`);
+  if (profile.summary) lines.push(`Summary: ${profile.summary}`);
+
+  if (profile.experience?.length) {
+    lines.push("Experience:");
+    profile.experience.slice(0, 8).forEach((job) => {
+      const header = [job.title, job.company, job.dates]
+        .filter(Boolean)
+        .join(" • ");
+      if (header) lines.push(`- ${header}`);
+      job.bullets?.slice(0, 6).forEach((bullet) => lines.push(`  • ${bullet}`));
+    });
+  }
+
+  if (profile.education?.length) {
+    lines.push("Education:");
+    profile.education.slice(0, 5).forEach((edu) => {
+      const header = [edu.degree, edu.institution, edu.dates]
+        .filter(Boolean)
+        .join(" • ");
+      if (header) lines.push(`- ${header}`);
+    });
+  }
+
+  if (profile.skills?.length)
+    lines.push(`Skills: ${profile.skills.slice(0, 40).join(", ")}`);
+  if (profile.projects?.length) {
+    lines.push("Projects:");
+    profile.projects.slice(0, 6).forEach((project) => {
+      if (project.name) lines.push(`- ${project.name}`);
+      project.bullets
+        ?.slice(0, 4)
+        .forEach((bullet) => lines.push(`  • ${bullet}`));
+    });
+  }
+  if (profile.languages?.length)
+    lines.push(`Languages: ${profile.languages.join(", ")}`);
+  if (profile.certifications?.length)
+    lines.push(`Certifications: ${profile.certifications.join(", ")}`);
+
+  return lines.join("\n").trim() || fallbackText;
+}
+
+function buildResponse(input: {
+  aiOk: boolean;
+  source: string;
+  error: string;
+  rawCvText: string;
+  resumeProfile: ResumeProfile;
+  fileName?: string;
+  jobDescription?: string;
+  targetRole?: string;
+  targetMarket?: string;
+}) {
+  const resumeProfile = input.resumeProfile;
+  const finalName = extractHeaderName(
+    input.rawCvText,
+    input.fileName || "",
+    resumeProfile.basics?.name || "",
+  );
+  if (finalName && finalName !== resumeProfile.basics?.name) {
+    debugCvPipeline("api.cv.name_override", {
+      fileName: input.fileName,
+      originalName: resumeProfile.basics?.name || "",
+      finalName,
+    });
+    resumeProfile.basics.name = finalName;
+  }
+
+  const cleanProfileText = buildProfileText(resumeProfile, input.rawCvText);
+
+  return NextResponse.json({
+    ok: input.aiOk,
+    success: input.aiOk,
+    source: input.source,
+    error: input.error,
+    text: input.rawCvText,
+    cvText: cleanProfileText,
+    rawCvText: input.rawCvText,
+    uploadedCvText: input.rawCvText,
+    resumeText: cleanProfileText,
+    candidateCv: cleanProfileText,
+    content: input.rawCvText,
+    resumeProfile,
+    profile: resumeProfile,
+    fileName: input.fileName,
+    chars: input.rawCvText.length,
+    recruiterMemoryProfile: {
+      candidateName: resumeProfile.basics?.name || "",
+      candidateHeadline: resumeProfile.basics?.headline || "",
+      candidateEmail: resumeProfile.basics?.email || "",
+      candidatePhone: resumeProfile.basics?.phone || "",
+      candidateLocation: resumeProfile.basics?.location || "",
+      candidateLinkedin: resumeProfile.basics?.linkedin || "",
+      summary: resumeProfile.summary || "",
+      skills: resumeProfile.skills || [],
+      experience: resumeProfile.experience || [],
+      education: resumeProfile.education || [],
+      projects: resumeProfile.projects || [],
+      languages: resumeProfile.languages || [],
+      certifications: resumeProfile.certifications || [],
+    },
+    jobMemoryProfile: {
+      targetRole:
+        input.targetRole || resumeProfile.basics?.headline || "General Role",
+      targetMarket: input.targetMarket || "Global",
+      jobDescription: input.jobDescription || "",
+    },
+  });
+}
+
+async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
+  const rawCv = normalizeCvText(
+    String(
+      body.rawCvText ||
+        body.uploadedCvText ||
+        body.layoutText ||
+        body.cvText ||
+        "",
+    ),
+  );
+  const jd = normalizeResumeText(String(body.jobDescription || ""));
+  const existingProfile = body.resumeProfile || body.profile;
+
+  const isImprovementRequest = body.mode === "improve" || Boolean(jd);
+  if (isImprovementRequest && !isPremium) {
     return NextResponse.json(
-      applySafeRecruiterCandidateName(
-        fallbackMemory({
-          cvText,
-          jobDescription,
-          targetRole,
-          targetMarket,
-          warning:
-            error instanceof Error
-              ? error.message
-              : "Recruiter memory extraction failed.",
-        }),
-        cvText,
-        fileName,
-      )
+      {
+        error: "upgrade_required",
+        requiredPlan: "premium",
+        message: "CV improvement requires Premium.",
+      },
+      { status: 403 },
     );
   }
+
+  if (
+    existingProfile &&
+    typeof existingProfile === "object" &&
+    "basics" in existingProfile &&
+    rawCv
+  ) {
+    const profile = existingProfile as ResumeProfile;
+    debugCvProfile("api.cv.json.existing_profile_used", profile, {
+      name: profile.basics?.name,
+    });
+    return buildResponse({
+      aiOk: true,
+      source: "existing_resume_profile",
+      error: "",
+      rawCvText: rawCv,
+      resumeProfile: profile,
+      fileName: body.fileName || "pasted-cv.txt",
+      jobDescription: jd,
+      targetRole: body.targetRole,
+      targetMarket: body.targetMarket,
+    });
+  }
+
+  if (!rawCv && !jd)
+    return NextResponse.json(
+      { error: "CV text or job description is required." },
+      { status: 400 },
+    );
+
+  const aiResult = await parseResumeWithAiStructure({
+    cvText: rawCv,
+    layoutText: rawCv,
+    fileName: body.fileName || "pasted-cv.txt",
+    jobDescription: jd,
+    targetRole: body.targetRole,
+    targetMarket: body.targetMarket,
+    language: body.language,
+  });
+
+  debugCvProfile("api.cv.json.profile", aiResult.resumeProfile, {
+    source: aiResult.source,
+    ok: aiResult.ok,
+    name: aiResult.resumeProfile.basics?.name,
+  });
+
+  return buildResponse({
+    aiOk: aiResult.ok,
+    source: aiResult.source,
+    error: aiResult.error,
+    rawCvText: rawCv,
+    resumeProfile: aiResult.resumeProfile,
+    fileName: body.fileName || "pasted-cv.txt",
+    jobDescription: jd,
+    targetRole: body.targetRole,
+    targetMarket: body.targetMarket,
+  });
 }
 
 export async function POST(request: Request) {
-  const contentType = request.headers.get("content-type") || "";
+  let resolved;
+  try {
+    resolved = await resolveWorkZoServerPlan();
+  } catch {
+    return NextResponse.json(
+      { error: "Could not resolve account plan." },
+      { status: 500 },
+    );
+  }
 
-  if (contentType.includes("multipart/form-data")) {
-    try {
+  if (!resolved.authenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const isPremium =
+    resolved.plan === "premium" || resolved.plan === "premium_pro";
+
+  try {
+    const contentType = request.headers.get("content-type") || "";
+
+    if (contentType.includes("multipart/form-data")) {
       const formData = await request.formData();
       const file = formData.get("file");
-
-      if (!(file instanceof File)) {
-        return NextResponse.json({ error: "No file uploaded." }, { status: 400 });
-      }
+      if (!(file instanceof File))
+        return NextResponse.json(
+          { error: "No file uploaded." },
+          { status: 400 },
+        );
 
       const safeFileName = normalizeUploadFileName(file.name);
-      const extracted = await extractFileText(file);
-      debugCvText("api.cv.file_text.extracted", extracted, { fileName: safeFileName, fileType: file.type });
+      const fileType =
+        file.type ||
+        (safeFileName.toLowerCase().endsWith(".pdf")
+          ? "application/pdf"
+          : "text/plain");
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const extracted = await extractFileTextFromBuffer(
+        buffer,
+        safeFileName,
+        fileType,
+      );
+      debugCvText("api.cv.file_text.extracted", extracted, {
+        fileName: safeFileName,
+        fileType,
+      });
 
       const cleanedCv = normalizeCvText(extracted);
-      debugCvText("api.cv.file_text.cleaned", cleanedCv, { fileName: safeFileName });
+      if (!cleanedCv.trim())
+        return NextResponse.json(
+          { error: "CV uploaded, but no readable text was found." },
+          { status: 422 },
+        );
 
-      // ── AI-first extraction ────────────────────────────────────────────────
-      // This is the FIRST profile the user sees after upload (the "Review
-      // your professional profile" preview), so it should use the same
-      // AI-structured extraction (Claude via OpenRouter, with the local
-      // regex parser as its internal fallback) as /api/cv/structure — not
-      // a separate, purely-local extraction. This avoids showing a
-      // local-parser result first and then a different AI result later.
+      // Production decision after testing: AI parser is primary.
+      // Affinda is currently too inconsistent for WorkZo CVs (often returns no experience/education
+      // and misclassifies skills/section text as the candidate name). We keep it only as a fallback
+      // when the AI parser produces a weak structure.
       const aiResult = await parseResumeWithAiStructure({
         cvText: cleanedCv,
-        layoutText: extracted,
+        layoutText: cleanedCv,
         fileName: safeFileName,
       });
 
-      const resumeProfile = sanitizeResumeProfileIdentity(aiResult.resumeProfile, {
-        rawText: cleanedCv,
-        fileName: safeFileName,
-      });
-      debugCvProfile("api.cv.parser.output", resumeProfile, {
+      debugCvProfile("api.cv.parser.output", aiResult.resumeProfile, {
         fileName: safeFileName,
         source: aiResult.source,
         ok: aiResult.ok,
-        ...(aiResult.error ? { error: aiResult.error } : {}),
+        name: aiResult.resumeProfile.basics?.name,
       });
 
-      return NextResponse.json({
-        text: cleanedCv,
-        cvText: cleanedCv,
-        content: cleanedCv,
-        resumeProfile,
-        profile: resumeProfile,
+      if (aiResult.ok && isProfileUsable(aiResult.resumeProfile)) {
+        return buildResponse({
+          aiOk: true,
+          source: aiResult.source,
+          error: aiResult.error,
+          rawCvText: cleanedCv,
+          resumeProfile: aiResult.resumeProfile,
+          fileName: safeFileName,
+        });
+      }
+
+      const affinda = await parseWithAffinda({
+        buffer,
         fileName: safeFileName,
-        chars: cleanedCv.length,
-        source: aiResult.source,
+        fileType,
+        rawText: cleanedCv,
       });
-    } catch (error) {
-      return NextResponse.json(
-        {
-          error:
-            error instanceof Error
-              ? error.message
-              : "Could not extract text from this file.",
-        },
-        { status: 422 }
-      );
-    }
-  }
 
-  const body = (await request.json().catch(() => ({}))) as RequestBody;
-  return buildMemoryFromJson(body);
+      if (
+        affinda.ok &&
+        affinda.resumeProfile &&
+        isProfileUsable(affinda.resumeProfile)
+      ) {
+        debugCvProfile("api.cv.affinda.fallback_output", affinda.resumeProfile, {
+          fileName: safeFileName,
+          source: affinda.source,
+          ok: affinda.ok,
+          name: affinda.resumeProfile.basics?.name,
+        });
+
+        return buildResponse({
+          aiOk: true,
+          source: `${affinda.source}_ai_fallback`,
+          error: aiResult.error,
+          rawCvText: cleanedCv,
+          resumeProfile: affinda.resumeProfile,
+          fileName: safeFileName,
+        });
+      }
+
+      return buildResponse({
+        aiOk: aiResult.ok,
+        source: `${aiResult.source}_affinda_rejected`,
+        error: aiResult.error || affinda.error || "CV parser produced a weak structure.",
+        rawCvText: cleanedCv,
+        resumeProfile: aiResult.resumeProfile,
+        fileName: safeFileName,
+      });
+    }
+
+    const body = (await request.json().catch(() => ({}))) as RequestBody;
+    return buildMemoryFromJson(body, isPremium);
+  } catch (error) {
+    console.error("WorkZo CV API failed:", error);
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not extract text from this CV.",
+      },
+      { status: 422 },
+    );
+  }
 }

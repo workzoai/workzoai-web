@@ -4,7 +4,7 @@
  *
  * Problem: pdf-parse extracts text in PDF content-stream order, not visual order.
  * Multi-column CVs (sidebar on left, main content on right) extract as:
- *   [sidebar skills/contact/education] → [main body experience/projects]
+ * [sidebar skills/contact/education] → [main body experience/projects]
  * This looks clumsy and confuses the resume parser.
  *
  * This module rebuilds the text into correct reading order using heuristics
@@ -27,53 +27,55 @@ const SECTION_HEADERS: Record<string, CvSection["kind"]> = {
   "summary": "summary", "profile": "summary", "professional summary": "summary",
   "profile summary": "summary", "about me": "summary", "objective": "summary",
   "career objective": "summary", "personal statement": "summary",
+  "berufliches profil": "summary", "über mich": "summary", "ziel": "summary",
   // Experience
   "experience": "experience", "work experience": "experience",
   "professional experience": "experience", "employment history": "experience",
   "employment": "experience", "work history": "experience",
+  "berufserfahrung": "experience", "werdegang": "experience", "praktika": "experience",
   // Education
   "education": "education", "academic background": "education",
   "qualifications": "education", "academic qualifications": "education",
   "studies": "education", "training": "education",
+  "bildung": "education", "ausbildung": "education", "bildungsweg": "education",
   // Skills
   "skills": "skills", "technical skills": "skills", "core skills": "skills",
   "competencies": "skills", "expertise": "skills", "key skills": "skills",
   "tech skills": "skills", "technologies": "skills", "tools": "skills",
+  "kenntnisse": "skills", "fertigkeiten": "skills", "it-kenntnisse": "skills",
   // Projects
   "projects": "projects", "selected projects": "projects",
   "personal projects": "projects", "key projects": "projects",
   "portfolio": "projects", "project highlights": "projects",
+  "projekte": "projects",
   // Languages
   "languages": "languages", "language skills": "languages",
-  "spoken languages": "languages",
+  "spoken languages": "languages", "sprachen": "languages",
   // Certifications
   "certifications": "certifications", "certificates": "certifications",
   "accreditations": "certifications", "licences": "certifications",
   "licenses": "certifications", "awards": "certifications",
-  "achievements": "certifications",
+  "achievements": "certifications", "zertifikate": "certifications",
+  "auszeichnungen": "certifications"
 };
 
 // Lines that are almost certainly sidebar artefacts
-const SIDEBAR_LINE_RE = /^(english|german|dutch|french|spanish|italian|portuguese|mandarin|hindi|arabic|russian|japanese|korean)[\s:–-]+(fluent|native|conversational|b1|b2|c1|c2|a1|a2|professional|elementary|intermediate|advanced)/i;
+const SIDEBAR_LINE_RE = /^(english|german|dutch|french|spanish|italian|portuguese|mandarin|hindi|arabic|russian|japanese|korean|deutsch)[\s:–-]+(fluent|native|conversational|b1|b2|c1|c2|a1|a2|professional|elementary|intermediate|advanced|muttersprache|fließend)/i;
 
 // Lines that strongly indicate a name (first line of CV)
-const LOOKS_LIKE_NAME_RE = /^[A-ZÀ-Ý][a-zà-ÿ]+([\s-][A-ZÀ-Ý][a-zà-ÿ]+){1,3}$/;
+const LOOKS_LIKE_NAME_RE = /^(?:[A-ZÀ-Ý][a-zà-ÿ]+|[A-ZÀ-Ý]{2,})(?:[\s-](?:[A-ZÀ-Ý][a-zà-ÿ]+|[A-ZÀ-Ý]{2,})){1,3}$/u;
 
 // Contact line heuristic
 const CONTACT_LINE_RE = /@|linkedin\.com|^\+?[\d\s().-]{8,}$|^\d{5}\b|\bstraße\b|\bstrasse\b|\bstreet\b|\bavenue\b|\broad\b|\bdr\b\.|^\d+\s+[A-Z]/i;
 
 // Date range — indicates an experience or education entry header
-const DATE_RANGE_RE = /\b(19|20)\d{2}\s*[-–—]\s*(19|20)\d{2}|present|current|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*(19|20)\d{2}/i;
+const DATE_RANGE_RE = /\b(19|20)\d{2}\s*[-–—]\s*(19|20)\d{2}|present|current|heute|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*(19|20)\d{2}/i;
 
 // Bullet character normalisation
 const BULLET_CHARS = /^[\u2022\u2023\u25E6\u2043\u2219\u25AA\u25AB\u25CF\u25CB•▪◦‣·∙◆◇*>]\s*/;
 
 // ── Text normalisation ────────────────────────────────────────────────────────
 
-/**
- * Universal text normaliser — cleans encoding artefacts from any PDF.
- * Does NOT hardcode any person's name, company, or content.
- */
 export function normalizeExtractedCvText(raw: string): string {
   return raw
     // Null bytes and carriage returns
@@ -91,13 +93,101 @@ export function normalizeExtractedCvText(raw: string): string {
     .replace(/\u200b/g, "")
     // Bullet character normalisation
     .replace(/[\u2022\u2023\u25E6\u2043\u2219\u25AA\u25AB\u25CF\u25CB▪◦‣·∙◆◇]/g, "•")
-    // Spaced capitals common in decorative headers: "S K I L L S" → "SKILLS"
-    .replace(/\b([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\b/g, "$1$2$3$4$5$6$7$8")
-    .replace(/\b([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\b/g, "$1$2$3$4$5$6$7")
-    .replace(/\b([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\b/g, "$1$2$3$4$5$6")
-    .replace(/\b([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\b/g, "$1$2$3$4$5")
-    .replace(/\b([A-Z])\s([A-Z])\s([A-Z])\s([A-Z])\b/g, "$1$2$3$4")
-    // Common PDF encoding typos — generic only, no hardcoded names
+    // Spaced capitals in decorative headers/names
+    .split("\n").map((line) => {
+      const tokens = line.trim().split(/\s+/);
+      if (tokens.length < 4 || !tokens.every((t) => /^[A-Z]$/.test(t))) return line;
+      const compact = tokens.join("");
+
+      const KNOWN_SECTIONS = new Set([
+        "SKILLS","CONTACT","EDUCATION","EXPERIENCE","LANGUAGES","PROJECTS",
+        "REFERENCES","CERTIFICATIONS","SUMMARY","PROFILE","AWARDS","ACHIEVEMENTS",
+        "PROFIL","BERUFSERFAHRUNG","BILDUNGSWEG","BILDUNG","SPRACHEN","KENNTNISSE",
+        "EXPERTISE","COMPETENCIES","TRAINING","QUALIFICATIONS","PUBLICATIONS",
+        "WORKEXPERIENCE","PROFILESUMMARY","CORECOMPETENCIES",
+      ]);
+      if (KNOWN_SECTIONS.has(compact)) return compact;
+
+      const DEPT_PREFIXES = new Set(["PR","HR","IT","VP","UI","UX","BD","CX","QA","AI","ML",
+        "BI","PM","SM","GM","IR","CR","GR","DC","SEO","CTO","CEO","CFO","COO","CMO","CRO"]);
+
+      const ROLES = ["MANAGER","SPECIALIST","ENGINEER","ANALYST","DIRECTOR","COORDINATOR",
+        "CONSULTANT","DEVELOPER","DESIGNER","ASSISTANT","EXECUTIVE","OFFICER","INTERN",
+        "ADMINISTRATOR","ARCHITECT","SUPERVISOR","TECHNICIAN","RECRUITER","ACCOUNTANT",
+        "STRATEGIST","REPRESENTATIVE","ADVISOR","PLANNER","ASSOCIATE","SCIENTIST",
+        "RESEARCHER","PROGRAMMER","WRITER","EDITOR","PRODUCER","CONTROLLER"];
+
+      for (const role of ROLES) {
+        if (!compact.endsWith(role)) continue;
+        const beforeRole = compact.slice(0, compact.length - role.length);
+        for (let pLen = 2; pLen <= 3; pLen++) {
+          if (beforeRole.length - pLen < 3) continue;
+          const prefix = beforeRole.slice(-pLen);
+          if (DEPT_PREFIXES.has(prefix)) {
+            const name = beforeRole.slice(0, beforeRole.length - pLen);
+            return name + "\n" + prefix + " " + role;
+          }
+        }
+        if (beforeRole.length >= 3) return beforeRole + "\n" + role;
+      }
+
+      if (compact.length <= 10) return compact;
+
+      const KNOWN_WORD_SET = new Set([
+        "IT","HR","PR","UX","UI","QA","AI","ML","BI","VP","CEO","CTO","CFO","COO","CMO",
+        "PROJECT","SENIOR","JUNIOR","LEAD","HEAD","CHIEF","PRINCIPAL","ASSOCIATE",
+        "MANAGER","SPECIALIST","ENGINEER","ANALYST","DIRECTOR","COORDINATOR","DESIGNER",
+        "DEVELOPER","CONSULTANT","ASSISTANT","EXECUTIVE","OFFICER","ARCHITECT","SUPERVISOR",
+        "TECHNICIAN","RECRUITER","ACCOUNTANT","STRATEGIST","RESEARCHER","PROGRAMMER",
+        "ADVISOR","PLANNER","TRAINER","INSTRUCTOR","PROFESSOR","TEACHER","SCIENTIST",
+        "PRODUCT","DIGITAL","TECHNICAL","MARKETING","SALES","DATA","CLOUD","SOFTWARE",
+        "HARDWARE","BUSINESS","BRAND","CREATIVE","GRAPHIC","MOTION","WEB","MOBILE",
+        "FRONT","BACK","END","DEVOPS","SECURITY","NETWORK","SYSTEMS","OPERATIONS",
+        "HUMAN","RESOURCES","FINANCE","LEGAL","CUSTOMER","SUCCESS","ACCOUNT","GROWTH",
+        "CONTENT","SOCIAL","MEDIA","PUBLIC","RELATIONS","INFORMATION","TECHNOLOGY",
+        "WORK","EXPERIENCE","EDUCATION","TRAINING","SKILLS","OVERVIEW","SUMMARY",
+        "AWARDS","RECEIVED","CONTACTS","LANGUAGES","PROJECTS","CERTIFICATIONS",
+        "AND","OF","IN","THE","FOR","WITH","AT","TO",
+        "PROFESSIONAL","PERSONAL","TEAM","ACADEMIC","HISTORY","ACHIEVEMENT","INTEREST",
+        "VOLUNTEERING","VOLUNTEER","HOBBY","HOBBIES","REFERENCE","PROFILE","ABOUT",
+      ]);
+
+      function splitIntoKnownWords(str: string): string | null {
+        const n = str.length;
+        const dp: (string[] | null)[] = new Array(n + 1).fill(null);
+        dp[0] = [];
+        for (let i = 0; i < n; i++) {
+          if (dp[i] === null) continue;
+          for (let len = 2; len <= Math.min(20, n - i); len++) {
+            const word = str.slice(i, i + len);
+            if (KNOWN_WORD_SET.has(word) && dp[i + len] === null) {
+              dp[i + len] = [...(dp[i] as string[]), word];
+            }
+          }
+        }
+        return dp[n] ? (dp[n] as string[]).join(" ") : null;
+      }
+
+      const reconstructed = splitIntoKnownWords(compact);
+      if (reconstructed) return reconstructed;
+
+      return line;
+    }).join("\n")
+    // Collapse mixed-case spaced text
+    .split("\n").map((line) => {
+      const tokens = line.trim().split(/\s+/);
+      if (tokens.length >= 6
+        && tokens.every((t) => t.length >= 1 && t.length <= 3)
+        && !tokens.every((t) => /^[A-Z]$/.test(t))
+        && tokens.some((t) => /^[A-Z]/.test(t))
+        && tokens.some((t) => /[a-z]/.test(t))
+      ) {
+        const joined = tokens.join("");
+        if (/^[A-Za-z]+$/.test(joined)) return joined;
+      }
+      return line;
+    }).join("\n")
+    // Standard validation spelling and typo mapping normalization
     .replace(/\bEnginner\b/gi, "Engineer")
     .replace(/\bEngince\b/gi, "Engine")
     .replace(/\bknowlegde\b/gi, "knowledge")
@@ -115,14 +205,11 @@ export function normalizeExtractedCvText(raw: string): string {
     .replace(/\bWürzburg|WÃ¼rzburg|WˆRZBURG|Wˆ…rzburg/g, "Würzburg")
     .replace(/\bWuerzburg\b/gi, "Würzburg")
     .replace(/\bWurzburg\b/gi, "Würzburg")
-    // Fix word-splits that happen in some PDF renderers: "Detail-orientedIT" "Specialistandaspiring"
     .replace(/([a-z])([A-Z]{2,})/g, (_, a, b) => {
-      // Only split if the uppercase block looks like a new word start, not an acronym
-      if (b.length <= 3) return _ ; // Keep acronyms: SQL, API, GCP etc.
+      if (b.length <= 3) return _ ;
       return `${a} ${b}`;
     })
     .replace(/([a-z]{3,})([A-Z][a-z])/g, "$1 $2")
-    // Whitespace cleanup
     .replace(/[ \t]+/g, " ")
     .replace(/\n[ \t]+/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
@@ -132,62 +219,58 @@ export function normalizeExtractedCvText(raw: string): string {
 // ── Section detection ─────────────────────────────────────────────────────────
 
 function isSectionHeader(line: string): CvSection["kind"] | null {
-  const clean = line
-    .trim()
+  const trimmed = line.trim();
+  if (/\.$/.test(trimmed) && trimmed.split(/\s+/).length > 1) return null;
+  if (trimmed.split(/\s+/).length > 5) return null;
+
+  const clean = trimmed
     .toLowerCase()
     .replace(/[:\-–—]+$/, "")
     .replace(/^[•\-\*]\s*/, "")
+    .replace(/\.$/, "")
     .trim();
 
-  // Exact match first
   if (SECTION_HEADERS[clean]) return SECTION_HEADERS[clean];
 
-  // Starts-with match for long headers like "PROFESSIONAL EXPERIENCE (2018-2024)"
   for (const [key, kind] of Object.entries(SECTION_HEADERS)) {
     if (clean.startsWith(key)) return kind;
   }
-
   return null;
 }
 
 function isSectionHeaderLine(line: string): boolean {
-  if (isSectionHeader(line)) return true;
-  const upper = line.trim().toUpperCase().replace(/[^A-Z\s]/g, "").trim();
+  const trimmed = line.trim();
+  if (/\.$/.test(trimmed) && trimmed.split(" ").length > 1) return false;
+  if (/^([A-Z][a-z]+ ){2,}/.test(trimmed) && !Object.keys(SECTION_HEADERS).some(k => trimmed.toLowerCase().startsWith(k))) return false;
+
+  if (isSectionHeader(trimmed)) return true;
+  const upper = trimmed.toUpperCase().replace(/[^A-Z\s]/g, "").trim();
   if (upper.length < 4 || upper.length > 40) return false;
-  // All-caps short line that matches a known section
   return Boolean(isSectionHeader(upper.toLowerCase()));
 }
 
 // ── Multi-column rebuild ──────────────────────────────────────────────────────
 
-/**
- * Detects whether extracted text looks like it came out in sidebar-first order.
- *
- * Sidebar-first order symptoms:
- * - Skills / languages / contact appear before any experience entries
- * - Short single-word lines dominate the beginning
- * - No date ranges in the first 40% of lines
- */
 function detectsSidebarFirstOrder(lines: string[]): boolean {
-  const first40 = lines.slice(0, Math.ceil(lines.length * 0.4));
-  const last60 = lines.slice(Math.ceil(lines.length * 0.4));
+  const first40pct = lines.slice(0, Math.ceil(lines.length * 0.4));
+  const last60pct = lines.slice(Math.ceil(lines.length * 0.4));
 
-  const skillHeaderInFirst = first40.some(l => /^(skills|expertise|competencies|languages|contact)$/i.test(l.trim()));
-  const experienceInLast = last60.some(l => /^(experience|work experience|professional experience)$/i.test(l.trim()));
-  const dateLinesInFirst = first40.filter(l => DATE_RANGE_RE.test(l)).length;
-  const dateLinesInLast = last60.filter(l => DATE_RANGE_RE.test(l)).length;
+  const skillHeaderInFirst = first40pct.some(l => /^(skills|expertise|competencies|languages|contact|kenntnisse|sprachen)$/i.test(l.trim()));
+  const experienceInLast = last60pct.some(l => /^(experience|work experience|professional experience|berufserfahrung)$/i.test(l.trim()));
 
-  return (skillHeaderInFirst && experienceInLast) || (dateLinesInFirst === 0 && dateLinesInLast >= 2);
+  const dateLinesInFirst = first40pct.filter(l => DATE_RANGE_RE.test(l)).length;
+  const dateLinesInLast = last60pct.filter(l => DATE_RANGE_RE.test(l)).length;
+
+  const nameOrTitleInLast = last60pct.some(l => {
+    const t = l.trim();
+    return /^[A-Z][A-Z\s]{1,24}$/.test(t) && t.split(/\s+/).length <= 3 && t.length >= 3;
+  });
+
+  return (skillHeaderInFirst && experienceInLast)
+      || (dateLinesInFirst === 0 && dateLinesInLast >= 2)
+      || (dateLinesInFirst >= 2 && nameOrTitleInLast);
 }
 
-/**
- * When text was extracted in sidebar-first order, rebuild it by:
- * 1. Identifying which sections are "sidebar" (contact/skills/languages)
- * 2. Identifying which sections are "main" (summary/experience/projects)
- * 3. Outputting: name → headline → main sections → sidebar sections
- *
- * This is heuristic — not positional (we don't have x/y coords from pdf-parse).
- */
 function rebuildReadingOrder(lines: string[]): string[] {
   const result: string[] = [];
   const sidebarContent: string[] = [];
@@ -196,16 +279,25 @@ function rebuildReadingOrder(lines: string[]): string[] {
 
   let currentKind: CvSection["kind"] = "unknown";
   let buffer: string[] = [];
+  let hasSeenMainSection = false;
 
   function flushBuffer() {
     if (!buffer.length) return;
-    const isMainSection = ["summary", "experience", "projects", "unknown"].includes(currentKind);
     const isSidebarSection = ["skills", "languages", "certifications", "contact"].includes(currentKind);
     const isEducation = currentKind === "education";
 
-    if (isMainSection) mainContent.push(...buffer);
-    else if (isSidebarSection) sidebarContent.push(...buffer);
-    else if (isEducation) mainContent.push(...buffer); // education belongs in main flow
+    if (currentKind === "unknown" && !hasSeenMainSection) {
+      sidebarContent.push(...buffer);
+    } else if (["summary", "experience", "projects"].includes(currentKind)) {
+      hasSeenMainSection = true;
+      mainContent.push(...buffer);
+    } else if (currentKind === "unknown") {
+      mainContent.push(...buffer);
+    } else if (isSidebarSection) {
+      sidebarContent.push(...buffer);
+    } else if (isEducation) {
+      mainContent.push(...buffer);
+    }
     buffer = [];
   }
 
@@ -224,8 +316,13 @@ function rebuildReadingOrder(lines: string[]): string[] {
       continue;
     }
 
-    // Detect name line (first non-empty, non-section, non-contact, looks like a name)
-    if (nameLines.length === 0 && currentKind === "unknown" && LOOKS_LIKE_NAME_RE.test(trimmed) && !CONTACT_LINE_RE.test(trimmed)) {
+    const looksLikeName = nameLines.length === 0
+      && LOOKS_LIKE_NAME_RE.test(trimmed)
+      && !CONTACT_LINE_RE.test(trimmed)
+      && (currentKind === "unknown" || currentKind === "skills" || currentKind === "contact")
+      && !/\b(productions|industries|solutions|services|systems|technologies|group|inc|ltd|llc|gmbh|ag|university|universität|college|school|institute|foundation|agency|studio|studios|consulting|ventures|partners|associates|corporation|corp|company|co\.)$/i.test(trimmed);
+    
+    if (looksLikeName) {
       nameLines = [trimmed];
       continue;
     }
@@ -242,45 +339,6 @@ function rebuildReadingOrder(lines: string[]): string[] {
   return result;
 }
 
-// ── Section-aware text rebuilder ─────────────────────────────────────────────
-
-/**
- * Parse the flat extracted text into labelled sections.
- * Generic — no hardcoded content.
- */
-function parseSections(text: string): CvSection[] {
-  const lines = text.split("\n").map(l => l.trim());
-  const sections: CvSection[] = [];
-  let current: CvSection = { kind: "unknown", lines: [] };
-
-  for (const line of lines) {
-    if (!line) {
-      current.lines.push("");
-      continue;
-    }
-
-    const kind = isSectionHeader(line);
-    if (kind && line.length < 50) {
-      if (current.lines.some(l => l.trim())) {
-        sections.push(current);
-      }
-      current = { kind, lines: [line] };
-      continue;
-    }
-
-    current.lines.push(line);
-  }
-
-  if (current.lines.some(l => l.trim())) {
-    sections.push(current);
-  }
-
-  return sections;
-}
-
-/**
- * Normalise bullet points throughout — bullet chars → dash for consistency.
- */
 function normaliseBullets(text: string): string {
   return text
     .split("\n")
@@ -294,10 +352,6 @@ function normaliseBullets(text: string): string {
     .join("\n");
 }
 
-/**
- * Remove obvious duplicate lines that appear when sidebar content is
- * also included in the main column (some CV tools render both).
- */
 function deduplicateLines(text: string): string {
   const lines = text.split("\n");
   const seen = new Set<string>();
@@ -320,75 +374,209 @@ function deduplicateLines(text: string): string {
       .replace(/\s+/g, " ")
       .trim();
 
-    if (key.length > 3 && seen.has(key)) continue;
-    if (key.length > 3) seen.add(key);
+    const isShortRepeatableLabel = trimmed.length < 50;
+    if (key.length > 3 && seen.has(key) && !isShortRepeatableLabel) continue;
+    if (key.length > 3 && !isShortRepeatableLabel) seen.add(key);
     out.push(trimmed);
   }
 
   return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
+function mergeConsecutiveNameLines(text: string): string {
+  const lines = text.split("\n");
+  const TOP_LINES = 15;
 
-/**
- * cleanExtractedCvText
- *
- * Takes raw text from pdf-parse (or mammoth for DOCX) and returns
- * clean, reading-order-correct, deduplicated text ready for the resume parser.
- *
- * Works for any CV template: single-column, two-column, sidebar, modern, ATS.
- * No hardcoded names, companies, or person-specific content.
- *
- * @param rawText - The raw text from pdf-parse or mammoth
- * @returns Clean, normalised CV text
- */
+  const SECTION_HEADERS_NAME = new Set([
+    "SKILLS","CONTACT","EDUCATION","EXPERIENCE","LANGUAGES","PROJECTS",
+    "REFERENCES","CERTIFICATIONS","SUMMARY","PROFILE","ABOUT","ABOUTME",
+    "AWARDS","ACHIEVEMENTS","PROFIL","BERUFSERFAHRUNG","BILDUNGSWEG",
+    "BILDUNG","SPRACHEN","KENNTNISSE","EXPERTISE","COMPETENCIES","ME",
+  ]);
+  const ROLE_WORD_NAME = /^(MANAGER|SPECIALIST|ENGINEER|ANALYST|DIRECTOR|DESIGNER|DEVELOPER|CONSULTANT|COORDINATOR|ASSISTANT|EXECUTIVE|OFFICER|INTERN|ARCHITECT|SUPERVISOR|TECHNICIAN|RECRUITER|ACCOUNTANT|TEACHER|INSTRUCTOR|PROFESSOR|DOCTOR|NURSE|PROGRAMMER|WRITER|EDITOR|PRODUCER|CONTROLLER|ASSOCIATE|SCIENTIST|RESEARCHER|ADVISOR|PLANNER|TRAINER|TUTOR|LECTURER|PRINCIPAL|COUNSELOR)$/;
+
+  function looksLikeNamePart(line: string): boolean {
+    const t = line.trim();
+    if (!t || t.length < 2 || t.length > 20) return false;
+    if (!/^[A-ZÄÖÜ\-]+$/.test(t)) return false;
+    if (SECTION_HEADERS_NAME.has(t)) return false;
+    if (ROLE_WORD_NAME.test(t)) return false;
+    if (/\d/.test(t)) return false;
+    return true;
+  }
+
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    if (i >= TOP_LINES) {
+      result.push(...lines.slice(i));
+      break;
+    }
+
+    const nameParts: string[] = [];
+    const startI = i;
+    while (i < lines.length && i < startI + 3 && nameParts.length < 3 && looksLikeNamePart(lines[i])) {
+      nameParts.push(lines[i].trim());
+      i++;
+    }
+
+    if (nameParts.length >= 2) {
+      result.push(nameParts.join(" "));
+    } else {
+      if (nameParts.length === 1) result.push(nameParts[0]);
+      if (i < lines.length) {
+        result.push(lines[i]);
+        i++;
+      }
+    }
+  }
+
+  return result.join("\n");
+}
+
+function rebuildContentBeforeHeader(lines: string[]): string[] {
+  let headerStart = -1;
+  let headerEnd = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+
+    if (
+      /^[A-Z][A-Z\s]{1,30}$/.test(t)
+      && t.split(/\s+/).length <= 4
+      && t.length >= 2
+      && !DATE_RANGE_RE.test(t)
+      && !t.includes("|")
+      && !t.includes("•")
+    ) {
+      const surrounding = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 4));
+      const hasContact = surrounding.some(l => /@|\+\d|www\./.test(l));
+      const hasAnotherHeader = surrounding.some((l, j) => {
+        if (j === 0 && l === lines[i]) return false;
+        const st = l.trim();
+        return /^[A-Z][A-Z\s]{1,30}$/.test(st) && st.split(/\s+/).length <= 4 && st.length >= 2 && !DATE_RANGE_RE.test(st);
+      });
+
+      if (hasContact || hasAnotherHeader) {
+        headerStart = i;
+        while (headerStart > 0) {
+          const prev = lines[headerStart - 1].trim();
+          if (/^[A-Z][A-Z\s]{1,30}$/.test(prev) && prev.split(/\s+/).length <= 4 && !DATE_RANGE_RE.test(prev) && !prev.includes("|")) {
+            headerStart--;
+          } else {
+            break;
+          }
+        }
+        headerEnd = i;
+        while (headerEnd < lines.length - 1) {
+          const next = lines[headerEnd + 1].trim();
+          if (
+            /@|\+\d|www\./.test(next)
+            || (/^[A-Z][A-Z\s]{1,30}$/.test(next) && !DATE_RANGE_RE.test(next) && !next.includes("|"))
+            || /^(professional summary|work experience|academic history|awards|certification|berufliches profil|berufserfahrung)$/i.test(next)
+          ) {
+            headerEnd++;
+          } else {
+            break;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  if (headerStart === -1) return lines;
+
+  const headerBlock = lines.slice(headerStart, headerEnd + 1);
+  const beforeHeader = lines.slice(0, headerStart);
+  const afterHeader = lines.slice(headerEnd + 1);
+
+  return [...headerBlock, "", ...beforeHeader, ...afterHeader];
+}
+
+function mergeTruncatedLines(text: string): string {
+  const lines = text.split("\n");
+  const result: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const next = i + 1 < lines.length ? lines[i + 1].trim() : "";
+
+    const deduped = line.replace(/^(.{8,})\s*[•·|]\s*\1$/i, "$1").trim();
+    const truncationEndings = /\b(and|or|the|a|an|for|in|to|with|by|of|at|from|on|using|via|into|through|within|und|oder|für|mit|von|bei|zu|auf)$/i;
+    const nextIsContact = /^[@+]|@|www\.|http|linkedin|\d{5,}|^\d.*@/i.test(next || "");
+    const lineIsTruncated = !nextIsContact && (
+      truncationEndings.test(deduped.replace(/[.,]$/, "").trim())
+      || (deduped.length > 10 && !deduped.match(/[.!?:;]$/) && next && /^[a-zäöü]/.test(next))
+    );
+
+    if (lineIsTruncated && next && next.length > 0 && !isSectionHeaderLine(next)) {
+      const separator = deduped.endsWith(",") || deduped.endsWith("-") ? "" : " ";
+      result.push(deduped.trimEnd() + separator + next.trimStart());
+      i++;
+    } else {
+      result.push(deduped);
+    }
+  }
+  return result.join("\n");
+}
+
+// ── Main exports ───────────────────────────────────────────────────────────────
+
 export function cleanExtractedCvText(rawText: string): string {
   if (!rawText?.trim()) return "";
 
-  // Step 1: Normalise encoding artefacts
   let text = normalizeExtractedCvText(rawText);
+  let lines = text.split("\n").map(l => l.trim());
 
-  // Step 2: Detect and fix sidebar-first extraction order
-  const lines = text.split("\n");
   if (detectsSidebarFirstOrder(lines)) {
-    const reordered = rebuildReadingOrder(lines);
-    text = reordered.join("\n");
+    const first40pct = lines.slice(0, Math.ceil(lines.length * 0.4));
+    const dateLinesInFirst = first40pct.filter(l => DATE_RANGE_RE.test(l)).length;
+
+    if (dateLinesInFirst >= 2) {
+      lines = rebuildContentBeforeHeader(lines);
+    } else {
+      lines = rebuildReadingOrder(lines);
+    }
+    text = lines.join("\n");
   }
 
-  // Step 3: Normalise bullet characters
+  text = mergeConsecutiveNameLines(text);
+  text = mergeTruncatedLines(text);
   text = normaliseBullets(text);
-
-  // Step 4: Remove duplicate lines (from multi-column rendering artefacts)
   text = deduplicateLines(text);
 
-  // Step 5: Final whitespace cleanup
-  return text
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return text;
 }
 
-/**
- * Guess whether extracted text came from a multi-column/sidebar PDF.
- * Useful for logging and debugging.
- */
-export function diagnoseCvLayout(rawText: string): {
-  likelySidebar: boolean;
-  hasSpacedCaps: boolean;
-  hasEncodingArtefacts: boolean;
-  sectionOrder: string[];
-} {
-  const lines = rawText.split("\n").map(l => l.trim()).filter(Boolean);
-  const sectionOrder: string[] = [];
+export function cleanCvHeadline(headline: string, firstJobTitle?: string, summary = ""): string {
+  const h = headline.trim();
+  if (!h) return firstJobTitle || "Professional";
 
-  for (const line of lines) {
-    const kind = isSectionHeader(line);
-    if (kind && !sectionOrder.includes(kind)) sectionOrder.push(kind);
+  const isCompanyString =
+    /\b(gmbh|ag|ltd|llc|inc|corp|plc|bv|gbr|ug|kg|sarl|sas|bvba|nv|oy|as|ab)\b/i.test(h) ||
+    /^[A-Z][\w\s]+ [-–] [A-Z][\w\s]+, [A-Z]/u.test(h);
+
+  if (isCompanyString) {
+    if (firstJobTitle && firstJobTitle.length > 2 && firstJobTitle.length < 60) {
+      return firstJobTitle.replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+    const roleWords = [
+      "engineer", "designer", "developer", "architect", "scientist", "manager",
+      "specialist", "analyst", "consultant", "officer", "lead", "director",
+      "technician", "coordinator", "administrator", "support"
+    ];
+    for (const word of roleWords) {
+      const rx = new RegExp(
+        `\\b((?:Product |Senior |Junior |Lead |Principal |CAD |Design |IT |Cloud |Data )?${word})\\b`,
+        "i"
+      );
+      const m = summary.match(rx);
+      if (m) return m[0].replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+    return "Professional";
   }
 
-  return {
-    likelySidebar: detectsSidebarFirstOrder(lines),
-    hasSpacedCaps: /\b[A-Z]\s[A-Z]\s[A-Z]\s[A-Z]\b/.test(rawText),
-    hasEncodingArtefacts: /â€|Ã¼|Ã|â¢|\x00/.test(rawText),
-    sectionOrder,
-  };
+  return h;
 }

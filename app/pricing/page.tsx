@@ -296,7 +296,7 @@ export default function PricingPage() {
                   billingCycle === cycle ? "bg-white text-slate-950" : "text-slate-300 hover:text-white",
                 )}
               >
-                {cycle === "yearly" ? "Yearly · Save 37%" : "Monthly"}
+                {cycle === "yearly" ? "Yearly · Save ~37%" : "Monthly"}
               </button>
             ))}
           </div>
@@ -409,6 +409,11 @@ export default function PricingPage() {
                         <span>{item}</span>
                       </div>
                     ))}
+                    {plan.notIncluded.length > maxNotIncluded ? (
+                      <p className="pl-6 text-xs font-bold text-slate-500">
+                        +{plan.notIncluded.length - maxNotIncluded} more in the comparison table below
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -437,6 +442,21 @@ export default function PricingPage() {
             {checkoutError}
           </p>
         ) : null}
+
+        <section className="mx-auto mt-8 flex max-w-3xl flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs font-bold text-slate-400">
+          <span className="inline-flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-emerald-300" />
+            Secure payment via Stripe
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <History className="h-4 w-4 text-emerald-300" />
+            Cancel anytime, no questions asked
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <Tag className="h-4 w-4 text-emerald-300" />
+            No hidden fees
+          </span>
+        </section>
 
         <section className="mt-14 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.03]">
           <div className="border-b border-white/10 p-6">

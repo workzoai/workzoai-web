@@ -1890,9 +1890,29 @@ function wzSectionWindow(text: string, startPatterns: RegExp[], endPatterns: Reg
   let start = -1;
 
   for (const pattern of startPatterns) {
-    const match = pattern.exec(lower);
-    if (match && (start === -1 || match.index < start)) {
-      start = match.index + match[0].length;
+    const globalPattern = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+    let match: RegExpExecArray | null;
+    while ((match = globalPattern.exec(lower))) {
+      // The start pattern must mark a SECTION HEADER line, not a prose mention
+      // of the word elsewhere in the document. e.g. the summary "...with over
+      // 5 years of experience in..." contains the word "experience" but is not
+      // an "EXPERIENCE" section header. A genuine section header line is short
+      // (just the heading, optionally with trailing whitespace) and sits at the
+      // start of a line. Reject matches where the containing line has
+      // substantial additional text — those are prose mentions, not headers.
+      const lineStart = lower.lastIndexOf("\n", match.index) + 1;
+      const lineEnd = (() => {
+        const idx = lower.indexOf("\n", match.index);
+        return idx === -1 ? lower.length : idx;
+      })();
+      const line = lower.slice(lineStart, lineEnd).trim();
+      // A real section header line is just the heading word(s), short overall.
+      if (line.length > match[0].length + 6) continue;
+
+      if (start === -1 || match.index < start) {
+        start = match.index + match[0].length;
+      }
+      break;
     }
   }
 
@@ -2004,8 +2024,8 @@ function wzExtractBetterExperience(text = ""): ResumeExperience[] {
   const source = normalizeResumeText(text);
   const experienceWindow = wzSectionWindow(
     source,
-    [/\bprofessional experience\b/i, /\bwork experience\b/i, /\bemployment history\b/i, /\bexperience\b/i],
-    [/\beducation\b/i, /\bprojects\b/i, /\bskills\b/i, /\blanguages\b/i, /\bcertifications\b/i],
+    [/\bprofessional experiences?\b/i, /\bwork experiences?\b/i, /\bemployment history\b/i, /\bexperiences?\b/i],
+    [/\beducation\b/i, /\bprojects?\b/i, /\bskills?\b/i, /\blanguages?\b/i, /\bcertifications?\b/i],
   );
 
   const hay = experienceWindow || source;
@@ -2088,12 +2108,32 @@ export function extractResumeProfileComplex(rawText = ""): ResumeProfile {
     (wzLooksLikePersonName(base.basics.name) ? base.basics.name : "") ||
     "Candidate";
 
+  // Prefer betterExperience generally — it's better at parsing modern,
+  // section-labeled CVs. But for CVs where the EXPERIENCE section uses a
+  // "stacked titles" layout (one company/date anchor followed by several
+  // role titles for the same company at different times, e.g. "Borcelle |
+  // Jan 2020 - Present / PR Manager / PR Specialist / Communications
+  // Coordinator"), wzExtractBetterExperience's single-pass line scanner
+  // treats each title line as a separate job with its own (empty) entry,
+  // fragmenting one real job history into many empty shells. The older
+  // extractExperience has dedicated stacked-title handling and produces
+  // fewer, richer jobs in that case. Heuristic: if betterExperience has
+  // noticeably MORE jobs than base.experience AND most of those extra jobs
+  // have no bullets at all, base.experience is the better-structured result.
+  const betterBulletCount = betterExperience.reduce((sum, job) => sum + job.bullets.length, 0);
+  const baseBulletCount = base.experience.reduce((sum, job) => sum + job.bullets.length, 0);
+  const betterLooksFragmented =
+    betterExperience.length > base.experience.length &&
+    base.experience.length > 0 &&
+    baseBulletCount >= betterBulletCount;
+
+  const experience = betterExperience.length && !betterLooksFragmented ? betterExperience : base.experience.length ? base.experience : betterExperience;
+
   const headline =
     base.basics.headline && !WORKZO_BAD_NAME_WORDS.test(base.basics.headline)
       ? base.basics.headline
-      : betterExperience[0]?.title || "Professional";
+      : experience[0]?.title || "Professional";
 
-  const experience = betterExperience.length ? betterExperience : base.experience;
   const education = betterEducation.length ? betterEducation : base.education;
   const skills = betterSkills.length ? betterSkills : base.skills;
   const languages = betterLanguages.length ? betterLanguages : base.languages;

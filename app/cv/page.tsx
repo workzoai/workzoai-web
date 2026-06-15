@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PremiumFeatureGate from "@/components/PremiumFeatureGate";
-import { ArrowLeft, AlertTriangle, CheckCircle2, Copy, Download, FileText, Gauge, Printer, Sparkles, Target } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle2, Copy, Download, FileText, Gauge, Loader2, Printer, Sparkles, Target } from "lucide-react";
 import {
   buildResumeJson,
   generateImprovedCv,
@@ -21,6 +21,8 @@ import {
   readLatestInterviewSetup,
 } from "@/lib/workzoInterviewSetup";
 import type { ResumeProfile } from "@/lib/workzoResumeParser";
+import { extractResumeProfileComplex, normalizeResumeText } from "@/lib/workzoResumeParser";
+import { cleanExtractedCvText, cleanCvHeadline } from "@/lib/workzoCvPdfCleaner";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 import { buildPhaseAInsights } from "@/lib/workzoCareerSuitePhaseA";
 import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
@@ -38,9 +40,12 @@ export default function CvWorkspacePage() {
   const [targetMarket, setTargetMarket] = useState("global");
   const [template, setTemplate] = useState<CvTemplate>("ats");
   const [atsText, setAtsText] = useState("");
+  const [aiRewriteLoading, setAiRewriteLoading] = useState(false);
+  const [aiRewriteError, setAiRewriteError] = useState("");
+  const [aiRewriteApplied, setAiRewriteApplied] = useState(false);
   const [savedResumeProfile, setSavedResumeProfile] = useState<ResumeProfile | undefined>(undefined);
-  const [setupChecked, setSetupChecked] = useState(false);
-  const [hasCvData, setHasCvData] = useState(true);
+  const [profileRecovering, setProfileRecovering] = useState(false);
+  const [profileNeedsReupload, setProfileNeedsReupload] = useState(false);
 
   useEffect(() => {
     const setup = readLatestInterviewSetup();
@@ -54,36 +59,154 @@ export default function CvWorkspacePage() {
     debugCvProfile("cv.page.setup.resumeProfile", setup?.resumeProfile);
 
     syncCandidateIdentityFromSetup(setup);
-    const loadedCvText = normalizeSetupCvText(setup);
-    setCvText(loadedCvText);
+    const storedCvText = normalizeSetupCvText(setup);
+    setCvText(storedCvText);
     setJobDescription(normalizeSetupJobDescription(setup));
     setTargetRole(normalizeSetupTargetRole(setup));
     setTargetMarket(normalizeSetupTargetMarket(setup));
 
-    // Critical: Improve CV must use the exact structured profile produced during onboarding.
-    // Do not re-parse raw PDF text here unless no profile exists. Re-parsing is what caused
-    // projects, education, and summary to drift between Onboarding and Improve CV.
     const profile = setup?.resumeProfile;
-    let loadedProfile: ResumeProfile | undefined;
-    if (profile && typeof profile === "object" && "basics" in profile) {
-      loadedProfile = profile as ResumeProfile;
-      setSavedResumeProfile(loadedProfile);
-      debugCvProfile("cv.page.savedResumeProfile.set", profile);
+
+    // Detect a broken/stale stored profile from before our CV cleaning fixes.
+    function isLowQualityProfile(p: unknown): boolean {
+      if (!p || typeof p !== "object" || !("basics" in p)) return true;
+      const prof = p as ResumeProfile;
+
+      // Name checks
+      const rawName = prof.basics?.name?.trim() || "";
+      const name = rawName.toLowerCase();
+      if (!name || name === "candidate" || name === "professional" || name === "unknown") return true;
+
+      // Global guard: a candidate name must not be a skill, tool, degree, role,
+      // section title, company suffix, or long capability phrase. This prevents
+      // examples like "Enterprise Resource Planning" from becoming the name
+      // for any CV template, not just one sample PDF.
+      const normalizedName = name.replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+      const skillNames = (prof.skills || []).map((s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim());
+      if (skillNames.includes(normalizedName)) return true;
+      if (/\b(project management|resource planning|software development|cost planning|data analysis|machine learning|process improvement|team training|customer support|technical support|stakeholder management|communication|leadership|python|sql|excel|tableau|power bi|salesforce|sap|erp|crm)\b/i.test(rawName)) return true;
+      if (/\b(manager|engineer|designer|developer|analyst|consultant|specialist|coordinator|administrator|support|officer|director|lead|intern|project|software|data|technical|customer|enterprise|resource|planning)\b/i.test(rawName)) return true;
+
+      // Headline checks — truncated or wrong type
+      const headline = prof.basics?.headline || "";
+      if (/\b(gmbh|ag|ltd|llc|inc|corp)\b/i.test(headline)) return true;
+      // "Engineer" alone (single generic word) means the title was truncated
+      if (headline.trim().split(/\s+/).length === 1 && headline.length < 12) return true;
+
+      // Experience quality checks
+      const exp = prof.experience || [];
+      if (exp.length > 0) {
+        // All titles are single generic words = truncated extraction
+        const allTitlesTruncated = exp.every(
+          (e) => !e.title || e.title.trim().split(/\s+/).length <= 1
+        );
+        if (allTitlesTruncated) return true;
+
+        // Any title starts with a digit = date misclassified as title
+        const hasBadTitle = exp.some((e) => /^\d{4}/.test(e.title || ""));
+        if (hasBadTitle) return true;
+
+        // Company names duplicated inline ("Cummins GmbH • Cummins GmbH")
+        const hasDuplicateCompany = exp.some((e) => {
+          const c = e.company || "";
+          const parts = c.split(/\s*[•|]\s*/);
+          return parts.length >= 2 && parts[0].trim() === parts[1]?.trim();
+        });
+        if (hasDuplicateCompany) return true;
+      }
+
+      return false;
     }
 
-    // Decide whether there's enough real CV data to generate anything
-    // meaningful. Without this, a visitor who lands on /cv before
-    // completing onboarding silently gets a generic "Candidate /
-    // Professional" placeholder CV with no indication anything is missing.
-    const profileHasContent = Boolean(
-      loadedProfile &&
-        (loadedProfile.experience?.length ||
-          loadedProfile.education?.length ||
-          loadedProfile.skills?.length ||
-          (loadedProfile.summary && loadedProfile.summary.trim().length > 20)),
-    );
-    setHasCvData(loadedCvText.trim().length > 40 || profileHasContent);
-    setSetupChecked(true);
+    if (profile && typeof profile === "object" && "basics" in profile && !isLowQualityProfile(profile)) {
+      // Good profile — use it directly
+      setSavedResumeProfile(profile as ResumeProfile);
+      debugCvProfile("cv.page.savedResumeProfile.set", profile);
+      return;
+    }
+
+    // Profile is stale/broken. Get the best raw text we can find.
+    const s = setup as Record<string, unknown> | null;
+    const rawText = (s?.rawCvText as string)
+      || (s?.uploadedCvText as string)
+      || storedCvText;
+
+    debugCvPipeline("cv.page.profile.recovery", {
+      reason: profile ? "low_quality_profile" : "no_profile",
+      name: (profile as ResumeProfile | undefined)?.basics?.name,
+      rawChars: rawText?.length ?? 0,
+    });
+
+    // Do not locally re-parse before AI recovery. The local fallback is useful
+    // only inside the server parser; on product pages it can overwrite a good
+    // structured profile with a weaker regex result. Use /api/cv/structure as
+    // the single repair path for stale profiles.
+    const textForAi = rawText?.trim() || "";
+    if (textForAi.length > 200) {
+      setProfileRecovering(true);
+      debugCvPipeline("cv.page.profile.ai_reparse", { chars: textForAi.length });
+      fetch("/api/cv/structure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cvText: textForAi,
+          layoutText: textForAi,
+          targetRole: normalizeSetupTargetRole(setup),
+          targetMarket: normalizeSetupTargetMarket(setup),
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          const aiProfile = data?.resumeProfile || data?.profile;
+          if (aiProfile && typeof aiProfile === "object" && "basics" in aiProfile) {
+            const p = aiProfile as ResumeProfile;
+            if (!isLowQualityProfile(p)) {
+              setSavedResumeProfile(p);
+              setProfileRecovering(false);
+              debugCvProfile("cv.page.savedResumeProfile.ai_reparse", p);
+              // Rebuild cvText from the clean profile so the copilot gets correct data
+              // instead of the old garbled stored text
+              const cleanLines: string[] = [];
+              const b = p.basics || {};
+              if (b.name) cleanLines.push(`Candidate name: ${b.name}`);
+              if (b.headline) cleanLines.push(`Headline: ${b.headline}`);
+              const ct = [b.email, b.phone, b.location].filter(Boolean).join(" • ");
+              if (ct) cleanLines.push(`Contact: ${ct}`);
+              if (p.summary) cleanLines.push(`Summary: ${p.summary}`);
+              if (p.experience?.length) {
+                cleanLines.push("Experience:");
+                p.experience.slice(0, 6).forEach((e) => {
+                  const t = [e.title, e.company, e.dates].filter(Boolean).join(" • ");
+                  if (t) cleanLines.push(`- ${t}`);
+                  e.bullets?.slice(0, 4).forEach((bl: string) => cleanLines.push(`  • ${bl}`));
+                });
+              }
+              if (p.education?.length) {
+                cleanLines.push("Education:");
+                p.education.slice(0, 4).forEach((e) => {
+                  const l = [e.degree, e.institution, e.dates].filter(Boolean).join(" • ");
+                  if (l) cleanLines.push(`- ${l}`);
+                });
+              }
+              if (p.skills?.length) cleanLines.push(`Skills: ${p.skills.slice(0, 24).join(", ")}`);
+              if (p.languages?.length) cleanLines.push(`Languages: ${p.languages.join(", ")}`);
+              const cleanCvText = cleanLines.join("\n").trim();
+              if (cleanCvText) setCvText(cleanCvText);
+              return;
+            }
+          }
+          // AI also produced bad profile — need fresh upload
+          setProfileRecovering(false);
+          setProfileNeedsReupload(true);
+        })
+        .catch(() => {
+          setProfileRecovering(false);
+          setProfileNeedsReupload(true);
+        });
+    } else {
+      // Not enough text to re-parse at all — need fresh upload
+      setProfileNeedsReupload(true);
+    }
   }, []);
 
   const resumeInput = useMemo(
@@ -120,103 +243,125 @@ export default function CvWorkspacePage() {
 
   const phaseA = useMemo(() => buildPhaseAInsights({ cvText, jobDescription, targetRole, targetMarket }), [cvText, jobDescription, targetRole, targetMarket]);
 
-  const atsKeywords = useMemo(() => {
-    if (!jobDescription.trim()) return { matched: [], partial: [], missing: [], score: 0 };
+  // ── Shared JD keyword gap analysis ──────────────────────────────────────
+  // Previously there were two separate, independently-broken extractors
+  // here (`atsKeywords` and `atsAnalysis`). Both used naive sliding-window /
+  // frequency regexes over raw JD prose, which on narrative, translated, or
+  // run-on job descriptions produced meaningless "keywords" like
+  // "the customer when they" or "is experience" — arbitrary word windows,
+  // not actual skills or requirements.
+  //
+  // This version extracts keywords from a curated dictionary of real
+  // skill/tool/role/domain terms (single words and known multi-word phrases
+  // like "project management"), plus JD words that appear frequently AND
+  // are not stopwords/function words. Matching against the CV uses word
+  // boundaries, so "us" no longer "matches" inside "customers".
+  const KNOWN_PHRASES = [
+    "project management", "account management", "change management", "key account manager",
+    "customer success", "customer success manager", "success manager",
+    "stakeholder management", "people management", "team management",
+    "hr management", "hr administration", "human resources",
+    "power bi", "power point", "google sheets", "microsoft office",
+    "machine learning", "data analysis", "data analytics",
+    "public relations", "media relations", "crisis communication",
+    "content creation", "event planning", "social media management",
+    "brand management", "press releases",
+  ];
 
-    const jdLower = jobDescription.toLowerCase();
-    const cvLower = cvText.toLowerCase();
+  const SKILL_DICTIONARY = new Set([
+    ...KNOWN_PHRASES,
+    "sql", "python", "excel", "tableau", "salesforce", "zendesk", "jira", "hubspot",
+    "azure", "aws", "gcp", "react", "node", "java", "typescript", "javascript",
+    "api", "saas", "agile", "scrum", "crm", "erp",
+    "stakeholder", "stakeholders", "customer", "customers", "client", "clients",
+    "communication", "leadership", "negotiation", "presentation", "onboarding",
+    "implementation", "escalation", "escalations", "milestones", "rollout",
+    "management", "manager", "project", "projects", "experience",
+    "german", "english", "french", "dutch", "spanish",
+    "degree", "certification", "certifications", "qualification", "qualifications",
+    "travel", "conferences", "salary", "bonus", "commission",
+    "empathy", "eloquent", "eloquence", "proactive", "structured",
+    "media", "press", "branding", "marketing", "advertising",
+    "support", "training", "documentation", "reporting", "dashboards",
+  ]);
 
-    // Extract meaningful keywords from JD (filter out stop words)
-    const stopWords = new Set(["the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "from", "is", "are", "was", "were", "will", "be", "have", "has", "had", "do", "does", "did", "not", "this", "that", "we", "you", "they", "their", "our", "your", "its", "as", "if", "than", "then", "so", "can", "could", "should", "would", "may", "must", "shall", "who", "what", "when", "where", "how", "all", "any", "both", "each"]);
-
-    // Extract 2–4 word phrases that look like skills/requirements
-    const phrases: string[] = [];
-    const phrasePattern = /\b([a-z][a-z+#.\-/]{1,}(?:\s+[a-z][a-z+#.\-/]{1,}){0,3})\b/g;
-    let m: RegExpExecArray | null;
-    while ((m = phrasePattern.exec(jdLower)) !== null) {
-      const phrase = m[1]?.trim() ?? "";
-      if (phrase.length < 3) continue;
-      const words = phrase.split(/\s+/);
-      if (words.every((w) => stopWords.has(w))) continue;
-      // Prefer technical terms, skills, tools, certifications
-      if (/\d|[+#]|sql|python|excel|tableau|power\s?bi|crm|salesforce|zendesk|jira|azure|aws|gcp|react|node|java|typescript|javascript|api|saas|agile|scrum|stakeholder|customer|support|management|analysis|data|communication|leadership|experience|degree|certification|certification/i.test(phrase)) {
-        phrases.push(phrase);
-      }
-    }
-
-    // Deduplicate and take top 30 most relevant
-    const uniquePhrases = [...new Set(phrases)].slice(0, 40);
-
-    const matched: string[] = [];
-    const partial: string[] = [];
-    const missing: string[] = [];
-
-    for (const phrase of uniquePhrases) {
-      const words = phrase.split(/\s+/);
-      if (cvLower.includes(phrase)) {
-        matched.push(phrase);
-      } else if (words.length > 1 && words.some((w) => cvLower.includes(w) && !stopWords.has(w))) {
-        partial.push(phrase);
-      } else {
-        missing.push(phrase);
-      }
-    }
-
-    return { matched: matched.slice(0, 15), partial: partial.slice(0, 10), missing: missing.slice(0, 15) };
-  }, [cvText, jobDescription]);
-
-  const atsScore = useMemo(() => {
-    const total = atsKeywords.matched.length + atsKeywords.partial.length + atsKeywords.missing.length;
-    if (total === 0) return 0;
-    return Math.round((atsKeywords.matched.length + atsKeywords.partial.length * 0.5) / total * 100);
-  }, [atsKeywords]);
-
-  // ATS keyword gap analysis — extracts required keywords from JD, checks which are in CV
-  const atsAnalysis = useMemo(() => {
+  const keywordGap = useMemo(() => {
     if (!jobDescription.trim() || !cvText.trim()) {
-      return { score: 0, matched: [] as string[], missing: [] as string[], partial: [] as string[], total: 0 };
+      return { score: 0, matched: [] as string[], partial: [] as string[], missing: [] as string[], total: 0 };
     }
+
     const jdLower = jobDescription.toLowerCase();
     const cvLower = cvText.toLowerCase();
 
-    // Extract meaningful keywords from JD (2+ char, not stopwords)
-    const stopwords = new Set(["the","a","an","and","or","but","in","on","at","to","for","of","with","by","from","is","are","be","will","you","we","they","have","has","that","this","as","it","its","was","not","your","our","their","all","more","can","may","who","which","how","each","any","both","do","does"]);
-    const jdWords = jdLower.match(/\b[a-z][a-z0-9+#.-]{1,25}\b/g) || [];
-    const keywordFreq: Record<string, number> = {};
-    for (const word of jdWords) {
-      if (!stopwords.has(word)) keywordFreq[word] = (keywordFreq[word] || 0) + 1;
+    const stopwords = new Set([
+      "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "from",
+      "is", "are", "was", "were", "will", "be", "been", "being", "have", "has", "had", "do", "does", "did",
+      "not", "this", "that", "these", "those", "we", "you", "they", "their", "our", "your", "its", "it",
+      "as", "if", "than", "then", "so", "can", "could", "should", "would", "may", "must", "shall",
+      "who", "what", "when", "where", "how", "why", "which", "all", "any", "both", "each", "more", "most",
+      "again", "out", "up", "down", "no", "yes", "etc", "also", "such", "into", "about", "over", "after",
+      "before", "right", "make", "made", "get", "got", "go", "going", "want", "like", "lot", "point",
+      "start", "level", "job", "work", "works", "working", "really", "very", "well", "good",
+    ]);
+
+    // Word-boundary "includes" check — avoids false positives like "us"
+    // matching inside "customers".
+    const includesWord = (text: string, term: string) => {
+      if (term.includes(" ")) return text.includes(term);
+      return new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(text);
+    };
+
+    // 1) Known multi-word phrases mentioned in the JD.
+    const found = new Set<string>();
+    for (const phrase of KNOWN_PHRASES) {
+      if (includesWord(jdLower, phrase)) found.add(phrase);
     }
-    // Keep only meaningful keywords (appear ≥2 times OR are clearly technical/role terms)
-    const technicalTerms = new Set(["sql","python","excel","power bi","tableau","crm","salesforce","zendesk","jira","api","saas","agile","scrum","aws","azure","gcp","javascript","typescript","react","node","data","analysis","analytics","stakeholder","customer","communication","leadership","management","project","support","technical","reporting","dashboard","collaboration","english","german","dutch","french"]);
-    const importantKeywords = Object.entries(keywordFreq)
-      .filter(([word, count]) => count >= 2 || technicalTerms.has(word))
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 24)
-      .map(([word]) => word);
+
+    // 2) Single JD words that are real skill/domain terms (in our
+    // dictionary) or appear often enough to be a clear requirement.
+    const jdWords = jdLower.match(/\b[a-z][a-z0-9+#.-]{2,25}\b/g) || [];
+    const freq: Record<string, number> = {};
+    for (const word of jdWords) {
+      if (stopwords.has(word)) continue;
+      freq[word] = (freq[word] || 0) + 1;
+    }
+    for (const [word, count] of Object.entries(freq)) {
+      if (SKILL_DICTIONARY.has(word) || count >= 3) found.add(word);
+    }
+
+    const keywords = Array.from(found).slice(0, 24);
 
     const matched: string[] = [];
     const partial: string[] = [];
     const missing: string[] = [];
 
-    for (const keyword of importantKeywords) {
-      if (cvLower.includes(keyword)) {
+    for (const keyword of keywords) {
+      if (includesWord(cvLower, keyword)) {
         matched.push(keyword);
-      } else {
-        // Check for partial match (root word present)
-        const root = keyword.slice(0, Math.max(4, keyword.length - 2));
-        if (root.length >= 4 && cvLower.includes(root)) {
-          partial.push(keyword);
-        } else {
-          missing.push(keyword);
-        }
+        continue;
       }
+      // Partial: for multi-word phrases, at least one meaningful word is present.
+      const words = keyword.split(" ").filter((w) => w.length >= 4 && !stopwords.has(w));
+      if (words.length > 1 && words.some((w) => includesWord(cvLower, w))) {
+        partial.push(keyword);
+        continue;
+      }
+      missing.push(keyword);
     }
 
-    const total = importantKeywords.length || 1;
+    const total = keywords.length || 1;
     const score = Math.round(((matched.length + partial.length * 0.5) / total) * 100);
 
-    return { score, matched, missing, partial, total };
+    return { score, matched, partial, missing, total };
   }, [cvText, jobDescription]);
+
+  // Both UI sections below previously used separately-broken extractors
+  // (`atsKeywords` for "JD keyword gap analysis", `atsAnalysis` for
+  // "Keyword match score"). Both now read from the single fixed
+  // `keywordGap` result above.
+  const atsKeywords = keywordGap;
+  const atsAnalysis = keywordGap;
+  const atsScore = keywordGap.score;
   const phaseB = useMemo(
     () => buildPhaseBInsights({ cvText, jobDescription, targetRole, targetMarket }),
     [cvText, jobDescription, targetRole, targetMarket],
@@ -225,6 +370,8 @@ export default function CvWorkspacePage() {
 
   useEffect(() => {
     setAtsText(improvedCv || "");
+    setAiRewriteApplied(false);
+    setAiRewriteError("");
   }, [improvedCv]);
 
   useEffect(() => {
@@ -263,29 +410,82 @@ export default function CvWorkspacePage() {
     await navigator.clipboard.writeText(atsText || improvedCv);
   }
 
+  async function handleAiRewrite() {
+    if (!jobDescription.trim()) {
+      setAiRewriteError("Paste a job description first so the rewrite can target it.");
+      return;
+    }
+    if (!(atsText || improvedCv).trim()) {
+      setAiRewriteError("Upload a CV first.");
+      return;
+    }
+
+    setAiRewriteLoading(true);
+    setAiRewriteError("");
+
+    try {
+      const response = await fetch("/api/copilot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "cv_rewrite_ats",
+          cvText: atsText || improvedCv,
+          // Also send the structured profile so the copilot gets clean typed data
+          // instead of the raw extracted text which may have parsing artefacts
+          resumeProfile: savedResumeProfile || undefined,
+          jobDescription,
+          targetRole,
+          targetMarket,
+        }),
+      });
+
+      const data = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        output?: string;
+        error?: string;
+      } | null;
+
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || "AI rewrite failed. Please try again.");
+      }
+
+      const rewritten = (data.output || "").trim();
+      if (!rewritten) throw new Error("AI rewrite returned no content.");
+
+      setAtsText(rewritten);
+      setAiRewriteApplied(true);
+    } catch (err) {
+      setAiRewriteError(err instanceof Error ? err.message : "AI rewrite failed. Please try again.");
+    } finally {
+      setAiRewriteLoading(false);
+    }
+  }
+
+  function handleRevertRewrite() {
+    setAtsText(improvedCv || "");
+    setAiRewriteApplied(false);
+    setAiRewriteError("");
+  }
+
   return (
     <PremiumFeatureGate feature="improve_cv" title="Improve CV is a Premium feature" description="ATS keyword analysis, job-specific CV improvement, exports, and advanced CV targeting are included in Premium.">
-      {setupChecked && !hasCvData ? (
-        <main className="flex min-h-screen items-center justify-center bg-[#020817] px-5 py-6 text-white">
-          <div className="max-w-md rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-200">
-              <FileText className="h-7 w-7" />
-            </div>
-            <h1 className="text-xl font-black">Upload your CV to get started</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-400">
-              Improve CV needs your resume to generate ATS-optimized bullets, summaries, and exports. Upload or
-              paste your CV in onboarding first, then come back here.
-            </p>
-            <Link
-              href="/onboarding"
-              className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 px-6 py-3 text-sm font-black text-white transition hover:scale-[1.02]"
-            >
-              Go to onboarding
-            </Link>
-          </div>
-        </main>
-      ) : (
       <main className="min-h-screen bg-[#020817] px-5 py-6 text-white">
+        {/* CV data recovery banner */}
+        {(profileRecovering || profileNeedsReupload) && (
+          <div className={`mx-auto mb-5 flex max-w-5xl items-start gap-3 rounded-2xl border px-4 py-3 text-sm ${profileNeedsReupload ? "border-amber-500/30 bg-amber-500/10 text-amber-200" : "border-cyan-500/20 bg-cyan-500/[0.06] text-cyan-300"}`}>
+            {profileRecovering ? (
+              <>
+                <svg className="mt-0.5 h-4 w-4 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <span>Refreshing your CV profile with improved extraction…</span>
+              </>
+            ) : (
+              <>
+                <svg className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                <span>Your stored CV data needs refreshing. <a href="/onboarding" className="font-semibold underline underline-offset-2 hover:text-amber-100">Re-upload your CV on the setup page</a> to fix this.</span>
+              </>
+            )}
+          </div>
+        )}
       <header className="mx-auto mb-6 flex max-w-7xl items-center justify-between">
         <Link
           href="/dashboard"
@@ -688,7 +888,38 @@ export default function CvWorkspacePage() {
           </div>
 
           <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-5">
-            <h2 className="mb-3 text-xl font-black">ATS text version</h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-black">ATS text version</h2>
+              <div className="flex items-center gap-2">
+                {aiRewriteApplied && (
+                  <button
+                    type="button"
+                    onClick={handleRevertRewrite}
+                    className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-black text-slate-300 transition hover:bg-white/10"
+                  >
+                    Revert to original
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void handleAiRewrite()}
+                  disabled={aiRewriteLoading || !jobDescription.trim()}
+                  title={!jobDescription.trim() ? "Paste a job description to enable AI rewrite" : undefined}
+                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 px-4 py-1.5 text-xs font-black text-white transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {aiRewriteLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {aiRewriteLoading ? "Rewriting…" : aiRewriteApplied ? "Rewrite again" : "AI rewrite for this JD"}
+                </button>
+              </div>
+            </div>
+            {aiRewriteError && (
+              <p className="mb-3 text-xs font-semibold text-amber-300">{aiRewriteError}</p>
+            )}
+            {aiRewriteApplied && !aiRewriteError && (
+              <p className="mb-3 text-xs font-semibold text-emerald-300">
+                Rewritten for this job description. Same jobs, dates, and companies — only wording was changed. Review before downloading, and revert any line that doesn&apos;t sound like you.
+              </p>
+            )}
             <textarea
               value={atsText}
               onChange={(event) => setAtsText(event.target.value)}
@@ -720,7 +951,6 @@ export default function CvWorkspacePage() {
         </div>
       </section>
     </main>
-      )}
     </PremiumFeatureGate>
   );
 }
