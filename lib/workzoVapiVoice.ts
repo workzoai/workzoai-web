@@ -36,8 +36,30 @@ export type WorkZoVapiConfig = {
   recruiterKey: string;
 };
 
-export function getWorkZoVapiRecruiterKey(recruiterId?: WorkZoRecruiterId, recruiterName?: string): string {
-  return resolveRecruiterVoiceKey(recruiterId, recruiterName);
+export function getWorkZoVapiRecruiterKey(recruiterId?: WorkZoRecruiterId, recruiterName?: string) {
+  const raw = `${recruiterId || ""} ${recruiterName || ""}`.toLowerCase();
+  if (raw.includes("friendly_hr") || raw.includes("sarah") || raw.includes("friendly")) return "sarah" as const;
+  if (raw.includes("analytical_hiring_manager") || raw.includes("daniel") || raw.includes("analytical") || raw.includes("hiring")) return "daniel" as const;
+  if (raw.includes("startup_recruiter") || raw.includes("priya") || raw.includes("startup_recruiter")) return "priya" as const;
+  if (raw.includes("german_corporate") || raw.includes("corporate_recruiter") || raw.includes("markus") || raw.includes("corporate")) return "markus" as const;
+
+  // Pro personas — map to closest standard voice persona
+  // FAANG/technical → Daniel (evidence-driven, analytical)
+  if (raw.includes("faang") || raw.includes("alex")) return "daniel" as const;
+  // Startup founder → Priya (fast-paced, ownership-focused)
+  if (raw.includes("startup_founder") || raw.includes("zoe") || raw.includes("founder")) return "priya" as const;
+  // Consulting partner → Markus (structured, process-oriented)
+  if (raw.includes("consulting_partner") || raw.includes("harrington") || raw.includes("consulting")) return "markus" as const;
+  // Sales director → Daniel (numbers-first, direct)
+  if (raw.includes("sales_director") || raw.includes("marcus webb") || raw.includes("sales")) return "daniel" as const;
+  // Product leader → Priya (practical, user-focused)
+  if (raw.includes("product_leader") || raw.includes("aisha")) return "priya" as const;
+  // Executive recruiter → Markus (formal, structured)
+  if (raw.includes("executive_recruiter") || raw.includes("victoria") || raw.includes("stern")) return "markus" as const;
+  // Enterprise recruiter → Daniel (process-driven)
+  if (raw.includes("enterprise_recruiter") || raw.includes("kimura")) return "daniel" as const;
+
+  return "sarah" as const;
 }
 
 export function getWorkZoVapiAssistantId(recruiterId?: WorkZoRecruiterId, recruiterName?: string) {

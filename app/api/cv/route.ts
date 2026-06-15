@@ -199,13 +199,13 @@ function normalizeForCompare(value: string) {
 }
 
 const SECTION_OR_FAKE_NAME_RE =
-  /\b(profile\s*summary|profilesummary|work\s*experience|workexperience|professional\s*summary|summary|skills?|expertise|competencies|core\s*competencies|languages?|education|contact|projects?|certifications?|awards?|interests?|references?|berufserfahrung|bildungsweg|bildung|kenntnisse|fähigkeiten|fahigkeiten|ausbildung|sprachen|kontakt|programm|programming|program|data\s*visuali[sz]ation|machine\s*learning|generative\s*ai|matplotlib|seaborn|tableau|python|sql|tensorflow|sklearn|langchain|leadership|teamwork|critical\s*thinking|time\s*management|public\s*relations|effective\s*communication|english|german|deutsch|fluent|native|conversational|professional\s+working|intermediate|basic|basics|c1|c2|b1|b2|a1|a2|datenanalyse|markenmanagement|kommunikation|kreativität|kreativitat|betriebssysteme|netzwerke|programmierung|übersicht|ubersicht|profil|profilu\s*bersicht|berufsprofil)\b/i;
+  /\b(profile\s*summary|profilesummary|work\s*experience|workexperience|professional\s*summary|summary|skills?|expertise|competencies|core\s*competencies|languages?|education|contact|projects?|certifications?|awards?|interests?|references?|about\s*me|about|overview|berufserfahrung|bildungsweg|bildung|kenntnisse|fähigkeiten|fahigkeiten|ausbildung|sprachen|kontakt|programm|programming|program|data\s*visuali[sz]ation|machine\s*learning|generative\s*ai|matplotlib|seaborn|tableau|python|sql|tensorflow|sklearn|langchain|leadership|teamwork|critical\s*thinking|time\s*management|public\s*relations|effective\s*communication|english|german|deutsch|fluent|native|conversational|professional\s+working|intermediate|basic|basics|c1|c2|b1|b2|a1|a2|datenanalyse|markenmanagement|kommunikation|kreativität|kreativitat|betriebssysteme|netzwerke|programmierung|übersicht|ubersicht|profil|profilu\s*bersicht|berufsprofil)\b/i;
 const ORG_RE =
   /\b(gmbh|ug|ag|kg|ltd|limited|llc|inc|corp|corporation|company|co\.?|group|holding|services|solutions|systems|technolog(?:y|ies)|software|digital|media|productions?|industries|studio|agency|partners|consulting|ventures|labs?|university|universität|universitaet|college|school|schule|hochschule|institute|institut|academy|akademie|preschool|kindergarten|department|ministry|state\s+education|community)\b/i;
 const LOCATION_RE =
   /\b(street|straße|strasse|road|avenue|ave|weg|platz|city|stadt|town|village|germany|deutschland|india|france|italy|spain|usa|canada|berlin|munich|münchen|würzburg|wurzburg|chennai|london|frankfurt|anywhere|jeder?|jede)\b/i;
 const ROLE_RE =
-  /\b(project|product|program|programme|portfolio|it|ux|ui|software|data|business|marketing|sales|account|customer|success|support|technical|system|network|cloud|frontend|backend|full[ -]?stack|devops|hr|finance|operations|teacher|tutor|engineer|developer|designer|analyst|specialist|consultant|coordinator|administrator|assistant|manager|director|lead|head|officer|executive|intern|trainee|technician|scientist|researcher|planner|berater|entwickler|leiter|managerin|assistent)\b/i;
+  /\b(project|product|program|programme|portfolio|it|ux|ui|software|data|business|marketing|sales|account|customer|success|support|technical|system|network|cloud|frontend|backend|full[ -]?stack|devops|hr|finance|operations|teacher|tutor|engineer|developer|designer|design|graphic|photography|motion|layout|analyst|specialist|consultant|coordinator|administrator|assistant|manager|director|lead|head|officer|executive|intern|trainee|technician|scientist|researcher|planner|accounting|auditing|windows|server|directory|active|weiterbildung|netzwerk|programmierung|betriebssystem|berater|entwickler|leiter|managerin|assistent)\b/i;
 const CONTACT_RE = /@|www\.|https?:|linkedin|github|\+?\d[\d\s()./-]{5,}/i;
 const NAME_SECTION_HEADERS = new Set([
   "CONTACT",
@@ -265,7 +265,7 @@ function isHumanName(value: unknown) {
   if (LOCATION_RE.test(raw)) return "";
 
   const parts = raw.split(/\s+/).filter(Boolean);
-  if (parts.length < 2 || parts.length > 5) return "";
+  if (parts.length < 2 || parts.length > 4) return "";
   if (new Set(parts.map((p) => p.toLowerCase())).size === 1) return "";
   if (!parts.every((part) => /^[\p{L}'-]{2,25}$/u.test(part))) return "";
 
@@ -366,7 +366,7 @@ function extractHeaderName(rawText: string, fileName = "", parserName = "") {
 
   const fromEmail = extractNameFromEmail(rawText);
   if (fromEmail)
-    candidates.push({ name: fromEmail, score: 30, reason: "email" });
+    candidates.push({ name: fromEmail, score: 12, reason: "email" });
 
   // Lowest trust: parser/model name. It often returns skills, languages, companies, or schools.
   const fromParser = isHumanName(parserName);
@@ -387,6 +387,21 @@ function extractHeaderName(rawText: string, fileName = "", parserName = "") {
         reason: "compact-file-confirmed",
       });
       continue;
+    }
+
+    // Compact all-caps line with no filename confirmation:
+    // Check if the compact string matches the email local part — if so,
+    // use the email-derived name (which was already split into first/last)
+    // and score by position. This handles "HARITHAVIJAYAKUMAR" → email gives
+    // the correct split like "Haritha Vijayakumar" when the email is structured.
+    if (/^[A-ZÄÖÜ]{10,}$/u.test(line) && fromEmail) {
+      const rawEmailLocal = extractEmail(rawText).split("@")[0].replace(/\d+/g, "").toLowerCase();
+      const compactLower = line.toLowerCase();
+      if (rawEmailLocal && compactLower === rawEmailLocal) {
+        const posScore = index < 8 ? 80 : index < 20 ? 60 : 40;
+        candidates.push({ name: fromEmail, score: posScore, reason: "compact-email-confirmed" });
+        continue;
+      }
     }
 
     const name = isHumanName(line);
@@ -469,6 +484,35 @@ function extractHeaderName(rawText: string, fileName = "", parserName = "") {
         const score =
           fileKey && combinedKey && fileKey === combinedKey ? 115 : 85;
         candidates.push({ name: combined, score, reason: "two-line-compact" });
+      }
+    }
+  }
+
+  // Handles two consecutive single-word proper-case lines that together form a name.
+  // Example: "Estelle" on one line, "Darcy" on the next — each rejected alone (1 word),
+  // but combined they pass isHumanName. Score by the earlier line's position.
+  for (let i = 0; i < Math.min(lines.length - 1, 60); i += 1) {
+    const lineA = cleanText(lines[i]);
+    const lineB = cleanText(lines[i + 1]);
+    // Each must be a single word, 3-20 chars, proper case (not all-caps block)
+    if (
+      /^[A-ZÄÖÜ][a-zäöüß]{2,19}$/u.test(lineA) &&
+      /^[A-ZÄÖÜ][a-zäöüß]{2,19}$/u.test(lineB) &&
+      !isSectionHeaderLine(lineA) &&
+      !isSectionHeaderLine(lineB) &&
+      !ROLE_RE.test(lineA) &&
+      !ROLE_RE.test(lineB)
+    ) {
+      const combined = isHumanName(`${lineA} ${lineB}`);
+      if (combined) {
+        let score = 0;
+        if (i < 8) score += 60;
+        else if (i < 20) score += 40;
+        else score += 20;
+        // Boost if title hint follows (e.g. "Graphic Designer" after "Estelle Darcy")
+        const after = cleanText(lines[i + 2] || "");
+        if (TITLE_HINT_RE.test(after)) score += 20;
+        candidates.push({ name: combined, score, reason: "two-line-proper-case" });
       }
     }
   }

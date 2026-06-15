@@ -18,29 +18,17 @@ function normalizeLanguage(value: FormDataEntryValue | null) {
 export async function OPTIONS() { return new Response(null, { status: 204 }); }
 
 export async function POST(request: Request) {
-  // ── Auth + plan gate ────────────────────────────────────────────────────────
-  // Transcription is the STT counterpart to /api/tts. Free users use the
-  // browser's built-in voice and never call this route, so it is gated the
-  // same way as TTS — preventing anonymous/free use from burning the Whisper
-  // transcription budget.
+  // ── Auth gate ─────────────────────────────────────────────────────────────
   let resolved;
   try {
     resolved = await resolveWorkZoServerPlan();
   } catch {
     return Response.json({ error: "Could not resolve account plan." }, { status: 500 });
   }
-
   if (!resolved.authenticated) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  if (resolved.plan === "free") {
-    return Response.json(
-      { error: "upgrade_required", requiredPlan: "premium", message: "AI voice requires an upgrade." },
-      { status: 403 },
-    );
-  }
-  // ────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
 
   try {
     if (!process.env.OPENAI_API_KEY) {

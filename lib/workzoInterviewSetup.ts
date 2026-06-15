@@ -313,8 +313,14 @@ export function clearLatestInterviewSetup(): void {
 export function normalizeSetupCvText(setup: WorkZoInterviewSetup | null | undefined): string {
   if (!setup) return "";
 
+  // Prefer the raw extracted CV text over the formatted interview context string.
+  // setup.cvText is the built context ("Candidate name: X\nHeadline: Y\n...")
+  // which is useful for the interview but not for CV improve / cover letter.
+  // setup.rawCvText and setup.uploadedCvText are the original extracted text.
   return cleanString(
-    setup.cvText ||
+    (setup as any).rawCvText ||
+      (setup as any).uploadedCvText ||
+      setup.cvText ||
       setup.uploadedCvText ||
       setup.resumeText ||
       setup.candidateCv ||
