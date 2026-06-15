@@ -39,7 +39,7 @@ import { buildWorkZoCompanyBlueprint } from "@/lib/workzoCompanyBlueprint";
 type Market = "Global" | "Germany" | "US" | "UK" | "India" | "Netherlands";
 type CompanyStyle = "Realistic" | "Startup" | "Corporate" | "Technical" | "Consulting";
 type RecruiterKey =
-  | "friendly_hr" | "analytical_hiring_manager" | "startup_recruiter" | "corporate_recruiter"
+  | "friendly_hr" | "analytical_hiring_manager" | "startup_recruiter" | "german_corporate"
   | "faang_hiring_manager" | "startup_founder" | "consulting_partner" | "sales_director"
   | "product_leader" | "executive_recruiter" | "enterprise_recruiter";
 type InterviewLanguage = "English" | "German" | "Dutch" | "French" | "Spanish" | "Italian" | "Portuguese";
@@ -64,7 +64,7 @@ const recruiters: { key: RecruiterKey; name: string; role: string; avatar: strin
   { key: "friendly_hr", name: "Sarah", role: "Friendly HR", avatar: "👩🏻‍💼", quote: "I'd love to understand how you work with people.", description: "Warm, supportive, and communication-focused." },
   { key: "analytical_hiring_manager", name: "Daniel", role: "Hiring Manager", avatar: "👨🏻‍💼", quote: "Can you prove the business impact behind that answer?", description: "Evidence-driven and focused on measurable impact." },
   { key: "startup_recruiter", name: "Priya", role: "Startup Recruiter", avatar: "👩🏽‍💼", quote: "What did YOU specifically own in that project?", description: "Fast-paced, practical, and ownership-focused." },
-  { key: "corporate_recruiter", name: "Markus", role: "Corporate Recruiter", avatar: "👨🏼‍💼", quote: "Please keep the answer concise and relevant.", description: "Structured, professional, and process-oriented." },
+  { key: "german_corporate", name: "Markus", role: "Corporate Recruiter", avatar: "👨🏼‍💼", quote: "Please keep the answer concise and relevant.", description: "Structured, professional, and process-oriented." },
 ];
 
 const proRecruiters: { key: RecruiterKey; name: string; role: string; avatar: string; quote: string; description: string }[] = [
@@ -116,7 +116,7 @@ function normalizeRecruiterKey(value?: unknown): RecruiterKey {
   if (key === "friendly_hr" || raw.includes("sarah")) return "friendly_hr";
   if (key === "analytical_hiring_manager" || raw.includes("daniel")) return "analytical_hiring_manager";
   if (key === "startup_recruiter" || raw.includes("priya")) return "startup_recruiter";
-  if (key === "corporate_recruiter" || key === "german_corporate" || raw.includes("markus")) return "corporate_recruiter";
+  if (key === "german_corporate" || key === "corporate_recruiter" || raw.includes("markus")) return "german_corporate";
   if (key === "faang_hiring_manager" || raw.includes("faang")) return "faang_hiring_manager";
   if (key === "startup_founder" || (raw.includes("founder") && !raw.includes("startup_recruiter"))) return "startup_founder";
   if (key === "consulting_partner" || raw.includes("harrington")) return "consulting_partner";
@@ -658,7 +658,7 @@ export default function OnboardingPage() {
       clearLatestInterviewSetup();
       const form = new FormData();
       form.append("file", file);
-      const response = await fetch("/api/cv", { method: "POST", body: form });
+      const response = await fetch("/api/cv", { method: "POST", body: form, credentials: "include" });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error || "CV extraction failed");
       debugCvPipeline("onboarding.upload.api_response", { keys: data && typeof data === "object" ? Object.keys(data) : [], fileName: file.name, chars: data?.chars || null });

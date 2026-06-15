@@ -148,6 +148,7 @@ export default function CvWorkspacePage() {
       fetch("/api/cv/structure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           cvText: textForAi,
           layoutText: textForAi,
@@ -427,6 +428,7 @@ export default function CvWorkspacePage() {
       const response = await fetch("/api/copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           action: "cv_rewrite_ats",
           cvText: atsText || improvedCv,
