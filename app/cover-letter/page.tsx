@@ -8,7 +8,6 @@ import {
   normalizeSetupCvText,
   normalizeSetupJobDescription,
   normalizeSetupTargetRole,
-  normalizeSetupTargetMarket,
   readLatestInterviewSetup,
 } from "@/lib/workzoInterviewSetup";
 import { buildPhaseAInsights } from "@/lib/workzoCareerSuitePhaseA";
@@ -25,13 +24,23 @@ export default function CoverLetterWorkspacePage() {
 
   useEffect(() => {
     const setup = readLatestInterviewSetup();
-    setCvText(normalizeSetupCvText(setup));
-    setJobDescription(normalizeSetupJobDescription(setup));
-    setTargetRole(normalizeSetupTargetRole(setup));
-    setTargetMarket(normalizeSetupTargetMarket(setup));
-    if (setup?.resumeProfile && typeof setup.resumeProfile === "object") {
-      setResumeProfile(setup.resumeProfile);
-    }
+    import("@/lib/workzoInterviewSetup").then(({ normalizeSetupCvText: normCv, normalizeSetupJobDescription: normJd, normalizeSetupTargetRole: normRole, normalizeSetupTargetMarket: normMarket }) => {
+      setCvText(normCv(setup));
+      setJobDescription(normJd(setup));
+      setTargetRole(normRole(setup));
+      setTargetMarket(normMarket ? normMarket(setup) : String(setup?.targetMarket || setup?.country || "Global"));
+      if (setup?.resumeProfile && typeof setup.resumeProfile === "object") {
+        setResumeProfile(setup.resumeProfile);
+      }
+    }).catch(() => {
+      // fallback
+      setCvText(String(setup?.cvText || setup?.uploadedCvText || setup?.resumeText || ""));
+      setJobDescription(String(setup?.jobDescription || setup?.jdText || ""));
+      setTargetRole(String(setup?.targetRole || setup?.role || ""));
+      if (setup?.resumeProfile && typeof setup.resumeProfile === "object") {
+        setResumeProfile(setup.resumeProfile);
+      }
+    });
   }, []);
 
   const phaseA = useMemo(() => buildPhaseAInsights({ cvText, jobDescription, targetRole }), [cvText, jobDescription, targetRole]);
@@ -51,13 +60,13 @@ export default function CoverLetterWorkspacePage() {
       const res = await fetch("/api/copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           action: "cover_letter",
           cvText,
           jobDescription,
           targetRole,
           targetMarket,
-          resumeProfile: resumeProfile || undefined,
         }),
       });
 
