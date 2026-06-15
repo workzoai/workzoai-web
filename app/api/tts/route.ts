@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       model: string;
       voice: "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
       input: string;
-      response_format: string;
+      response_format: "mp3" | "opus" | "aac" | "flac" | "wav" | "pcm";
       instructions?: string;
     } = {
       model: process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts",
