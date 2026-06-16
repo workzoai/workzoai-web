@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import TavusRecruiterPanel from "@/components/interview/TavusRecruiterPanel";
 import {
   ChevronRight,
   ArrowLeft,
@@ -1642,6 +1643,146 @@ function buildUnsupportedClaimChallenge(answer: string, setup: InterviewSetup) {
 
 
 
+
+function selectedLanguageCode(setup: InterviewSetup) {
+  return normalizeInterviewLanguage(setup.language).code;
+}
+
+function buildLocalizedGreeting(setup: InterviewSetup) {
+  const language = normalizeInterviewLanguage(setup.language);
+  const name = safeGreetingName(setup.candidateName);
+
+  switch (language.code) {
+    case "de-DE":
+      return `Hallo ${name}. Danke, dass du heute hier bist. Wie geht es dir?`;
+    case "nl-NL":
+      return `Hallo ${name}. Bedankt dat je er vandaag bent. Hoe gaat het met je?`;
+    case "fr-FR":
+      return `Bonjour ${name}. Merci d’être là aujourd’hui. Comment allez-vous ?`;
+    case "es-ES":
+      return `Hola ${name}. Gracias por estar aquí hoy. ¿Cómo estás?`;
+    case "it-IT":
+      return `Ciao ${name}. Grazie per essere qui oggi. Come stai?`;
+    case "pt-PT":
+      return `Olá ${name}. Obrigado por estares aqui hoje. Como estás?`;
+    case "zh-CN":
+      return `${name}，你好。感谢你今天参加面试。你现在感觉怎么样？`;
+    case "ja-JP":
+      return `${name}さん、本日はありがとうございます。ご気分はいかがですか？`;
+    case "ko-KR":
+      return `${name}님, 오늘 참석해 주셔서 감사합니다. 지금 기분은 어떠신가요?`;
+    case "ar-SA":
+      return `مرحبًا ${name}. شكرًا لانضمامك اليوم. كيف حالك؟`;
+    case "pl-PL":
+      return `Cześć ${name}. Dziękuję, że jesteś dzisiaj. Jak się masz?`;
+    case "ru-RU":
+      return `Здравствуйте, ${name}. Спасибо, что присоединились сегодня. Как вы себя чувствуете?`;
+    case "tr-TR":
+      return `Merhaba ${name}. Bugün katıldığın için teşekkür ederim. Nasılsın?`;
+    case "hi-IN":
+      return `नमस्ते ${name}. आज इंटरव्यू में शामिल होने के लिए धन्यवाद। आप कैसे हैं?`;
+    case "ta-IN":
+      return `வணக்கம் ${name}. இன்று நேர்காணலில் சேர்ந்ததற்கு நன்றி. எப்படி இருக்கிறீர்கள்?`;
+    default:
+      return `Hi ${name}. Thank you for joining today. How are you doing?`;
+  }
+}
+
+function buildLocalizedIntroQuestion(setup: InterviewSetup) {
+  const language = normalizeInterviewLanguage(setup.language);
+  const role = setup.targetRole || "this role";
+
+  switch (language.code) {
+    case "de-DE":
+      return `Schön. Ich habe mir deinen Lebenslauf und die Rolle ${role} angesehen. Zum Einstieg: Kannst du dich bitte kurz vorstellen und erklären, wie deine Erfahrung zu dieser Gelegenheit passt?`;
+    case "nl-NL":
+      return `Fijn. Ik heb je cv en de rol ${role} bekeken. Om te beginnen: kun je jezelf kort voorstellen en uitleggen hoe je ervaring aansluit op deze kans?`;
+    case "fr-FR":
+      return `Très bien. J’ai consulté votre CV et le poste ${role}. Pour commencer, pouvez-vous vous présenter brièvement et expliquer en quoi votre expérience correspond à cette opportunité ?`;
+    case "es-ES":
+      return `Perfecto. He revisado tu CV y el puesto de ${role}. Para empezar, ¿puedes presentarte brevemente y explicar cómo tu experiencia encaja con esta oportunidad?`;
+    case "it-IT":
+      return `Perfetto. Ho letto il tuo CV e il ruolo ${role}. Per iniziare, puoi presentarti brevemente e spiegare come la tua esperienza si collega a questa opportunità?`;
+    case "pt-PT":
+      return `Ótimo. Analisei o teu CV e a função ${role}. Para começar, podes apresentar-te brevemente e explicar como a tua experiência se relaciona com esta oportunidade?`;
+    case "zh-CN":
+      return `好的。我看过你的简历和${role}这个职位。我们先从自我介绍开始：请你简要介绍一下自己，并说明你的经验如何匹配这个机会。`;
+    case "ja-JP":
+      return `ありがとうございます。履歴書と${role}の職務内容を確認しました。まず、簡単に自己紹介をして、このポジションにご自身の経験がどうつながるか説明していただけますか？`;
+    case "ko-KR":
+      return `좋습니다. 이력서와 ${role} 역할을 검토했습니다. 먼저 간단히 자기소개를 해주시고, 본인의 경험이 이 기회와 어떻게 연결되는지 설명해 주시겠어요?`;
+    case "ar-SA":
+      return `جيد. لقد راجعت سيرتك الذاتية ودور ${role}. لنبدأ: هل يمكنك تقديم نفسك باختصار وشرح كيف ترتبط خبرتك بهذه الفرصة؟`;
+    case "pl-PL":
+      return `Dobrze. Zapoznałem się z twoim CV i rolą ${role}. Na początek: przedstaw się krótko i wyjaśnij, jak twoje doświadczenie pasuje do tej możliwości.`;
+    case "ru-RU":
+      return `Хорошо. Я посмотрел ваше резюме и роль ${role}. Для начала коротко представьтесь и объясните, как ваш опыт связан с этой возможностью.`;
+    case "tr-TR":
+      return `Güzel. Özgeçmişini ve ${role} rolünü inceledim. Başlamak için kendini kısaca tanıtıp deneyiminin bu fırsatla nasıl bağlantılı olduğunu açıklar mısın?`;
+    case "hi-IN":
+      return `अच्छा। मैंने आपका CV और ${role} भूमिका देखी है। शुरुआत के लिए, कृपया अपना छोटा परिचय दें और बताएं कि आपका अनुभव इस अवसर से कैसे जुड़ता है।`;
+    case "ta-IN":
+      return `சரி. உங்கள் CV மற்றும் ${role} பொறுப்பை பார்த்தேன். ஆரம்பமாக, உங்களைச் சுருக்கமாக அறிமுகப்படுத்தி, உங்கள் அனுபவம் இந்த வாய்ப்புடன் எப்படி தொடர்புடையது என்பதை சொல்ல முடியுமா?`;
+    default:
+      return `Great. I had a chance to review your resume and the ${role} role. To get started, could you briefly introduce yourself and explain how your experience connects to this opportunity?`;
+  }
+}
+
+function buildLocalizedGentleClarification(setup: InterviewSetup) {
+  const language = normalizeInterviewLanguage(setup.language);
+
+  switch (language.code) {
+    case "de-DE":
+      return "Kein Problem. Nimm dir kurz Zeit. Bitte stell dich in zwei bis drei Sätzen vor und nenne eine Erfahrung, die für diese Rolle relevant ist.";
+    case "nl-NL":
+      return "Geen probleem. Neem even de tijd. Stel jezelf in twee of drie zinnen voor en noem één ervaring die relevant is voor deze rol.";
+    case "fr-FR":
+      return "Pas de problème. Prenez un instant. Présentez-vous en deux ou trois phrases et donnez une expérience pertinente pour ce poste.";
+    case "es-ES":
+      return "No pasa nada. Tómate un momento. Preséntate en dos o tres frases y menciona una experiencia relevante para este puesto.";
+    case "it-IT":
+      return "Nessun problema. Prenditi un momento. Presentati in due o tre frasi e cita un’esperienza rilevante per questo ruolo.";
+    case "pt-PT":
+      return "Sem problema. Tira um momento. Apresenta-te em duas ou três frases e menciona uma experiência relevante para esta função.";
+    case "hi-IN":
+      return "कोई बात नहीं। थोड़ा समय लें। दो या तीन वाक्यों में अपना परिचय दें और इस भूमिका से जुड़ा एक अनुभव बताएं।";
+    case "ta-IN":
+      return "பரவாயில்லை. சிறிது நேரம் எடுத்துக் கொள்ளுங்கள். இரண்டு அல்லது மூன்று வாக்கியங்களில் உங்களை அறிமுகப்படுத்தி, இந்த பொறுப்புக்கு தொடர்பான ஒரு அனுபவத்தைச் சொல்லுங்கள்.";
+    default:
+      return "No problem. Take a moment. Please introduce yourself in two or three sentences and mention one experience that is relevant to this role.";
+  }
+}
+
+function isGreetingOrLanguageCheck(answer: string) {
+  const lower = answer.toLowerCase().trim();
+  return (
+    answer.trim().split(/\s+/).filter(Boolean).length <= 12 &&
+    /\b(hello|hi|hey|how are you|can you hear me|do you hear me|namaste|नमस्ते|hallo|bonjour|hola|ciao|olá|ola|வணக்கம்)\b/i.test(lower)
+  );
+}
+
+function isConfusedOrNeedsRepeat(answer: string) {
+  return /\b(i don'?t understand|not understand|repeat|again|confused|समझ नहीं|समझ नही|samajh|नहीं समझ|nicht verstanden|nochmal|répéter|repete|no entiendo|non capisco)\b/i.test(answer);
+}
+
+function earlyInterviewReply(answer: string, questionIndex: number, setup: InterviewSetup) {
+  if (questionIndex <= 1) return buildLocalizedIntroQuestion(setup);
+  if (questionIndex <= 2 && isConfusedOrNeedsRepeat(answer)) return buildLocalizedGentleClarification(setup);
+  if (questionIndex <= 2 && isGreetingOrLanguageCheck(answer)) return buildLocalizedIntroQuestion(setup);
+  return "";
+}
+
+function buildOpeningFlowInstruction(setup: InterviewSetup) {
+  const language = normalizeInterviewLanguage(setup.language);
+  return [
+    `OPENING FLOW — speak in ${language.label}.`,
+    "First message must only greet the candidate and ask how they are doing.",
+    "After the candidate responds, acknowledge naturally and ask for a short self-introduction connected to the target role.",
+    "Do not ask for metrics, proof, pressure questions, or challenges until after the candidate has given a real introduction answer.",
+    "If the candidate asks to use another language, acknowledge the language request first and continue in the selected/requested language.",
+  ].join(" ");
+}
+
 function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
   const language = normalizeInterviewLanguage(setup.language);
   const text = safeText(reply);
@@ -1690,6 +1831,43 @@ function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
     if (/measurable impact|Now add measurable/i.test(text)) return "A história está clara. Agora adiciona impacto mensurável. O que mudou depois do teu trabalho?";
   }
 
+  if (language.code === "zh-CN") {
+    if (/^Yes, I can hear you/i.test(text)) return "好的，我能听到你。让我们正式开始。请简要介绍一下你的背景，以及为什么这个职位对你来说是合适的。";
+    if (/I'm following you, but I need more detail/i.test(text)) return "我在听，但在评估匹配度之前，我需要更多细节。请给我一个具体的情境——你个人做了什么，以及之后发生了什么变化。";
+    if (/The answer still sounds team-level/i.test(text)) return "这个回答听起来还是停留在团队层面。你个人具体决定、构建、解决或交付了什么？";
+    if (/measurable impact|Now add measurable/i.test(text)) return "故事很清晰。现在请加上可量化的影响。你的工作之后发生了什么变化？";
+  }
+
+  if (language.code === "ar-SA") {
+    if (/^Yes, I can hear you/i.test(text)) return "نعم، أسمعك. لنبدأ بشكل صحيح. أخبرني باختصار عن خلفيتك ولماذا هذا الدور مناسب لك.";
+    if (/I'm following you, but I need more detail/i.test(text)) return "أتابعك، لكنني أحتاج إلى مزيد من التفاصيل. أعطني موقفًا محددًا، وما الذي فعلته شخصيًا، وما الذي تغير بعد ذلك.";
+    if (/The answer still sounds team-level/i.test(text)) return "الإجابة لا تزال تبدو على مستوى الفريق. ماذا قررت أو بنيت أو حللت أو قدمت بشكل شخصي؟";
+    if (/measurable impact|Now add measurable/i.test(text)) return "القصة واضحة. الآن أضف تأثيرًا قابلًا للقياس. ماذا تغير بعد عملك؟";
+  }
+
+  if (language.code === "pl-PL") {
+    if (/^Yes, I can hear you/i.test(text)) return "Tak, słyszę cię. Zacznijmy właściwie. Opowiedz mi krótko o swoim doświadczeniu i dlaczego ta rola jest dla ciebie odpowiednia.";
+    if (/I'm following you, but I need more detail/i.test(text)) return "Rozumiem cię, ale potrzebuję więcej szczegółów. Podaj mi konkretną sytuację, co ty osobiście zrobiłeś i co się potem zmieniło.";
+    if (/The answer still sounds team-level/i.test(text)) return "Odpowiedź nadal brzmi jak praca zespołowa. Co ty osobiście zdecydowałeś, zbudowałeś, rozwiązałeś lub dostarczyłeś?";
+    if (/measurable impact|Now add measurable/i.test(text)) return "Historia jest jasna. Teraz dodaj mierzalny wpływ. Co zmieniło się po twojej pracy?";
+  }
+
+  if (language.code === "hi-IN") {
+    if (/^Yes, I can hear you/i.test(text)) return "हाँ, मैं आपको सुन पा रही हूँ। चलिए सही तरीके से शुरू करते हैं। कृपया अपने बारे में संक्षेप में बताइए और यह भूमिका आपके लिए क्यों उपयुक्त है।";
+    if (/I’m following you, but I need more detail/i.test(text)) return "मैं समझ रही हूँ, लेकिन बेहतर आकलन के लिए मुझे और विवरण चाहिए। एक वास्तविक स्थिति बताइए, आपने व्यक्तिगत रूप से क्या किया और उसके बाद क्या बदला।";
+    if (/The answer still sounds team-level/i.test(text)) return "यह उत्तर अभी भी टीम-स्तर का लग रहा है। आपने व्यक्तिगत रूप से क्या निर्णय लिया, बनाया, हल किया या डिलीवर किया?";
+    if (/measurable impact|Now add measurable|Give me one concrete metric/i.test(text)) return "उदाहरण समझ आया। अब मापने योग्य प्रभाव बताइए — समय, टिकट, गुणवत्ता, ग्राहक संतुष्टि, लागत या परिणाम में क्या बदलाव आया?";
+    if (/I need to pause there/i.test(text)) return "मुझे यहाँ थोड़ी देर रुकना होगा। यह दावा आपके CV से स्पष्ट रूप से सत्यापित नहीं हो रहा है। कृपया बताएं कि यह आधिकारिक नौकरी, freelance काम, volunteer अनुभव, transferable experience या सिर्फ example scenario था?";
+    if (/Thank you for being honest/i.test(text)) return "ईमानदारी के लिए धन्यवाद। चलिए अब केवल आपके CV में दिख रहे verified experience पर आगे बढ़ते हैं। किसी एक वास्तविक project, customer issue या responsibility के बारे में बताइए।";
+  }
+
+  if (language.code === "ta-IN") {
+    if (/^Yes, I can hear you/i.test(text)) return "ஆம், உங்களை கேட்க முடிகிறது. சரியாக தொடங்கலாம். உங்கள் பின்னணி மற்றும் இந்த பொறுப்பு ஏன் உங்களுக்கு பொருத்தமானது என்பதைச் சுருக்கமாக சொல்லுங்கள்.";
+    if (/I’m following you, but I need more detail/i.test(text)) return "நான் புரிந்துகொள்கிறேன், ஆனால் பொருத்தத்தை மதிப்பிட மேலும் விவரம் தேவை. ஒரு குறிப்பிட்ட சூழ்நிலை, நீங்கள் தனிப்பட்ட முறையில் செய்தது, அதன் பிறகு மாறியது என்ன என்பதைச் சொல்லுங்கள்.";
+    if (/The answer still sounds team-level/i.test(text)) return "இந்த பதில் இன்னும் குழு அளவில் இருக்கிறது. நீங்கள் தனிப்பட்ட முறையில் என்ன முடிவு செய்தீர்கள், உருவாக்கினீர்கள், சரிசெய்தீர்கள் அல்லது வழங்கினீர்கள்?";
+    if (/measurable impact|Now add measurable|Give me one concrete metric/i.test(text)) return "உதாரணம் தெளிவாக உள்ளது. இப்போது அளவிடக்கூடிய தாக்கத்தைச் சொல்லுங்கள் — நேரம், தரம், வாடிக்கையாளர் திருப்தி, செலவு அல்லது முடிவில் என்ன மாறியது?";
+  }
+
   return text;
 }
 
@@ -1697,6 +1875,9 @@ function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
 function buildRecruiterReply(answer: string, questionIndex: number, setup: InterviewSetup, memory: RecruiterMemoryState = defaultRecruiterMemory) {
   const lower = answer.toLowerCase();
   const wordCount = answer.trim().split(/\s+/).filter(Boolean).length;
+
+  const earlyReply = earlyInterviewReply(answer, questionIndex, setup);
+  if (earlyReply) return earlyReply;
 
   if (
     /\b(i lied|i made that up|i made it up|not true|wasn't true|that is false|i exaggerated|sorry.*lie|i just lied)\b/i.test(
@@ -2012,26 +2193,54 @@ function companyStyleInstructions(style: CompanyInterviewStyle) {
 function normalizeInterviewLanguage(value?: string) {
   const raw = safeText(value, "en-US").toLowerCase();
 
-  if (raw.includes("de") || raw.includes("german") || raw.includes("deutsch")) {
-    return { code: "de-DE", label: "German", instruction: "Conduct the interview in German. Keep recruiter questions natural, professional, and concise." };
+  if (raw.includes("german") || raw.includes("deutsch") || raw === "de" || raw === "de-de") {
+    return { code: "de-DE", label: "German", instruction: "Conduct the entire interview in German. Use professional, natural German throughout — questions, follow-ups, and feedback." };
   }
-
-  if (raw.includes("nl") || raw.includes("dutch") || raw.includes("nederlands")) {
-    return { code: "nl-NL", label: "Dutch", instruction: "Conduct the interview in Dutch. Keep recruiter questions natural, professional, and concise." };
+  if (raw.includes("dutch") || raw.includes("nederlands") || raw === "nl" || raw === "nl-nl") {
+    return { code: "nl-NL", label: "Dutch", instruction: "Conduct the entire interview in Dutch. Use professional, natural Dutch throughout." };
   }
-
-  if (raw.includes("hi") || raw.includes("hindi")) {
-    return { code: "hi-IN", label: "Hindi", instruction: "Conduct the interview in Hindi when possible. If voice support is limited, use clear simple English with Hindi-friendly phrasing." };
+  if (raw.includes("french") || raw.includes("français") || raw.includes("francais") || raw === "fr" || raw === "fr-fr") {
+    return { code: "fr-FR", label: "French", instruction: "Conduct the entire interview in French. Use professional, natural French throughout." };
   }
-
-  if (raw.includes("ta") || raw.includes("tamil")) {
-    return { code: "ta-IN", label: "Tamil", instruction: "Conduct the interview in Tamil when possible. If voice support is limited, use clear simple English with Tamil-friendly phrasing." };
+  if (raw.includes("spanish") || raw.includes("español") || raw.includes("espanol") || raw === "es" || raw === "es-es") {
+    return { code: "es-ES", label: "Spanish", instruction: "Conduct the entire interview in Spanish. Use professional, natural Spanish throughout." };
   }
-
+  if (raw.includes("italian") || raw.includes("italiano") || raw === "it" || raw === "it-it") {
+    return { code: "it-IT", label: "Italian", instruction: "Conduct the entire interview in Italian. Use professional, natural Italian throughout." };
+  }
+  if (raw.includes("portuguese") || raw.includes("portugu") || raw === "pt" || raw === "pt-pt" || raw === "pt-br") {
+    return { code: "pt-PT", label: "Portuguese", instruction: "Conduct the entire interview in Portuguese. Use professional, natural Portuguese throughout." };
+  }
+  if (raw.includes("chinese") || raw.includes("mandarin") || raw.includes("zh") || raw.includes("中文")) {
+    return { code: "zh-CN", label: "Chinese", instruction: "Conduct the entire interview in Mandarin Chinese (普通话). Use professional, natural Chinese throughout." };
+  }
+  if (raw.includes("arabic") || raw.includes("عربية") || raw === "ar" || raw === "ar-sa") {
+    return { code: "ar-SA", label: "Arabic", instruction: "Conduct the entire interview in Arabic. Use professional, natural Arabic throughout." };
+  }
+  if (raw.includes("polish") || raw.includes("polski") || raw === "pl" || raw === "pl-pl") {
+    return { code: "pl-PL", label: "Polish", instruction: "Conduct the entire interview in Polish. Use professional, natural Polish throughout." };
+  }
+  if (raw.includes("japanese") || raw === "ja" || raw === "ja-jp") {
+    return { code: "ja-JP", label: "Japanese", instruction: "Conduct the entire interview in Japanese. Use professional, natural Japanese (keigo where appropriate) throughout." };
+  }
+  if (raw.includes("korean") || raw === "ko" || raw === "ko-kr") {
+    return { code: "ko-KR", label: "Korean", instruction: "Conduct the entire interview in Korean. Use professional, natural Korean throughout." };
+  }
+  if (raw.includes("russian") || raw.includes("русский") || raw === "ru" || raw === "ru-ru") {
+    return { code: "ru-RU", label: "Russian", instruction: "Conduct the entire interview in Russian. Use professional, natural Russian throughout." };
+  }
+  if (raw.includes("turkish") || raw.includes("türkçe") || raw === "tr" || raw === "tr-tr") {
+    return { code: "tr-TR", label: "Turkish", instruction: "Conduct the entire interview in Turkish. Use professional, natural Turkish throughout." };
+  }
+  if (raw.includes("hindi") || raw === "hi" || raw === "hi-in") {
+    return { code: "hi-IN", label: "Hindi", instruction: "Conduct the entire interview in Hindi using natural, professional Hindi. Do not answer in English unless the candidate explicitly asks for English." };
+  }
+  if (raw.includes("tamil") || raw === "ta" || raw === "ta-in") {
+    return { code: "ta-IN", label: "Tamil", instruction: "Conduct the entire interview in Tamil using natural, professional Tamil. Do not answer in English unless the candidate explicitly asks for English." };
+  }
   if (raw.includes("auto")) {
     return { code: "en-US", label: "Auto", instruction: "Use the candidate's selected or detected language. If unsure, default to English." };
   }
-
   return { code: "en-US", label: "English", instruction: "Conduct the interview in English." };
 }
 
@@ -2096,27 +2305,7 @@ function buildLanguageInstruction(setup: InterviewSetup) {
 }
 
 function localizedOpeningQuestion(setup: InterviewSetup) {
-  const language = normalizeInterviewLanguage(setup.language);
-  const name = safeGreetingName(setup.candidateName);
-  const role = setup.targetRole || "this role";
-
-  if (language.code === "de-DE") {
-    return `Hallo ${name}. Beginnen wir mit deinem Interview für die Rolle ${role}. Kannst du mir kurz deinen Hintergrund erklären und warum diese Rolle für dich relevant ist?`;
-  }
-
-  if (language.code === "nl-NL") {
-    return `Hallo ${name}. Laten we beginnen met je interview voor de rol ${role}. Kun je kort je achtergrond toelichten en uitleggen waarom deze rol relevant voor je is?`;
-  }
-
-  if (language.code === "hi-IN") {
-    return `Hi ${name}. Let’s begin your interview for the ${role} role. Please answer in Hindi or English, whichever feels natural. ${recruiterQuestions[0]}`;
-  }
-
-  if (language.code === "ta-IN") {
-    return `Hi ${name}. Let’s begin your interview for the ${role} role. Please answer in Tamil or English, whichever feels natural. ${recruiterQuestions[0]}`;
-  }
-
-  return buildWorkZoPersonaOpeningQuestion(setup);
+  return buildLocalizedGreeting(setup);
 }
 
 function buildContextQualityNotice(setup: InterviewSetup) {
@@ -2604,6 +2793,9 @@ function buildMemoryAwareFollowUp(
   setup: InterviewSetup,
   memory: RecruiterMemoryState,
 ) {
+  const earlyReply = earlyInterviewReply(answer, questionIndex, setup);
+  if (earlyReply) return earlyReply;
+
   const unsupported = extractUnsupportedClaimReason(answer, setup);
   if (unsupported) {
     return buildUnsupportedClaimChallenge(answer, setup);
@@ -3054,6 +3246,12 @@ export default function InterviewPage() {
   const [status, setStatus] = useState<InterviewStatus>("idle");
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [premiumVoiceEnabled, setPremiumVoiceEnabled] = useState(true);
+  // Live video recruiter (Tavus) — Premium Pro only, opt-in. This swaps the
+  // static recruiter portrait for a real-time video call instead of always
+  // forcing video on for pro users, matching how it's framed elsewhere in
+  // the product as a distinct, limited-minutes feature rather than a
+  // blanket replacement of the standard interview experience.
+  const [videoModeEnabled, setVideoModeEnabled] = useState(false);
   const [premiumVoiceStatus, setPremiumVoiceStatus] = useState<PremiumVoiceStatus>("idle");
   const [premiumVoiceError, setPremiumVoiceError] = useState("");
   const [recruiterSignal, setRecruiterSignal] = useState<RecruiterSignalState>(defaultRecruiterSignal);
@@ -3694,7 +3892,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
           const ttsRes = await fetch("/api/tts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            credentials: "include",
             body: JSON.stringify({
               text,
               recruiterId: activeSetup.recruiterId,
@@ -3730,7 +3927,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
           const el11Res = await fetch("/api/elevenlabs", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            credentials: "include",
             body: JSON.stringify({
               text,
               recruiterId: activeSetup.recruiterId,
@@ -4131,8 +4327,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
         });
 
         const variableValues = buildWorkZoVapiVariableValues({
-          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize evidence, ownership, STAR structure, metrics, and role relevance. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. Do not invent farewell names or phrases. End only with: 'Thank you for your time, {candidateName}. We will be in touch soon. Have a great day.'`,
-          strictGroundingRules: "You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize evidence, ownership, STAR structure, metrics, and role relevance.",
+          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildOpeningFlowInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize evidence, ownership, STAR structure, metrics, and role relevance. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. Do not invent farewell names or phrases. End only with: 'Thank you for your time, {candidateName}. We will be in touch soon. Have a great day.'`,
+          strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize evidence, ownership, STAR structure, metrics, and role relevance.`,
           recruiterMustChallengeUnsupportedClaims: "true",
           antiHallucinationMode: "strict",
           candidateName: safeGreetingName(activeSetup.candidateName),
@@ -4146,6 +4342,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
           companyStyleInstructions: companyStyleInstructions(detectCompanyInterviewStyle(activeSetup)),
           cvText: [
             enforceSelectedLanguagePrefix(activeSetup),
+            buildOpeningFlowInstruction(activeSetup),
             buildFactualMemoryBrief(activeSetup),
             formatWorkZoCompanyBlueprintForPrompt(activeSetup.companyBlueprint),
             "CV fact memory:",
@@ -4156,6 +4353,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
           ].join("\n"),
           jobDescription: [
             enforceSelectedLanguagePrefix(activeSetup),
+            buildOpeningFlowInstruction(activeSetup),
             buildContextQualityNotice(activeSetup),
             buildLanguageInstruction(activeSetup),
             formatWorkZoCompanyBlueprintForPrompt(activeSetup.companyBlueprint),
@@ -4796,7 +4994,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
             >
               <Volume2 className={`h-5 w-5 ${audioEnabled ? "" : "text-slate-200"}`} />
             </button>
-            <div className="relative hidden sm:block">
+            <div className="relative">
                 <button
                   type="button"
                   onClick={() => {
@@ -4810,7 +5008,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 </button>
 
                 {settingsOpen ? (
-                  <div className="absolute right-0 top-12 z-50 max-h-[min(620px,calc(100vh-108px))] w-[320px] overflow-y-auto rounded-2xl workzo-hide-scrollbar border border-white/10 bg-[#091323]/95 p-4 shadow-2xl backdrop-blur-xl">
+                  <div className="absolute right-0 top-12 z-50 hidden max-h-[min(620px,calc(100vh-108px))] w-[320px] overflow-y-auto rounded-2xl workzo-hide-scrollbar border border-white/10 bg-[#091323]/95 p-4 shadow-2xl backdrop-blur-xl sm:block">
                     <div className="mb-3">
                       <p className="text-sm font-black text-white">Interview Settings</p>
                       <p className="mt-1 text-xs text-slate-400">Adjust only this interview room.</p>
@@ -4830,6 +5028,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
                             { id: "analytical_hiring_manager", name: "Daniel Reed", label: "Hiring Manager", premium: false },
                             { id: "startup_recruiter", name: "Priya Raman", label: "Startup Lead", premium: true },
                             { id: "german_corporate", name: "Markus Weber", label: "Corporate Lead", premium: true },
+                            { id: "faang_hiring_manager", name: "Alex Chen", label: "FAANG Hiring Manager", premium: true },
+                            { id: "startup_founder", name: "Zoe Park", label: "Startup Founder", premium: true },
+                            { id: "consulting_partner", name: "James Harrington", label: "Consulting Partner", premium: true },
+                            { id: "sales_director", name: "Marcus Webb", label: "Sales Director", premium: true },
+                            { id: "product_leader", name: "Aisha Patel", label: "Product Leader", premium: true },
+                            { id: "executive_recruiter", name: "Victoria Stern", label: "Executive Recruiter", premium: true },
+                            { id: "enterprise_recruiter", name: "David Kimura", label: "Enterprise Recruiter", premium: true },
                           ] as const).map((recruiter) => {
                             const locked = recruiter.premium && !premiumUnlocked;
                             const selected = setup.recruiterName === recruiter.name || setup.recruiterId === recruiter.id;
@@ -4936,6 +5141,21 @@ const [questionIndex, setQuestionIndex] = useState(0);
                             <span className="text-slate-500">Premium Pro only</span>
                           </div>
                         )}
+                        {serverPlan === "premium_pro" ? (
+                          <button
+                            type="button"
+                            onClick={() => setVideoModeEnabled((value) => !value)}
+                            className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
+                          >
+                            <span>Live video recruiter (Pro)</span>
+                            <span className="text-slate-400">{videoModeEnabled ? "On" : "Off"}</span>
+                          </button>
+                        ) : (
+                          <div className="flex w-full items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-sm opacity-50">
+                            <span>Live video recruiter</span>
+                            <span className="text-slate-500">Premium Pro only</span>
+                          </div>
+                        )}
                         <label className="block rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm">
                           <div className="mb-2 flex items-center justify-between">
                             <span>Voice Speed</span>
@@ -4964,72 +5184,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
                           <span className="text-slate-400">{autoScrollTranscript ? "On" : "Off"}</span>
                         </button>
                       </section>
-
-                      <section
-              style={{ display: showCopilot ? undefined : "none" }}
-              className="rounded-2xl border border-white/10 bg-[#0b1527] p-3.5 overflow-visible"
-            >
-              <div className="flex items-center justify-between">
-<h2 className="text-base font-black text-blue-300">Live Copilot</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowCopilot((value) => !value)}
-                  className="relative h-6 w-11 rounded-full bg-blue-500"
-                  aria-label="Toggle Live Copilot"
-                >
-                  <span className="absolute right-1 top-1 h-4 w-4 rounded-full bg-white" />
-                </button>
-              </div>
-
-              <div className="mt-2 grid grid-cols-[1fr_auto] gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-                    Recruiter mood
-                  </p>
-                  <p className={`mt-0.5 text-base font-black ${recruiterMoodColor(recruiterSignal.mood)}`}>
-                    {scoreReady ? recruiterSignal.mood : "Waiting"}
-                  </p>
-                </div>
-                <div className="text-right text-[11px] text-slate-300">
-                  <p>Trust <span className="font-bold text-white">{scoreReady ? recruiterSignal.trust : "—"}</span></p>
-                  <p>Interest <span className="font-bold text-white">{scoreReady ? recruiterSignal.interest : "—"}</span></p>
-                </div>
-              </div>
-
-              <div className="mt-2 rounded-xl border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">Say next</p>
-                <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-100">
-                  {scoreReady
-                    ? recruiterSignal.trust < 60
-                      ? "Clarify the claim, then give one verified example."
-                      : "Give one specific example with a clear result."
-                    : "Answer with one clear, role-relevant example."}
-                </p>
-              </div>
-
-              <div className="mt-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-200">Recruiter concern</p>
-                <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-100">
-                  {scoreReady ? recruiterMemory.liveNote || recruiterSignal.concern : "Waiting for evidence, ownership, and measurable impact."}
-                </p>
-                {recruiterMemory.patterns.length ? (
-                  <p className="mt-1 line-clamp-1 text-[11px] text-amber-100/80">
-                    Patterns detected: {recruiterMemory.patterns[recruiterMemory.patterns.length - 1]}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="mt-2 rounded-xl border border-blue-300/15 bg-blue-400/[0.07] px-3 py-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-200">Live recruiter thoughts</p>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {liveRecruiterThoughts.map((thought) => (
-                    <span key={thought} className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-slate-200">
-                      {thought}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </section>
 
                       <section className="space-y-2">
                         <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Interview Controls</p>
@@ -5143,21 +5297,34 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
         <div className="grid grid-cols-1 overflow-x-hidden lg:min-h-0 lg:grid-cols-[1fr_340px] lg:overflow-hidden">
           <div className="flex flex-col lg:min-h-0">
-            <section className="relative flex-1 overflow-hidden bg-[#08101c] sm:h-[390px] lg:h-auto">
-              <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-blue-500/20 blur-3xl" />
-              <div className="absolute inset-0">
-                <Image
-                  src={setup.recruiterImage}
-                  alt={`${setup.recruiterName}, interview recruiter`}
-                  fill
-                  priority
-                  sizes="(max-width: 1024px) 100vw, 850px"
-                  className="object-cover"
-                  style={{ objectPosition: recruiterImagePosition }}
+            <section className="relative flex-1 overflow-hidden bg-[#08101c] h-[340px] sm:h-[390px] lg:h-auto lg:min-h-[420px]">
+              {videoModeEnabled && serverPlan === "premium_pro" ? (
+                <TavusRecruiterPanel
+                  recruiterName={setup.recruiterName}
+                  recruiterTrust={scoreReady ? recruiterSignal.trust : 50}
+                  pressure={interviewStyle === "Brutal" ? 90 : interviewStyle === "Challenging" ? 70 : interviewStyle === "Realistic" ? 50 : 30}
+                  onUnavailable={() => setVideoModeEnabled(false)}
                 />
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/10 to-black/0" />
+              ) : (
+                <>
+                  <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-blue-500/20 blur-3xl" />
+                  <div className="absolute inset-0">
+                    <Image
+                      src={setup.recruiterImage}
+                      alt={`${setup.recruiterName}, interview recruiter`}
+                      fill
+                      priority
+                      sizes="(max-width: 1024px) 100vw, 850px"
+                      className="object-cover"
+                      style={{ objectPosition: recruiterImagePosition }}
+                    />
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/10 to-black/0" />
+                </>
+              )}
 
+              {!videoModeEnabled || serverPlan !== "premium_pro" ? (
+              <>
               {waitingRoomActive ? (
                 <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050b14]/80 p-4 backdrop-blur-md">
                   <div className="w-full max-w-xl rounded-[1.5rem] border border-white/10 bg-[#0b1527]/95 p-5 shadow-2xl">
@@ -5270,6 +5437,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
                   <PhoneOff className="h-6 w-6" />
                 </button>
               </div>
+              </>
+              ) : null}
             </section>
 
             <section className="border-t border-white/[0.08] bg-[#05090f] lg:min-h-0">
@@ -5531,26 +5700,168 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
       {settingsOpen && (
         <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm lg:hidden" onClick={() => setSettingsOpen(false)}>
-          <section className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-[2rem] border border-white/10 bg-[#07111f] p-5 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <section className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-[2rem] border border-white/10 bg-[#07111f] p-5 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/20" />
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200">Interview settings</p>
                 <h2 className="mt-1 text-xl font-black">Mobile controls</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-400">Adjust the most important interview controls without opening the desktop side panel.</p>
+                <p className="mt-1 text-sm leading-6 text-slate-400">Adjust your interview without leaving the room.</p>
               </div>
               <button type="button" onClick={() => setSettingsOpen(false)} className="rounded-2xl border border-white/10 px-3 py-2 text-sm font-black text-slate-300">Close</button>
             </div>
-            <div className="mt-5 grid gap-3">
-              <button type="button" onClick={() => setAudioEnabled((value) => !value)} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
-                <span><span className="block text-sm font-black">Recruiter voice</span><span className="block text-xs text-slate-400">Use spoken recruiter prompts</span></span>
-                <span className={`rounded-full px-3 py-1 text-xs font-black ${audioEnabled ? "bg-emerald-400/15 text-emerald-200" : "bg-white/10 text-slate-400"}`}>{audioEnabled ? "On" : "Off"}</span>
-              </button>
-              <button type="button" onClick={() => setShowTranscript((value) => !value)} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
-                <span><span className="block text-sm font-black">Transcript</span><span className="block text-xs text-slate-400">Show or collapse live transcript</span></span>
-                <span className="rounded-full bg-blue-400/15 px-3 py-1 text-xs font-black text-blue-200">{showTranscript ? "Shown" : "Hidden"}</span>
-              </button>
-              <Link href="/dashboard" className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-slate-300">Back to dashboard</Link>
+
+            <div className="mt-5 space-y-5">
+              <section>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Recruiter</p>
+                  {!premiumUnlocked ? (
+                    <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black text-amber-200">Premium available</span>
+                  ) : null}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { id: "friendly_hr", name: "Sarah Chen", label: "Talent Partner", premium: false },
+                    { id: "analytical_hiring_manager", name: "Daniel Reed", label: "Hiring Manager", premium: false },
+                    { id: "startup_recruiter", name: "Priya Raman", label: "Startup Lead", premium: true },
+                    { id: "german_corporate", name: "Markus Weber", label: "Corporate Lead", premium: true },
+                    { id: "faang_hiring_manager", name: "Alex Chen", label: "FAANG Hiring Manager", premium: true },
+                    { id: "startup_founder", name: "Zoe Park", label: "Startup Founder", premium: true },
+                    { id: "consulting_partner", name: "James Harrington", label: "Consulting Partner", premium: true },
+                    { id: "sales_director", name: "Marcus Webb", label: "Sales Director", premium: true },
+                    { id: "product_leader", name: "Aisha Patel", label: "Product Leader", premium: true },
+                    { id: "executive_recruiter", name: "Victoria Stern", label: "Executive Recruiter", premium: true },
+                    { id: "enterprise_recruiter", name: "David Kimura", label: "Enterprise Recruiter", premium: true },
+                  ] as const).map((recruiter) => {
+                    const locked = recruiter.premium && !premiumUnlocked;
+                    const selected = setup.recruiterName === recruiter.name || setup.recruiterId === recruiter.id;
+                    return (
+                      <button
+                        key={recruiter.id}
+                        type="button"
+                        onClick={() => {
+                          if (locked) {
+                            handlePremiumGateClick(`recruiter_${recruiter.name.toLowerCase()}`);
+                            return;
+                          }
+                          applyRecruiterFromSettings(recruiter.id);
+                        }}
+                        className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
+                          selected
+                            ? "border-blue-400/60 bg-blue-500/15 text-white"
+                            : locked
+                              ? "border-amber-300/20 bg-amber-400/[0.06] text-amber-100/80"
+                              : "border-white/10 bg-white/[0.03] text-slate-300"
+                        }`}
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span>{recruiter.name}</span>
+                          {locked ? <span className="text-[10px] text-amber-200">PRO</span> : null}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] font-semibold text-slate-200">{recruiter.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Interview Atmosphere</p>
+                  {!premiumUnlocked ? (
+                    <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black text-amber-200">Premium pressure</span>
+                  ) : null}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["Supportive", "Realistic", "Challenging", "Brutal"] as const).map((style) => {
+                    const locked = (style === "Challenging" || style === "Brutal") && !premiumUnlocked;
+                    return (
+                      <button
+                        key={style}
+                        type="button"
+                        onClick={() => {
+                          if (locked) {
+                            handlePremiumGateClick(`atmosphere_${style.toLowerCase()}`);
+                            return;
+                          }
+                          setInterviewStyle(style);
+                        }}
+                        className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
+                          interviewStyle === style
+                            ? "border-violet-400/60 bg-violet-500/15 text-white"
+                            : locked
+                              ? "border-amber-300/20 bg-amber-400/[0.06] text-amber-100/80"
+                              : "border-white/10 bg-white/[0.03] text-slate-300"
+                        }`}
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span>{style}</span>
+                          {locked ? <span className="text-[10px] text-amber-200">PRO</span> : null}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="space-y-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Voice</p>
+                <button type="button" onClick={() => setAudioEnabled((value) => !value)} className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
+                  <span><span className="block text-sm font-black">Recruiter voice</span><span className="block text-xs text-slate-400">Use spoken recruiter prompts</span></span>
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ${audioEnabled ? "bg-emerald-400/15 text-emerald-200" : "bg-white/10 text-slate-400"}`}>{audioEnabled ? "On" : "Off"}</span>
+                </button>
+                {serverPlan === "premium_pro" ? (
+                  <button type="button" onClick={() => setPremiumVoiceEnabled((value) => !value)} className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
+                    <span className="text-sm font-black">Live AI voice (Pro)</span>
+                    <span className="text-xs text-slate-400">{premiumVoiceEnabled ? "On" : "Off"}</span>
+                  </button>
+                ) : (
+                  <div className="flex w-full items-center justify-between rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-left opacity-50">
+                    <span className="text-sm font-black">Live AI voice</span>
+                    <span className="text-xs text-slate-500">Premium Pro only</span>
+                  </div>
+                )}
+                {serverPlan === "premium_pro" ? (
+                  <button type="button" onClick={() => setVideoModeEnabled((value) => !value)} className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
+                    <span className="text-sm font-black">Live video recruiter (Pro)</span>
+                    <span className="text-xs text-slate-400">{videoModeEnabled ? "On" : "Off"}</span>
+                  </button>
+                ) : (
+                  <div className="flex w-full items-center justify-between rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-left opacity-50">
+                    <span className="text-sm font-black">Live video recruiter</span>
+                    <span className="text-xs text-slate-500">Premium Pro only</span>
+                  </div>
+                )}
+                <label className="block rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm font-black">Voice speed</span>
+                    <span className="text-xs text-slate-400">{voiceSpeed.toFixed(2)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.70"
+                    max="1.00"
+                    step="0.03"
+                    value={voiceSpeed}
+                    onChange={(event) => setVoiceSpeed(Number(event.target.value))}
+                    className="w-full"
+                  />
+                </label>
+              </section>
+
+              <section className="space-y-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Transcript</p>
+                <button type="button" onClick={() => setShowTranscript((value) => !value)} className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
+                  <span><span className="block text-sm font-black">Transcript</span><span className="block text-xs text-slate-400">Show or collapse live transcript</span></span>
+                  <span className="rounded-full bg-blue-400/15 px-3 py-1 text-xs font-black text-blue-200">{showTranscript ? "Shown" : "Hidden"}</span>
+                </button>
+                <button type="button" onClick={() => setAutoScrollTranscript((value) => !value)} className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
+                  <span className="text-sm font-black">Auto-scroll transcript</span>
+                  <span className="text-xs text-slate-400">{autoScrollTranscript ? "On" : "Off"}</span>
+                </button>
+              </section>
+
+              <Link href="/dashboard" className="block rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-sm font-black text-slate-300">Back to dashboard</Link>
             </div>
           </section>
         </div>

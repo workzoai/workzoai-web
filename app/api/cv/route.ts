@@ -3,6 +3,7 @@ import { createRequire } from "module";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import {
   normalizeResumeText,
+  extractResumeProfileComplex,
   type ResumeProfile,
 } from "@/lib/workzoResumeParser";
 import { cleanExtractedCvText } from "@/lib/workzoCvPdfCleaner";
@@ -1105,15 +1106,35 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
       { status: 400 },
     );
 
-  const aiResult = await parseResumeWithAiStructure({
-    cvText: rawCv,
-    layoutText: rawCv,
-    fileName: body.fileName || "pasted-cv.txt",
-    jobDescription: jd,
-    targetRole: body.targetRole,
-    targetMarket: body.targetMarket,
-    language: body.language,
-  });
+  // Same defensive wrapping as the file-upload path above — protects
+  // against the OpenAI SDK throwing an uncaught error when OpenRouter
+  // returns a malformed response body, which otherwise crashes this
+  // route with a raw 500 instead of degrading to the local fallback.
+  let aiResult;
+  try {
+    aiResult = await parseResumeWithAiStructure({
+      cvText: rawCv,
+      layoutText: rawCv,
+      fileName: body.fileName || "pasted-cv.txt",
+      jobDescription: jd,
+      targetRole: body.targetRole,
+      targetMarket: body.targetMarket,
+      language: body.language,
+    });
+  } catch (aiError) {
+    console.error("api.cv.json.ai_parser_uncaught_error", aiError);
+    const localProfile = repairResumeProfileAfterParsing(
+      extractResumeProfileComplex(rawCv),
+      rawCv,
+      body.fileName || "pasted-cv.txt",
+    );
+    aiResult = {
+      ok: false,
+      source: "local_fallback_ai_uncaught_error",
+      resumeProfile: localProfile,
+      error: aiError instanceof Error ? aiError.message : "AI CV parser crashed unexpectedly.",
+    };
+  }
 
   debugCvProfile("api.cv.json.profile", aiResult.resumeProfile, {
     source: aiResult.source,
@@ -1192,11 +1213,37 @@ export async function POST(request: Request) {
       // Affinda is currently too inconsistent for WorkZo CVs (often returns no experience/education
       // and misclassifies skills/section text as the candidate name). We keep it only as a fallback
       // when the AI parser produces a weak structure.
-      const aiResult = await parseResumeWithAiStructure({
-        cvText: cleanedCv,
-        layoutText: cleanedCv,
-        fileName: safeFileName,
-      });
+      //
+      // Defensive try/catch here, in addition to the one inside
+      // parseResumeWithAiStructure itself: when OpenRouter returns a
+      // malformed/non-JSON response body (rate-limit page, truncated
+      // stream, upstream timeout), the OpenAI SDK's own internal response
+      // parsing can throw in a way that escapes its caller's try/catch —
+      // surfacing as an uncaught "SyntaxError: No number after minus sign
+      // in JSON" 500 for the whole route instead of degrading to the local
+      // fallback parser. This guarantees the route always returns clean
+      // JSON instead of crashing.
+      let aiResult;
+      try {
+        aiResult = await parseResumeWithAiStructure({
+          cvText: cleanedCv,
+          layoutText: cleanedCv,
+          fileName: safeFileName,
+        });
+      } catch (aiError) {
+        console.error("api.cv.ai_parser_uncaught_error", aiError);
+        const localProfile = repairResumeProfileAfterParsing(
+          extractResumeProfileComplex(cleanedCv),
+          cleanedCv,
+          safeFileName,
+        );
+        aiResult = {
+          ok: false,
+          source: "local_fallback_ai_uncaught_error",
+          resumeProfile: localProfile,
+          error: aiError instanceof Error ? aiError.message : "AI CV parser crashed unexpectedly.",
+        };
+      }
 
       debugCvProfile("api.cv.parser.output", aiResult.resumeProfile, {
         fileName: safeFileName,

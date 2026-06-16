@@ -10,6 +10,13 @@ export type WorkZoInterviewLanguage =
   | "Portuguese"
   | "Hindi"
   | "Tamil"
+  | "Chinese"
+  | "Japanese"
+  | "Korean"
+  | "Arabic"
+  | "Polish"
+  | "Russian"
+  | "Turkish"
   | "Other";
 
 export type LanguageRequirementStrength =
@@ -83,6 +90,35 @@ const LANGUAGE_PATTERNS: Array<{
       /\b(portuguese|português|portugues|portuguese-speaking|portuguese speaking)\b/i,
       /\b(c1|c2|b2)\s+portuguese\b/i,
     ],
+  },
+
+  {
+    language: "Chinese",
+    patterns: [/\b(chinese|mandarin|中文|普通话|chinese-speaking|mandarin speaking)\b/i, /\b(c1|c2|b2)\s+chinese\b/i],
+  },
+  {
+    language: "Japanese",
+    patterns: [/\b(japanese|日本語|japanese-speaking|japanese speaking)\b/i, /\b(c1|c2|b2)\s+japanese\b/i],
+  },
+  {
+    language: "Korean",
+    patterns: [/\b(korean|한국어|korean-speaking|korean speaking)\b/i, /\b(c1|c2|b2)\s+korean\b/i],
+  },
+  {
+    language: "Arabic",
+    patterns: [/\b(arabic|العربية|arabic-speaking|arabic speaking)\b/i, /\b(c1|c2|b2)\s+arabic\b/i],
+  },
+  {
+    language: "Polish",
+    patterns: [/\b(polish|polski|polish-speaking|polish speaking)\b/i, /\b(c1|c2|b2)\s+polish\b/i],
+  },
+  {
+    language: "Russian",
+    patterns: [/\b(russian|русский|russian-speaking|russian speaking)\b/i, /\b(c1|c2|b2)\s+russian\b/i],
+  },
+  {
+    language: "Turkish",
+    patterns: [/\b(turkish|türkçe|turkish-speaking|turkish speaking)\b/i, /\b(c1|c2|b2)\s+turkish\b/i],
   },
   {
     language: "Hindi",

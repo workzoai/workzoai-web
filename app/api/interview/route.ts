@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
+import { checkWorkZoRateLimit } from "@/lib/workzoRateLimit";
 import {
   decideUnifiedRecruiterResponse,
   type TranscriptItem,
@@ -99,6 +100,82 @@ function compactInterviewContext(value: unknown, maxChars = 900) {
     .join(" ");
 
   return (selected || clean).slice(0, maxChars).trim();
+}
+
+
+type NormalizedInterviewLanguage = { code: string; label: string };
+
+function normalizeInterviewLanguage(value?: string): NormalizedInterviewLanguage {
+  const raw = text(value || "English", 80).toLowerCase();
+  if (raw.includes("german") || raw.includes("deutsch") || raw === "de" || raw === "de-de") return { code: "de-DE", label: "German" };
+  if (raw.includes("dutch") || raw.includes("nederlands") || raw === "nl" || raw === "nl-nl") return { code: "nl-NL", label: "Dutch" };
+  if (raw.includes("french") || raw.includes("français") || raw.includes("francais") || raw === "fr" || raw === "fr-fr") return { code: "fr-FR", label: "French" };
+  if (raw.includes("spanish") || raw.includes("español") || raw.includes("espanol") || raw === "es" || raw === "es-es") return { code: "es-ES", label: "Spanish" };
+  if (raw.includes("italian") || raw.includes("italiano") || raw === "it" || raw === "it-it") return { code: "it-IT", label: "Italian" };
+  if (raw.includes("portuguese") || raw.includes("portugu") || raw === "pt" || raw === "pt-pt" || raw === "pt-br") return { code: "pt-PT", label: "Portuguese" };
+  if (raw.includes("hindi") || raw.includes("हिन्दी") || raw.includes("हिंदी") || raw === "hi" || raw === "hi-in") return { code: "hi-IN", label: "Hindi" };
+  if (raw.includes("chinese") || raw.includes("中文") || raw.includes("mandarin") || raw === "zh" || raw === "zh-cn") return { code: "zh-CN", label: "Chinese" };
+  if (raw.includes("japanese") || raw.includes("日本") || raw === "ja" || raw === "ja-jp") return { code: "ja-JP", label: "Japanese" };
+  if (raw.includes("korean") || raw.includes("한국") || raw === "ko" || raw === "ko-kr") return { code: "ko-KR", label: "Korean" };
+  if (raw.includes("arabic") || raw.includes("العربية") || raw === "ar" || raw === "ar-sa") return { code: "ar-SA", label: "Arabic" };
+  if (raw.includes("polish") || raw.includes("polski") || raw === "pl" || raw === "pl-pl") return { code: "pl-PL", label: "Polish" };
+  if (raw.includes("russian") || raw.includes("русский") || raw === "ru" || raw === "ru-ru") return { code: "ru-RU", label: "Russian" };
+  if (raw.includes("turkish") || raw.includes("türkçe") || raw === "tr" || raw === "tr-tr") return { code: "tr-TR", label: "Turkish" };
+  return { code: "en-US", label: "English" };
+}
+
+function candidateAnswerCount(transcript?: TranscriptItem[]) {
+  const candidateTurnCount = (transcript || []).filter((item) => {
+    const role = String(item?.role || "").toLowerCase();
+    return role === "candidate" || role === "user";
+  }).length;
+  return candidateTurnCount;
+}
+
+function isGreetingOrLanguageCheck(answer: string) {
+  const lower = text(answer, 300).toLowerCase();
+  return lower.split(/\s+/).filter(Boolean).length <= 12 && /\b(hello|hi|hey|how are you|can you hear me|do you hear me|namaste|नमस्ते|hallo|bonjour|hola|ciao|olá|ola)\b/i.test(lower);
+}
+
+function isConfusedOrNeedsRepeat(answer: string) {
+  return /\b(i don'?t understand|not understand|repeat|again|confused|समझ नहीं|समझ नही|नहीं समझ|nicht verstanden|nochmal|répéter|no entiendo|non capisco)\b/i.test(answer);
+}
+
+function buildLocalizedIntroQuestion(languageValue: string | undefined, roleValue: string | undefined) {
+  const language = normalizeInterviewLanguage(languageValue);
+  const role = text(roleValue, 120) || "this role";
+  switch (language.code) {
+    case "de-DE": return `Schön. Ich habe mir deinen Lebenslauf und die Rolle ${role} angesehen. Zum Einstieg: Kannst du dich bitte kurz vorstellen und erklären, wie deine Erfahrung zu dieser Gelegenheit passt?`;
+    case "nl-NL": return `Fijn. Ik heb je cv en de rol ${role} bekeken. Om te beginnen: kun je jezelf kort voorstellen en uitleggen hoe je ervaring aansluit op deze kans?`;
+    case "fr-FR": return `Très bien. J’ai consulté votre CV et le poste ${role}. Pour commencer, pouvez-vous vous présenter brièvement et expliquer en quoi votre expérience correspond à cette opportunité ?`;
+    case "es-ES": return `Perfecto. He revisado tu CV y el puesto de ${role}. Para empezar, ¿puedes presentarte brevemente y explicar cómo tu experiencia encaja con esta oportunidad?`;
+    case "it-IT": return `Perfetto. Ho letto il tuo CV e il ruolo ${role}. Per iniziare, puoi presentarti brevemente e spiegare come la tua esperienza si collega a questa opportunità?`;
+    case "pt-PT": return `Ótimo. Analisei o teu CV e a função ${role}. Para começar, podes apresentar-te brevemente e explicar como a tua experiência se relaciona com esta oportunidade?`;
+    case "hi-IN": return `अच्छा। मैंने आपका CV और ${role} भूमिका देखी है। शुरुआत के लिए, कृपया अपना छोटा परिचय दें और बताएं कि आपका अनुभव इस अवसर से कैसे जुड़ता है।`;
+    case "zh-CN": return `好的。我看过你的简历和${role}这个职位。请先简要介绍一下自己，并说明你的经验如何匹配这个机会。`;
+    case "ja-JP": return `ありがとうございます。履歴書と${role}の職務内容を確認しました。まず、簡単に自己紹介をして、このポジションにご自身の経験がどうつながるか説明していただけますか？`;
+    case "ko-KR": return `좋습니다. 이력서와 ${role} 역할을 검토했습니다. 먼저 간단히 자기소개를 해주시고, 본인의 경험이 이 기회와 어떻게 연결되는지 설명해 주세요.`;
+    case "ar-SA": return `جيد. لقد راجعت سيرتك الذاتية ودور ${role}. لنبدأ: هل يمكنك تقديم نفسك باختصار وشرح كيف ترتبط خبرتك بهذه الفرصة؟`;
+    case "pl-PL": return `Dobrze. Zapoznałem się z twoim CV i rolą ${role}. Na początek przedstaw się krótko i wyjaśnij, jak twoje doświadczenie pasuje do tej możliwości.`;
+    case "ru-RU": return `Хорошо. Я посмотрел ваше резюме и роль ${role}. Для начала коротко представьтесь и объясните, как ваш опыт связан с этой возможностью.`;
+    case "tr-TR": return `Güzel. Özgeçmişini ve ${role} rolünü inceledim. Başlamak için kendini kısaca tanıtıp deneyiminin bu fırsatla nasıl bağlantılı olduğunu açıklar mısın?`;
+    default: return `Great. I had a chance to review your resume and the ${role} role. To get started, could you briefly introduce yourself and explain how your experience connects to this opportunity?`;
+  }
+}
+
+function buildLocalizedGentleClarification(languageValue?: string) {
+  const language = normalizeInterviewLanguage(languageValue);
+  if (language.code === "hi-IN") return "कोई बात नहीं। थोड़ा समय लें। दो या तीन वाक्यों में अपना परिचय दें और इस भूमिका से जुड़ा एक अनुभव बताएं।";
+  if (language.code === "de-DE") return "Kein Problem. Nimm dir kurz Zeit. Bitte stell dich in zwei bis drei Sätzen vor und nenne eine Erfahrung, die für diese Rolle relevant ist.";
+  if (language.code === "fr-FR") return "Pas de problème. Prenez un instant. Présentez-vous en deux ou trois phrases et donnez une expérience pertinente pour ce poste.";
+  return "No problem. Take a moment. Please introduce yourself in two or three sentences and mention one experience that is relevant to this role.";
+}
+
+function maybeBuildEarlyInterviewResponse(input: { answer: string; transcript?: TranscriptItem[]; language?: string; targetRole?: string }) {
+  const count = candidateAnswerCount(input.transcript);
+  if (count <= 1 || isGreetingOrLanguageCheck(input.answer)) return buildLocalizedIntroQuestion(input.language, input.targetRole);
+  if (count <= 2 && isConfusedOrNeedsRepeat(input.answer)) return buildLocalizedGentleClarification(input.language);
+  return "";
 }
 
 
@@ -637,28 +714,12 @@ function buildAdmissionRedirectResponse({
   });
 }
 
-// In-memory rate limiter — protects against free-tier abuse of the intelligence endpoint
-const rateMap = new Map<string, { count: number; resetAt: number }>();
-
-function getClientKey(req: Request): string {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    req.headers.get("x-real-ip") ||
-    "anon"
-  );
-}
-
-function withinRateLimit(key: string, limit: number): boolean {
-  const now = Date.now();
-  const entry = rateMap.get(key);
-  if (!entry || entry.resetAt < now) {
-    rateMap.set(key, { count: 1, resetAt: now + 60_000 });
-    return true;
-  }
-  if (entry.count >= limit) return false;
-  entry.count += 1;
-  return true;
-}
+// Rate limiting moved to lib/workzoRateLimit.ts (database-backed). An
+// in-memory Map here does not work correctly on Vercel serverless — each
+// cold start gets its own empty Map, so multiple instances could each
+// independently allow up to the limit, multiplying actual throughput well
+// past the intended cap. The replacement keys by user ID, set at the call
+// site below once auth has resolved.
 
 // FREE_INTERVIEW_LIMIT: 2 interviews per account, lifetime (tied to user_id).
 // Resets only if the user deletes their account. Never resets on a new month.
@@ -719,11 +780,12 @@ export async function POST(request: Request) {
     const plan = resolved.plan;
     const paid = plan === "premium" || plan === "premium_pro";
     const userId = resolved.userId!;
-    const clientKey = getClientKey(request);
+    const rateLimitKey = `interview:${userId}`;
 
-    // ── Per-minute rate limiter (in-memory, protects API cost per burst) ──────
+    // ── Per-minute rate limiter (database-backed, protects API cost per burst) ──
     // Free: 20 req/min  |  Paid: 60 req/min
-    if (!withinRateLimit(clientKey, paid ? 60 : 20)) {
+    const { allowed: withinRateLimit } = await checkWorkZoRateLimit(rateLimitKey, paid ? 60 : 20);
+    if (!withinRateLimit) {
       return NextResponse.json(
         { error: paid ? "Rate limit reached." : "upgrade_required_rate_limit" },
         { status: 429 },
@@ -809,6 +871,53 @@ export async function POST(request: Request) {
         : undefined) || body.currentQuestion,
       360,
     );
+
+    const earlyInterviewResponse = maybeBuildEarlyInterviewResponse({
+      answer,
+      transcript: body.transcript,
+      language: setup.language,
+      targetRole: body.targetRole || setup.targetRole,
+    });
+
+    if (earlyInterviewResponse) {
+      return NextResponse.json({
+        question: earlyInterviewResponse,
+        displayQuestion: earlyInterviewResponse,
+        feedback: "Natural opening flow. Recruiter is building rapport before moving into evaluation.",
+        intent: "opening_flow",
+        shouldAdvanceQuestion: true,
+        shouldCountAsAnswer: false,
+        shouldStayOnCurrentQuestion: false,
+        trustDelta: 0,
+        recruiterState: "interested",
+        correction: "",
+        concern: "",
+        psychology: {
+          trust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58,
+          interest: 64,
+          skepticism: 18,
+          patience: 80,
+          engagement: 68,
+          confidenceInCandidate: 58,
+        },
+        cvRead: null,
+        recruiterMemory: null,
+        scores: { relevance: 0, clarity: 0, structure: 0, evidence: 0, confidence: 58, pressure: 20, overall: typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58 },
+        liveUiState: {
+          label: "Opening conversation",
+          theme: "interested",
+          pressure: null,
+          honestFeedback: null,
+          recruiterMemoryInsight: null,
+          livePressureSimulation: null,
+          marketExpectation: null,
+          humanImperfection: null,
+          socialSignals: null,
+          cinematicRealism: null,
+        },
+        trustTimeline: [{ type: "steady", delta: 0, reason: "Opening flow." }],
+      });
+    }
 
     const intelligence95 = buildInterviewIntelligence95({
       answer,

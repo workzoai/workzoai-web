@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   FileText,
+  LayoutDashboard,
   Lock,
   Plus,
   Sparkles,
@@ -42,7 +43,9 @@ type RecruiterKey =
   | "friendly_hr" | "analytical_hiring_manager" | "startup_recruiter" | "german_corporate"
   | "faang_hiring_manager" | "startup_founder" | "consulting_partner" | "sales_director"
   | "product_leader" | "executive_recruiter" | "enterprise_recruiter";
-type InterviewLanguage = "English" | "German" | "Dutch" | "French" | "Spanish" | "Italian" | "Portuguese";
+type InterviewLanguage =
+  | "English" | "German" | "Dutch" | "French" | "Spanish" | "Italian" | "Portuguese"
+  | "Chinese" | "Japanese" | "Korean" | "Hindi" | "Arabic" | "Polish" | "Russian" | "Turkish";
 
 type SetupState = {
   [key: string]: unknown;
@@ -59,6 +62,28 @@ const markets: { label: Market; flag: string }[] = [
   { label: "India", flag: "🇮🇳" }, { label: "Netherlands", flag: "🇳🇱" },
 ];
 const companyStyles: CompanyStyle[] = ["Realistic", "Startup", "Corporate", "Technical", "Consulting"];
+
+function normalizeCompanyStyle(value?: unknown): CompanyStyle {
+  if (typeof value !== "string") return "Realistic";
+  const raw = value.trim().toLowerCase().replace(/[_-]+/g, " ");
+  if (raw.includes("startup")) return "Startup";
+  if (raw.includes("corporate")) return "Corporate";
+  if (raw.includes("technical")) return "Technical";
+  if (raw.includes("consulting")) return "Consulting";
+  if (raw.includes("realistic")) return "Realistic";
+  return "Realistic";
+}
+
+function normalizeMarket(value?: unknown): Market {
+  if (typeof value !== "string") return "Global";
+  const raw = value.trim().toLowerCase().replace(/[_-]+/g, " ");
+  if (raw.includes("germany") || raw === "de") return "Germany";
+  if (raw.includes("us") || raw.includes("united states")) return "US";
+  if (raw.includes("uk") || raw.includes("united kingdom") || raw.includes("britain")) return "UK";
+  if (raw.includes("india")) return "India";
+  if (raw.includes("netherlands") || raw.includes("holland")) return "Netherlands";
+  return "Global";
+}
 
 const recruiters: { key: RecruiterKey; name: string; role: string; avatar: string; quote: string; description: string }[] = [
   { key: "friendly_hr", name: "Sarah", role: "Friendly HR", avatar: "👩🏻‍💼", quote: "I'd love to understand how you work with people.", description: "Warm, supportive, and communication-focused." },
@@ -85,6 +110,14 @@ const interviewLanguages: { label: InterviewLanguage; nativeLabel: string; hint:
   { label: "Spanish", nativeLabel: "Español", hint: "Spanish interview practice" },
   { label: "Italian", nativeLabel: "Italiano", hint: "Italian interview practice" },
   { label: "Portuguese", nativeLabel: "Português", hint: "Portuguese interview practice" },
+  { label: "Chinese", nativeLabel: "中文", hint: "Mandarin Chinese practice" },
+  { label: "Japanese", nativeLabel: "日本語", hint: "Japanese interview practice" },
+  { label: "Korean", nativeLabel: "한국어", hint: "Korean interview practice" },
+  { label: "Hindi", nativeLabel: "हिन्दी", hint: "Hindi interview practice" },
+  { label: "Arabic", nativeLabel: "العربية", hint: "Arabic interview practice" },
+  { label: "Polish", nativeLabel: "Polski", hint: "Polish interview practice" },
+  { label: "Russian", nativeLabel: "Русский", hint: "Russian interview practice" },
+  { label: "Turkish", nativeLabel: "Türkçe", hint: "Turkish interview practice" },
 ];
 
 function normalizeInterviewLanguage(value?: unknown): InterviewLanguage {
@@ -96,6 +129,14 @@ function normalizeInterviewLanguage(value?: unknown): InterviewLanguage {
   if (raw.includes("spanish") || raw.includes("español") || raw === "es") return "Spanish";
   if (raw.includes("italian") || raw.includes("italiano") || raw === "it") return "Italian";
   if (raw.includes("portuguese") || raw.includes("português") || raw === "pt") return "Portuguese";
+  if (raw.includes("chinese") || raw.includes("mandarin") || raw === "zh" || raw.includes("中文")) return "Chinese";
+  if (raw.includes("japanese") || raw === "ja" || raw.includes("日本語")) return "Japanese";
+  if (raw.includes("korean") || raw === "ko" || raw.includes("한국어")) return "Korean";
+  if (raw.includes("hindi") || raw === "hi" || raw.includes("हिन्दी")) return "Hindi";
+  if (raw.includes("arabic") || raw === "ar" || raw.includes("العربية")) return "Arabic";
+  if (raw.includes("polish") || raw.includes("polski") || raw === "pl") return "Polish";
+  if (raw.includes("russian") || raw.includes("русский") || raw === "ru") return "Russian";
+  if (raw.includes("turkish") || raw.includes("türkçe") || raw === "tr") return "Turkish";
   return "English";
 }
 
@@ -379,12 +420,13 @@ function readinessHint(readiness: number) {
   return "Add your CV to unlock a personal interview.";
 }
 
-function ReadinessRail({ readiness, checks, summaryLine, onStart, hideCta }: {
+function ReadinessRail({ readiness, checks, summaryLine, onStart, hideCta, pendingCv }: {
   readiness: number;
   checks: Record<"cv" | "jd" | "role" | "style", boolean>;
   summaryLine: string;
   onStart: () => void;
   hideCta?: boolean;
+  pendingCv?: boolean;
 }) {
   const gradientId = useId().replace(/:/g, "");
   const circumference = 251.3;
@@ -421,13 +463,21 @@ function ReadinessRail({ readiness, checks, summaryLine, onStart, hideCta }: {
         <div className="relative mt-4 space-y-1.5">
           {readinessChecklist.map((item) => {
             const done = checks[item.key];
+            const pending = item.key === "cv" && !done && pendingCv;
             return (
               <div key={item.key} className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm">
                 <span className={cn("grid h-5 w-5 place-items-center rounded-full border",
-                  done ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-300" : "border-white/15 text-slate-500")}>
+                  done
+                    ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-300"
+                    : pending
+                      ? "border-amber-300/40 bg-amber-400/15"
+                      : "border-white/15 text-slate-500")}>
                   {done && <Check className="h-3 w-3" strokeWidth={3.5} />}
+                  {pending && <span className="h-1.5 w-1.5 rounded-full bg-amber-300 [animation:wzDotPulse_1.4s_ease-in-out_infinite]" />}
                 </span>
-                <span className={cn("font-bold", done ? "text-slate-200" : "text-slate-500")}>{item.label}</span>
+                <span className={cn("font-bold", done ? "text-slate-200" : pending ? "text-amber-200" : "text-slate-500")}>
+                  {item.label}{pending ? " — confirm to use" : ""}
+                </span>
               </div>
             );
           })}
@@ -479,8 +529,8 @@ export default function OnboardingPage() {
   const [role, setRole] = useState(setup.targetRole || "");
   const [companyName, setCompanyName] = useState(String(setup.companyName || setup.targetCompany || ""));
   const [jobDescription, setJobDescription] = useState(setup.jobDescription || "");
-  const [market, setMarket] = useState<Market>((setup.targetMarket as Market) || (setup.country as Market) || "Global");
-  const [companyStyle, setCompanyStyle] = useState<CompanyStyle>((setup.companyStyle as CompanyStyle) || (setup.recruiterStyle as CompanyStyle) || "Realistic");
+  const [market, setMarket] = useState<Market>(normalizeMarket(setup.targetMarket || setup.country));
+  const [companyStyle, setCompanyStyle] = useState<CompanyStyle>(normalizeCompanyStyle(setup.companyStyle || setup.recruiterStyle));
   const [recruiter, setRecruiter] = useState<RecruiterKey>(normalizeRecruiterKey(setup.recruiterPersonality));
   const planState = useWorkZoAuthoritativePlan();
   const isProUser = planState.plan === "premium_pro";
@@ -601,10 +651,10 @@ export default function OnboardingPage() {
     setRole((prev) => prev || String(restored.targetRole || ""));
     setCompanyName((prev) => prev || String(restored.companyName || restored.targetCompany || ""));
     setJobDescription((prev) => prev || String(restored.jobDescription || ""));
-    const restoredMarket = (restored.targetMarket || restored.country) as Market | undefined;
-    if (restoredMarket) setMarket((prev) => (prev === "Global" ? restoredMarket : prev));
-    const restoredStyle = (restored.companyStyle || restored.recruiterStyle) as CompanyStyle | undefined;
-    if (restoredStyle) setCompanyStyle((prev) => (prev === "Realistic" ? restoredStyle : prev));
+    const restoredMarket = normalizeMarket(restored.targetMarket || restored.country);
+    setMarket((prev) => (prev === "Global" ? restoredMarket : prev));
+    const restoredStyle = normalizeCompanyStyle(restored.companyStyle || restored.recruiterStyle);
+    setCompanyStyle((prev) => (prev === "Realistic" ? restoredStyle : prev));
     if (restored.recruiterPersonality) {
       const r = normalizeRecruiterKey(restored.recruiterPersonality);
       setRecruiter((prev) => (prev === "analytical_hiring_manager" ? r : prev));
@@ -751,6 +801,13 @@ export default function OnboardingPage() {
             <span className="font-black tracking-tight">Interview Setup</span>
           </Link>
           <div className="flex items-center gap-3">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/10"
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Link>
             <span className="hidden items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-400/[0.08] px-3 py-1.5 text-xs font-black text-emerald-200 sm:inline-flex">
               <span className="h-2 w-2 rounded-full bg-emerald-300 [animation:wzDotPulse_1.6s_ease-in-out_infinite]" />
               Auto-saved
@@ -871,8 +928,10 @@ export default function OnboardingPage() {
                     ))}
                   </div>
                 </div>
+
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Language</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Interview language</p>
+                  <p className="mt-0.5 text-[10px] text-slate-600">Your recruiter speaks in this language</p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     {interviewLanguages.map((item) => (
                       <button key={item.label} type="button" onClick={() => { setInterviewLanguage(item.label); requestPersist(); }}
@@ -908,13 +967,13 @@ export default function OnboardingPage() {
 
             {/* readiness rail mobile */}
             <div className="xl:hidden">
-              <ReadinessRail readiness={readiness} checks={checks} summaryLine={summaryLine} onStart={startInterview} hideCta />
+              <ReadinessRail readiness={readiness} checks={checks} summaryLine={summaryLine} onStart={startInterview} hideCta pendingCv={showRestoredBanner} />
             </div>
           </div>
 
           {/* right rail desktop */}
           <aside className="hidden xl:sticky xl:top-3 xl:block">
-            <ReadinessRail readiness={readiness} checks={checks} summaryLine={summaryLine} onStart={startInterview} />
+            <ReadinessRail readiness={readiness} checks={checks} summaryLine={summaryLine} onStart={startInterview} pendingCv={showRestoredBanner} />
           </aside>
         </section>
       </div>

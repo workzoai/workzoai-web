@@ -7,6 +7,11 @@ type AskOpenRouterOptions = {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  /** When true, requests OpenRouter's JSON object response format. The
+   * system/user prompt must still instruct the model on the exact JSON
+   * shape expected — this only sets the API-level constraint that the
+   * response must be valid JSON, it does not define the schema itself. */
+  jsonMode?: boolean;
 };
 
 type OpenRouterResponse = {
@@ -39,6 +44,7 @@ export async function askOpenRouter(
       messages,
       temperature: options.temperature ?? 0.25,
       max_tokens: options.maxTokens ?? 900,
+      ...(options.jsonMode ? { response_format: { type: "json_object" } } : {}),
     }),
   });
 

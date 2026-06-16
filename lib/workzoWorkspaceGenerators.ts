@@ -304,13 +304,13 @@ function profileFromInput(input: CvGenerationInput) {
 function evidenceLines(profile: ResumeProfile) {
   return unique([
     profile.summary,
-    ...profile.skills,
-    ...profile.strengths,
+    ...(profile.skills || []),
+    ...(profile.strengths || []),
     ...(profile.additionalEvidence || []),
-    ...profile.experience.flatMap((job) => [job.title, job.company, job.location, ...job.bullets]),
-    ...profile.projects.flatMap((project) => [project.name, ...project.bullets]),
-    ...profile.education.flatMap((edu) => [edu.degree, edu.institution]),
-    ...profile.languages,
+    ...(profile.experience || []).flatMap((job) => [job.title, job.company, job.location, ...(job.bullets || [])]),
+    ...(profile.projects || []).flatMap((project) => [project.name, ...(project.bullets || [])]),
+    ...(profile.education || []).flatMap((edu) => [edu.degree, edu.institution]),
+    ...(profile.languages || []),
   ].map(clean).filter((line) => line.length > 2 && line.length < 280));
 }
 
@@ -639,7 +639,7 @@ function splitMergedBullets(bullet = "") {
 }
 
 function rankBullets(job: ResumeExperience, jd: JdSignal) {
-  return unique<string>(job.bullets.flatMap(splitMergedBullets))
+  return unique<string>((job.bullets || []).flatMap(splitMergedBullets))
     // The parser owns structure. If a bullet is already inside experience, do not
     // delete it just because it contains words like "pipeline" or "market".
     // Those can be valid experience bullets. Only remove obvious summary pollution.
@@ -674,7 +674,7 @@ function cleanCompanyName(value = "") {
 }
 
 function tailorExperience(profile: ResumeProfile, jd: JdSignal) {
-  return profile.experience.slice(0, 6).map((job, index) => {
+  return (profile.experience || []).slice(0, 6).map((job, index) => {
     const ranked = rankBullets(job, jd);
     const limit = index === 0 ? 6 : 5;
     const bullets = ranked.slice(0, limit);
@@ -801,7 +801,7 @@ function preserveExperienceStructure(items: ResumeProfile["experience"]) {
         company: clean(job.company),
         location: clean(job.location),
         dates: clean(job.dates),
-        bullets: unique<string>(job.bullets.map(improveBulletVerb).filter(Boolean)).slice(0, 7),
+        bullets: unique<string>((job.bullets || []).map(improveBulletVerb).filter(Boolean)).slice(0, 7),
       }))
       .filter((job) => job.company || job.title || job.bullets.length),
     (job) => `${job.company}|${job.title}|${job.dates}`,
@@ -813,7 +813,7 @@ function preserveProjectStructure(items: ResumeProfile["projects"]) {
     items
       .map((project) => ({
         name: clean(project.name).replace(/^Selected Projects?$/i, "Selected Project"),
-        bullets: unique<string>(project.bullets.map(improveBulletVerb).filter(Boolean)).slice(0, 5),
+        bullets: unique<string>((project.bullets || []).map(improveBulletVerb).filter(Boolean)).slice(0, 5),
       }))
       .filter((project) => {
         const name = project.name;
@@ -838,7 +838,7 @@ function preserveSummary(profile: ResumeProfile, roleFit: ResumeJson["roleFit"])
 
   if (!badSummary) return summary;
 
-  const evidence = profile.experience.flatMap((job) => job.bullets).find((line) => line.length > 70) || "";
+  const evidence = (profile.experience || []).flatMap((job) => job.bullets || []).find((line) => line.length > 70) || "";
   if (evidence && !/^(showcased|developed|conducted|analyzed|automated|visualized)\b/i.test(evidence)) {
     return compactSentence(`${roleFit.safeHeadline} with practical experience across ${evidence.replace(/^[•-]\s*/, "")}`, 420);
   }
@@ -855,10 +855,10 @@ export function buildResumeJson(input: CvGenerationInput): ResumeJson {
   // Parser owns structure. Improve CV may polish wording, but it must not re-rank,
   // move, invent, or delete resume sections. This prevents onboarding and Improve CV
   // from showing different projects, education, summaries, or experience histories.
-  const experience = preserveExperienceStructure(profile.experience);
-  const projects = preserveProjectStructure(profile.projects);
-  const education = cleanEducation(profile.education, profile.basics.name);
-  const skills = cleanSkillsForDisplay(unique<string>(profile.skills)).slice(0, 28);
+  const experience = preserveExperienceStructure(profile.experience || []);
+  const projects = preserveProjectStructure(profile.projects || []);
+  const education = cleanEducation(profile.education || [], profile.basics.name);
+  const skills = cleanSkillsForDisplay(unique<string>(profile.skills || [])).slice(0, 28);
   const groupedSkills = groupedSkillLines(skills);
   const summary = preserveSummary(profile, roleFit);
 
@@ -871,8 +871,8 @@ export function buildResumeJson(input: CvGenerationInput): ResumeJson {
     experience,
     projects,
     education,
-    languages: unique<string>(profile.languages, (item) => item.split(" - ")[0]).slice(0, 4),
-    strengths: unique<string>([...profile.strengths, ...roleFit.highlights]).slice(0, 7),
+    languages: unique<string>(profile.languages || [], (item) => item.split(" - ")[0]).slice(0, 4),
+    strengths: unique<string>([...(profile.strengths || []), ...roleFit.highlights]).slice(0, 7),
     roleFit,
     market: normalizeMarket(input.targetMarket),
     style: normalizeStyle(input.template),
@@ -1041,8 +1041,8 @@ export function buildCoverLetter(input: CvGenerationInput) {
     const allCvText = [
       input.cvText || "",
       data.profile.summary || "",
-      ...data.profile.skills,
-      ...data.profile.experience.flatMap(j => j.bullets),
+      ...(data.profile.skills || []),
+      ...(data.profile.experience || []).flatMap(j => j.bullets || []),
     ].join(" ").toLowerCase();
 
     for (const [key, label] of transferableMap) {

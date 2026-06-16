@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import LegacyStoragePrivacyCleanup from "@/components/privacy/LegacyStoragePrivacyCleanup";
 import CookieConsentBanner from "@/components/privacy/CookieConsentBanner";
+import { AppLanguageProvider } from "@/lib/workzoAppLanguage";
+
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://workzoai.com"),
