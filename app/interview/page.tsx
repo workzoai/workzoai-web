@@ -67,6 +67,17 @@ import {
   normalizeCandidateName as normalizeStoredCandidateName,
 } from "@/lib/workzoInterviewSetup";
 import type { ResumeProfile } from "@/lib/workzoResumeParser";
+import dynamic from "next/dynamic";
+
+// Lazy-load Monaco — doesn't affect initial bundle for non-technical users
+const CodePanel = dynamic(() => import("@/components/interview/CodePanel"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full min-h-[300px] items-center justify-center rounded-2xl border border-white/10 bg-[#0d1117]">
+      <span className="text-xs text-slate-600 font-black uppercase tracking-widest animate-pulse">Loading editor…</span>
+    </div>
+  ),
+});
 import {
   analyzeWorkZoActiveDisruption,
   buildWorkZoPersonaOpeningQuestion,
@@ -3359,6 +3370,22 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [serverPlan, setServerPlan] = useState<"free" | "premium" | "premium_pro">("free");
   const [planLoading, setPlanLoading] = useState(true);
+  // Technical mode — premium/premium_pro only
+  const [technicalMode, setTechnicalMode] = useState(false);
+  const [codeSnapshot, setCodeSnapshot] = useState("");
+  const [codeLanguage, setCodeLanguage] = useState("python");
+  const codeSnapshotRef = useRef("");
+  const codeLanguageRef = useRef("python");
+
+  // ── Tavus Live AI Avatar — Premium Pro only ──────────────────────────────
+  // voiceMode: 'vapi' = voice only (default), 'tavus' = live video avatar
+  const [voiceMode, setVoiceMode] = useState<"vapi" | "tavus">("vapi");
+  const [tavusConversationUrl, setTavusConversationUrl] = useState("");
+  const [tavusConversationId, setTavusConversationId] = useState("");
+  const [tavusMinutesRemaining, setTavusMinutesRemaining] = useState<number | null>(null);
+  const [tavusLoading, setTavusLoading] = useState(false);
+  const [tavusError, setTavusError] = useState("");
+  const tavusActiveRef = useRef(false);
   const interviewSessionIdRef = useRef<string>(`workzo-session-${Date.now()}`);
   const [moreOpen, setMoreOpen] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
@@ -3777,6 +3804,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
             language: currentSetup.language,
             pressureStyle: recruiterProfiles[currentSetup.recruiterId]?.pressureStyle || recruiterProfiles[currentSetup.recruiterName]?.pressureStyle,
             questionIndex: questionIndexRef.current,
+            // Technical mode: send code snapshot so the recruiter can react to it
+            ...(codeSnapshotRef.current.trim()
+              ? { codeSnapshot: codeSnapshotRef.current, codeLanguage: codeLanguageRef.current }
+              : {}),
             signals: {
               contradiction: undefined, // contradiction detection lives in workzoRecruiterIntelligenceV2; kept out here to avoid duplicating that import chain for this first pass
               unsupportedClaim: unsupportedReason || undefined,
@@ -3805,6 +3836,78 @@ const [questionIndex, setQuestionIndex] = useState(0);
     },
     [serverPlan],
   );
+
+  // Keep refs in sync so the interview API call always has the latest code
+  // without needing to add codeSnapshot to every useCallback dependency array.
+  const handleCodeChange = useCallback((code: string, language: string) => {
+    setCodeSnapshot(code);
+    setCodeLanguage(language);
+    codeSnapshotRef.current = code;
+    codeLanguageRef.current = language;
+  }, []);
+
+  // ── Tavus session management ─────────────────────────────────────────────
+  const startTavusSession = useCallback(async (activeSetup: InterviewSetup) => {
+    if (tavusActiveRef.current || tavusLoading) return false;
+    setTavusLoading(true);
+    setTavusError("");
+    try {
+      const res = await fetch("/api/tavus", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          recruiterId: activeSetup.recruiterId,
+          recruiterName: activeSetup.recruiterName,
+          candidateName: activeSetup.candidateName,
+          targetRole: activeSetup.targetRole,
+          language: activeSetup.language,
+          recruiterTrust: recruiterSignalRef.current?.trust ?? 50,
+          pressure: 50,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data?.error === "tavus_minutes_exhausted" || data?.fallbackToVapi) {
+          setTavusMinutesRemaining(0);
+          setTavusError("Live AI recruiter minutes used up. Switching to voice mode.");
+          setVoiceMode("vapi");
+          return false;
+        }
+        throw new Error(data?.error || "Live AI recruiter unavailable.");
+      }
+      if (data?.conversationUrl) {
+        setTavusConversationUrl(data.conversationUrl);
+        setTavusConversationId(data.conversationId || "");
+        setTavusMinutesRemaining(data.minutesRemaining ?? null);
+        tavusActiveRef.current = true;
+        recordWorkZoTavusInterviewStarted();
+        return true;
+      }
+      throw new Error("No conversation URL returned from Live AI recruiter.");
+    } catch (err) {
+      setTavusError(err instanceof Error ? err.message : "Live AI recruiter failed.");
+      setVoiceMode("vapi");
+      return false;
+    } finally {
+      setTavusLoading(false);
+    }
+  }, [tavusLoading]);
+
+  const endTavusSession = useCallback(async () => {
+    if (!tavusActiveRef.current) return;
+    tavusActiveRef.current = false;
+    const id = tavusConversationId;
+    setTavusConversationUrl("");
+    setTavusConversationId("");
+    if (!id) return;
+    fetch("/api/tavus", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ conversationId: id, reason: "interview_ended" }),
+    }).catch(() => undefined);
+  }, [tavusConversationId]);
 
   const startListening = useCallback(async () => {
     if (stopRequestedRef.current) return;
@@ -4767,6 +4870,17 @@ const [questionIndex, setQuestionIndex] = useState(0);
     // currentPlan already declared above for the limit check — reuse it
     const isVapiEligible = currentPlan === "premium" || currentPlan === "premium_pro";
 
+    // Premium Pro + Tavus mode: start live video avatar first
+    if (currentPlan === "premium_pro" && voiceMode === "tavus" && audioEnabledRef.current) {
+      const tavusStarted = await startTavusSession(freshSetup);
+      if (tavusStarted) {
+        addTranscript({ role: "system", speaker: "System", text: "Live AI recruiter connected. The avatar will ask questions." });
+        setStatus("listening");
+        return;
+      }
+      // Tavus failed — fall through to Vapi
+    }
+
     if (isVapiEligible && premiumVoiceEnabledRef.current && audioEnabledRef.current) {
       const startedPremiumVoice = await startPremiumVoice(freshSetup);
 
@@ -4926,6 +5040,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
     stopRequestedRef.current = true;
     stopListening();
     stopPremiumVoice();
+    void endTavusSession();
     vapiFallbackStartedRef.current = false;
 
     try {
@@ -5166,6 +5281,36 @@ const [questionIndex, setQuestionIndex] = useState(0);
                     </div>
 
                     <div className="space-y-3">
+                      {/* Technical Mode toggle — premium only */}
+                      {premiumUnlocked && (
+                        <section>
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-violet-200">Technical Mode</p>
+                            <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-200">Premium</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setTechnicalMode((v) => !v)}
+                            className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left transition ${
+                              technicalMode
+                                ? "border-violet-400/30 bg-violet-500/10"
+                                : "border-white/10 bg-white/[0.03]"
+                            }`}
+                          >
+                            <div>
+                              <p className="text-xs font-black text-white">💻 Code workspace</p>
+                              <p className="mt-0.5 text-[10px] leading-4 text-slate-400">
+                                Show a live code editor. The recruiter reacts to your code.
+                              </p>
+                            </div>
+                            <span className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${
+                              technicalMode ? "bg-violet-400/20 text-violet-200" : "bg-white/10 text-slate-500"
+                            }`}>
+                              {technicalMode ? "On" : "Off"}
+                            </span>
+                          </button>
+                        </section>
+                      )}
                       <section>
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Recruiter</p>
@@ -5271,14 +5416,63 @@ const [questionIndex, setQuestionIndex] = useState(0);
                           <span className="text-slate-400">{audioEnabled ? "On" : "Off"}</span>
                         </button>
                         {serverPlan === "premium_pro" ? (
-                          <button
-                            type="button"
-                            onClick={() => setPremiumVoiceEnabled((value) => !value)}
-                            className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
-                          >
-                            <span>Live AI voice (Pro)</span>
-                            <span className="text-slate-400">{premiumVoiceEnabled ? "On" : "Off"}</span>
-                          </button>
+                          <>
+                            {/* Recruiter mode: Voice (Vapi) vs Live Avatar (Tavus) */}
+                            <div className="rounded-xl border border-violet-400/20 bg-violet-500/[0.06] p-3">
+                              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-violet-300">
+                                Recruiter Mode
+                                {tavusMinutesRemaining !== null && (
+                                  <span className="ml-2 normal-case font-semibold text-slate-400">
+                                    · {tavusMinutesRemaining} live min left
+                                  </span>
+                                )}
+                              </p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setVoiceMode("vapi")}
+                                  className={`rounded-xl border px-3 py-2 text-left text-xs font-black transition ${
+                                    voiceMode === "vapi"
+                                      ? "border-blue-400/50 bg-blue-500/15 text-blue-200"
+                                      : "border-white/10 bg-white/[0.03] text-slate-400"
+                                  }`}
+                                >
+                                  🎙️ Voice Only
+                                  <span className="mt-0.5 block text-[10px] font-semibold text-slate-500">Vapi AI voice</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (tavusMinutesRemaining === 0) return;
+                                    setVoiceMode("tavus");
+                                  }}
+                                  className={`rounded-xl border px-3 py-2 text-left text-xs font-black transition ${
+                                    voiceMode === "tavus"
+                                      ? "border-violet-400/50 bg-violet-500/15 text-violet-200"
+                                      : tavusMinutesRemaining === 0
+                                        ? "border-white/5 bg-white/[0.02] text-slate-600 cursor-not-allowed"
+                                        : "border-white/10 bg-white/[0.03] text-slate-400"
+                                  }`}
+                                >
+                                  🎬 Live Avatar
+                                  <span className="mt-0.5 block text-[10px] font-semibold text-slate-500">
+                                    {tavusMinutesRemaining === 0 ? "Minutes used up" : "Real AI recruiter"}
+                                  </span>
+                                </button>
+                              </div>
+                              {tavusError && (
+                                <p className="mt-2 text-[10px] leading-4 text-amber-300">{tavusError}</p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setPremiumVoiceEnabled((value) => !value)}
+                              className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
+                            >
+                              <span>Vapi voice On/Off</span>
+                              <span className="text-slate-400">{premiumVoiceEnabled ? "On" : "Off"}</span>
+                            </button>
+                          </>
                         ) : (
                           <div className="flex w-full items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-sm opacity-50">
                             <span>Live AI voice</span>
@@ -5490,20 +5684,46 @@ const [questionIndex, setQuestionIndex] = useState(0);
           </section>
         ) : null}
 
+        {/* Technical mode: show code panel between recruiter video and sidebar */}
+        {technicalMode && premiumUnlocked && (
+          <div className="border-b border-white/[0.06] bg-[#060d18] px-4 pb-3 pt-2">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-violet-400">Code Workspace · Technical Mode</p>
+            <div className="h-[340px] lg:h-[420px]">
+              <CodePanel onCodeChange={handleCodeChange} />
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-1 overflow-x-hidden lg:min-h-0 lg:grid-cols-[1fr_340px] lg:overflow-hidden">
           <div className="flex flex-col lg:min-h-0">
             <section className="relative flex-1 overflow-hidden bg-[#08101c] sm:h-[390px] lg:h-auto">
               <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-blue-500/20 blur-3xl" />
               <div className="absolute inset-0">
-                <Image
-                  src={setup.recruiterImage}
-                  alt={`${setup.recruiterName}, interview recruiter`}
-                  fill
-                  priority
-                  sizes="(max-width: 1024px) 100vw, 850px"
-                  className="object-cover"
-                  style={{ objectPosition: recruiterImagePosition }}
-                />
+                {/* Tavus live avatar — shown when voiceMode=tavus and URL is ready */}
+                {voiceMode === "tavus" && tavusConversationUrl ? (
+                  <iframe
+                    src={tavusConversationUrl}
+                    allow="camera; microphone; autoplay; display-capture"
+                    className="h-full w-full border-0"
+                    title="Live AI Recruiter"
+                  />
+                ) : tavusLoading ? (
+                  <div className="flex h-full w-full items-center justify-center bg-[#08101c]">
+                    <div className="text-center">
+                      <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-violet-400" />
+                      <p className="text-sm font-black text-slate-400">Connecting live recruiter…</p>
+                    </div>
+                  </div>
+                ) : (
+                  <Image
+                    src={setup.recruiterImage}
+                    alt={`${setup.recruiterName}, interview recruiter`}
+                    fill
+                    priority
+                    sizes="(max-width: 1024px) 100vw, 850px"
+                    className="object-cover"
+                    style={{ objectPosition: recruiterImagePosition }}
+                  />
+                )}
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/10 to-black/0" />
 

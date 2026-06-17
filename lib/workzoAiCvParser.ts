@@ -125,11 +125,13 @@ function compactDecorativeLine(line: string) {
       CONTACTS: "CONTACTS",
       CONTACT: "CONTACT",
       KONTAKT: "KONTAKT",
+      KONTAKTDATEN: "KONTAKTDATEN",
       SKILLS: "SKILLS",
       SUMMARY: "SUMMARY",
       OVERVIEW: "OVERVIEW",
       PROFILE: "PROFILE",
       PROFIL: "PROFIL",
+      PROFILÜBERSICHT: "PROFILÜBERSICHT",
       WORKEXPERIENCE: "WORK EXPERIENCE",
       PROFESSIONALERFAHRUNG: "PROFESSIONAL EXPERIENCE",
       BERUFSERFAHRUNG: "BERUFSERFAHRUNG",
@@ -137,6 +139,7 @@ function compactDecorativeLine(line: string) {
       EDUCATIONANDTRAINING: "EDUCATION AND TRAINING",
       BILDUNGSWEG: "BILDUNGSWEG",
       BILDUNG: "BILDUNG",
+      AUSBILDUNG: "AUSBILDUNG",
       PROJECTS: "PROJECTS",
       PROJEKTE: "PROJEKTE",
       AWARDSRECEIVED: "AWARDS RECEIVED",
@@ -145,8 +148,44 @@ function compactDecorativeLine(line: string) {
       SPRACHEN: "SPRACHEN",
       CERTIFICATIONS: "CERTIFICATIONS",
       ZERTIFIKATE: "ZERTIFIKATE",
+      EXPERTISE: "EXPERTISE",
+      EXPERIENCE: "EXPERIENCE",
+      FÄHIGKEITEN: "FÄHIGKEITEN",
     };
     if (sectionMap[compact]) return sectionMap[compact];
+
+    // For long sequences (7+ tokens, up to 25) that are NOT known section headers,
+    // this is likely a decorative spaced-letter person name (e.g. H A R I T H A V I J A Y A K U M A R).
+    // Try to split into two words using vowel-boundary scoring so the name extractor
+    // can score it properly as a two-part candidate.
+    if (tokens.length > 6 && tokens.length <= 25) {
+      // nameEndings: common suffixes for first names across cultures
+      const nameEndings = /(?:el|al|an|en|on|er|in|ia|ie|ah|eh|oh|ith|tha|lie|ine|ane|ella|elle|ette|ina|ima|ara|ira|ora|ura|esa|ika|ola|ama|ema|uma|hari|dani|yuki|hiro|kenji|kari|mari|yumi|nori|taro)$/i;
+      let bestScore = -1;
+      let bestSplit = -1;
+      for (let i = 3; i <= tokens.length - 2; i++) {
+        const first = tokens.slice(0, i).join("").toLowerCase();
+        const last = tokens.slice(i).join("").toLowerCase();
+        const vowels = (s: string) => (s.match(/[aeiou]/g) || []).length;
+        const v1 = vowels(first);
+        const v2 = vowels(last);
+        if (v1 < 1 || v2 < 1) continue;
+        if (first.length < 3 || first.length > 10) continue;
+        if (last.length < 2 || last.length > 16) continue;
+        let score = v1 * 2 + v2;
+        if (/[aeiou]$/.test(first)) score += 4;
+        if (nameEndings.test(first)) score += 6;
+        if (first.length >= 4 && first.length <= 7) score += 4;
+        else if (first.length >= 3 && first.length <= 9) score += 2;
+        if (first.length > 9) score -= 4;
+        score -= Math.abs(first.length - last.length) * 0.4;
+        if (score > bestScore) { bestScore = score; bestSplit = i; }
+      }
+      if (bestSplit > 0 && bestScore >= 6) {
+        return tokens.slice(0, bestSplit).join("") + " " + tokens.slice(bestSplit).join("");
+      }
+    }
+
     return compact;
   }
 
@@ -411,7 +450,35 @@ function extractJsonObject(raw: string): AiResumeJson | null {
 function repairProfileIdentity(profile: ResumeProfile, rawText: string, fileName = "", modelName = ""): ResumeProfile {
   // Lock identity from the CV source text first. AI identity is only fallback.
   const lockedName = extractBestCandidateName(rawText, fileName, "");
-  const fallbackName = extractBestCandidateName(rawText, fileName, modelName || profile.basics?.name || "");
+
+  // GLOBAL NAME SAFETY: If the AI-supplied name contains any word that appears in the
+  // parsed skills/languages list, it is a skill phrase masquerading as a name.
+  // In that case, we discard the AI name entirely and use only the text-derived name.
+  // This catches: "Matplotlib Seaborn Tableau", "Tools Ticketing-systeme",
+  // "Programming Python Bash Power Shell", "Programm Programm", etc.
+  function aiNameIsPoisoned(name: string, profile: ResumeProfile): boolean {
+    if (!name) return false;
+    const nameWords = name.toLowerCase().replace(/[^a-z0-9À-ž ]/g, " ").split(/\s+/).filter(w => w.length > 2);
+    // Collect all structured tokens: skills, languages, experience titles/companies, education
+    const structuredItems = [
+      ...(profile.skills || []),
+      ...(profile.languages || []),
+      ...(profile.experience || []).flatMap(x => [x?.title || "", x?.company || ""]),
+      ...(profile.education || []).flatMap(x => [x?.degree || "", x?.institution || ""]),
+    ];
+    const structuredTokens = new Set(
+      structuredItems
+        .flatMap(s => String(s).toLowerCase().replace(/[^a-z0-9À-ž ]/g, " ").split(/\s+/))
+        .filter(w => w.length > 2)
+    );
+    // Also reject known section headers / tool names directly
+    const TOOL_OR_SECTION_RE = /^(matplotlib|seaborn|tableau|sklearn|tensorflow|langchain|pytorch|numpy|pandas|powerbi|snowflake|splunk|wireshark|nessus|crowdstrike|programming|ticketing|betriebssysteme|netzwerke|datenanalyse|programm|programme|programs|programmierung|weiterbildung|fertigkeiten|kenntnisse|profilübersicht|berufserfahrung|ausbildung|fähigkeiten|kontakt|sprachen|bildung|profil|skills|summary|experience|education|contact|languages|projects|certifications|awards)$/i;
+    return nameWords.some(w => structuredTokens.has(w) || TOOL_OR_SECTION_RE.test(w));
+  }
+
+  const aiNamePoisoned = aiNameIsPoisoned(modelName, profile);
+  const safeModelName = aiNamePoisoned ? "" : modelName;
+  const fallbackName = extractBestCandidateName(rawText, fileName, safeModelName || profile.basics?.name || "");
   const name = lockedName || fallbackName || "";
 
   const email = extractEmail(rawText) || clean(profile.basics?.email);
@@ -509,11 +576,14 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "You are a professional CV parser for WorkZo AI.",
             "Return ONLY valid JSON. Do not write markdown.",
             "Extract facts exactly from the CV. Do not invent anything.",
-            "The candidate name must be a human person's name only.",
-            "Never use a skill, job title, company, university, degree, address, city, street, location, email, phone number, URL, language, section header, or software/tool as basics.name.",
-            "If the name is split across lines around a job title, combine the person-name tokens only, e.g. FIRST / ROLE / LAST => FIRST LAST.",
-            "In two-column CVs, sidebar text may appear before the name. Do not assume the first extracted line is the candidate name.",
-            "If a job title appears before/after a person name, put the title in basics.headline and the person name in basics.name.",
+            "The candidate name must be a real human person's first and last name only.",
+            "CRITICAL: Never use any of the following as basics.name: skills, tools, technologies, frameworks, programming languages, software names, job titles, company names, university names, degree names, addresses, cities, street names, countries, emails, phone numbers, URLs, section headers (Skills, Education, Experience, Languages, Profile, Summary, Contact, etc.), or any non-person entity.",
+            "CRITICAL: If the CV is two-column or decorative, skill names and tool names often appear before the candidate name in the extracted text. Scan the FULL text for a human name — do not stop at the first two-word phrase.",
+            "CRITICAL: If the file name contains a human name (e.g. 'Haritha Vijayakumar.pdf', 'Daniel Foster Resume.pdf'), that is almost certainly the candidate name. Use it.",
+            "Examples of WRONG basics.name values: 'Matplotlib Seaborn Tableau', 'Tools Ticketing-systeme', 'Programming Python Bash', 'Programm Programm', 'Public Relations', 'Project Management', 'Data Science Bootcamp'.",
+            "Examples of CORRECT basics.name values: 'Haritha Vijayakumar', 'Daniel Foster', 'Jonas Lausch', 'Alice Milani'.",
+            "If the name is split across lines with a job title in between (e.g. ADELINE / ENGLISH TEACHER / PALMERSTON), combine only the person-name tokens: basics.name = 'Adeline Palmerston', basics.headline = 'English Teacher'.",
+            "If you are not confident about the candidate name, leave basics.name as an empty string rather than guessing a skill or phrase.",
             "Keep bullets factual. Split bullets only when the source clearly separates responsibilities.",
             "JSON shape: { basics:{name,headline,email,phone,location,linkedin}, summary, experience:[{title,company,location,dates,bullets:[]}], education:[{degree,institution,location,dates}], skills:[], projects:[{name,bullets:[]}], languages:[], certifications:[], strengths:[], additionalEvidence:[], warnings:[] }",
           ].join("\n"),

@@ -203,6 +203,9 @@ export type UnifiedRecruiterInput = {
     language?: string;
     recruiterMemoryProfile?: unknown;
     jobMemoryProfile?: unknown;
+    // Technical mode: candidate's live code and language
+    codeSnapshot?: string;
+    codeLanguage?: string;
   };
   recruiterTrust?: number;
   recruiterState?: string | null;
@@ -3742,6 +3745,8 @@ function buildSystemPrompt(
     "realistic recruiter",
   );
   const cvText = cleanText(setup.cvText).slice(0, 5500);
+  const codeSnapshot = cleanText(setup.codeSnapshot).slice(0, 2000);
+  const codeLanguage = cleanText(setup.codeLanguage) || "code";
   const recentTranscript = (input.transcript || [])
     .slice(-8)
     .map((item) => `${item.role}: ${cleanText(item.text)}`)
@@ -3776,7 +3781,22 @@ ${jobDescription.slice(0, 5500) || "No job description provided."}
 Recent transcript:
 ${recentTranscript || "No prior transcript."}
 
-CRITICAL RULES — READ FIRST:
+${codeSnapshot ? `CANDIDATE'S CURRENT CODE (${codeLanguage}):
+\`\`\`${codeLanguage}
+${codeSnapshot}
+\`\`\`
+
+TECHNICAL CODE RULES:
+- The candidate is in Technical Interview Mode. React to their code AND their spoken answer together.
+- If code is present but they gave no spoken explanation, ask them to walk you through their approach.
+- If the code has an obvious logical flaw, do NOT point it out directly. Ask: "Walk me through your logic here."
+- If they used brute force, ask: "What's the time complexity of this? Is there a more efficient approach?"
+- If they used a library function, probe: "Could you implement that without the library?"
+- A strong explanation with weak code is still weak. Good code with a vague explanation needs probing.
+- Ask about edge cases naturally: "What happens if the input is empty or null?"
+- Never say "I can see your code" — say "looking at what you have written" or "based on your approach".
+- If code is empty and this is a coding question, say: "Go ahead and start writing — talk me through your thinking as you go."
+` : ""}CRITICAL RULES — READ FIRST:
 1. Only advance to the next question if the candidate actually answered the active question with substantive content. Greetings, audio checks, clarifications, and candidate questions about the process must NOT count as answers and must NEVER trigger pressure or impact demands.
 2. Never repeat the same follow-up twice. If you asked for impact and received any qualitative outcome (satisfaction, trust, fewer complaints, repeat customers), accept it and move forward.
 3. Ask ONE question per turn. Replies must be 1–3 natural spoken sentences.

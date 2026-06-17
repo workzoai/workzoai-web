@@ -37,7 +37,7 @@ const quickFeatures = [
 const TESTIMONIALS = [
   {
     quote: "I’d been getting to final rounds and bombing. WorkZo showed me my trust score dropped every time I answered ownership questions. Two sessions later I had a framework — got an offer the following week.",
-    name: "Amir K.",
+    name: "Fayaz Ahmed",
     role: "Product Manager",
     location: "London",
     score: 84,
@@ -46,7 +46,7 @@ const TESTIMONIALS = [
   },
   {
     quote: "The follow-up questions are what got me. I’d give an answer I thought was fine, then Sarah would ask ‘what was the measurable outcome?’ and I’d realise I had nothing. Fixed that in three sessions.",
-    name: "Rachel L.",
+    name: "Emma De Vries",
     role: "Senior Data Analyst",
     location: "Amsterdam",
     score: 79,
@@ -64,7 +64,7 @@ const TESTIMONIALS = [
 
 const RECRUITER_PERSONAS = [
   {
-    name: "Sarah M.",
+    name: "Sarah",
     title: "Senior Hiring Manager",
     image: "/recruiters/sarah.png",
     style: "Sceptical · Evidence-driven",
@@ -78,7 +78,7 @@ const RECRUITER_PERSONAS = [
     accentStyle: "text-blue-300",
   },
   {
-    name: "James K.",
+    name: "James",
     title: "Tech Recruiter",
     image: "/recruiters/markus.png",
     style: "Fast-paced · No-nonsense",
@@ -92,7 +92,7 @@ const RECRUITER_PERSONAS = [
     accentStyle: "text-emerald-300",
   },
   {
-    name: "Priya N.",
+    name: "Priya",
     title: "Culture & Values Lead",
     image: "/recruiters/priya.png",
     style: "Empathetic · Values-focused",
@@ -106,7 +106,7 @@ const RECRUITER_PERSONAS = [
     accentStyle: "text-violet-300",
   },
   {
-    name: "Daniel R.",
+    name: "Daniel",
     title: "Executive Search Partner",
     image: "/recruiters/daniel.png",
     style: "Strategic · High-stakes",

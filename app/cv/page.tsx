@@ -222,6 +222,10 @@ export default function CvWorkspacePage() {
           layoutText: textForAi,
           targetRole: normalizeSetupTargetRole(setup),
           targetMarket: normalizeSetupTargetMarket(setup),
+          // Pass any already-known name so the structure route doesn't re-derive
+          // a wrong name from the pasted/layout text when the profile exists.
+          candidateName: (profile as ResumeProfile | undefined)?.basics?.name || "",
+          fileName: (setup as Record<string, unknown>)?.fileName as string || "",
         }),
       })
         .then((res) => res.json())
