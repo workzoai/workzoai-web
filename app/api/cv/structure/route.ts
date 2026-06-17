@@ -5,6 +5,7 @@ import {
   extractResumeProfile,
   sanitizeResumeProfileIdentity,
 } from "@/lib/workzoResumeParser";
+import { enforceCanonicalCandidateName } from "@/lib/workzoResumeProfileManager";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,10 +25,14 @@ function buildFallbackStructuredProfile(input: {
 }) {
   const rawText = input.layoutText || input.cvText;
   const parsedProfile = extractResumeProfile(rawText);
-  const resumeProfile = sanitizeResumeProfileIdentity(parsedProfile, {
+  const resumeProfile = enforceCanonicalCandidateName(
+    sanitizeResumeProfileIdentity(parsedProfile, {
+      rawText,
+      fileName: input.fileName,
+    }),
     rawText,
-    fileName: input.fileName,
-  });
+    input.fileName,
+  );
 
   return {
     ok: true,
@@ -90,10 +95,14 @@ export async function POST(request: Request) {
     });
 
     if (result?.resumeProfile) {
-      const resumeProfile = sanitizeResumeProfileIdentity(result.resumeProfile, {
-        rawText: layoutText || cvText,
+      const resumeProfile = enforceCanonicalCandidateName(
+        sanitizeResumeProfileIdentity(result.resumeProfile, {
+          rawText: layoutText || cvText,
+          fileName,
+        }),
+        layoutText || cvText,
         fileName,
-      });
+      );
 
       return NextResponse.json({
         ...result,

@@ -1,5 +1,7 @@
 "use client";
 
+import { cleanHumanName, completeResumeProfile, enforceCanonicalCandidateName, isLowQualityResumeProfile } from "@/lib/workzoResumeProfileManager";
+
 export type JobMemoryProfile = {
   targetRole?: string;
   role?: string;
@@ -200,24 +202,36 @@ export function normalizeCandidateName(value: unknown): string {
   return isValidCandidateName(text) ? text : "";
 }
 
-function sanitizeResumeProfile(profile: any) {
+function sanitizeResumeProfile(profile: any, rawCvText = "") {
   if (!profile || typeof profile !== "object") return undefined;
 
-  const basics = profile.basics && typeof profile.basics === "object" ? { ...profile.basics } : {};
-  const safeName = normalizeCandidateName(basics.name);
-  basics.name = safeName;
+  const completed = completeResumeProfile(profile, rawCvText || profile.rawText || "");
+  const canonical = enforceCanonicalCandidateName(completed, rawCvText || completed.rawText || "");
+  canonical.basics.name = cleanHumanName(canonical.basics.name) || normalizeCandidateName(canonical.basics.name) || "Candidate";
 
-  return {
-    ...profile,
-    basics,
-  };
+  // Reject only profiles with no usable structure. Do not reject a good profile
+  // just because a model temporarily guessed a bad name; name is repaired above.
+  const hasStructure = Boolean(
+    canonical.experience?.length || canonical.education?.length || canonical.skills?.length || canonical.projects?.length,
+  );
+  if (!hasStructure && isLowQualityResumeProfile(canonical)) return undefined;
+
+  return canonical;
 }
 
 export function sanitizeInterviewSetup(setup: WorkZoInterviewSetup | null | undefined): WorkZoInterviewSetup | null {
   if (!setup) return null;
 
-  const resumeProfile = sanitizeResumeProfile(setup.resumeProfile);
-  const profileBasics = resumeProfile?.basics || {};
+  const rawCvText = cleanString((setup as any).rawCvText || setup.uploadedCvText || setup.cvText || setup.resumeText || setup.candidateCv || "", 50000);
+  const resumeProfile = sanitizeResumeProfile(setup.resumeProfile, rawCvText);
+  const profileBasics = (resumeProfile?.basics || {}) as {
+    name?: string;
+    headline?: string;
+    email?: string;
+    phone?: string;
+    location?: string;
+    linkedin?: string;
+  };
 
   const candidateName =
     normalizeCandidateName(profileBasics.name) ||
@@ -226,10 +240,11 @@ export function sanitizeInterviewSetup(setup: WorkZoInterviewSetup | null | unde
 
   return {
     ...setup,
-    cvText: normalizeSetupCvText(setup),
-    uploadedCvText: normalizeSetupCvText(setup),
-    resumeText: normalizeSetupCvText(setup),
-    candidateCv: normalizeSetupCvText(setup),
+    rawCvText,
+    cvText: setup.cvText || rawCvText,
+    uploadedCvText: rawCvText,
+    resumeText: setup.resumeText || rawCvText,
+    candidateCv: setup.candidateCv || rawCvText,
     jobDescription: normalizeSetupJobDescription(setup),
     jdText: normalizeSetupJobDescription(setup),
     targetRole: normalizeSetupTargetRole(setup) || "General Role",

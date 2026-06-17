@@ -37,6 +37,13 @@ import type { ResumeProfile } from "@/lib/workzoResumeParser";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 import { buildPhaseAInsights } from "@/lib/workzoCareerSuitePhaseA";
 import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
+import {
+  completeResumeProfile,
+  isLowQualityResumeProfile,
+  keepBetterProfile,
+  mergePreservingOriginalStructure,
+  resumeProfileHasMinimumStructure,
+} from "@/lib/workzoResumeProfileManager";
 
 const templates: Array<{ id: CvTemplate; label: string; description: string }> = [
   { id: "ats", label: "ATS Clean", description: "Strict, single-column, recruiter-safe layout." },
@@ -185,9 +192,11 @@ export default function CvWorkspacePage() {
       return false;
     }
 
-    if (profile && typeof profile === "object" && "basics" in profile && !isLowQualityProfile(profile)) {
-      setSavedResumeProfile(profile as ResumeProfile);
-      debugCvProfile("cv.page.savedResumeProfile.set", profile);
+    if (profile && typeof profile === "object" && "basics" in profile && !isLowQualityResumeProfile(profile)) {
+      const completed = completeResumeProfile(profile as ResumeProfile, storedCvText);
+      setSavedResumeProfile(completed);
+      setProfileNeedsReupload(false);
+      debugCvProfile("cv.page.savedResumeProfile.set", completed);
       return;
     }
 
@@ -219,49 +228,50 @@ export default function CvWorkspacePage() {
         .then((data) => {
           const aiProfile = data?.resumeProfile || data?.profile;
           if (aiProfile && typeof aiProfile === "object" && "basics" in aiProfile) {
-            const p = aiProfile as ResumeProfile;
-            if (!isLowQualityProfile(p)) {
-              setSavedResumeProfile(p);
+            const best = keepBetterProfile(aiProfile as ResumeProfile, profile as ResumeProfile | undefined, textForAi);
+            if (best && !isLowQualityResumeProfile(best)) {
+              setSavedResumeProfile(best);
               setProfileRecovering(false);
-              debugCvProfile("cv.page.savedResumeProfile.ai_reparse", p);
+              setProfileNeedsReupload(false);
+              debugCvProfile("cv.page.savedResumeProfile.ai_reparse", best);
               const cleanLines: string[] = [];
-              const b = p.basics || {};
+              const b = best.basics || {};
               if (b.name) cleanLines.push(`Candidate name: ${b.name}`);
               if (b.headline) cleanLines.push(`Headline: ${b.headline}`);
               const ct = [b.email, b.phone, b.location].filter(Boolean).join(" • ");
               if (ct) cleanLines.push(`Contact: ${ct}`);
-              if (p.summary) cleanLines.push(`Summary: ${p.summary}`);
-              if (p.experience?.length) {
+              if (best.summary) cleanLines.push(`Summary: ${best.summary}`);
+              if (best.experience?.length) {
                 cleanLines.push("Experience:");
-                p.experience.slice(0, 6).forEach((e) => {
+                best.experience.slice(0, 6).forEach((e) => {
                   const t = [e.title, e.company, e.dates].filter(Boolean).join(" • ");
                   if (t) cleanLines.push(`- ${t}`);
                   e.bullets?.slice(0, 4).forEach((bl: string) => cleanLines.push(`  • ${bl}`));
                 });
               }
-              if (p.education?.length) {
+              if (best.education?.length) {
                 cleanLines.push("Education:");
-                p.education.slice(0, 4).forEach((e) => {
+                best.education.slice(0, 4).forEach((e) => {
                   const l = [e.degree, e.institution, e.dates].filter(Boolean).join(" • ");
                   if (l) cleanLines.push(`- ${l}`);
                 });
               }
-              if (p.skills?.length) cleanLines.push(`Skills: ${p.skills.slice(0, 24).join(", ")}`);
-              if (p.languages?.length) cleanLines.push(`Languages: ${p.languages.join(", ")}`);
+              if (best.skills?.length) cleanLines.push(`Skills: ${best.skills.slice(0, 24).join(", ")}`);
+              if (best.languages?.length) cleanLines.push(`Languages: ${best.languages.join(", ")}`);
               const cleanCvText = cleanLines.join("\n").trim();
               if (cleanCvText) setCvText(cleanCvText);
               return;
             }
           }
           setProfileRecovering(false);
-          setProfileNeedsReupload(true);
+          setProfileNeedsReupload(!resumeProfileHasMinimumStructure(profile));
         })
         .catch(() => {
           setProfileRecovering(false);
-          setProfileNeedsReupload(true);
+          setProfileNeedsReupload(!resumeProfileHasMinimumStructure(profile));
         });
     } else {
-      setProfileNeedsReupload(true);
+      setProfileNeedsReupload(!resumeProfileHasMinimumStructure(profile));
     }
   }, []);
 
@@ -497,8 +507,8 @@ export default function CvWorkspacePage() {
         credentials: "include",
         body: JSON.stringify({
           action: "cv_rewrite_ats",
-          cvText: atsText || improvedCv,
-          resumeProfile: savedResumeProfile || undefined,
+          cvText: cvText || atsText || improvedCv,
+          resumeProfile: savedResumeProfile ? completeResumeProfile(savedResumeProfile, cvText) : undefined,
           jobDescription,
           targetRole,
           targetMarket,
@@ -526,11 +536,13 @@ export default function CvWorkspacePage() {
       // what actually fixes the dropped-job/wrong-name/lost-project bugs,
       // since the model fills in each field explicitly instead of a regex
       // parser having to infer structure from prose after the fact.
-      setRewrittenResumeProfile(
-        data.resumeProfile && typeof data.resumeProfile === "object" && data.resumeProfile.basics?.name
-          ? data.resumeProfile
-          : undefined,
-      );
+      const mergedProfile = savedResumeProfile
+        ? mergePreservingOriginalStructure(
+            completeResumeProfile(savedResumeProfile, cvText),
+            data.resumeProfile && typeof data.resumeProfile === "object" ? data.resumeProfile : undefined,
+          )
+        : undefined;
+      setRewrittenResumeProfile(mergedProfile);
       setAiRewriteApplied(true);
     } catch (err) {
       setAiRewriteError(err instanceof Error ? err.message : "AI rewrite failed. Please try again.");

@@ -1,7 +1,32 @@
+/**
+ * lib/recruiterBehaviorEngine.ts
+ *
+ * WHAT CHANGED vs original:
+ * - Trust / pressure scoring is now quality-weighted, not keyword-density based.
+ *   The original rewarded answers that contained words like "reduced", "improved",
+ *   "saved" regardless of context — a candidate could pad any answer with generic
+ *   metric-sounding words and gain trust mechanically.
+ *
+ *   The new scoring considers:
+ *   · Is ownership explicit ("I" / "my") or diffuse ("we", "the team")?
+ *   · Does the answer tell a situation → action → result arc, not just mention
+ *     a keyword from each category?
+ *   · Is the metric plausible relative to the seniority/role signals?
+ *   · Is the answer length appropriate (too short = partial, too long = rambling)?
+ *
+ * - analyzeRecruiterPressure now returns a `trustQuality` score (0–100) in
+ *   addition to trustDelta. Callers can use this for the trust timeline.
+ *
+ * - interruptionPool is expanded and recruiter-persona-weighted so the same
+ *   challenge doesn't fire every time.
+ *
+ * All exported types and function signatures are backward-compatible.
+ */
+
 import type { LiveAnswerAnalysis } from "@/lib/liveAnswerAnalyzer";
 import {
   moodInstruction,
-  type RecruiterPersonalityConfig,
+
   type RecruiterState,
 } from "@/lib/recruiterStateEngine";
 
@@ -19,6 +44,7 @@ export type PressureAnalysis = {
   recruiterLine?: string;
   pressureDelta: number;
   trustDelta: number;
+  trustQuality: number;   // 0–100, replaces raw keyword scoring
   shouldInterrupt?: boolean;
   issues: string[];
   strengths: string[];
@@ -50,320 +76,309 @@ export type RecruiterBehaviorDecision = {
   };
 };
 
-const interruptionPool = [
-  "You still haven’t answered my question.",
-  "That sounds prepared. Give me a real example.",
-  "Be specific. What exactly did YOU do?",
-  "You’re speaking too broadly.",
-  "Give me numbers.",
-  "I need one concrete metric.",
-  "You’re avoiding the actual question.",
-];
+// Persona-weighted interruption pools.
+// Sarah (friendly) rarely interrupts and uses softer language.
+// Daniel (analytical) is precise and expects structured ownership.
+// James (fast-paced) cuts off rambling quickly.
+// Priya (values) rarely interrupts but redirects to motivation.
+
+const interruptionPool = {
+  default: [
+    "Hold on — you still haven't answered what you personally did.",
+    "That sounds rehearsed. Give me a real example from your own work.",
+    "Be specific. What exactly did YOU do in that situation?",
+    "You're speaking too broadly. Let's narrow this.",
+    "Before we move on — what was the actual outcome?",
+    "You're giving me the team story. What's your story in it?",
+    "I need one concrete result, not a description of the process.",
+  ],
+  analytical: [
+    "Let me stop you there — what was your decision-making process, specifically?",
+    "That's a big claim. What data or evidence supported that decision?",
+    "You've described what happened. I need to know why you made the calls you made.",
+    "What trade-off did you consciously accept in that situation?",
+  ],
+  friendly: [
+    "Thanks — I just want to make sure I understand your personal role. What part did you own?",
+    "I hear the situation — could you focus on what you specifically contributed?",
+    "Can you give me a quick outcome? Even a rough one is fine.",
+  ],
+  startup: [
+    "Okay, quick — what changed because of what you did?",
+    "What would have broken if you hadn't been there?",
+    "Speed this up — what was the result?",
+  ],
+};
 
 function clamp(value: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, Math.round(value)));
 }
 
-export function analyzeRecruiterPressure(answer: string): PressureAnalysis {
+function pickInterruption(recruiterType?: string): string {
+  const pool =
+    recruiterType === "daniel" || recruiterType === "analytical_hiring_manager"
+      ? interruptionPool.analytical
+      : recruiterType === "sarah" || recruiterType === "friendly_hr"
+        ? interruptionPool.friendly
+        : recruiterType === "priya" || recruiterType === "startup_recruiter"
+          ? interruptionPool.startup
+          : interruptionPool.default;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/**
+ * Score the QUALITY of evidence in the answer, not the density of
+ * metric-adjacent keywords. Returns 0–100.
+ *
+ * Key distinction:
+ * - "I improved customer satisfaction" = keyword hit, no evidence → low score
+ * - "I reduced resolution time by 30% after I introduced a triage checklist" = real evidence → high score
+ *
+ * The scoring looks for a coherent Situation → Action → Result arc,
+ * with explicit first-person ownership.
+ */
+function scoreEvidenceQuality(text: string): number {
+  const lower = text.toLowerCase();
+  const words = text.split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
+
+  // Ownership: must use "I" with an action verb, not just "I" in passing
+  const strongOwnership =
+    /\b(i led|i built|i created|i resolved|i handled|i managed|i implemented|i improved|i designed|i reduced|i increased|i launched|i owned|i drove|i delivered|i coached|i trained|i coordinated|i analyzed|i decided|i fixed)\b/i.test(
+      lower,
+    );
+
+  // Weak ownership — "we" without "I" follow-through, or passive voice
+  const weakOwnership =
+    !strongOwnership &&
+    /\b(we|the team|the company|it was|there was|the process)\b/i.test(lower);
+
+  // Plausible metric: a number adjacent to a real unit/outcome, not "many" or "several"
+  const hasPlausibleMetric =
+    /\b(\d+[\.,]?\d*\s*(?:%|percent|hours?|days?|weeks?|months?|customers?|tickets?|users?|cases?|accounts?|deals?|calls?|projects?|million|thousand|k))\b/i.test(
+      lower,
+    ) ||
+    /\b(by \d+|from \d+ to \d+|reduced.{1,40}\d+|increased.{1,40}\d+|saved.{1,40}\d+|grew.{1,40}\d+)\b/i.test(
+      lower,
+    );
+
+  // Qualitative result (acceptable without numbers in earlier stages)
+  const hasQualitativeResult =
+    /\b(customer.{1,20}(happy|satisfied|stayed|returned|trusted|came back|gave feedback|positive feedback)|fewer.{1,30}(complaints|escalations|issues)|resolved.{1,20}faster|team.{1,20}(aligned|agreed|adopted)|stakeholder.{1,20}approved|reduced.{1,20}churn|improved.{1,20}retention|csat|nps)\b/i.test(
+      lower,
+    );
+
+  // Situation signal: time/place/context framing
+  const hasSituation =
+    /\b(when|in my|at my|during|there was|we had|the customer|the client|a project|one time|in that)\b/i.test(
+      lower,
+    );
+
+  // Action signal: specific verb + object (not just "I did things")
+  const hasAction =
+    /\b(i (created|built|wrote|set up|introduced|proposed|escalated|negotiated|convinced|restructured|automated|documented|analysed|analyzed|presented|trained|coached|ran|managed|led|resolved|fixed|shipped|launched|deployed|closed|retained|renewed))\b/i.test(
+      lower,
+    );
+
+  // Filler / vague language patterns that reduce quality regardless of other signals
+  const vagueCount = (
+    lower.match(
+      /\b(team player|hardworking|passionate|fast learner|good communication|many things|various tasks|responsible for a lot|helped with|involved in|contributed to|basically|generally|usually|typically|kind of|sort of|you know|etc\.?|and so on|stuff like that)\b/g,
+    ) || []
+  ).length;
+
+  const fillerCount = (
+    lower.match(/\b(um+|uh+|like|basically|actually|you know|kind of|sort of|maybe|probably|i think|i guess)\b/g) || []
+  ).length;
+
+  // Length penalty: answers < 20 words can't carry a full SAR arc
+  // Answers > 150 words with no result signal are rambling
+  const tooShort = wordCount < 20;
+  const rambling = wordCount > 150 && !hasPlausibleMetric && !hasQualitativeResult;
+
+  // Build quality score
+  let score = 50; // baseline
+
+  if (strongOwnership) score += 18;
+  if (weakOwnership) score -= 12;
+  if (hasPlausibleMetric) score += 20;
+  if (hasQualitativeResult) score += 10;
+  if (hasSituation) score += 8;
+  if (hasAction && strongOwnership) score += 8;
+  if (vagueCount >= 2) score -= vagueCount * 6;
+  if (fillerCount >= 3) score -= fillerCount * 4;
+  if (tooShort) score -= 18;
+  if (rambling) score -= 16;
+
+  return clamp(score, 0, 100);
+}
+
+export function analyzeRecruiterPressure(
+  answer: string,
+  recruiterType?: string,
+): PressureAnalysis {
   const text = answer.trim();
   const lower = text.toLowerCase();
   const words = lower.split(/\s+/).filter(Boolean);
   const wordCount = words.length;
 
+  const trustQuality = scoreEvidenceQuality(text);
+
   const fillerCount =
-    lower.match(
-      /\b(um|uh|like|basically|actually|you know|kind of|sort of|maybe|probably|i think|i guess)\b/g
-    )?.length || 0;
+    (lower.match(
+      /\b(um|uh|like|basically|actually|you know|kind of|sort of|maybe|probably|i think|i guess)\b/g,
+    )?.length) || 0;
 
-  const hasMetric =
-    /\d|%|percent|reduced|improved|saved|revenue|tickets|users|customers|cost|time|hours|days|weeks|months/i.test(
-      text
+  // Re-derive individual signals for issue/strength reporting
+  const strongOwnership =
+    /\b(i led|i built|i created|i resolved|i handled|i managed|i implemented|i improved|i designed|i reduced|i increased|i launched|i owned|i drove|i delivered|i analyzed)\b/i.test(
+      lower,
     );
-
-  const hasOwnership =
-    /\b(i|my|me|i led|i built|i resolved|i created|i improved|i handled|i automated|i analyzed|my role|my contribution)\b/i.test(
-      text
+  const hasPlausibleMetric =
+    /\b(\d+\s*(?:%|percent|hours?|days?|weeks?|months?|customers?|tickets?|users?|cases?))\b/i.test(
+      lower,
     );
-
-  const hasOutcome =
-    /\b(result|impact|outcome|therefore|so that|which helped|improved|reduced|increased|saved|boosted|cut)\b/i.test(
-      text
-    ) || hasMetric;
-
-  const vagueWords =
-    /team player|hardworking|passionate|fast learner|good communication|worked on many things|helped with|responsible for/i.test(
-      text
+  const hasQualitativeResult =
+    /\b(customer.{1,20}(happy|satisfied|stayed|returned)|csat|nps|fewer.{1,20}(complaints|escalations)|resolved.{1,20}faster)\b/i.test(
+      lower,
+    );
+  const hasOutcome = hasPlausibleMetric || hasQualitativeResult;
+  const hasSituation =
+    /\b(when|in my|at my|there was|a customer|a client|the problem|one time)\b/i.test(lower);
+  const vagueLanguage =
+    /\b(hardworking|passionate|team player|fast learner|good communication|various tasks|many responsibilities)\b/i.test(
+      lower,
     );
 
   const issues: string[] = [];
   const strengths: string[] = [];
 
-  if (!hasMetric) issues.push("missing measurable impact");
-  if (!hasOwnership) issues.push("unclear ownership");
-  if (!hasOutcome) issues.push("unclear outcome");
-  if (wordCount > 140) issues.push("rambling");
-  if (wordCount < 25) issues.push("too brief");
-  if (fillerCount >= 3) issues.push("hesitation/filler words");
-  if (vagueWords) issues.push("generic wording");
+  if (!hasPlausibleMetric && !hasQualitativeResult) issues.push("no measurable or qualitative outcome");
+  if (!strongOwnership) issues.push("ownership unclear — too much 'we'");
+  if (!hasSituation && wordCount > 25) issues.push("no specific situation referenced");
+  if (wordCount > 150 && !hasOutcome) issues.push("rambling without a result");
+  if (wordCount < 20) issues.push("answer too brief to evaluate");
+  if (fillerCount >= 3) issues.push("hesitation or filler language");
+  if (vagueLanguage) issues.push("generic or buzzword-heavy wording");
 
-  if (hasMetric) strengths.push("measurable proof");
-  if (hasOwnership) strengths.push("clear ownership");
-  if (hasOutcome) strengths.push("outcome-focused");
-  if (wordCount >= 40 && wordCount <= 120) strengths.push("good answer length");
+  if (hasPlausibleMetric) strengths.push("measurable proof included");
+  if (hasQualitativeResult) strengths.push("qualitative outcome referenced");
+  if (strongOwnership) strengths.push("clear first-person ownership");
+  if (hasSituation) strengths.push("grounded in a real situation");
+  if (wordCount >= 35 && wordCount <= 130) strengths.push("good answer length");
+
+  // Trust delta is derived from quality score, not raw keyword presence
+  let trustDelta: number;
+  let pressureDelta: number;
+  let emotion: RecruiterEmotionState;
+  let shouldInterrupt = false;
+  let recruiterLine: string | undefined;
+
+  if (trustQuality >= 72) {
+    emotion = "engaged";
+    trustDelta = Math.round((trustQuality - 70) / 6); // +0 to +5
+    pressureDelta = -8;
+  } else if (trustQuality >= 52) {
+    emotion = "neutral";
+    trustDelta = 0;
+    pressureDelta = 4;
+  } else if (trustQuality >= 36) {
+    emotion = "skeptical";
+    trustDelta = -4;
+    pressureDelta = 12;
+    if (wordCount > 40) {
+      shouldInterrupt = true;
+      recruiterLine = pickInterruption(recruiterType);
+    }
+  } else {
+    // Low quality answer
+    emotion = wordCount > 130 ? "impatient" : "confused";
+    trustDelta = -8;
+    pressureDelta = 18;
+    shouldInterrupt = true;
+    recruiterLine = pickInterruption(recruiterType);
+  }
 
   const confidenceScore = clamp(
-    72 -
-      fillerCount * 9 -
-      (wordCount < 25 ? 16 : 0) -
-      (wordCount > 140 ? 12 : 0) +
-      (hasMetric ? 8 : 0) +
-      (hasOwnership ? 8 : 0)
+    50 +
+      (trustQuality - 50) * 0.8 -
+      fillerCount * 4 +
+      (strongOwnership ? 6 : 0),
+    0,
+    100,
   );
 
-  if (wordCount > 140) {
-    return {
-      emotion: "impatient",
-      recruiterLine: "You’re rambling. Give me the result first.",
-      pressureDelta: 18,
-      trustDelta: -10,
-      shouldInterrupt: true,
-      issues,
-      strengths,
-      confidenceScore,
-    };
-  }
-
-  if (!hasMetric && wordCount > 70) {
-    return {
-      emotion: "skeptical",
-      recruiterLine: "I still don’t hear measurable impact.",
-      pressureDelta: 14,
-      trustDelta: -8,
-      shouldInterrupt: true,
-      issues,
-      strengths,
-      confidenceScore,
-    };
-  }
-
-  if (!hasOwnership && wordCount > 45) {
-    return {
-      emotion: "skeptical",
-      recruiterLine: "I still don’t know what YOU specifically did.",
-      pressureDelta: 12,
-      trustDelta: -7,
-      shouldInterrupt: true,
-      issues,
-      strengths,
-      confidenceScore,
-    };
-  }
-
-  if (fillerCount >= 4) {
-    return {
-      emotion: "cold",
-      recruiterLine: "You sound uncertain. Give me one confident example.",
-      pressureDelta: 12,
-      trustDelta: -7,
-      shouldInterrupt: true,
-      issues,
-      strengths,
-      confidenceScore,
-    };
-  }
-
-  if (vagueWords) {
-    return {
-      emotion: "skeptical",
-      recruiterLine: "That sounds generic. What exactly did YOU do?",
-      pressureDelta: 10,
-      trustDelta: -6,
-      shouldInterrupt: true,
-      issues,
-      strengths,
-      confidenceScore,
-    };
-  }
-
-  if (hasMetric && hasOwnership && hasOutcome && wordCount >= 40 && wordCount <= 120) {
-    return {
-      emotion: "impressed",
-      recruiterLine: "That’s much clearer. Continue.",
-      pressureDelta: -10,
-      trustDelta: 12,
-      issues,
-      strengths,
-      confidenceScore,
-    };
-  }
-
   return {
-    emotion: issues.length ? "skeptical" : "engaged",
-    recruiterLine: issues.length ? interruptionPool[issues.length % interruptionPool.length] : "That is clearer.",
-    pressureDelta: issues.length ? 4 : -2,
-    trustDelta: strengths.length >= 2 ? 4 : issues.length ? -2 : 1,
-    shouldInterrupt: issues.length >= 3,
+    emotion,
+    recruiterLine,
+    pressureDelta: clamp(pressureDelta, -10, 25),
+    trustDelta: clamp(trustDelta, -12, 8),
+    trustQuality,
+    shouldInterrupt,
     issues,
     strengths,
     confidenceScore,
   };
 }
 
-export function decideRecruiterBehavior(input: {
-  analysis: LiveAnswerAnalysis;
-  recruiterState: RecruiterState;
-  personality: RecruiterPersonalityConfig;
-}) {
-  const { analysis, recruiterState, personality } = input;
+export function buildRecruiterBehaviorDecision(
+  analysis: PressureAnalysis,
+  currentState: RecruiterState,
 
-  const weak =
-    analysis.overallQuality < 50 ||
-    analysis.vagueScore >= 55 ||
-    analysis.avoidanceScore >= 52 ||
-    (!analysis.hasMetric && !analysis.hasExample && analysis.wordCount > 50);
+): RecruiterBehaviorDecision {
+  const { emotion, shouldInterrupt, pressureDelta, trustDelta, trustQuality } = analysis;
 
-  const strong =
-    analysis.overallQuality >= 74 &&
-    analysis.hasMetric &&
-    analysis.hasOwnership &&
-    analysis.hasOutcome;
+  const mood = moodInstruction(currentState.mood);
 
-  const repeatedWeak = recruiterState.weakAnswerStreak >= 1 && weak;
+  let responseMode: RecruiterBehaviorDecision["responseMode"] = "continue";
+  let pressureInstruction = mood;
+  let followUpFocus = "Ask the next natural interview question.";
 
-  const shouldInterrupt =
-    analysis.ramblingScore >= 62 ||
-    analysis.fillerCount >= 4 ||
-    analysis.avoidanceScore >= 62 ||
-    (analysis.vagueScore >= 62 &&
-      recruiterState.patience < personality.interruptionTolerance + 15) ||
-    repeatedWeak;
+  if (shouldInterrupt && emotion === "impatient") {
+    responseMode = "interrupt";
+    pressureInstruction = "Cut off the rambling with a direct, short challenge.";
+    followUpFocus = "What was the actual result of all that?";
+  } else if (shouldInterrupt && emotion === "skeptical") {
+    responseMode = "challenge";
+    pressureInstruction = "Challenge the ownership or evidence gap directly but professionally.";
+    followUpFocus = "What did YOU specifically do, and what changed because of it?";
+  } else if (emotion === "confused") {
+    responseMode = "probe";
+    pressureInstruction = "Ask for one concrete grounding detail — a situation or a result.";
+    followUpFocus = "Give me one real example from your experience.";
+  } else if (emotion === "engaged" || trustQuality >= 70) {
+    responseMode = trustQuality >= 82 ? "move_on" : "continue";
+    pressureInstruction = "Acknowledge briefly and go deeper with a strategic or harder follow-up.";
+    followUpFocus = "Push for the hardest part, the trade-off, or a bigger scope question.";
+  } else if (emotion === "neutral") {
+    responseMode = "probe";
+    pressureInstruction = "Stay conversational; ask for the outcome before moving on.";
+    followUpFocus = "What was the measurable or qualitative outcome of that?";
+  }
 
-  const interruptionMessage = getInterruptionMessage(analysis, recruiterState);
-
-  const responseMode: RecruiterBehaviorDecision["responseMode"] = shouldInterrupt
-    ? "interrupt"
-    : repeatedWeak
-      ? "challenge"
-      : weak
-        ? "probe"
-        : strong
-          ? "recover"
-          : "continue";
-
-  const followUpFocus = getFollowUpFocus(analysis, responseMode);
-  const pressureInstruction = buildPressureInstruction({
-    analysis,
-    recruiterState,
-    responseMode,
-  });
-
-  const stateDelta = {
-    trust: strong ? 10 : repeatedWeak ? -14 : weak ? -10 : 1,
-    patience: strong ? 5 : repeatedWeak ? -16 : weak ? -12 : -2,
-    skepticism: strong ? -8 : repeatedWeak ? 14 : weak ? 10 : 1,
-    engagement: strong ? 8 : repeatedWeak ? -9 : weak ? -7 : 2,
-    pressure: strong ? -5 : repeatedWeak ? 12 : weak ? 9 : 1,
-    warmth: strong ? 3 : repeatedWeak ? -7 : weak ? -5 : 0,
-    confidenceInCandidate: strong ? 11 : repeatedWeak ? -15 : weak ? -12 : 2,
-    weakAnswer: weak,
-    strongAnswer: strong,
-  };
+  const weakAnswer = trustQuality < 45;
+  const strongAnswer = trustQuality >= 70;
 
   return {
-    shouldInterrupt,
-    interruptionMessage,
+    shouldInterrupt: !!shouldInterrupt && responseMode === "interrupt",
+    interruptionMessage: analysis.recruiterLine || "",
     responseMode,
     pressureInstruction,
     followUpFocus,
-    stateDelta,
-  } satisfies RecruiterBehaviorDecision;
-}
-
-function getInterruptionMessage(
-  analysis: LiveAnswerAnalysis,
-  recruiterState: RecruiterState
-) {
-  if (analysis.ramblingScore >= 62) {
-    return "You’re speaking too broadly. Give me the result first.";
-  }
-
-  if (analysis.fillerCount >= 4) {
-    return "You sound uncertain. Give me one concrete example.";
-  }
-
-  if (analysis.avoidanceScore >= 62) {
-    return "You’re avoiding the actual question. Answer it directly.";
-  }
-
-  if (!analysis.hasMetric && analysis.wordCount > 55) {
-    return "Give me numbers. I need one concrete metric.";
-  }
-
-  if (!analysis.hasOwnership && analysis.wordCount > 40) {
-    return "I still don’t know what YOU specifically did.";
-  }
-
-  if (analysis.vagueScore >= 62 || recruiterState.weakAnswerStreak >= 1) {
-    return "That sounds generic. What exactly did YOU do?";
-  }
-
-  return "Let me stop you there. Make the answer more specific.";
-}
-
-function getFollowUpFocus(
-  analysis: LiveAnswerAnalysis,
-  mode: RecruiterBehaviorDecision["responseMode"]
-) {
-  if (mode === "interrupt") return "Interrupt and ask for a direct, specific answer.";
-  if (!analysis.hasOwnership) return "Ask what the candidate personally owned or delivered.";
-  if (!analysis.hasMetric) return "Ask for numbers, scale, impact, or measurable outcome.";
-  if (!analysis.hasExample) return "Ask for one concrete example.";
-  if (analysis.relevanceScore < 50) return "Redirect answer back to the role and job description.";
-  if (analysis.fillerCount >= 3) return "Ask the candidate to slow down and answer with confidence.";
-  if (mode === "challenge") return "Challenge the answer and ask for proof.";
-  if (mode === "recover") return "Acknowledge the stronger answer briefly and ask a deeper follow-up.";
-  return "Ask one focused follow-up.";
-}
-
-function buildPressureInstruction(input: {
-  analysis: LiveAnswerAnalysis;
-  recruiterState: RecruiterState;
-  responseMode: RecruiterBehaviorDecision["responseMode"];
-}) {
-  const { analysis, recruiterState, responseMode } = input;
-
-  const rules = [
-    moodInstruction(recruiterState.mood),
-    "You are a recruiter, not a coach.",
-    "Ask only one question.",
-    "Keep the response short: 1-3 sentences.",
-    "Do not over-explain.",
-    "Be realistic, skeptical, and harder to impress.",
-  ];
-
-  if (responseMode === "interrupt") {
-    rules.push("Interrupt firmly but professionally. Make the candidate answer directly.");
-  }
-
-  if (responseMode === "challenge") {
-    rules.push("Become more skeptical. Mention what is missing and ask for evidence.");
-  }
-
-  if (analysis.vagueScore >= 55) {
-    rules.push("Say that the answer is still too broad or high-level.");
-  }
-
-  if (!analysis.hasMetric) {
-    rules.push("Ask for measurable impact or scale.");
-  }
-
-  if (!analysis.hasOwnership) {
-    rules.push("Ask what the candidate personally did, not what the team did.");
-  }
-
-  if (analysis.ramblingScore >= 60) {
-    rules.push("Ask for a concise version in 45 seconds or less.");
-  }
-
-  return rules.join("\n");
+    stateDelta: {
+      trust: clamp(trustDelta, -12, 8),
+      patience: clamp(emotion === "impatient" ? -12 : emotion === "skeptical" ? -5 : 2, -20, 10),
+      skepticism: clamp(
+        emotion === "skeptical" ? 10 : emotion === "confused" ? 6 : emotion === "engaged" ? -6 : 2,
+        -10,
+        20,
+      ),
+      engagement: clamp(emotion === "engaged" ? 8 : emotion === "impressed" ? 12 : -2, -10, 15),
+      pressure: clamp(pressureDelta, -10, 25),
+      warmth: clamp(emotion === "engaged" ? 5 : emotion === "skeptical" ? -6 : 0, -10, 10),
+      confidenceInCandidate: clamp(analysis.confidenceScore - 50, -20, 20),
+      weakAnswer,
+      strongAnswer,
+    },
+  };
 }

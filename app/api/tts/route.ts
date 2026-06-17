@@ -1,3 +1,21 @@
+/**
+ * app/api/tts/route.ts
+ *
+ * WHAT CHANGED vs original:
+ * - Added `addRecruiterHesitationMarkers()` — inserts natural pauses/filler
+ *   BEFORE synthesis so the recruiter sounds human, not robotic.
+ *   Applied selectively based on recruiterState:
+ *   · Before a challenge/skepticism: "Hmm… " prefix
+ *   · Before a recovery/warmth moment: no filler (let warmth come through clean)
+ *   · Occasionally mid-sentence: "…" after "Hold on" / "Let me" phrases
+ *   This is the single biggest perceptual difference between "AI voice" and
+ *   "human interviewer" — controlled imperfection costs nothing and changes
+ *   everything about how the audio feels.
+ *
+ * - humanizeRecruiterSpokenText is still called (existing behaviour preserved).
+ * - All other logic (auth, plan gate, voice routing, TTS model fallback) unchanged.
+ */
+
 import OpenAI from "openai";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { getOpenAiTtsInstructions, humanizeRecruiterSpokenText } from "@/lib/workzoVoiceHumanizer";
@@ -5,9 +23,6 @@ import { resolveRecruiterVoiceKey, RECRUITER_VOICE_TABLE } from "@/lib/recruiter
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-// OpenAI TTS is the standard voice engine for Premium and Premium Pro.
-// Free users use browser Web Speech API — they never call this route.
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -22,8 +37,52 @@ const allowedVoices = new Set([
   "shimmer",
 ]);
 
+/**
+ * Adds subtle, human-sounding hesitation markers to recruiter speech
+ * BEFORE TTS synthesis. The goal is one light imperfection per reply
+ * at most — not artificial filler on every sentence.
+ *
+ * Rules:
+ * - skeptical / pressuring state → "Hmm… " prefix (pause, then challenge)
+ * - "Hold on" / "Let me pause" → append "…" after the phrase
+ * - losing_confidence state → nothing (terse silence is more powerful)
+ * - all other states → no markers (clean speech is fine)
+ *
+ * These markers work with OpenAI's gpt-4o-mini-tts model which interprets
+ * "…" as a natural pause beat.
+ */
+function addRecruiterHesitationMarkers(
+  text: string,
+  recruiterState?: string,
+): string {
+  if (!text) return text;
+
+  const state = (recruiterState || "").toLowerCase();
+
+  // Already has a filler or hesitation marker — don't double up
+  if (/^(hmm|okay…|hold on|wait,)/i.test(text.trim())) return text;
+
+  // Skeptical / pressuring → brief "Hmm…" pause before the challenge
+  if (state === "skeptical" || state === "pressuring") {
+    // Only add on shorter replies (the ones that feel abrupt without a beat)
+    const words = text.trim().split(/\s+/).filter(Boolean).length;
+    if (words <= 30) {
+      return `Hmm… ${text}`;
+    }
+  }
+
+  // "Hold on" or "Let me pause you" → naturally trail off slightly
+  const holdOnMatch = text.match(/^(Hold on|Let me pause you there|Let me pause you|Let me stop you there)[.,—]?\s*/i);
+  if (holdOnMatch) {
+    const rest = text.slice(holdOnMatch[0].length);
+    return `${holdOnMatch[1]}… ${rest}`;
+  }
+
+  return text;
+}
+
 export async function POST(request: Request) {
-  // ── Auth + plan gate ────────────────────────────────────────────────────────
+  // ── Auth + plan gate ──────────────────────────────────────────────────────
   let resolved;
   try {
     resolved = await resolveWorkZoServerPlan();
@@ -41,7 +100,7 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   }
-  // ────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
 
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -59,6 +118,8 @@ export async function POST(request: Request) {
       recruiterState?: string;
     };
 
+    // Strip candidate-side filler (um, uh, erm) from the TEXT before synthesis —
+    // this applies to any text being read by the recruiter voice.
     const rawText = typeof body.text === "string"
       ? body.text
           .replace(/\s+/g, " ")
@@ -66,15 +127,17 @@ export async function POST(request: Request) {
           .trim()
       : "";
 
-    const text = humanizeRecruiterSpokenText(rawText, {
+    // Humanise (existing pipeline), then add selective recruiter hesitation markers.
+    const humanised = humanizeRecruiterSpokenText(rawText, {
       recruiterId: body.recruiterId,
       recruiterState: body.recruiterState,
       allowFiller: false,
     });
 
+    const text = addRecruiterHesitationMarkers(humanised, body.recruiterState);
+
     const requestedVoice =
       typeof body.voice === "string" ? body.voice.trim().toLowerCase() : "";
-    // Fall back to gender-appropriate voice from the persona table instead of always "shimmer".
     const defaultVoice = RECRUITER_VOICE_TABLE[resolveRecruiterVoiceKey(body.recruiterId)].openAiVoice;
     const voice = allowedVoices.has(requestedVoice) ? requestedVoice : defaultVoice;
 

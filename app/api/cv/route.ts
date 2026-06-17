@@ -12,6 +12,7 @@ import {
   repairResumeProfileAfterParsing,
 } from "@/lib/workzoAiCvParser";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
+import { enforceCanonicalCandidateName } from "@/lib/workzoResumeProfileManager";
 
 const require = createRequire(import.meta.url);
 
@@ -788,13 +789,7 @@ function mapAffindaProfile(
 
   // Final identity repair using WorkZo rules, but keep Affinda structure.
   const repaired = repairResumeProfileAfterParsing(profile, rawText, fileName);
-  const finalName = extractHeaderName(
-    rawText,
-    fileName,
-    repaired.basics?.name || profile.basics.name || "",
-  );
-  if (finalName) repaired.basics.name = finalName;
-  return repaired;
+  return enforceCanonicalCandidateName(repaired, rawText, fileName) as ResumeProfile;
 }
 
 async function sleep(ms: number) {
@@ -995,19 +990,18 @@ function buildResponse(input: {
   targetRole?: string;
   targetMarket?: string;
 }) {
-  const resumeProfile = input.resumeProfile;
-  const finalName = extractHeaderName(
+  const resumeProfile = enforceCanonicalCandidateName(
+    input.resumeProfile,
     input.rawCvText,
     input.fileName || "",
-    resumeProfile.basics?.name || "",
-  );
-  if (finalName && finalName !== resumeProfile.basics?.name) {
+  ) as ResumeProfile;
+  const finalName = resumeProfile.basics?.name || "";
+  if (finalName && finalName !== input.resumeProfile.basics?.name) {
     debugCvPipeline("api.cv.name_override", {
       fileName: input.fileName,
-      originalName: resumeProfile.basics?.name || "",
+      originalName: input.resumeProfile.basics?.name || "",
       finalName,
     });
-    resumeProfile.basics.name = finalName;
   }
 
   const cleanProfileText = buildProfileText(resumeProfile, input.rawCvText);

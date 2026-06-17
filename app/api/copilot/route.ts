@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { askOpenRouter } from "@/lib/openrouter";
 import { checkWorkZoRateLimit } from "@/lib/workzoRateLimit";
+import { completeResumeProfile, mergePreservingOriginalStructure } from "@/lib/workzoResumeProfileManager";
 
 type CopilotAction =
   | "career_chat"
@@ -882,11 +883,13 @@ TARGET MARKET: ${targetMarket}
             summary: typeof parsed.summary === "string" ? parsed.summary : "",
           };
 
-          const plainTextCv = formatResumeProfileAsPlainText(normalizedProfile as RewrittenResumeProfile);
+          const originalProfile = completeResumeProfile(inputProfile as any, cvText || "");
+          const preservedProfile = mergePreservingOriginalStructure(originalProfile, normalizedProfile as any);
+          const plainTextCv = formatResumeProfileAsPlainText(preservedProfile as RewrittenResumeProfile);
           return NextResponse.json({
             success: true,
             output: plainTextCv,
-            resumeProfile: normalizedProfile,
+            resumeProfile: preservedProfile,
             model,
             provider: "openrouter",
             action,

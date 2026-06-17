@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-// ─── Disabled routes (404 in production) ─────────────────────────────────────
+// ─── Disabled routes (404 in production) ────────────────────────────────────
 const DISABLED_IN_PRODUCTION = [
   "/sentry-example-page",
   "/api/sentry-example-api",
@@ -9,7 +9,7 @@ const DISABLED_IN_PRODUCTION = [
   "/dev-tools",
 ];
 
-// ─── Founder-only routes ──────────────────────────────────────────────────────
+// ─── Founder-only routes ─────────────────────────────────────────────────────
 const FOUNDER_ROUTES = ["/founder", "/founder-dashboard", "/founder/analytics"];
 
 function isDisabledRoute(pathname: string) {
@@ -52,6 +52,13 @@ export async function proxy(request: NextRequest) {
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (cookiesToSet) => {
+        // Recreate the response after updating the request's cookies — this
+        // is what makes the refreshed Supabase session token actually
+        // visible to server-side getUser() calls within the same request
+        // cycle. Without recreating the response here, the old broken
+        // version only wrote to response.cookies, leaving request.cookies
+        // stale, so resolveWorkZoServerPlan() downstream would still see
+        // the expired token and incorrectly treat the user as logged out.
         cookiesToSet.forEach(({ name, value }) =>
           request.cookies.set(name, value)
         );
@@ -71,7 +78,11 @@ export async function proxy(request: NextRequest) {
   // 3. Protect founder routes
   if (isFounderRoute(pathname)) {
     const allowlist = getFounderAllowlist();
+
     if (allowlist.length === 0) {
+      // No FOUNDER_ALLOWED_EMAILS configured — hide the route entirely
+      // rather than risk leaving it open to anyone. Set the env var and
+      // restart the dev server to enable access.
       return new NextResponse(null, { status: 404 });
     }
 

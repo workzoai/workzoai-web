@@ -36,6 +36,7 @@ import { trackWorkZoLaunchEvent } from "@/lib/workzoLaunchAnalytics";
 import { useWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 import { buildWorkZoCompanyBlueprint } from "@/lib/workzoCompanyBlueprint";
+import { keepBetterProfile } from "@/lib/workzoResumeProfileManager";
 
 type Market = "Global" | "Germany" | "US" | "UK" | "India" | "Netherlands";
 type CompanyStyle = "Realistic" | "Startup" | "Corporate" | "Technical" | "Consulting";
@@ -688,17 +689,27 @@ export default function OnboardingPage() {
     saveCanonicalCvSetup(nextSetup, store);
   }
 
-  async function structureCvWithAi(rawCvText: string, uploadedFileName = "") {
-    if (!rawCvText.trim()) return extractResumeProfileComplex(rawCvText);
+  async function structureCvWithAi(rawCvText: string, uploadedFileName = "", existingProfile?: ResumeProfile) {
+    const localProfile = extractResumeProfileComplex(rawCvText);
+    if (!rawCvText.trim()) return keepBetterProfile(existingProfile, localProfile, rawCvText) || localProfile;
+
     setAiCvStructuringStatus("structuring");
     try {
-      const data = await structureResumeProfileFromCv({ cvText: rawCvText, jobDescription: jobDescription.trim(), targetRole: role || "General Role", targetMarket: market, fileName: uploadedFileName });
-      const profile = data?.resumeProfile && typeof data.resumeProfile === "object" ? (data.resumeProfile as ResumeProfile) : extractResumeProfileComplex(rawCvText);
+      const data = await structureResumeProfileFromCv({
+        cvText: rawCvText,
+        layoutText: rawCvText,
+        jobDescription: jobDescription.trim(),
+        targetRole: role || "General Role",
+        targetMarket: market,
+        fileName: uploadedFileName,
+      });
+      const aiProfile = data?.resumeProfile && typeof data.resumeProfile === "object" ? (data.resumeProfile as ResumeProfile) : undefined;
+      const profile = keepBetterProfile(aiProfile, existingProfile || localProfile, rawCvText) || localProfile;
       setAiResumeProfile(profile);
       setAiCvStructuringStatus(data?.ok ? "ready" : "fallback");
       return profile;
     } catch {
-      const fallback = extractResumeProfileComplex(rawCvText);
+      const fallback = keepBetterProfile(existingProfile, localProfile, rawCvText) || localProfile;
       setAiResumeProfile(fallback);
       setAiCvStructuringStatus("fallback");
       return fallback;
@@ -730,10 +741,14 @@ export default function OnboardingPage() {
       const rawCvText = normalizeResumeText(String(extracted));
       debugCvText("onboarding.upload.cleaned_text", rawCvText, { fileName: file.name });
       const apiProfile = data?.resumeProfile || data?.profile;
-      const localProfile = apiProfile && typeof apiProfile === "object" && "basics" in apiProfile ? (apiProfile as ResumeProfile) : extractResumeProfileComplex(rawCvText);
+      const localProfile = extractResumeProfileComplex(rawCvText);
+      const apiBestProfile = apiProfile && typeof apiProfile === "object" && "basics" in apiProfile
+        ? keepBetterProfile(apiProfile as ResumeProfile, localProfile, rawCvText) || localProfile
+        : localProfile;
       setAiCvStructuringStatus("structuring");
-      const profile = await structureCvWithAi(rawCvText, file.name);
-      debugCvProfile("onboarding.upload.profile_selected", profile, { source: profile === localProfile ? "local_profile" : "ai_structured_profile", fileName: file.name });
+      const structuredProfile = await structureCvWithAi(rawCvText, file.name, apiBestProfile);
+      const profile = keepBetterProfile(structuredProfile, apiBestProfile, rawCvText) || apiBestProfile;
+      debugCvProfile("onboarding.upload.profile_selected", profile, { source: profile === localProfile ? "local_profile" : "best_available_profile", fileName: file.name });
       setManualCv(rawCvText);
       const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || profile.basics.headline || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
       saveCanonicalCvSetup(canonicalSetup, store);

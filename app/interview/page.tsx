@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import TavusRecruiterPanel from "@/components/interview/TavusRecruiterPanel";
 import {
   ChevronRight,
   ArrowLeft,
@@ -1375,6 +1374,49 @@ function preferredVoiceForRecruiter(voices: SpeechSynthesisVoice[], setup: Inter
   return getFallbackVoiceForLanguage(voices, setup);
 }
 
+// Scans CV text for date ranges like "2018 - 2020", "06/2016 to 2018",
+// "Jan 2019 – Present", and sums their durations in years. Used as a
+// fallback when a candidate's claimed years of experience isn't stated as
+// a literal phrase in the CV — most CVs only show per-job date ranges, not
+// a precomputed total, so without this the verification check would flag
+// almost every honest candidate as "unverified" purely due to CV format.
+function estimateTotalYearsFromDateRanges(cvText: string): number | null {
+  const currentYear = new Date().getFullYear();
+  // Matches "2018 - 2020", "2018-2020", "2018 to 2020", "2018 – present",
+  // "06/2016 - 12/2018", etc. Captures the two 4-digit years (or "present"/
+  // "current"/"now"/"heute"/"présent"/"aktuell" for the open-ended case).
+  const rangePattern = /\b(?:\d{1,2}[/.])?(\d{4})\s*[-–—]\s*(?:\d{1,2}[/.])?(\d{4}|present|current|now|heute|présent|aktuell|actuellement)\b/gi;
+
+  const ranges: Array<[number, number]> = [];
+  let match: RegExpExecArray | null;
+  while ((match = rangePattern.exec(cvText)) !== null) {
+    const start = Number(match[1]);
+    const endRaw = match[2].toLowerCase();
+    const end = /^\d{4}$/.test(endRaw) ? Number(endRaw) : currentYear;
+    if (start >= 1970 && start <= currentYear && end >= start && end <= currentYear + 1) {
+      ranges.push([start, end]);
+    }
+  }
+
+  if (ranges.length === 0) return null;
+
+  // Merge overlapping ranges so concurrent roles aren't double-counted,
+  // then sum the merged spans for a reasonable total-experience estimate.
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const [start, end] of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && start <= last[1]) {
+      last[1] = Math.max(last[1], end);
+    } else {
+      merged.push([start, end]);
+    }
+  }
+
+  const totalYears = merged.reduce((sum, [start, end]) => sum + (end - start), 0);
+  return totalYears > 0 ? totalYears : null;
+}
+
 function extractYearsClaim(answer: string) {
   const lower = answer.toLowerCase();
   const digitMatch = lower.match(/\b(\d{1,2})\s*(?:\+?\s*)?(?:years?|yrs?)\b/);
@@ -1619,8 +1661,25 @@ function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
     const word = wordMap[yearsClaim];
     const directWord = word ? new RegExp(`\\b${word}\\s+(?:years?|yrs?)\\b`, "i") : null;
 
-    if (!directDigit.test(cvEvidence) && !(directWord && directWord.test(cvEvidence))) {
-      return `${yearsClaim} years of experience is not verified in the CV.`;
+    const literalMatch = directDigit.test(cvEvidence) || Boolean(directWord && directWord.test(cvEvidence));
+
+    if (!literalMatch) {
+      // Fall back to summing employment date ranges found in the CV
+      // (e.g. "2018 - 2020", "2016 to 2018") before concluding the claim
+      // is unverified. Many CVs state duration only as date ranges per
+      // job, never as a literal "N years" phrase — without this check,
+      // a candidate whose CV genuinely supports their claimed experience
+      // gets falsely challenged purely because of how their CV is worded.
+      const totalYearsFromRanges = estimateTotalYearsFromDateRanges(cvEvidence);
+      // Allow some slack — total claimed experience often spans roles not
+      // captured as clean ranges (internships, freelance gaps, rounding),
+      // so treat the claim as supported if it's within ~1.5 years of the
+      // CV's own date-range total, rather than requiring an exact match.
+      const rangeSupportsClaim = totalYearsFromRanges !== null && Math.abs(totalYearsFromRanges - yearsClaim) <= 1.5;
+
+      if (!rangeSupportsClaim) {
+        return `${yearsClaim} years of experience is not clearly stated in the CV text`;
+      }
     }
   }
 
@@ -1635,7 +1694,15 @@ function buildUnsupportedClaimChallenge(answer: string, setup: InterviewSetup) {
   const reason = extractUnsupportedClaimReason(answer, setup);
 
   if (!reason) {
-    return "I need to pause there. I cannot clearly verify that claim from your CV. Can you clarify what evidence supports it?";
+    return "Quick check before we continue — what evidence from your background supports that?";
+  }
+
+  // The years-of-experience case is the most common source of false
+  // positives (CVs phrase duration in many ways a CV-text match can't
+  // anticipate), so it gets a noticeably gentler framing than company/role
+  // mismatches, which are more clearly either right or wrong.
+  if (/years of experience is not clearly stated/i.test(reason)) {
+    return `Quick check — ${reason}. Could you walk me through the roles or dates that add up to that, so I can follow along?`;
   }
 
   return `I need to pause there. ${reason} Before we continue, can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario? I want to evaluate only experience that can be supported.`;
@@ -2821,19 +2888,27 @@ function buildMemoryAwareFollowUp(
   }
 
   if (memory.unsupportedClaims > 0 && !analysis.metric && !wasTopicCovered(memory, "trust_recovery")) {
-    return "I need to rebuild confidence here. Give me one verified example from your CV, with a specific result or measurable outcome.";
+    return memory.unsupportedClaims > 1
+      ? "I still don't have a verified example. Tell me about one specific situation from your CV, what you did, and what changed as a result."
+      : "I need to rebuild confidence here. Give me one verified example from your CV, with a specific result or measurable outcome.";
   }
 
   if (memory.missingMetrics >= 2 && !wasTopicCovered(memory, "metrics_recovery")) {
-    return "You've now given a few answers without numbers. Give me one concrete metric: volume, time saved, customer impact, revenue, quality, tickets, or conversion.";
+    return memory.missingMetrics > 3
+      ? "Let's try a different angle — pick any task you did regularly. Roughly how often, how long, or by how much did it change something?"
+      : "You've now given a few answers without numbers. Give me one concrete metric: volume, time saved, customer impact, revenue, quality, tickets, or conversion.";
   }
 
   if (memory.missingOwnership >= 2 && !wasTopicCovered(memory, "ownership_recovery")) {
-    return "I still need clearer ownership. In that example, what did you personally decide, build, fix, lead, or deliver?";
+    return memory.missingOwnership > 3
+      ? "Tell me about a moment where you, specifically, made a call or took an action without being told to. What was it?"
+      : "I still need clearer ownership. In that example, what did you personally decide, build, fix, lead, or deliver?";
   }
 
   if (memory.vagueAnswers >= 2 && !wasTopicCovered(memory, "specificity_recovery")) {
-    return "Let me stop you there and make this specific. Give me one real situation, one action you personally took, and one result.";
+    return memory.vagueAnswers > 3
+      ? "Pick just one moment — a single conversation, ticket, or task. What happened, step by step?"
+      : "Let me stop you there and make this specific. Give me one real situation, one action you personally took, and one result.";
   }
 
   const topicPlan = [
@@ -3246,12 +3321,6 @@ export default function InterviewPage() {
   const [status, setStatus] = useState<InterviewStatus>("idle");
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [premiumVoiceEnabled, setPremiumVoiceEnabled] = useState(true);
-  // Live video recruiter (Tavus) — Premium Pro only, opt-in. This swaps the
-  // static recruiter portrait for a real-time video call instead of always
-  // forcing video on for pro users, matching how it's framed elsewhere in
-  // the product as a distinct, limited-minutes feature rather than a
-  // blanket replacement of the standard interview experience.
-  const [videoModeEnabled, setVideoModeEnabled] = useState(false);
   const [premiumVoiceStatus, setPremiumVoiceStatus] = useState<PremiumVoiceStatus>("idle");
   const [premiumVoiceError, setPremiumVoiceError] = useState("");
   const [recruiterSignal, setRecruiterSignal] = useState<RecruiterSignalState>(defaultRecruiterSignal);
@@ -3370,6 +3439,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const stopRequestedRef = useRef(false);
   const setupRef = useRef(setup);
   const recruiterMemoryRef = useRef(defaultRecruiterMemory);
+  const transcriptRef = useRef<TranscriptItem[]>([]);
   const recruiterSignalRef = useRef(defaultRecruiterSignal);
   const scoreReadyRef = useRef(false);
   const elapsedRef = useRef(0);
@@ -3661,6 +3731,81 @@ const [questionIndex, setQuestionIndex] = useState(0);
     } catch {}
   }, []);
 
+  // Keep a ref mirror of the transcript so closures (recorder.onstop, async
+  // speech-recognition handlers) can read the latest conversation history
+  // without stale-closure issues — same reasoning as questionIndexRef etc.
+  useEffect(() => {
+    transcriptRef.current = transcript;
+  }, [transcript]);
+
+  // ── Live recruiter reply: real LLM for paid plans, rule engine for free ──
+  // Free tier intentionally keeps the existing fast/free deterministic
+  // engine (buildRecruiterReply) — it's already a reasonable "try before
+  // you buy" experience. Premium and Premium Pro get genuinely responsive,
+  // LLM-generated replies that react to what was actually said instead of
+  // selecting from a fixed list of canned strings. If the LLM call fails
+  // or times out for any reason, this transparently falls back to the same
+  // rule engine free users get, so a flaky API call never breaks the
+  // interview — it just quietly degrades to the old behavior for that turn.
+  const getRecruiterReply = useCallback(
+    async (answer: string): Promise<string> => {
+      const currentSetup = setupRef.current;
+      const fallback = () => buildRecruiterReply(answer, questionIndexRef.current, currentSetup, recruiterMemoryRef.current);
+
+      if (serverPlan !== "premium" && serverPlan !== "premium_pro") {
+        return fallback();
+      }
+
+      try {
+        const signalAnalysis = analyzeAnswerSignals(answer, currentSetup);
+        const unsupportedReason = extractUnsupportedClaimReason(answer, currentSetup);
+
+        const response = await fetch("/api/interview/reply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          signal: AbortSignal.timeout(8000), // don't let a slow call hang the interview indefinitely
+          body: JSON.stringify({
+            answer,
+            transcript: transcriptRef.current.map((item) => ({ role: item.role, speaker: item.speaker, text: item.text })),
+            cvText: currentSetup.cvText,
+            jobDescription: currentSetup.jobDescription,
+            targetRole: currentSetup.targetRole,
+            targetCompany: currentSetup.targetCompany || currentSetup.companyName,
+            recruiterName: currentSetup.recruiterName,
+            recruiterTitle: currentSetup.recruiterTitle,
+            language: currentSetup.language,
+            pressureStyle: recruiterProfiles[currentSetup.recruiterId]?.pressureStyle || recruiterProfiles[currentSetup.recruiterName]?.pressureStyle,
+            questionIndex: questionIndexRef.current,
+            signals: {
+              contradiction: undefined, // contradiction detection lives in workzoRecruiterIntelligenceV2; kept out here to avoid duplicating that import chain for this first pass
+              unsupportedClaim: unsupportedReason || undefined,
+              missingMetric: !signalAnalysis.metric,
+              missingOwnership: !signalAnalysis.ownership,
+              vague: signalAnalysis.vague,
+              trust: recruiterSignalRef.current?.trust,
+              interest: recruiterSignalRef.current?.interest,
+            },
+          }),
+        });
+
+        const data = await response.json().catch(() => null);
+
+        if (response.ok && data?.success && typeof data.reply === "string" && data.reply.trim()) {
+          return data.reply.trim();
+        }
+
+        // Non-200, or success:false, or empty reply — fall back quietly.
+        console.warn("[interview] LLM reply unavailable, using rule-engine fallback", data?.error);
+        return fallback();
+      } catch (error) {
+        console.warn("[interview] LLM reply call failed, using rule-engine fallback", error);
+        return fallback();
+      }
+    },
+    [serverPlan],
+  );
+
   const startListening = useCallback(async () => {
     if (stopRequestedRef.current) return;
 
@@ -3710,7 +3855,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
           const interruptDecision = decideWorkZoInterruption(answer);
           const baseReply = interruptDecision.shouldInterrupt
             ? interruptDecision.line
-            : buildRecruiterReply(answer, questionIndexRef.current, setupRef.current, recruiterMemoryRef.current);
+            : await getRecruiterReply(answer);
           const reply = enforceRuntimeLanguageForReply(setupRef.current, baseReply);
           window.setTimeout(() => {
             if (stopRequestedRef.current) return;
@@ -3780,7 +3925,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
       if (!stopRequestedRef.current) setStatus("listening");
     };
 
-    recognition.onend = () => {
+    recognition.onend = async () => {
       listeningRef.current = false;
       const answer = answerBufferRef.current.trim();
       setInterimText("");
@@ -3815,11 +3960,17 @@ const [questionIndex, setQuestionIndex] = useState(0);
       const interruptDecision = decideWorkZoInterruption(answer);
       const baseReply = interruptDecision.shouldInterrupt
         ? interruptDecision.line
-        : buildRecruiterReply(answer, questionIndexRef.current, setupRef.current, recruiterMemoryRef.current);
+        : await getRecruiterReply(answer);
 
-      // Company simulation engine — adaptive pressure follow-ups based on detected mode
+      // Company simulation engine — adaptive pressure follow-ups based on detected mode.
+      // Only applies on the free-tier rule-engine path: paid plans already get a
+      // genuinely responsive LLM reply via getRecruiterReply, and overriding that
+      // with a generic templated question here would silently undo the point of
+      // the LLM integration — this was also the exact condition (missingMetrics >= 2)
+      // behind the "repeats the same sentence" bug found earlier in testing.
+      const isFreeRuleEnginePath = serverPlan !== "premium" && serverPlan !== "premium_pro";
       const simStyle = companyMode === "google" ? "analytical" : companyMode === "mckinsey" ? "pressure" : companyMode === "startup" ? "pressure" : "supportive";
-      const adaptiveFollowUp = !interruptDecision.shouldInterrupt && nextEmoMem.missingMetrics >= 2
+      const adaptiveFollowUp = isFreeRuleEnginePath && !interruptDecision.shouldInterrupt && nextEmoMem.missingMetrics >= 2
         ? buildAdaptiveFollowUpQuestion({ style: simStyle, targetRole: setupRef.current.targetRole, weaknessSignals: nextEmoMem.weakMoments, previousAnswer: answer })
         : null;
 
@@ -4994,7 +5145,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
             >
               <Volume2 className={`h-5 w-5 ${audioEnabled ? "" : "text-slate-200"}`} />
             </button>
-            <div className="relative">
+            <div className="relative hidden sm:block">
                 <button
                   type="button"
                   onClick={() => {
@@ -5008,7 +5159,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 </button>
 
                 {settingsOpen ? (
-                  <div className="absolute right-0 top-12 z-50 hidden max-h-[min(620px,calc(100vh-108px))] w-[320px] overflow-y-auto rounded-2xl workzo-hide-scrollbar border border-white/10 bg-[#091323]/95 p-4 shadow-2xl backdrop-blur-xl sm:block">
+                  <div className="absolute right-0 top-12 z-50 max-h-[min(620px,calc(100vh-108px))] w-[320px] overflow-y-auto rounded-2xl workzo-hide-scrollbar border border-white/10 bg-[#091323]/95 p-4 shadow-2xl backdrop-blur-xl">
                     <div className="mb-3">
                       <p className="text-sm font-black text-white">Interview Settings</p>
                       <p className="mt-1 text-xs text-slate-400">Adjust only this interview room.</p>
@@ -5028,13 +5179,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
                             { id: "analytical_hiring_manager", name: "Daniel Reed", label: "Hiring Manager", premium: false },
                             { id: "startup_recruiter", name: "Priya Raman", label: "Startup Lead", premium: true },
                             { id: "german_corporate", name: "Markus Weber", label: "Corporate Lead", premium: true },
-                            { id: "faang_hiring_manager", name: "Alex Chen", label: "FAANG Hiring Manager", premium: true },
-                            { id: "startup_founder", name: "Zoe Park", label: "Startup Founder", premium: true },
-                            { id: "consulting_partner", name: "James Harrington", label: "Consulting Partner", premium: true },
-                            { id: "sales_director", name: "Marcus Webb", label: "Sales Director", premium: true },
-                            { id: "product_leader", name: "Aisha Patel", label: "Product Leader", premium: true },
-                            { id: "executive_recruiter", name: "Victoria Stern", label: "Executive Recruiter", premium: true },
-                            { id: "enterprise_recruiter", name: "David Kimura", label: "Enterprise Recruiter", premium: true },
                           ] as const).map((recruiter) => {
                             const locked = recruiter.premium && !premiumUnlocked;
                             const selected = setup.recruiterName === recruiter.name || setup.recruiterId === recruiter.id;
@@ -5141,21 +5285,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
                             <span className="text-slate-500">Premium Pro only</span>
                           </div>
                         )}
-                        {serverPlan === "premium_pro" ? (
-                          <button
-                            type="button"
-                            onClick={() => setVideoModeEnabled((value) => !value)}
-                            className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
-                          >
-                            <span>Live video recruiter (Pro)</span>
-                            <span className="text-slate-400">{videoModeEnabled ? "On" : "Off"}</span>
-                          </button>
-                        ) : (
-                          <div className="flex w-full items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-sm opacity-50">
-                            <span>Live video recruiter</span>
-                            <span className="text-slate-500">Premium Pro only</span>
-                          </div>
-                        )}
                         <label className="block rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm">
                           <div className="mb-2 flex items-center justify-between">
                             <span>Voice Speed</span>
@@ -5184,6 +5313,72 @@ const [questionIndex, setQuestionIndex] = useState(0);
                           <span className="text-slate-400">{autoScrollTranscript ? "On" : "Off"}</span>
                         </button>
                       </section>
+
+                      <section
+              style={{ display: showCopilot ? undefined : "none" }}
+              className="rounded-2xl border border-white/10 bg-[#0b1527] p-3.5 overflow-visible"
+            >
+              <div className="flex items-center justify-between">
+<h2 className="text-base font-black text-blue-300">Live Copilot</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowCopilot((value) => !value)}
+                  className="relative h-6 w-11 rounded-full bg-blue-500"
+                  aria-label="Toggle Live Copilot"
+                >
+                  <span className="absolute right-1 top-1 h-4 w-4 rounded-full bg-white" />
+                </button>
+              </div>
+
+              <div className="mt-2 grid grid-cols-[1fr_auto] gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                    Recruiter mood
+                  </p>
+                  <p className={`mt-0.5 text-base font-black ${recruiterMoodColor(recruiterSignal.mood)}`}>
+                    {scoreReady ? recruiterSignal.mood : "Waiting"}
+                  </p>
+                </div>
+                <div className="text-right text-[11px] text-slate-300">
+                  <p>Trust <span className="font-bold text-white">{scoreReady ? recruiterSignal.trust : "—"}</span></p>
+                  <p>Interest <span className="font-bold text-white">{scoreReady ? recruiterSignal.interest : "—"}</span></p>
+                </div>
+              </div>
+
+              <div className="mt-2 rounded-xl border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">Say next</p>
+                <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-100">
+                  {scoreReady
+                    ? recruiterSignal.trust < 60
+                      ? "Clarify the claim, then give one verified example."
+                      : "Give one specific example with a clear result."
+                    : "Answer with one clear, role-relevant example."}
+                </p>
+              </div>
+
+              <div className="mt-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-200">Recruiter concern</p>
+                <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-100">
+                  {scoreReady ? recruiterMemory.liveNote || recruiterSignal.concern : "Waiting for evidence, ownership, and measurable impact."}
+                </p>
+                {recruiterMemory.patterns.length ? (
+                  <p className="mt-1 line-clamp-1 text-[11px] text-amber-100/80">
+                    Patterns detected: {recruiterMemory.patterns[recruiterMemory.patterns.length - 1]}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="mt-2 rounded-xl border border-blue-300/15 bg-blue-400/[0.07] px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-200">Live recruiter thoughts</p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {liveRecruiterThoughts.map((thought) => (
+                    <span key={thought} className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-slate-200">
+                      {thought}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </section>
 
                       <section className="space-y-2">
                         <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Interview Controls</p>
@@ -5297,34 +5492,21 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
         <div className="grid grid-cols-1 overflow-x-hidden lg:min-h-0 lg:grid-cols-[1fr_340px] lg:overflow-hidden">
           <div className="flex flex-col lg:min-h-0">
-            <section className="relative flex-1 overflow-hidden bg-[#08101c] h-[340px] sm:h-[390px] lg:h-auto lg:min-h-[420px]">
-              {videoModeEnabled && serverPlan === "premium_pro" ? (
-                <TavusRecruiterPanel
-                  recruiterName={setup.recruiterName}
-                  recruiterTrust={scoreReady ? recruiterSignal.trust : 50}
-                  pressure={interviewStyle === "Brutal" ? 90 : interviewStyle === "Challenging" ? 70 : interviewStyle === "Realistic" ? 50 : 30}
-                  onUnavailable={() => setVideoModeEnabled(false)}
+            <section className="relative flex-1 overflow-hidden bg-[#08101c] sm:h-[390px] lg:h-auto">
+              <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-blue-500/20 blur-3xl" />
+              <div className="absolute inset-0">
+                <Image
+                  src={setup.recruiterImage}
+                  alt={`${setup.recruiterName}, interview recruiter`}
+                  fill
+                  priority
+                  sizes="(max-width: 1024px) 100vw, 850px"
+                  className="object-cover"
+                  style={{ objectPosition: recruiterImagePosition }}
                 />
-              ) : (
-                <>
-                  <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-blue-500/20 blur-3xl" />
-                  <div className="absolute inset-0">
-                    <Image
-                      src={setup.recruiterImage}
-                      alt={`${setup.recruiterName}, interview recruiter`}
-                      fill
-                      priority
-                      sizes="(max-width: 1024px) 100vw, 850px"
-                      className="object-cover"
-                      style={{ objectPosition: recruiterImagePosition }}
-                    />
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/10 to-black/0" />
-                </>
-              )}
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/10 to-black/0" />
 
-              {!videoModeEnabled || serverPlan !== "premium_pro" ? (
-              <>
               {waitingRoomActive ? (
                 <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050b14]/80 p-4 backdrop-blur-md">
                   <div className="w-full max-w-xl rounded-[1.5rem] border border-white/10 bg-[#0b1527]/95 p-5 shadow-2xl">
@@ -5437,14 +5619,26 @@ const [questionIndex, setQuestionIndex] = useState(0);
                   <PhoneOff className="h-6 w-6" />
                 </button>
               </div>
-              </>
-              ) : null}
             </section>
 
-            <section className="border-t border-white/[0.08] bg-[#05090f] lg:min-h-0">
+            <section className="border-t border-white/[0.08] bg-[#05090f] min-h-[260px] lg:min-h-0" id="workzo-transcript-section">
               <button
                 type="button"
-                onClick={() => setShowTranscript((value) => !value)}
+                onClick={() => {
+                  setShowTranscript((value) => {
+                    const next = !value;
+                    if (next) {
+                      // Without this, the transcript can be technically
+                      // "shown" but sit entirely below the visible
+                      // viewport on phones, since the video panel above it
+                      // already consumes most of a typical mobile screen.
+                      window.setTimeout(() => {
+                        document.getElementById("workzo-transcript-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }, 50);
+                    }
+                    return next;
+                  });
+                }}
                 className="flex h-11 w-full items-center justify-between border-b border-white/[0.07] px-5 text-left"
                 aria-expanded={showTranscript}
               >
@@ -5700,168 +5894,26 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
       {settingsOpen && (
         <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm lg:hidden" onClick={() => setSettingsOpen(false)}>
-          <section className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-[2rem] border border-white/10 bg-[#07111f] p-5 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <section className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-[2rem] border border-white/10 bg-[#07111f] p-5 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/20" />
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200">Interview settings</p>
                 <h2 className="mt-1 text-xl font-black">Mobile controls</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-400">Adjust your interview without leaving the room.</p>
+                <p className="mt-1 text-sm leading-6 text-slate-400">Adjust the most important interview controls without opening the desktop side panel.</p>
               </div>
               <button type="button" onClick={() => setSettingsOpen(false)} className="rounded-2xl border border-white/10 px-3 py-2 text-sm font-black text-slate-300">Close</button>
             </div>
-
-            <div className="mt-5 space-y-5">
-              <section>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Recruiter</p>
-                  {!premiumUnlocked ? (
-                    <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black text-amber-200">Premium available</span>
-                  ) : null}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {([
-                    { id: "friendly_hr", name: "Sarah Chen", label: "Talent Partner", premium: false },
-                    { id: "analytical_hiring_manager", name: "Daniel Reed", label: "Hiring Manager", premium: false },
-                    { id: "startup_recruiter", name: "Priya Raman", label: "Startup Lead", premium: true },
-                    { id: "german_corporate", name: "Markus Weber", label: "Corporate Lead", premium: true },
-                    { id: "faang_hiring_manager", name: "Alex Chen", label: "FAANG Hiring Manager", premium: true },
-                    { id: "startup_founder", name: "Zoe Park", label: "Startup Founder", premium: true },
-                    { id: "consulting_partner", name: "James Harrington", label: "Consulting Partner", premium: true },
-                    { id: "sales_director", name: "Marcus Webb", label: "Sales Director", premium: true },
-                    { id: "product_leader", name: "Aisha Patel", label: "Product Leader", premium: true },
-                    { id: "executive_recruiter", name: "Victoria Stern", label: "Executive Recruiter", premium: true },
-                    { id: "enterprise_recruiter", name: "David Kimura", label: "Enterprise Recruiter", premium: true },
-                  ] as const).map((recruiter) => {
-                    const locked = recruiter.premium && !premiumUnlocked;
-                    const selected = setup.recruiterName === recruiter.name || setup.recruiterId === recruiter.id;
-                    return (
-                      <button
-                        key={recruiter.id}
-                        type="button"
-                        onClick={() => {
-                          if (locked) {
-                            handlePremiumGateClick(`recruiter_${recruiter.name.toLowerCase()}`);
-                            return;
-                          }
-                          applyRecruiterFromSettings(recruiter.id);
-                        }}
-                        className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
-                          selected
-                            ? "border-blue-400/60 bg-blue-500/15 text-white"
-                            : locked
-                              ? "border-amber-300/20 bg-amber-400/[0.06] text-amber-100/80"
-                              : "border-white/10 bg-white/[0.03] text-slate-300"
-                        }`}
-                      >
-                        <span className="flex items-center justify-between gap-2">
-                          <span>{recruiter.name}</span>
-                          {locked ? <span className="text-[10px] text-amber-200">PRO</span> : null}
-                        </span>
-                        <span className="mt-0.5 block text-[11px] font-semibold text-slate-200">{recruiter.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Interview Atmosphere</p>
-                  {!premiumUnlocked ? (
-                    <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black text-amber-200">Premium pressure</span>
-                  ) : null}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["Supportive", "Realistic", "Challenging", "Brutal"] as const).map((style) => {
-                    const locked = (style === "Challenging" || style === "Brutal") && !premiumUnlocked;
-                    return (
-                      <button
-                        key={style}
-                        type="button"
-                        onClick={() => {
-                          if (locked) {
-                            handlePremiumGateClick(`atmosphere_${style.toLowerCase()}`);
-                            return;
-                          }
-                          setInterviewStyle(style);
-                        }}
-                        className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
-                          interviewStyle === style
-                            ? "border-violet-400/60 bg-violet-500/15 text-white"
-                            : locked
-                              ? "border-amber-300/20 bg-amber-400/[0.06] text-amber-100/80"
-                              : "border-white/10 bg-white/[0.03] text-slate-300"
-                        }`}
-                      >
-                        <span className="flex items-center justify-between gap-2">
-                          <span>{style}</span>
-                          {locked ? <span className="text-[10px] text-amber-200">PRO</span> : null}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section className="space-y-2">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Voice</p>
-                <button type="button" onClick={() => setAudioEnabled((value) => !value)} className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
-                  <span><span className="block text-sm font-black">Recruiter voice</span><span className="block text-xs text-slate-400">Use spoken recruiter prompts</span></span>
-                  <span className={`rounded-full px-3 py-1 text-xs font-black ${audioEnabled ? "bg-emerald-400/15 text-emerald-200" : "bg-white/10 text-slate-400"}`}>{audioEnabled ? "On" : "Off"}</span>
-                </button>
-                {serverPlan === "premium_pro" ? (
-                  <button type="button" onClick={() => setPremiumVoiceEnabled((value) => !value)} className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
-                    <span className="text-sm font-black">Live AI voice (Pro)</span>
-                    <span className="text-xs text-slate-400">{premiumVoiceEnabled ? "On" : "Off"}</span>
-                  </button>
-                ) : (
-                  <div className="flex w-full items-center justify-between rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-left opacity-50">
-                    <span className="text-sm font-black">Live AI voice</span>
-                    <span className="text-xs text-slate-500">Premium Pro only</span>
-                  </div>
-                )}
-                {serverPlan === "premium_pro" ? (
-                  <button type="button" onClick={() => setVideoModeEnabled((value) => !value)} className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
-                    <span className="text-sm font-black">Live video recruiter (Pro)</span>
-                    <span className="text-xs text-slate-400">{videoModeEnabled ? "On" : "Off"}</span>
-                  </button>
-                ) : (
-                  <div className="flex w-full items-center justify-between rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-left opacity-50">
-                    <span className="text-sm font-black">Live video recruiter</span>
-                    <span className="text-xs text-slate-500">Premium Pro only</span>
-                  </div>
-                )}
-                <label className="block rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-sm font-black">Voice speed</span>
-                    <span className="text-xs text-slate-400">{voiceSpeed.toFixed(2)}x</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0.70"
-                    max="1.00"
-                    step="0.03"
-                    value={voiceSpeed}
-                    onChange={(event) => setVoiceSpeed(Number(event.target.value))}
-                    className="w-full"
-                  />
-                </label>
-              </section>
-
-              <section className="space-y-2">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Transcript</p>
-                <button type="button" onClick={() => setShowTranscript((value) => !value)} className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
-                  <span><span className="block text-sm font-black">Transcript</span><span className="block text-xs text-slate-400">Show or collapse live transcript</span></span>
-                  <span className="rounded-full bg-blue-400/15 px-3 py-1 text-xs font-black text-blue-200">{showTranscript ? "Shown" : "Hidden"}</span>
-                </button>
-                <button type="button" onClick={() => setAutoScrollTranscript((value) => !value)} className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
-                  <span className="text-sm font-black">Auto-scroll transcript</span>
-                  <span className="text-xs text-slate-400">{autoScrollTranscript ? "On" : "Off"}</span>
-                </button>
-              </section>
-
-              <Link href="/dashboard" className="block rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-sm font-black text-slate-300">Back to dashboard</Link>
+            <div className="mt-5 grid gap-3">
+              <button type="button" onClick={() => setAudioEnabled((value) => !value)} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
+                <span><span className="block text-sm font-black">Recruiter voice</span><span className="block text-xs text-slate-400">Use spoken recruiter prompts</span></span>
+                <span className={`rounded-full px-3 py-1 text-xs font-black ${audioEnabled ? "bg-emerald-400/15 text-emerald-200" : "bg-white/10 text-slate-400"}`}>{audioEnabled ? "On" : "Off"}</span>
+              </button>
+              <button type="button" onClick={() => setShowTranscript((value) => !value)} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
+                <span><span className="block text-sm font-black">Transcript</span><span className="block text-xs text-slate-400">Show or collapse live transcript</span></span>
+                <span className="rounded-full bg-blue-400/15 px-3 py-1 text-xs font-black text-blue-200">{showTranscript ? "Shown" : "Hidden"}</span>
+              </button>
+              <Link href="/dashboard" className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-slate-300">Back to dashboard</Link>
             </div>
           </section>
         </div>
