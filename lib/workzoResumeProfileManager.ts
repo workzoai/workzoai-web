@@ -159,11 +159,15 @@ export function extractNameFromEmail(rawText: string): string {
   return "";
 }
 
-export function extractCanonicalCandidateName(rawText: string, fileName = "", parserName = ""): string {
+export function extractCanonicalCandidateName(rawText: string, fileName = "", parserName = "", knownName = ""): string {
   const lines = prepareCvNameLines(rawText);
   const candidates: Array<{ name: string; score: number; reason: string }> = [];
   const fileNameCandidate = extractNameFromFileName(fileName);
   if (fileNameCandidate) candidates.push({ name: fileNameCandidate, score: 120, reason: "file" });
+  // knownName: a previously validated name from an earlier parse (e.g. from file upload).
+  // Given highest priority — it was already resolved correctly.
+  const knownCandidate = validateCandidateName(knownName);
+  if (knownCandidate) candidates.push({ name: knownCandidate, score: 150, reason: "known" });
   const emailName = extractNameFromEmail(rawText);
   if (emailName) candidates.push({ name: emailName, score: 18, reason: "email" });
   const parserCandidate = validateCandidateName(parserName);
@@ -222,11 +226,11 @@ export function extractCanonicalCandidateName(rawText: string, fileName = "", pa
   return best && best.score >= 25 ? best.name : "";
 }
 
-export function enforceCanonicalCandidateName<T extends Partial<ResumeProfile> | ResumeProfile>(profile: T, rawText = "", fileName = ""): T {
+export function enforceCanonicalCandidateName<T extends Partial<ResumeProfile> | ResumeProfile>(profile: T, rawText = "", fileName = "", knownName = ""): T {
   const next = { ...(profile || {}) } as T & { basics?: any; warnings?: string[] };
   next.basics = { ...(next.basics || {}) };
   const current = next.basics?.name || "";
-  const canonical = extractCanonicalCandidateName(rawText || (next as any).rawText || "", fileName, current);
+  const canonical = extractCanonicalCandidateName(rawText || (next as any).rawText || "", fileName, current, knownName);
   next.basics.name = chooseSaferName(current, canonical, next);
   return next as T;
 }

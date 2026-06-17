@@ -702,6 +702,9 @@ export default function OnboardingPage() {
         targetRole: role || "General Role",
         targetMarket: market,
         fileName: uploadedFileName,
+        // Pass the already-resolved name so the structure route doesn't re-derive a wrong one
+        // from pasted/layout text that lacks reliable name header signals (e.g. spaced letters).
+        candidateName: existingProfile?.basics?.name || "",
       });
       const aiProfile = data?.resumeProfile && typeof data.resumeProfile === "object" ? (data.resumeProfile as ResumeProfile) : undefined;
       const profile = keepBetterProfile(aiProfile, existingProfile || localProfile, rawCvText) || localProfile;

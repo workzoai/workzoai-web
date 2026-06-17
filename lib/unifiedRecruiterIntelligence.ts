@@ -233,43 +233,22 @@ function recoverNoisySpokenTranscript(textRaw: string) {
   let text = cleanText(textRaw);
   if (!text) return text;
 
-  const lower = text.toLowerCase();
-  const hasRouterContext = /\b(router|routers|wi[-\s]?fi|wifi|internet|firmware|affirmware|ip address|computer|connect|technical|device|network)\b/i.test(lower);
-  const hasCustomerContext = /\b(customer|client|user|consumer|b2b|b2c|old|older|scared|non[-\s]?technical|no experience)\b/i.test(lower);
-
-  // Common browser/STT corruptions for the user's Linksys/Belkin router examples.
-  if (hasRouterContext || hasCustomerContext) {
-    text = text
-      .replace(/\blinkedin fraud\b/gi, "Linksys router")
-      .replace(/\blinked in fraud\b/gi, "Linksys router")
-      .replace(/\blengths and links are\b/gi, "Linksys")
-      .replace(/\blinks are\b/gi, "Linksys")
-      .replace(/\blink says\b/gi, "Linksys")
-      .replace(/\blinksys products?\b/gi, "Linksys products")
-      .replace(/\blang balcon\b/gi, "Belkin")
-      .replace(/\blang belcon\b/gi, "Belkin")
-      .replace(/\bbalcon\b/gi, "Belkin")
-      .replace(/\bbelcan\b/gi, "Belkin")
-      .replace(/\baffirmware\b/gi, "firmware")
-      .replace(/\ba firmware\b/gi, "firmware")
-      .replace(/\bwrap with (her|him|them|the customer)\b/gi, "rapport with $1")
-      .replace(/\bgood wrap\b/gi, "good rapport")
-      .replace(/\bbuild a wrap\b/gi, "build rapport")
-      .replace(/\bp2b\b/gi, "B2B")
-      .replace(/\bb two b\b/gi, "B2B")
-      .replace(/\bb to b\b/gi, "B2B")
-      .replace(/\bb2 c\b/gi, "B2C")
-      .replace(/\bb two c\b/gi, "B2C")
-      .replace(/\bb to c\b/gi, "B2C");
-  }
-
-  const recoveredLower = text.toLowerCase();
-  const nowHasRouterExample = /\b(linksys|belkin|router|firmware|ip address|wi[-\s]?fi|wifi)\b/i.test(recoveredLower);
-  const hasHumanSupportStory = /\b(old|older|scared|non[-\s]?technical|no experience|step[-\s]?by[-\s]?step|guided|explained|satisfied|happy|resolved|fixed)\b/i.test(recoveredLower);
-
-  if (nowHasRouterExample && hasHumanSupportStory && !/\bconcrete customer-support example\b/i.test(recoveredLower)) {
-    text += " Concrete customer-support example: non-technical customer, router/Wi-Fi issue, firmware or IP-address check, step-by-step guidance, issue resolved or customer satisfied.";
-  }
+  // Generic phonetic STT corrections safe for any candidate.
+  // Brand-specific substitutions removed — they corrupt answers from candidates
+  // who were not talking about those products.
+  text = text
+    .replace(/\bp2b\b/gi, "B2B")
+    .replace(/\bb\s*two\s*b\b/gi, "B2B")
+    .replace(/\bb\s*to\s*b\b/gi, "B2B")
+    .replace(/\bb2\s*c\b/gi, "B2C")
+    .replace(/\bb\s*two\s*c\b/gi, "B2C")
+    .replace(/\bb\s*to\s*c\b/gi, "B2C")
+    .replace(/\baffirmware\b/gi, "firmware")
+    .replace(/\ba firmware\b/gi, "firmware")
+    .replace(/\bwrap with\b/gi, "rapport with")
+    .replace(/\bgood wrap\b/gi, "good rapport")
+    .replace(/\bbuild a wrap\b/gi, "build rapport")
+    .replace(/\brapple\b/gi, "rapport");
 
   return cleanText(text);
 }
@@ -3797,6 +3776,13 @@ ${jobDescription.slice(0, 5500) || "No job description provided."}
 Recent transcript:
 ${recentTranscript || "No prior transcript."}
 
+CRITICAL RULES — READ FIRST:
+1. Only advance to the next question if the candidate actually answered the active question with substantive content. Greetings, audio checks, clarifications, and candidate questions about the process must NOT count as answers and must NEVER trigger pressure or impact demands.
+2. Never repeat the same follow-up twice. If you asked for impact and received any qualitative outcome (satisfaction, trust, fewer complaints, repeat customers), accept it and move forward.
+3. Ask ONE question per turn. Replies must be 1–3 natural spoken sentences.
+4. If the candidate recovers after a low-trust moment, soften your tone immediately.
+5. Never say: "answer too generic", "answer too short", "STAR format", "I noticed this pattern earlier", or "as an AI".
+
 NATURAL INTERVIEW FLOW:
 - Start like a real interview: greet, acknowledge the candidate, and let them introduce themselves before deep pressure.
 - Do not jump straight into generic behavioral questions if the candidate is still introducing themselves.
@@ -5490,8 +5476,8 @@ export async function decideUnifiedRecruiterResponse(
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_INTERVIEW_MODEL || "gpt-4o",
-      temperature: 0.38,
-      max_tokens: 760,
+      temperature: 0.62,
+      max_tokens: 1100,
       response_format: { type: "json_object" },
       messages: [
         {

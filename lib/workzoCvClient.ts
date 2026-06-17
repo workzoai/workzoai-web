@@ -140,6 +140,9 @@ export async function structureResumeProfileFromCv(input: {
   targetRole?: string;
   targetMarket?: string;
   fileName?: string;
+  // Previously resolved candidate name — passed so the structure route
+  // doesn't re-derive a wrong name from pasted/layout text that lacks header signals.
+  candidateName?: string;
 }) {
   const response = await fetch("/api/cv/structure", {
     method: "POST",
@@ -153,6 +156,7 @@ export async function structureResumeProfileFromCv(input: {
       targetRole: input.targetRole || "General Role",
       targetMarket: input.targetMarket || "Global",
       fileName: input.fileName || "",
+      candidateName: input.candidateName || "",
     }),
   });
 

@@ -21,6 +21,7 @@ function buildFallbackStructuredProfile(input: {
   targetRole: string;
   targetMarket: string;
   fileName: string;
+  candidateName: string;
   reason: string;
 }) {
   const rawText = input.layoutText || input.cvText;
@@ -32,6 +33,7 @@ function buildFallbackStructuredProfile(input: {
     }),
     rawText,
     input.fileName,
+    input.candidateName,
   );
 
   return {
@@ -74,6 +76,11 @@ export async function POST(request: Request) {
   const targetRole = readString(body?.targetRole) || "General Role";
   const targetMarket = readString(body?.targetMarket) || "Global";
   const fileName = readString(body?.fileName);
+  // candidateName: previously resolved name from an earlier upload parse.
+  // When the client already knows the correct name (e.g. from the file-upload parse),
+  // it passes it here so the structure route uses it instead of re-deriving a wrong name
+  // from a pasted-text CV that lacks reliable header signals.
+  const candidateName = readString(body?.candidateName);
 
   if (!cvText && !layoutText) {
     return NextResponse.json(
@@ -102,6 +109,7 @@ export async function POST(request: Request) {
         }),
         layoutText || cvText,
         fileName,
+        candidateName,
       );
 
       return NextResponse.json({
@@ -120,6 +128,7 @@ export async function POST(request: Request) {
         targetRole,
         targetMarket,
         fileName,
+        candidateName,
         reason: "AI structure returned no resume profile, so WorkZo used the deterministic CV parser.",
       }),
     );
@@ -132,6 +141,7 @@ export async function POST(request: Request) {
         targetRole,
         targetMarket,
         fileName,
+        candidateName,
         reason:
           error instanceof Error
             ? error.message
