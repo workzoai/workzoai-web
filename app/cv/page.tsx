@@ -168,8 +168,8 @@ export default function CvWorkspacePage() {
       // phrase that slipped past the other checks.
       if (/\b(API|NLP|RAG|GCP|SQL|ITIL|ITSM|CRM|ERP|SDK|CSS|HTML|JSON|REST|AWS)\b/.test(rawName)) return true;
 
-      if (/\b(project management|resource planning|software development|cost planning|data analysis|machine learning|process improvement|team training|customer support|technical support|stakeholder management|communication|leadership|python|sql|excel|tableau|power bi|salesforce|sap|erp|crm)\b/i.test(rawName)) return true;
-      if (/\b(manager|engineer|designer|developer|analyst|consultant|specialist|coordinator|administrator|support|officer|director|lead|intern|project|software|data|technical|customer|enterprise|resource|planning)\b/i.test(rawName)) return true;
+      if (/\b(project management|resource planning|software development|cost planning|data analysis|machine learning|process improvement|team training|customer support|technical support|stakeholder management|communication|leadership|python|sql|excel|tableau|power bi|salesforce|sap|erp|crm|public relations|time management|critical thinking|effective communication|generative ai|data engineering|data visualization|machine learning|web scraping|cloud functions|api integration|process improvement)\b/i.test(rawName)) return true;
+      if (/\b(manager|engineer|designer|developer|analyst|consultant|specialist|coordinator|administrator|support|officer|director|lead|intern|project|software|data|technical|customer|enterprise|resource|planning|relations|communication|management|specialist)\b/i.test(rawName)) return true;
 
       const headline = prof.basics?.headline || "";
       if (/\b(gmbh|ag|ltd|llc|inc|corp)\b/i.test(headline)) return true;
@@ -194,6 +194,25 @@ export default function CvWorkspacePage() {
 
     if (profile && typeof profile === "object" && "basics" in profile && !isLowQualityResumeProfile(profile)) {
       const completed = completeResumeProfile(profile as ResumeProfile, storedCvText);
+      // Enforce the authoritative candidate name from the setup store.
+      // The setup store's candidateName was set by the name_override pipeline
+      // which is more reliable than what the AI parser put in basics.name.
+      // This prevents "Public Relations", "Matplotlib Seaborn Tableau" etc.
+      // from slipping through isLowQualityProfile and corrupting the rewritten CV.
+      const storedCandidateName = String(
+        (setup as Record<string, unknown>)?.candidateName ||
+        (setup as Record<string, unknown>)?.name ||
+        ""
+      ).trim();
+      if (storedCandidateName && storedCandidateName.toLowerCase() !== "candidate" && storedCandidateName !== completed.basics?.name) {
+        const nameWords = storedCandidateName.split(/\s+/);
+        // Only use stored name if it looks like a real human name (2+ words, no role keywords)
+        const looksHuman = nameWords.length >= 2 && nameWords.length <= 5 &&
+          !/(public|relations|management|engineer|analyst|specialist|manager|developer|coordinator)/i.test(storedCandidateName);
+        if (looksHuman) {
+          completed.basics = { ...completed.basics, name: storedCandidateName };
+        }
+      }
       setSavedResumeProfile(completed);
       setProfileNeedsReupload(false);
       debugCvProfile("cv.page.savedResumeProfile.set", completed);
@@ -505,6 +524,15 @@ export default function CvWorkspacePage() {
     setViewMode("text");
 
     try {
+      // Always base the rewrite on the ORIGINAL saved profile + original cvText,
+      // never on a previously rewritten profile. Reusing the rewritten profile
+      // as input causes each successive rewrite to lose more content (missing
+      // jobs, merged projects, shortened bullets) because merge artifacts
+      // compound across runs.
+      const freshProfileForRewrite = savedResumeProfile
+        ? completeResumeProfile(savedResumeProfile, cvText)
+        : undefined;
+
       const response = await fetch("/api/copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -512,7 +540,7 @@ export default function CvWorkspacePage() {
         body: JSON.stringify({
           action: "cv_rewrite_ats",
           cvText: cvText || atsText || improvedCv,
-          resumeProfile: savedResumeProfile ? completeResumeProfile(savedResumeProfile, cvText) : undefined,
+          resumeProfile: freshProfileForRewrite,
           jobDescription,
           targetRole,
           targetMarket,
@@ -540,12 +568,20 @@ export default function CvWorkspacePage() {
       // what actually fixes the dropped-job/wrong-name/lost-project bugs,
       // since the model fills in each field explicitly instead of a regex
       // parser having to infer structure from prose after the fact.
-      const mergedProfile = savedResumeProfile
+      let mergedProfile = savedResumeProfile
         ? mergePreservingOriginalStructure(
             completeResumeProfile(savedResumeProfile, cvText),
             data.resumeProfile && typeof data.resumeProfile === "object" ? data.resumeProfile : undefined,
           )
         : undefined;
+      // Final name safety: if the merged profile still has a wrong name,
+      // restore it from savedResumeProfile which has the correct name.
+      if (mergedProfile && savedResumeProfile?.basics?.name && mergedProfile.basics?.name !== savedResumeProfile.basics.name) {
+        mergedProfile = {
+          ...mergedProfile,
+          basics: { ...mergedProfile.basics, name: savedResumeProfile.basics.name },
+        };
+      }
       setRewrittenResumeProfile(mergedProfile);
       setAiRewriteApplied(true);
     } catch (err) {
