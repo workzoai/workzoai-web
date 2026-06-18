@@ -327,111 +327,86 @@ export default function PricingPage() {
           </div>
         </section>
 
-        <section className="mt-12 grid items-start gap-5 lg:grid-cols-3">
+        <section className="mt-12 grid items-start gap-4 lg:grid-cols-3">
           {PLAN_CARDS.map((card) => {
             const plan = WORKZO_PLAN_LIMITS[card.id];
             const isPremium = card.id === "premium";
             const isPro = card.id === "premium_pro";
-            const maxIncluded = isPremium ? 12 : isPro ? 13 : 6;
-            const maxNotIncluded = isPremium ? 5 : 3;
             return (
               <div
                 key={card.id}
                 className={cn(
-                  "relative flex flex-col rounded-[2rem] border backdrop-blur-sm",
+                  "relative flex flex-col rounded-3xl border p-6 transition",
                   isPremium
-                    ? "border-blue-400/40 bg-blue-500/[0.12] p-8 shadow-[0_0_80px_rgba(59,130,246,0.18)] lg:-mt-6 lg:pb-10 lg:pt-10"
-                    : "p-6",
-                  isPro && "border-violet-300/30 bg-violet-500/[0.10] shadow-2xl shadow-violet-950/20",
-                  card.id === "free" && "border-emerald-300/20 bg-emerald-400/[0.06]",
+                    ? "border-blue-400/50 bg-[#0b1a30] lg:-mt-4 lg:pb-8 lg:pt-8"
+                    : isPro
+                      ? "border-violet-400/30 bg-[#0e0b1f]"
+                      : "border-white/10 bg-white/[0.03]",
                 )}
               >
+                {/* Badge */}
                 {plan.badge ? (
                   <div className={cn(
-                    "absolute right-5 top-5 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]",
+                    "mb-4 inline-flex self-start rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]",
                     isPremium
-                      ? "border-blue-300/40 bg-blue-400/15 text-blue-200"
-                      : isPro
-                        ? "border-violet-300/30 bg-violet-400/10 text-violet-200"
-                        : "border-white/10 bg-white/8 text-white/80"
+                      ? "border-blue-400/30 bg-blue-400/10 text-blue-300"
+                      : "border-violet-400/20 bg-violet-400/10 text-violet-300"
                   )}>
                     {plan.badge}
                   </div>
-                ) : null}
+                ) : (
+                  <div className="mb-4 h-[26px]" />
+                )}
 
-                <div className="flex items-center gap-3 pr-28">
-                  <div className={cn(
-                    "grid place-items-center rounded-2xl",
-                    isPremium ? "h-[52px] w-[52px] bg-blue-400/20 text-blue-200" : "h-11 w-11",
-                    isPro ? "bg-violet-400/15 text-violet-200" : !isPremium ? "bg-emerald-400/15 text-emerald-200" : "",
-                  )}
-                    style={isPremium ? {height: "52px", width: "52px"} : undefined}
-                  >{card.icon}</div>
-                  <div>
-                    <p className={cn("font-black uppercase tracking-[0.20em]", isPremium ? "text-xs text-blue-300/70" : "text-xs text-white/45")}>{plan.label}</p>
-                    <h2 className={cn("font-black text-white", isPremium ? "text-2xl" : "text-xl")}>{plan.shortLabel}</h2>
-                  </div>
-                </div>
-
+                {/* Plan name + price */}
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-white/40">{plan.label}</p>
+                <h2 className="mt-1 text-xl font-black text-white">{plan.shortLabel}</h2>
                 <PriceLine plan={card.id} billingCycle={billingCycle} />
 
-                <p className={cn("mt-4 leading-6 text-slate-300", isPremium ? "text-sm min-h-[56px]" : "text-sm min-h-[48px]")}>{plan.description}</p>
-                <p className="mt-2 text-xs font-black uppercase tracking-[0.16em] text-white/40">Best for: {plan.bestFor}</p>
+                {/* Description */}
+                <p className="mt-4 text-sm leading-6 text-slate-400">{plan.description}</p>
 
-                {isPremium && (
-                  <div className="mt-4 rounded-2xl border border-blue-300/20 bg-blue-500/[0.08] px-4 py-3">
-                    <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-300">Interview preparation platform</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-400">Prepare for interviews, improve your applications, and track progress — everything in one place.</p>
-                  </div>
-                )}
-
-                {isPro && (
-                  <div className="mt-4 rounded-2xl border border-violet-300/20 bg-violet-500/[0.08] px-4 py-3">
-                    <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-300">Personal AI career coach</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-400">Not just interview prep — a full career acceleration system with coaching, roadmaps, and Live AI Recruiter.</p>
-                  </div>
-                )}
-
-                <div className="mt-6 space-y-2.5">
-                  {plan.included.slice(0, maxIncluded).map((item) => (
-                    <div key={item} className="flex gap-2.5 text-sm leading-5 text-slate-100">
-                      <CheckCircle2 className={cn("mt-0.5 h-4 w-4 shrink-0", isPro ? "text-violet-300" : isPremium ? "text-blue-300" : "text-emerald-300")} />
-                      <span>{item}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {plan.notIncluded.length ? (
-                  <div className="mt-5 space-y-2 border-t border-white/10 pt-4">
-                    {plan.notIncluded.slice(0, maxNotIncluded).map((item) => (
-                      <div key={item} className="flex gap-2.5 text-xs leading-5 text-slate-500">
-                        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                        <span>{item}</span>
-                      </div>
-                    ))}
-                    {plan.notIncluded.length > maxNotIncluded ? (
-                      <p className="pl-6 text-xs font-bold text-slate-500">
-                        +{plan.notIncluded.length - maxNotIncluded} more in the comparison table below
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                <div className="flex-1" />
-
+                {/* CTA button */}
                 <button
                   type="button"
                   onClick={() => choosePlan(card.id)}
                   disabled={Boolean(checkoutLoading)}
                   className={cn(
-                    "mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60",
-                    isPremium ? "py-4" : "py-3.5",
+                    "mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60",
                     card.buttonClass,
                   )}
                 >
                   {checkoutLoading === card.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                   {card.id === "free" ? "Start Free" : checkoutLoading === card.id ? "Connecting…" : `Choose ${plan.label}`}
                 </button>
+
+                {/* Divider */}
+                <div className="my-6 h-px bg-white/[0.08]" />
+
+                {/* Included features */}
+                <div className="space-y-3">
+                  {plan.included.map((item) => (
+                    <div key={item} className="flex items-start gap-2.5">
+                      <CheckCircle2 className={cn(
+                        "mt-0.5 h-4 w-4 shrink-0",
+                        isPro ? "text-violet-400" : isPremium ? "text-blue-400" : "text-emerald-400"
+                      )} />
+                      <span className="text-sm leading-5 text-slate-200">{item}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Not-included — dashed style, no XCircle noise */}
+                {plan.notIncluded.length > 0 && (
+                  <div className="mt-5 space-y-3 border-t border-white/[0.07] pt-5">
+                    {plan.notIncluded.map((item) => (
+                      <div key={item} className="flex items-start gap-2.5">
+                        <div className="mt-1.5 h-3 w-3 shrink-0 rounded-full border border-white/20" />
+                        <span className="text-sm leading-5 text-slate-500">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
