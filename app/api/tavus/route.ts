@@ -264,7 +264,8 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         replica_id: replicaId,
-        persona_id: personaId,
+        // persona_id removed — it overrides the replica's visual appearance.
+        // Without it, the replica defines the correct avatar (male vs female).
         conversation_name: `WorkZo Interview - ${recruiterName}`,
         conversational_context: buildConversationContext({
           recruiterName,

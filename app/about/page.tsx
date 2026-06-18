@@ -29,17 +29,17 @@ const principles = [
   {
     icon: TrendingUp,
     title: "Trust score transparency",
-    body: "After every answer you can see recruiter trust rising or falling in real time — and exactly why. No more guessing what went wrong after an interview.",
+    body: "After every answer you can see recruiter trust rising or falling in real time and exactly why. No more guessing what went wrong after an interview.",
   },
   {
     icon: Globe,
     title: "Built for global job seekers",
-    body: "UK-style competency interviews, US tech screens, German formal structures — WorkZo is designed for candidates in any market, not just one country.",
+    body: "UK-style competency interviews, US tech screens, German formal structures- WorkZo is designed for candidates in any market, not just one country.",
   },
   {
     icon: Lightbulb,
     title: "Practice that transfers",
-    body: "Patterns and weaknesses are tracked across sessions. The recruiter remembers what tripped you up last time and targets it again — just like the real thing.",
+    body: "Patterns and weaknesses are tracked across sessions. The recruiter remembers what tripped you up last time and targets it again. Just like the real thing.",
   },
 ];
 
@@ -95,7 +95,7 @@ export default function AboutPage() {
               </p>
 
               <blockquote className="mt-7 rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 text-lg leading-9 text-slate-200 shadow-2xl shadow-black/20">
-                &ldquo;After years helping customers solve technical problems — and navigating my own job search — I realised every prep tool missed the same thing: they gave you questions but never explained why a recruiter&apos;s trust dropped. That&apos;s the gap WorkZo fills.&rdquo;
+                &ldquo;After years helping customers solve technical problems and navigating my own job search, I realised every prep tool missed the same thing: they gave you questions but never explained why a recruiter&apos;s trust dropped. That&apos;s the gap WorkZo fills.&rdquo;
               </blockquote>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
