@@ -743,7 +743,7 @@ export default function LandingPage() {
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/pricing?intent=interview" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-7 py-4 text-base font-black text-slate-900 shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-blue-50">
+              <Link href="/onboarding" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-7 py-4 text-base font-black text-slate-900 shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-blue-50">
                 See Where Offers Are Lost
                 <ArrowRight className="h-5 w-5" />
               </Link>
@@ -1153,7 +1153,7 @@ export default function LandingPage() {
                 </div>
               </div>
               <Link
-                href="/pricing?intent=interview"
+                href="/onboarding"
                 className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-6 py-3 text-sm font-black text-white transition hover:bg-white/20"
               >
                 Start Free <ArrowRight className="h-4 w-4" />
