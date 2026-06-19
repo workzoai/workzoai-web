@@ -64,9 +64,9 @@ export function extractCandidateIdentity(setup?: WorkZoInterviewSetup | null): W
     clean(basics.name) ||
     clean(source?.candidateName) ||
     clean(source?.name) ||
-    "Candidate";
+    "";
 
-  const name = isGenericName(rawName) ? "Candidate" : rawName;
+  const name = isGenericName(rawName) ? "" : rawName;
 
   const headline =
     clean(basics.headline) ||
@@ -89,7 +89,7 @@ export function saveCandidateIdentity(identity: Partial<WorkZoCandidateIdentity>
   if (typeof window === "undefined") return;
 
   const payload: WorkZoCandidateIdentity = {
-    name: clean(identity.name) || "Candidate",
+    name: isGenericName(clean(identity.name)) ? "" : clean(identity.name),
     headline: clean(identity.headline) || "Professional",
     email: clean(identity.email),
     phone: clean(identity.phone),

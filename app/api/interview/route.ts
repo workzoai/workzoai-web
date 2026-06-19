@@ -11,6 +11,10 @@ import {
   buildInterviewIntelligence95,
   decorateJobContextWithCompanyDNA,
 } from "@/lib/workzoInterviewIntelligence95";
+import {
+  buildRecruiterBrain,
+  serializeRecruiterBrainForPrompt,
+} from "@/lib/recruiterBrainEngine";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -1046,6 +1050,23 @@ export async function POST(request: Request) {
       });
     }
 
+    // ── Recruiter Brain: pre-compute all missing intelligence features ──────
+    // JD coverage, competency tracker, interview strategy, hiring recommendation,
+    // emotional state, adaptive difficulty, company style, and memory timeline.
+    // The brain context is serialized and injected into the LLM system prompt.
+    const recruiterBrain = buildRecruiterBrain({
+      cvText: cvGroundingEvidence || compactCv,
+      jobDescription: companyDecoratedJob,
+      targetRole: text(body.targetRole || setup.targetRole, 120),
+      companyStyle: text(body.companyStyle || setup.companyStyle, 120),
+      transcript: body.transcript || [],
+      trust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58,
+      recruiterState: body.recruiterState || "neutral",
+      lastAnswerScore: null, // updated by scoring engine each turn
+    });
+    const recruiterBrainContext = serializeRecruiterBrainForPrompt(recruiterBrain);
+    // ───────────────────────────────────────────────────────────────────────
+
     const baseDecision = await decideUnifiedRecruiterResponse({
       answer,
       currentQuestion: resolvedCurrentQuestion,
@@ -1064,6 +1085,7 @@ export async function POST(request: Request) {
           ? { summary: text(body.recruiterMemorySummary, 280) }
           : undefined,
         jobMemoryProfile: undefined,
+        recruiterBrainContext,
       },
     });
 
@@ -1081,6 +1103,7 @@ export async function POST(request: Request) {
         companyStyle: text(body.companyStyle || setup.companyStyle, 120),
         recruiterPersonality: text(body.recruiterPersonality || setup.recruiterPersonality, 80),
         language: text(setup.language, 40),
+        recruiterBrainContext,
       },
     });
 

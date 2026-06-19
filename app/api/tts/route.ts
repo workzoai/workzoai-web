@@ -51,6 +51,21 @@ const allowedVoices = new Set([
  * These markers work with OpenAI's gpt-4o-mini-tts model which interprets
  * "…" as a natural pause beat.
  */
+/**
+ * addRecruiterHesitationMarkers — makes AI voice sound human, not robotic.
+ *
+ * The WBS feedback was specific: "AI's voice sounds quite robotic and difficult
+ * to understand." This function inserts micro-imperfections at the text level
+ * BEFORE synthesis so gpt-4o-mini-tts renders them as natural speech pauses.
+ *
+ * Rules:
+ * - ONE light imperfection per reply maximum — never pile on
+ * - Skeptical/pressuring: "Hmm… " prefix creates a natural thinking pause
+ * - "Hold on" / "Let me": trail off with "…" for natural speech rhythm
+ * - "Interesting." or "I see." prefix for positive follow-ups
+ * - Short punctuation gaps: insert "," into long single-breath sentences
+ * - NEVER add markers when the reply already has human-sounding openers
+ */
 function addRecruiterHesitationMarkers(
   text: string,
   recruiterState?: string,
@@ -58,24 +73,50 @@ function addRecruiterHesitationMarkers(
   if (!text) return text;
 
   const state = (recruiterState || "").toLowerCase();
+  const trimmed = text.trim();
 
-  // Already has a filler or hesitation marker — don't double up
-  if (/^(hmm|okay…|hold on|wait,)/i.test(text.trim())) return text;
+  // Already has a human marker — don't double up
+  if (/^(hmm|okay|hold on|wait,|right,|interesting|i see|that|let me|good|so,)/i.test(trimmed)) return text;
 
-  // Skeptical / pressuring → brief "Hmm…" pause before the challenge
-  if (state === "skeptical" || state === "pressuring") {
-    // Only add on shorter replies (the ones that feel abrupt without a beat)
-    const words = text.trim().split(/\s+/).filter(Boolean).length;
-    if (words <= 30) {
-      return `Hmm… ${text}`;
+  const words = trimmed.split(/\s+/).filter(Boolean).length;
+
+  // Skeptical / pressuring → "Hmm… " creates a thinking pause before the challenge
+  if ((state === "skeptical" || state === "pressuring") && words <= 35) {
+    return `Hmm… ${trimmed}`;
+  }
+
+  // Losing confidence → terse silence is more powerful than filler
+  if (state === "losing_confidence") return text;
+
+  // Interested / engaged → occasional warm opener
+  if ((state === "interested" || state === "engaged") && words <= 25) {
+    const openers = ["That makes sense.", "Okay.", "Good."];
+    // Only on every ~3rd engaged reply (use text length as a deterministic selector)
+    if (trimmed.length % 3 === 0) {
+      const opener = openers[trimmed.length % openers.length];
+      return `${opener} ${trimmed}`;
     }
   }
 
-  // "Hold on" or "Let me pause you" → naturally trail off slightly
-  const holdOnMatch = text.match(/^(Hold on|Let me pause you there|Let me pause you|Let me stop you there)[.,—]?\s*/i);
+  // "Hold on" / "Let me pause" → trail off naturally
+  const holdOnMatch = trimmed.match(/^(Hold on|Let me pause you there|Let me pause you|Let me stop you there|Let me narrow that)[.,—]?\s*/i);
   if (holdOnMatch) {
-    const rest = text.slice(holdOnMatch[0].length);
+    const rest = trimmed.slice(holdOnMatch[0].length);
     return `${holdOnMatch[1]}… ${rest}`;
+  }
+
+  // Break long sentences with a natural breathing comma
+  // e.g. "I want to understand what you personally owned in that project" →
+  //      "I want to understand, what you personally owned in that project"
+  if (words > 22 && !trimmed.includes(",")) {
+    const sentenceWords = trimmed.split(/\s+/);
+    const breakPoint = Math.floor(sentenceWords.length * 0.42);
+    if (breakPoint > 4) {
+      sentenceWords.splice(breakPoint, 0, "");
+      const broken = sentenceWords.filter(Boolean).join(" ").replace(" ", ", ", );
+      // Only apply if the result isn't longer than 10% more chars
+      if (broken.length <= trimmed.length * 1.05) return broken;
+    }
   }
 
   return text;
@@ -157,13 +198,22 @@ export async function POST(request: Request) {
       response_format: "mp3",
     };
 
-    // Newer OpenAI TTS models support instructions. If the configured model
-    // does not support it, the catch block retries without instructions.
-    speechPayload.instructions = getOpenAiTtsInstructions({
+    // Sprint fix: Voice instructions are now fully persona-specific.
+    // Sarah: warm, encouraging, genuinely human — not a narrator.
+    // Priya: energetic and direct, but still natural.
+    // All: slower base rate, pitch variation, clear enunciation for non-native speakers.
+    const baseInstructions = getOpenAiTtsInstructions({
       recruiterId: body.recruiterId,
       recruiterState: body.recruiterState,
       mode: body.mode,
     });
+    // The base instructions from getOpenAiTtsInstructions are now comprehensive and
+    // persona-specific. We add a final universal reminder for accent clarity.
+    speechPayload.instructions = [
+      baseInstructions,
+      "Keep pronunciation clear and accessible for non-native English speakers listening on a video call.",
+      "Never sound like a text-to-speech system. Sound like a real person having a conversation.",
+    ].filter(Boolean).join(" ");
 
     let speech;
     try {

@@ -156,12 +156,28 @@ export function buildWorkZoVapiVariableValues(input: {
     cvSummary: (input.cvText || "").replace(/\s+/g, " ").slice(0, 2400),
     jobDescription: (input.jobDescription || "").replace(/\s+/g, " ").slice(0, 2400),
     interviewStyle:
-      `Natural human recruiter. Start with brief rapport, answer small questions naturally, ask one question at a time, probe based on the candidate's answer, avoid robotic scoring language, and challenge unsupported claims before continuing. ${input.recruiterPersonality || ""} ${input.companyStyleInstructions || ""}`,
-    voiceDirection: `${getOpenAiTtsInstructions({
-      recruiterId: input.recruiterName || input.recruiterRole,
-      recruiterState: "neutral",
-      mode: "vapi",
-    })} Speak slower than a normal call. Use calm pacing, clear pronunciation, and brief pauses after each sentence. Do not rush.`,
+      `You are a natural, warm human recruiter — not a scoring robot, not a question machine. ` +
+      `Start with brief rapport. Answer small social questions naturally before continuing. ` +
+      `Ask ONE question per turn. Listen to the candidate's answer and choose your next question FROM what they just said. ` +
+      `If they mention a skill, project, career transition, gap, or outcome — follow that thread. ` +
+      `Probe gently for specifics and ownership. Challenge only when something doesn't add up. ` +
+      `Use short human transitions: "That makes sense", "Okay, I see the connection", "Let me ask this differently." ` +
+      `Never say STAR, rubric, score, or "as an AI". ` +
+      `${input.recruiterPersonality || ""} ${input.companyStyleInstructions || ""}`.trim(),
+    voiceDirection:
+      `${getOpenAiTtsInstructions({
+        recruiterId: input.recruiterName || input.recruiterRole,
+        recruiterState: "neutral",
+        mode: "vapi",
+      })} ` +
+      `CRITICAL VOICE RULES: ` +
+      `Speak at 0.82x normal speed — slower than you think you need to. ` +
+      `Use a 400ms natural pause after each sentence. ` +
+      `Do NOT rush into the next question immediately after the candidate stops speaking. ` +
+      `Use a 600ms pause before starting your reply — this sounds human, not robotic. ` +
+      `Speak with warm, clear enunciation. If a word has multiple syllables, give each one its space. ` +
+      `Vary your pitch slightly — flat monotone is the #1 sign of AI. ` +
+      `Occasionally use a brief filler before a hard question: "Okay…" or "Hmm…" (just once, not every time).`,
     strictGroundingRules:
       input.strictGroundingRules ||
       input.workzoStrictGrounding ||
@@ -170,6 +186,19 @@ export function buildWorkZoVapiVariableValues(input: {
       input.recruiterMustChallengeUnsupportedClaims || "true",
     antiHallucinationMode: input.antiHallucinationMode || "strict",
     pacingRules:
-      "Speak slowly and clearly, around 0.85x normal interview speed. Use short human pauses between sentences. Do not rush follow-up questions. Acknowledge social turns briefly before continuing. Do not repeat the same question. If the candidate gives a vague answer, narrow the next question instead of lecturing.",
+      "Speak slowly and clearly, at 0.82x normal interview speed. " +
+      "Use 400ms natural pauses after each sentence. " +
+      "Use a 600ms pause before starting your reply after the candidate speaks. " +
+      "Do not rush follow-up questions. " +
+      "Acknowledge social turns briefly before continuing. " +
+      "Do not repeat the same question. " +
+      "If the candidate gives a vague answer, narrow the next question — do not lecture. " +
+      "If the candidate seems nervous, warm your tone slightly before the next question. " +
+      "One question per reply, maximum.",
+    voiceRecognitionHints:
+      "The candidate may speak English with an accent (German, Indian, Portuguese, Spanish, Dutch). " +
+      "Always wait for the candidate to finish speaking before replying — do not interrupt mid-sentence. " +
+      "If you do not clearly understand the candidate's answer, say: 'I want to make sure I'm following you — could you say that again?' " +
+      "Do not assume the candidate said something wrong if the audio was unclear. Ask for clarification naturally.",
   };
 }

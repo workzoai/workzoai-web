@@ -217,7 +217,7 @@ function sanitizeResumeProfile(profile: any, rawCvText = "") {
 
   const completed = completeResumeProfile(profile, rawCvText || profile.rawText || "");
   const canonical = enforceCanonicalCandidateName(completed, rawCvText || completed.rawText || "");
-  canonical.basics.name = cleanHumanName(canonical.basics.name) || normalizeCandidateName(canonical.basics.name) || "Candidate";
+  canonical.basics.name = cleanHumanName(canonical.basics.name) || normalizeCandidateName(canonical.basics.name) || "";
 
   // Reject only profiles with no usable structure. Do not reject a good profile
   // just because a model temporarily guessed a bad name; name is repaired above.

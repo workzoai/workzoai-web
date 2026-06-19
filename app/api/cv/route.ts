@@ -395,8 +395,7 @@ function extractHeaderName(rawText: string, fileName = "", parserName = "") {
     // Compact all-caps line with no filename confirmation:
     // Check if the compact string matches the email local part — if so,
     // use the email-derived name (which was already split into first/last)
-    // and score by position. This handles "HARITHAVIJAYAKUMAR" → email gives
-    // the correct split like "Haritha Vijayakumar" when the email is structured.
+    // and score by position. This handles decorative compact headers when the email is structured.
     if (/^[A-ZÄÖÜ]{10,}$/u.test(line) && fromEmail) {
       const rawEmailLocal = extractEmail(rawText).split("@")[0].replace(/\d+/g, "").toLowerCase();
       const compactLower = line.toLowerCase();
@@ -980,6 +979,39 @@ function buildProfileText(profile: ResumeProfile, fallbackText: string) {
   return lines.join("\n").trim() || fallbackText;
 }
 
+function lockResumeProfileIdentity(input: {
+  profile: ResumeProfile;
+  rawText: string;
+  fileName?: string;
+  candidateName?: string;
+}) {
+  return enforceCanonicalCandidateName(
+    input.profile,
+    input.rawText,
+    input.fileName || "",
+    input.candidateName || "",
+  ) as ResumeProfile;
+}
+
+function lockParserResultIdentity<T extends { resumeProfile?: ResumeProfile }>(
+  result: T,
+  context: { rawText: string; fileName?: string; candidateName?: string },
+): T {
+  if (!result?.resumeProfile) return result;
+
+  const lockedProfile = lockResumeProfileIdentity({
+    profile: result.resumeProfile,
+    rawText: context.rawText,
+    fileName: context.fileName,
+    candidateName: context.candidateName,
+  });
+
+  return {
+    ...result,
+    resumeProfile: lockedProfile,
+  };
+}
+
 function buildResponse(input: {
   aiOk: boolean;
   source: string;
@@ -992,12 +1024,12 @@ function buildResponse(input: {
   targetRole?: string;
   targetMarket?: string;
 }) {
-  const resumeProfile = enforceCanonicalCandidateName(
-    input.resumeProfile,
-    input.rawCvText,
-    input.fileName || "",
-    input.candidateName || "",
-  ) as ResumeProfile;
+  const resumeProfile = lockResumeProfileIdentity({
+    profile: input.resumeProfile,
+    rawText: input.rawCvText,
+    fileName: input.fileName || "",
+    candidateName: input.candidateName || "",
+  });
   const finalName = resumeProfile.basics?.name || "";
   if (finalName && finalName !== input.resumeProfile.basics?.name) {
     debugCvPipeline("api.cv.name_override", {
@@ -1024,6 +1056,7 @@ function buildResponse(input: {
     resumeProfile,
     profile: resumeProfile,
     fileName: input.fileName,
+    candidateName: resumeProfile.basics?.name || "",
     chars: input.rawCvText.length,
     recruiterMemoryProfile: {
       candidateName: resumeProfile.basics?.name || "",
@@ -1062,7 +1095,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
   const jd = normalizeResumeText(String(body.jobDescription || ""));
   const existingProfile = body.resumeProfile || body.profile;
 
-  const isImprovementRequest = body.mode === "improve" || Boolean(jd);
+  const isImprovementRequest = body.mode === "improve";
   if (isImprovementRequest && !isPremium) {
     return NextResponse.json(
       {
@@ -1080,22 +1113,76 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
     "basics" in existingProfile &&
     rawCv
   ) {
-    const profile = existingProfile as ResumeProfile;
-    debugCvProfile("api.cv.json.existing_profile_used", profile, {
-      name: profile.basics?.name,
+    const incoming = existingProfile as ResumeProfile;
+
+    // Validate the incoming profile before trusting it.
+    // A profile stored in client localStorage may be corrupted from a previous
+    // bad parse: phone numbers in the email field, dates in the location field,
+    // job descriptions in the headline, etc.
+    // We validate by checking structural sanity, not just name presence.
+    const incomingName = (incoming.basics?.name || "").trim();
+    const incomingEmail = (incoming.basics?.email || "").trim();
+    const incomingPhone = (incoming.basics?.phone || "").trim();
+    const incomingHeadline = (incoming.basics?.headline || "").trim();
+    const incomingExperience = Array.isArray(incoming.experience) ? incoming.experience : [];
+
+    // Red flags that indicate a corrupted profile:
+    const emailLooksCorrupted =
+      /^\+?\d[\d\s\-()+]{4,}/.test(incomingEmail) || // starts with phone number
+      incomingEmail.includes(" ") || // has spaces
+      (incomingEmail.length > 0 && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(incomingEmail));
+
+    const phoneLooksCorrupted =
+      /^\d{4}[-/]\d{4}/.test(incomingPhone) || // looks like date range
+      /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(incomingPhone);
+
+    const headlineLooksCorrupted =
+      incomingHeadline.length > 120 || // too long to be a headline
+      /^(managed|assisted|supported|led|coordinated)\b/i.test(incomingHeadline); // starts with verb = job bullet
+
+    const experienceLooksCorrupted = incomingExperience.some((exp) => {
+      const titleIsCompany = exp.title && exp.company && exp.title === exp.company;
+      const titleIsDate = /^\d{4}|^(jan|feb|mar|apr)/i.test(exp.title || "");
+      const titleHasSlash = /\//.test(exp.title || "") && (exp.title || "").length > 40;
+      return titleIsCompany || titleIsDate || titleHasSlash;
     });
-    return buildResponse({
-      aiOk: true,
-      source: "existing_resume_profile",
-      error: "",
-      rawCvText: rawCv,
-      resumeProfile: profile,
-      fileName: body.fileName || "pasted-cv.txt",
-      candidateName: body.candidateName || "",
-      jobDescription: jd,
-      targetRole: body.targetRole,
-      targetMarket: body.targetMarket,
-    });
+
+    const profileIsCorrupted =
+      emailLooksCorrupted ||
+      phoneLooksCorrupted ||
+      headlineLooksCorrupted ||
+      experienceLooksCorrupted;
+
+    if (profileIsCorrupted) {
+      // Re-parse properly instead of using the corrupted cached profile
+      console.warn("[WorkZo CV Pipeline] api.cv.json.corrupted_profile_rejected", {
+        name: incomingName,
+        emailCorrupted: emailLooksCorrupted,
+        phoneCorrupted: phoneLooksCorrupted,
+        headlineCorrupted: headlineLooksCorrupted,
+        experienceCorrupted: experienceLooksCorrupted,
+      });
+      // Fall through to fresh AI parse below
+    } else {
+      // Profile looks clean — use it but still run through lockResumeProfileIdentity
+      // to normalize any minor issues (encoding artifacts, trailing whitespace, etc.)
+      const profile = incoming;
+      debugCvProfile("api.cv.json.existing_profile_used", profile, {
+        name: profile.basics?.name,
+      });
+      return buildResponse({
+        aiOk: true,
+        source: "existing_resume_profile",
+        error: "",
+        rawCvText: rawCv,
+        resumeProfile: profile,
+        fileName: body.fileName || "pasted-cv.txt",
+        candidateName: body.candidateName || incomingName,
+        jobDescription: jd,
+        targetRole: body.targetRole,
+        targetMarket: body.targetMarket,
+      });
+    }
   }
 
   if (!rawCv && !jd)
@@ -1103,6 +1190,39 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
       { error: "CV text or job description is required." },
       { status: 400 },
     );
+
+  // JD-only is valid onboarding context. Do not run the CV parser when there is no CV.
+  // This prevents false upload errors like "CV text is required" when the user only
+  // adds a job description or opens/saves the context modal before uploading a CV.
+  if (!rawCv && jd) {
+    return NextResponse.json({
+      ok: true,
+      success: true,
+      source: "job_description_only",
+      error: "",
+      text: "",
+      cvText: "",
+      rawCvText: "",
+      uploadedCvText: "",
+      resumeText: "",
+      candidateCv: "",
+      content: "",
+      resumeProfile: null,
+      profile: null,
+      fileName: body.fileName || "",
+      chars: 0,
+      recruiterMemoryProfile: null,
+      jobMemoryProfile: {
+        targetRole: body.targetRole || "General Role",
+        role: body.targetRole || "General Role",
+        targetMarket: body.targetMarket || "Global",
+        country: body.targetMarket || "Global",
+        jobDescription: jd,
+        jdText: jd,
+      },
+      confidence: "skipped",
+    });
+  }
 
   // Same defensive wrapping as the file-upload path above — protects
   // against the OpenAI SDK throwing an uncaught error when OpenRouter
@@ -1133,6 +1253,12 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
       error: aiError instanceof Error ? aiError.message : "AI CV parser crashed unexpectedly.",
     };
   }
+
+  aiResult = lockParserResultIdentity(aiResult, {
+    rawText: rawCv,
+    fileName: body.fileName || "pasted-cv.txt",
+    candidateName: body.candidateName || "",
+  });
 
   debugCvProfile("api.cv.json.profile", aiResult.resumeProfile, {
     source: aiResult.source,
@@ -1243,6 +1369,11 @@ export async function POST(request: Request) {
         };
       }
 
+      aiResult = lockParserResultIdentity(aiResult, {
+        rawText: cleanedCv,
+        fileName: safeFileName,
+      });
+
       debugCvProfile("api.cv.parser.output", aiResult.resumeProfile, {
         fileName: safeFileName,
         source: aiResult.source,
@@ -1267,6 +1398,17 @@ export async function POST(request: Request) {
         fileType,
         rawText: cleanedCv,
       });
+
+      if (
+        affinda.ok &&
+        affinda.resumeProfile
+      ) {
+        affinda.resumeProfile = lockResumeProfileIdentity({
+          profile: affinda.resumeProfile,
+          rawText: cleanedCv,
+          fileName: safeFileName,
+        });
+      }
 
       if (
         affinda.ok &&

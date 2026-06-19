@@ -28,6 +28,7 @@ import {
   decideUnifiedRecruiterResponse,
   type TranscriptItem,
 } from "@/lib/unifiedRecruiterIntelligence";
+import { buildWorkZoRecruiterReplyV2 } from "@/lib/workzoRecruiterIntelligenceV2";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,6 +50,10 @@ type ReplyRequestBody = {
   companyStyle?: string;
   recruiterPersonality?: string;
   language?: string;
+  candidateName?: string;
+  targetCompany?: string;
+  recruiterName?: string;
+  recruiterTitle?: string;
   recruiterTrust?: number;
   recruiterState?: string | null;
   questionIndex?: number;
@@ -88,9 +93,24 @@ function isOpeningSmallTalk(answer: string): boolean {
   const clean = answer.toLowerCase().replace(/[^a-zÀ-ÿ0-9\s']/gi, " ").replace(/\s+/g, " ").trim();
   if (!clean) return false;
   const words = clean.split(/\s+/).filter(Boolean);
+
+  // Very short answers (≤6 words) that don't contain substantive content are
+  // always treated as small talk / STT noise — never as interview answers.
+  // This catches: "sure so sure so", "yes okay", "uh sure", "let me start", etc.
+  if (words.length <= 6) return true;
   if (words.length > 18) return false;
 
-  return /\b(i'?m good|im good|i am good|doing good|doing well|i'?m fine|im fine|i am fine|fine|good|great|okay|ok|not bad|all good|how are you|how about you|thank you|thanks|yes i can hear|i can hear|can hear you|hello|hi|hey|hallo|bonjour|hola|namaste)\b/i.test(clean);
+  // Standard greetings and social responses
+  if (/\b(i'?m good|im good|i am good|doing good|doing well|i'?m fine|im fine|i am fine|fine|good|great|okay|ok|not bad|all good|how are you|how about you|thank you|thanks|yes i can hear|i can hear|can hear you|hello|hi|hey|hallo|bonjour|hola|namaste)\b/i.test(clean)) {
+    return true;
+  }
+
+  // STT filler fragments: repeated words, pure affirmatives, audio check phrases
+  if (/^(sure|yes|yeah|yep|okay|ok|right|got it|let me|uh|um|er|ah|so|and|sure so|yes so|okay so|right so|alright|go ahead|ready|let'?s go|test test|can you hear|audio test)[\s,.]*(sure|yes|yeah|yep|okay|ok|right|got it|let me|uh|um|er|ah|so|and|sure so|yes so|okay so|right so|alright|go ahead|ready|let'?s go)?[\s,.]*$/.test(clean)) {
+    return true;
+  }
+
+  return false;
 }
 
 function buildOpeningIntroReply(languageValue: unknown, targetRole: unknown): string {
@@ -114,6 +134,62 @@ function normaliseTranscript(raw: TranscriptTurn[] | undefined): TranscriptItem[
     role: turn.role === "candidate" ? "candidate" : "recruiter",
     text: cleanText(turn.text, 800),
   }));
+}
+
+
+function normalizeForSimilarity(value: string) {
+  return cleanText(value, 1200)
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isBadRecruiterReply(reply: string, transcript: TranscriptItem[]) {
+  const clean = normalizeForSimilarity(reply);
+  if (!clean) return true;
+
+  // Never let CV layout artifacts leak into the spoken interview.
+  if (/\b(professional experience contact|experience contact|skills contact|education contact|profile summary|core competencies|tools ticketing|gans e scooter|candidate\b|public\b)\b/i.test(reply)) {
+    return true;
+  }
+
+  const recentRecruiter = transcript
+    .filter((turn) => turn.role === "recruiter")
+    .map((turn) => normalizeForSimilarity(turn.text))
+    .filter(Boolean)
+    .slice(-3);
+
+  for (const previous of recentRecruiter) {
+    if (previous === clean) return true;
+    const words = clean.split(" ").filter((word) => word.length > 4);
+    if (words.length >= 7) {
+      const overlap = words.filter((word) => previous.includes(word)).length / words.length;
+      if (overlap >= 0.72) return true;
+    }
+  }
+
+  return false;
+}
+
+function buildDeterministicRecruiterReply(body: ReplyRequestBody, answer: string, transcript: TranscriptItem[]) {
+  const decision = buildWorkZoRecruiterReplyV2({
+    answer,
+    currentQuestion: cleanText(body.currentQuestion, 400) || "Tell me about yourself.",
+    transcript,
+    setup: {
+      cvText: cleanText(body.cvText, 6000),
+      jobDescription: cleanText(body.jobDescription, 4000),
+      targetRole: cleanText(body.targetRole, 160),
+      targetMarket: cleanText(body.targetMarket, 120),
+      companyStyle: cleanText(body.companyStyle, 120),
+      recruiterPersonality: cleanText(body.recruiterPersonality, 120),
+      language: cleanText(body.language, 40),
+    },
+    trust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : undefined,
+  });
+
+  return cleanText(decision.spokenReply || decision.reply || decision.question, 900);
 }
 
 export async function POST(request: Request) {
@@ -183,27 +259,47 @@ export async function POST(request: Request) {
         companyStyle: cleanText(body.companyStyle, 120),
         recruiterPersonality: cleanText(body.recruiterPersonality, 120),
         language: cleanText(body.language, 40),
+        candidateName: cleanText(body.candidateName, 120),
+        targetCompany: cleanText(body.targetCompany, 160),
+        recruiterName: cleanText(body.recruiterName, 120),
+        recruiterTitle: cleanText(body.recruiterTitle, 120),
       },
       recruiterTrust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : undefined,
       recruiterState: body.recruiterState ?? null,
     });
 
-    const reply = decision.spokenReply.trim();
-    if (!reply) throw new Error("Empty reply from unified engine.");
+    const unifiedReply = decision.spokenReply.trim();
+    if (!unifiedReply) throw new Error("Empty reply from unified engine.");
+
+    const deterministicReply = buildDeterministicRecruiterReply(body, answer, transcript);
+    const reply = isBadRecruiterReply(unifiedReply, transcript) && deterministicReply
+      ? deterministicReply
+      : unifiedReply;
 
     return NextResponse.json({
       success: true,
       reply,
-      displayQuestion: decision.displayQuestion,
+      displayQuestion: reply,
       trustDelta: decision.trustDelta,
       recruiterState: decision.recruiterState,
       shouldAdvanceQuestion: decision.shouldAdvanceQuestion,
-      provider: "unified_engine",
+      provider: reply === unifiedReply ? "unified_engine" : "deterministic_guard",
     });
   } catch (error) {
     console.error("[interview/reply] Unified engine call failed:", error);
-    // The caller is responsible for falling back to the deterministic rule-engine
-    // reply when success is false — same defensive pattern as before.
+    const reply = buildDeterministicRecruiterReply(body, answer, transcript);
+    if (reply) {
+      return NextResponse.json({
+        success: true,
+        reply,
+        displayQuestion: reply,
+        trustDelta: 0,
+        recruiterState: "engaged",
+        shouldAdvanceQuestion: true,
+        provider: "deterministic_fallback",
+      });
+    }
+
     return NextResponse.json(
       {
         success: false,

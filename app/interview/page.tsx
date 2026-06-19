@@ -856,7 +856,7 @@ function buildSetupFromStorage(): InterviewSetup {
     ]),
   );
   const cvCandidateName = normalizeCandidateName(extractNameFromCvText(cvText));
-  const candidateName = profileCandidateName || storedCandidateName || cvCandidateName || "Candidate";
+  const candidateName = profileCandidateName || storedCandidateName || cvCandidateName || "";
 
   const targetRole =
     getNestedValue(state, [
@@ -2018,7 +2018,7 @@ function buildRecruiterReply(answer: string, questionIndex: number, setup: Inter
       answer,
     )
   ) {
-    return "That gives me the story. Now add measurable impact. What changed after your work — time saved, fewer issues, quality improved, customer satisfaction, or business outcome?";
+    return "That gives me the story. What was the visible outcome — customer satisfaction, fewer escalations, faster resolution, better quality, or a clearer handover?";
   }
 
   if (!/\b(result|impact|outcome|after|so|therefore|which led|improved|reduced|increased|saved)\b/i.test(answer)) {
@@ -2907,7 +2907,7 @@ function buildMemoryAwareFollowUp(
   if (memory.missingMetrics >= 2 && !wasTopicCovered(memory, "metrics_recovery")) {
     return memory.missingMetrics > 3
       ? "Let's try a different angle — pick any task you did regularly. Roughly how often, how long, or by how much did it change something?"
-      : "You've now given a few answers without numbers. Give me one concrete metric: volume, time saved, customer impact, revenue, quality, tickets, or conversion.";
+      : "You’ve given useful context. Do you have any rough scale for it — volume handled, response time, customer rating, tickets, or frequency? A rough number is enough.";
   }
 
   if (memory.missingOwnership >= 2 && !wasTopicCovered(memory, "ownership_recovery")) {
@@ -3052,7 +3052,7 @@ function findWeakestInterviewMoment(transcript: TranscriptItem[], memory: Recrui
 // Used only as a safe fallback for static helper calls where setupRef is not available.
 function setupRefSafeFallback(): InterviewSetup {
   return {
-    candidateName: "Candidate",
+    candidateName: "",
     targetRole: "Interview Role",
     recruiterId: "friendly_hr",
     recruiterName: "Sarah",
@@ -3118,17 +3118,24 @@ function shouldMergeVisibleTranscript(
 }
 
 function safeFirstName(name: string) {
-  const cleaned = safeText(name, "Candidate").replace(/\s+/g, " ").trim();
-  return cleaned.split(" ")[0] || "Candidate";
+  const cleaned = safeText(name, "").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+  return cleaned.split(" ")[0] || "";
 }
 
 function safeGreetingName(name: string) {
   const firstName = safeFirstName(name);
   if (!firstName) return "there";
-  // Reject if first word is a section header, title word, or clearly not a human name
-  if (/^(candidate|user|there|unknown|resume|cv|profile|surrender|data|science|technical|business|customer|senior|junior|lead|head|chief|intern|graduate|bootcamp|school|university|college|institute|marketing|finance|product|digital|growth|success|manager|engineer|analyst|specialist|consultant|developer|coordinator|director|assistant|associate|officer|partner|talent|recruiter|hiring|support)$/i.test(firstName)) return "there";
+  // Global guard: never greet with auth visibility labels, CV section headers,
+  // job titles, technologies, skills, or extracted project/company words.
+  if (/^(public|private|candidate|user|there|unknown|anonymous|guest|resume|cv|profile|summary|contact|skills?|experience|education|projects?|languages?|surrender|data|science|technical|business|customer|senior|junior|lead|head|chief|intern|graduate|bootcamp|school|university|college|institute|marketing|finance|product|digital|growth|success|manager|engineer|analyst|specialist|consultant|developer|coordinator|director|assistant|associate|officer|partner|talent|recruiter|hiring|support|tools?|programming|python|sql|javascript|typescript|java|cloud|gcp|aws|azure|machine|learning|tableau|matplotlib|seaborn|tensorflow|sklearn|langchain|api|nlp|rag|system|integration)$/i.test(firstName)) return "there";
   if (!/^[A-Za-zÀ-ÖØ-öø-ÿ' .-]{2,24}$/.test(firstName)) return "there";
   return firstName;
+}
+
+function safePromptCandidateName(name: string) {
+  const greeting = safeGreetingName(name);
+  return greeting === "there" ? "there" : greeting;
 }
 
 function isProgressWorthyRecruiterTurn(text: string) {
@@ -3318,7 +3325,7 @@ export default function InterviewPage() {
   const [upgradeModalFeature, setUpgradeModalFeature] = useState<string>("");
   const upgradeModalOpen = Boolean(upgradeModalFeature);
   const [setup, setSetup] = useState<InterviewSetup>({
-    candidateName: "Candidate",
+    candidateName: "",
     targetRole: "Interview Role",
     recruiterId: "friendly_hr",
     recruiterName: "Loading recruiter",
@@ -3461,6 +3468,29 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const answerBufferRef = useRef("");
   const questionIndexRef = useRef(0);
   const stopRequestedRef = useRef(false);
+  const startListeningRef = useRef<(() => void | Promise<void>) | null>(null);
+
+  // Stops the recruiter speaking immediately — called by the interrupt button.
+  // Important: this callback is declared before startListening, so it must call
+  // startListening through a ref. Adding startListening directly to this
+  // dependency array causes a runtime TDZ error:
+  // "Cannot access 'startListening' before initialization".
+  const stopRecruiterSpeaking = useCallback(() => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current.currentTime = 0;
+      currentAudioRef.current = null;
+    }
+    if (typeof window !== "undefined") {
+      try { window.speechSynthesis?.cancel(); } catch {}
+    }
+    if (status === "recruiter-speaking") {
+      setStatus("listening");
+      window.setTimeout(() => {
+        startListeningRef.current?.();
+      }, 150);
+    }
+  }, [status]);
   const setupRef = useRef(setup);
   const recruiterMemoryRef = useRef(defaultRecruiterMemory);
   const transcriptRef = useRef<TranscriptItem[]>([]);
@@ -3472,6 +3502,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const premiumVoiceEnabledRef = useRef(premiumVoiceEnabled);
   const audioEnabledRef = useRef(audioEnabled);
   const vapiClientRef = useRef<WorkZoVapiClient | null>(null);
+  // Stores the currently playing TTS Audio element so the user can interrupt
+  // the recruiter mid-speech by tapping the new stop button.
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const vapiConnectedRef = useRef(false);
   const vapiStartingRef = useRef(false);
   const vapiFallbackStartedRef = useRef(false);
@@ -3817,6 +3850,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
             jobDescription: currentSetup.jobDescription,
             targetRole: currentSetup.targetRole,
             targetCompany: currentSetup.targetCompany || currentSetup.companyName,
+            candidateName: currentSetup.candidateName,
             recruiterName: currentSetup.recruiterName,
             recruiterTitle: currentSetup.recruiterTitle,
             language: currentSetup.language,
@@ -4101,6 +4135,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
     }
   }, [addTranscript]);
 
+  useEffect(() => {
+    startListeningRef.current = startListening;
+  }, [startListening]);
+
   const speakRecruiter = useCallback(
     async (text: string) => {
       const activeSetup = setupRef.current;
@@ -4158,10 +4196,11 @@ const [questionIndex, setQuestionIndex] = useState(0);
             const audioBlob = await ttsRes.blob();
             const audioUrl = URL.createObjectURL(audioBlob);
             const audio = new Audio(audioUrl);
+            currentAudioRef.current = audio;
             setStatus("recruiter-speaking");
             await new Promise<void>((resolve) => {
-              audio.onended = () => { URL.revokeObjectURL(audioUrl); resolve(); };
-              audio.onerror = () => { URL.revokeObjectURL(audioUrl); resolve(); };
+              audio.onended = () => { URL.revokeObjectURL(audioUrl); currentAudioRef.current = null; resolve(); };
+              audio.onerror = () => { URL.revokeObjectURL(audioUrl); currentAudioRef.current = null; resolve(); };
               audio.play().catch(() => resolve());
             });
             window.setTimeout(() => startListening(), 280);
@@ -4192,13 +4231,16 @@ const [questionIndex, setQuestionIndex] = useState(0);
             const audioBlob = await el11Res.blob();
             const audioUrl = URL.createObjectURL(audioBlob);
             const audio = new Audio(audioUrl);
+            currentAudioRef.current = audio;
             setStatus("recruiter-speaking");
             audio.onended = () => {
               URL.revokeObjectURL(audioUrl);
+              currentAudioRef.current = null;
               if (!stopRequestedRef.current) window.setTimeout(() => startListening(), 280);
             };
             audio.onerror = () => {
               URL.revokeObjectURL(audioUrl);
+              currentAudioRef.current = null;
               // Fall through to browser TTS below
             };
             await audio.play().catch(() => null);
@@ -4582,11 +4624,11 @@ const [questionIndex, setQuestionIndex] = useState(0);
         });
 
         const variableValues = buildWorkZoVapiVariableValues({
-          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildOpeningFlowInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize evidence, ownership, STAR structure, metrics, and role relevance. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. Do not invent farewell names or phrases. End only with: 'Thank you for your time, {candidateName}. We will be in touch soon. Have a great day.'`,
-          strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize evidence, ownership, STAR structure, metrics, and role relevance.`,
+          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildOpeningFlowInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. Do not repeat a follow-up that was already asked. If the CV role and target role are different, explore why the candidate is switching and what proof shows readiness before asking for impact numbers. If the candidate gives a qualitative outcome such as CSAT, customer satisfaction, repeat customers, fewer escalations, or faster resolution, accept it as evidence and move to the next relevant topic. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. If {candidateName} is "there" or not a real first name, do not use a name in the closing; say: 'Thank you for your time. We will be in touch soon. Have a great day.' Otherwise end only with: 'Thank you for your time, {candidateName}. We will be in touch soon. Have a great day.'`,
+          strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. Do not repeat the same follow-up twice.`,
           recruiterMustChallengeUnsupportedClaims: "true",
           antiHallucinationMode: "strict",
-          candidateName: safeGreetingName(activeSetup.candidateName),
+          candidateName: safePromptCandidateName(activeSetup.candidateName),
           recruiterName: activeSetup.recruiterName,
           recruiterRole: activeSetup.recruiterTitle,
           targetRole: activeSetup.targetRole,
@@ -5716,6 +5758,16 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
               <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-black/50 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-emerald-300 backdrop-blur-sm">
                 <span className="inline-block h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.9)]" /> {waitingRoomActive ? "CONNECTING" : status === "recruiter-speaking" ? "SPEAKING" : status === "listening" ? "LISTENING" : status === "thinking" ? "THINKING" : "READY"}
+                {status === "recruiter-speaking" && (
+                  <button
+                    type="button"
+                    onClick={stopRecruiterSpeaking}
+                    className="ml-3 inline-flex items-center gap-1.5 rounded-full bg-amber-400/15 px-3 py-0.5 text-[11px] font-black uppercase tracking-wider text-amber-300 ring-1 ring-amber-400/30 transition hover:bg-amber-400/25 active:scale-95"
+                    aria-label="Interrupt recruiter"
+                  >
+                    ✋ Interrupt
+                  </button>
+                )}
               </div>
 
               {/* Recruiter visual state overlay — emotional reaction ring */}

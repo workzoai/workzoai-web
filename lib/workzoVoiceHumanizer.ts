@@ -1,3 +1,16 @@
+/**
+ * workzoVoiceHumanizer.ts
+ *
+ * Sprint fix: Sarah and Priya voice instructions upgraded for warmth and naturalness.
+ * The WBS feedback said "robotic and difficult to understand" — this is the fix.
+ *
+ * Key changes:
+ * - Sarah: genuinely warm, encouraging, conversational — like a supportive mentor
+ * - Priya: energetic and direct but still human, not a speed-reader
+ * - All personas: slower base rate, micro-pauses, pitch variation, clear enunciation
+ * - TTS instructions now explicitly describe the emotional quality, not just style
+ */
+
 export type WorkZoVoiceRecruiterId =
   | "friendly_hr"
   | "startup_recruiter"
@@ -33,15 +46,13 @@ function clamp(value: number, min: number, max: number) {
 
 function normalizeRecruiter(recruiterId?: WorkZoVoiceRecruiterId) {
   const raw = String(recruiterId || "").toLowerCase();
-  // Premium-pro personas mapped to same-gender existing style buckets.
-  if (raw.includes("faang") || raw.includes("alex")) return "daniel";        // male → analytical
-  if (raw.includes("startup_founder") || raw.includes("zoe")) return "priya"; // female → startup
-  if (raw.includes("consulting") || raw.includes("james")) return "daniel";  // male → analytical
-  if (raw.includes("sales_director") || raw.includes("marcus")) return "markus"; // male → corporate
-  if (raw.includes("product_leader") || raw.includes("aisha")) return "sarah"; // female → friendly
-  if (raw.includes("executive_recruiter") || raw.includes("victoria")) return "sarah"; // female → friendly
-  if (raw.includes("enterprise_recruiter") || raw.includes("david")) return "markus"; // male → corporate
-  // Standard 4 (order matters: startup_founder handled above before generic startup check)
+  if (raw.includes("faang") || raw.includes("alex")) return "daniel";
+  if (raw.includes("startup_founder") || raw.includes("zoe")) return "priya";
+  if (raw.includes("consulting") || raw.includes("james")) return "daniel";
+  if (raw.includes("sales_director") || raw.includes("marcus")) return "markus";
+  if (raw.includes("product_leader") || raw.includes("aisha")) return "sarah";
+  if (raw.includes("executive_recruiter") || raw.includes("victoria")) return "sarah";
+  if (raw.includes("enterprise_recruiter") || raw.includes("david")) return "markus";
   if (raw.includes("startup") || raw.includes("priya")) return "priya";
   if (raw.includes("friendly") || raw.includes("sarah")) return "sarah";
   if (raw.includes("german") || raw.includes("corporate") || raw.includes("markus")) return "markus";
@@ -57,151 +68,184 @@ export function getWorkZoVoiceStyle(
   const state = String(recruiterState || "neutral").toLowerCase();
   const pressure = state.includes("skeptical") || state.includes("pressuring") || state.includes("losing");
   const recovery = state.includes("recovering");
+  const engaged = state.includes("engaged") || state.includes("interested");
 
+  // ── Sarah — warm, encouraging, professional HR recruiter ─────────────────
+  // Target sound: like a supportive career coach who genuinely wants you to succeed.
+  // NOT: a neutral narrator. NOT: robotic question-machine.
+  if (key === "sarah") {
+    return {
+      label: "friendly HR recruiter",
+      personalityCue: pressure
+        ? "warm but concerned HR recruiter; still supportive but asking for clarity"
+        : engaged
+          ? "genuinely enthusiastic HR recruiter; warm, encouraging, leaning in"
+          : "warm, professional HR recruiter; caring, genuine, supportive",
+      pacingCue: pressure
+        ? "slightly firmer but still warm; slower sentences with clear pauses"
+        : "gentle and natural; unhurried; small warm pauses after questions",
+      emotionalCue: recovery
+        ? "relieved and encouraging; 'that's clearer, thank you' energy"
+        : pressure
+          ? "gently concerned; 'I want to make sure I understand' energy"
+          : engaged
+            ? "genuinely interested; 'that's really interesting' energy"
+            : "calm and encouraging; 'I'm listening and I care' energy",
+      fillerPool: pressure
+        ? ["I see.", "Let me understand that better.", "Help me with this."]
+        : engaged
+          ? ["That's helpful.", "Okay, that makes sense.", "Good."]
+          : ["I see.", "Okay.", "That's helpful."],
+      rateBias: -0.06, // Noticeably slower than default — warmth needs space
+      pitchBias: 0.05, // Slightly higher pitch = warmer, more human
+      minPauseMs: pressure ? 620 : 480,
+      maxPauseMs: pressure ? 1300 : 1050,
+    };
+  }
+
+  // ── Priya — energetic startup recruiter, still human ─────────────────────
+  // Target sound: fast-thinking, direct, but not robotic. Like a smart startup PM.
   if (key === "priya") {
     return {
       label: "startup recruiter",
-      personalityCue: "warm, energetic startup recruiter; concise, practical, ownership-focused",
-      pacingCue: pressure ? "slightly faster, direct, still fair" : "natural, lively, conversational",
-      emotionalCue: recovery ? "encouraging but still assessing" : pressure ? "curious but unconvinced" : "engaged and friendly",
-      fillerPool: pressure ? ["Right", "Okay", "Let’s be specific"] : ["Okay", "Got it", "That makes sense"],
-      rateBias: pressure ? 0.04 : 0.01,
-      pitchBias: 0.02,
-      minPauseMs: pressure ? 520 : 420,
-      maxPauseMs: pressure ? 1150 : 950,
+      personalityCue: pressure
+        ? "direct, fast-paced startup recruiter; unconvinced and probing"
+        : "warm, energetic startup recruiter; practical, ownership-focused, concise",
+      pacingCue: pressure
+        ? "faster and more direct; still fair but pushing for specifics"
+        : "natural and lively; energetic but not rushed; clear pauses after key questions",
+      emotionalCue: recovery
+        ? "cautiously encouraging; 'okay that helps' energy"
+        : pressure
+          ? "curious but unconvinced; 'I need more than that' energy"
+          : "engaged and friendly; 'tell me more' energy",
+      fillerPool: pressure
+        ? ["Right.", "Okay, but.", "Let's be specific."]
+        : ["Got it.", "Okay.", "That makes sense."],
+      rateBias: 0.01, // Slightly faster than default, but not much
+      pitchBias: 0.03,
+      minPauseMs: pressure ? 500 : 400,
+      maxPauseMs: pressure ? 1100 : 900,
     };
   }
 
+  // ── Markus — structured corporate recruiter ───────────────────────────────
   if (key === "markus") {
     return {
       label: "corporate recruiter",
-      personalityCue: "structured corporate interviewer; precise, calm, evidence-driven",
-      pacingCue: pressure ? "measured and firmer" : "steady and professional",
-      emotionalCue: recovery ? "reserved but open" : pressure ? "skeptical and exacting" : "neutral and attentive",
-      fillerPool: pressure ? ["Let me be precise", "I need evidence here"] : ["Understood", "Good", "Let’s continue"],
-      rateBias: pressure ? 0.02 : -0.02,
+      personalityCue: "structured, precise corporate interviewer; professional, calm, evidence-driven",
+      pacingCue: pressure ? "measured and firmer; waiting for structured answers" : "steady and professional; deliberate pauses",
+      emotionalCue: recovery ? "reserved but open; 'that clarifies it' energy" : pressure ? "skeptical and exacting; 'I need precision here' energy" : "neutral and attentive; 'I'm evaluating carefully' energy",
+      fillerPool: pressure ? ["Let me be precise.", "I need evidence here."] : ["Understood.", "Good.", "Continue."],
+      rateBias: -0.03,
       pitchBias: -0.02,
-      minPauseMs: pressure ? 760 : 620,
-      maxPauseMs: pressure ? 1450 : 1250,
+      minPauseMs: pressure ? 780 : 640,
+      maxPauseMs: pressure ? 1500 : 1280,
     };
   }
 
+  // ── Daniel — analytical hiring manager ───────────────────────────────────
   if (key === "daniel") {
     return {
       label: "analytical hiring manager",
-      personalityCue: "analytical hiring manager; calm, logical, detail-oriented",
-      pacingCue: pressure ? "slower, probing, analytical" : "thoughtful and measured",
-      emotionalCue: recovery ? "noticing improvement" : pressure ? "checking the reasoning carefully" : "curious and focused",
-      fillerPool: pressure ? ["Let’s examine that", "Hold on", "Walk me through it"] : ["Interesting", "I see", "Okay"],
-      rateBias: pressure ? -0.01 : -0.03,
+      personalityCue: "calm, analytical hiring manager; logical, detail-oriented, evidence-focused",
+      pacingCue: pressure ? "slower, probing; waiting after questions" : "thoughtful and measured; deliberate",
+      emotionalCue: recovery ? "noticing improvement; 'that's clearer' energy" : pressure ? "checking reasoning carefully; 'let me think about that' energy" : "curious and focused; 'interesting, tell me more' energy",
+      fillerPool: pressure ? ["Let's examine that.", "Hold on.", "Walk me through it."] : ["Interesting.", "I see.", "Okay."],
+      rateBias: -0.04,
       pitchBias: -0.01,
-      minPauseMs: pressure ? 820 : 650,
-      maxPauseMs: pressure ? 1550 : 1300,
+      minPauseMs: pressure ? 840 : 660,
+      maxPauseMs: pressure ? 1580 : 1320,
     };
   }
 
-  return {
-    label: "friendly HR recruiter",
-    personalityCue: "friendly HR recruiter; warm, reassuring, human, but still professional",
-    pacingCue: pressure ? "gentle but firmer" : "warm and natural",
-    emotionalCue: recovery ? "supportive and encouraging" : pressure ? "concerned but fair" : "welcoming and engaged",
-    fillerPool: pressure ? ["Let me pause there", "Okay", "I want to understand this clearly"] : ["Of course", "That’s okay", "Good to hear"],
-    rateBias: pressure ? 0.0 : -0.02,
-    pitchBias: 0.03,
-    minPauseMs: pressure ? 650 : 480,
-    maxPauseMs: pressure ? 1300 : 1050,
-  };
+  // Default to sarah
+  return getWorkZoVoiceStyle("sarah", recruiterState);
 }
 
-export function calculateWorkZoThinkingPauseMs(input: {
-  text?: string;
-  recruiterId?: WorkZoVoiceRecruiterId;
-  recruiterState?: WorkZoVoiceRecruiterState;
-  isOpening?: boolean;
-  isFollowUp?: boolean;
-  apiPauseMs?: number | null;
-}) {
-  const style = getWorkZoVoiceStyle(input.recruiterId, input.recruiterState);
-  if (typeof input.apiPauseMs === "number" && Number.isFinite(input.apiPauseMs)) {
-    return clamp(input.apiPauseMs, 350, 1900);
-  }
-
-  const words = String(input.text || "").split(/\s+/).filter(Boolean).length;
-  const state = String(input.recruiterState || "").toLowerCase();
-  const pressure = state.includes("skeptical") || state.includes("pressuring") || state.includes("losing");
-
-  const base = input.isOpening ? 420 : input.isFollowUp ? 720 : 620;
-  const wordFactor = clamp(words * 12, 0, 360);
-  const pressureFactor = pressure ? 260 : 0;
-  return clamp(base + wordFactor + pressureFactor, style.minPauseMs, style.maxPauseMs);
-}
-
-function hasNaturalLead(text: string) {
-  return /^(okay|right|got it|understood|of course|good|interesting|i see|thanks|thank you|let me|that makes sense|fair enough)\b/i.test(text.trim());
-}
-
-function shouldAvoidExtraFiller(text: string) {
-  const clean = text.trim();
-  if (!clean) return true;
-  if (clean.length < 45) return true;
-  if (hasNaturalLead(clean)) return true;
-  if (/^(hi|hello|good morning|good afternoon|good evening)\b/i.test(clean)) return true;
-  return false;
-}
-
-export function humanizeRecruiterSpokenText(
-  text: string,
-  input: {
-    recruiterId?: WorkZoVoiceRecruiterId;
-    recruiterState?: WorkZoVoiceRecruiterState;
-    isOpening?: boolean;
-    allowFiller?: boolean;
-  } = {},
-) {
-  let clean = String(text || "").replace(/\s+/g, " ").trim();
-  if (!clean) return clean;
-
-  // Remove doubled acknowledgements that make the recruiter sound machine-generated.
-  clean = clean
-    .replace(/\b(Okay, thanks\.)\s+\1/gi, "$1")
-    .replace(/\b(That makes sense\.)\s+\1/gi, "$1")
-    .replace(/\b(Good to hear\.)\s+\1/gi, "$1")
-    .replace(/\b(I understand\.)\s+\1/gi, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  const style = getWorkZoVoiceStyle(input.recruiterId, input.recruiterState);
-  const canAddFiller = input.allowFiller !== false && !input.isOpening && !shouldAvoidExtraFiller(clean);
-
-  if (canAddFiller) {
-    const state = String(input.recruiterState || "").toLowerCase();
-    const pressure = state.includes("skeptical") || state.includes("pressuring") || state.includes("losing");
-    const filler = pressure ? style.fillerPool[0] : style.fillerPool[Math.min(1, style.fillerPool.length - 1)];
-    if (filler && !clean.toLowerCase().startsWith(filler.toLowerCase())) {
-      clean = `${filler}. ${clean}`;
-    }
-  }
-
-  return clean
-    .replace(/\.\s+But\b/g, ". But")
-    .replace(/\?\s+Can you/g, "? Can you")
-    .trim();
-}
-
+/**
+ * getOpenAiTtsInstructions — the instructions sent to gpt-4o-mini-tts.
+ *
+ * These are the single most important lever for audio quality.
+ * More specific = less robotic. Generic = robotic.
+ */
 export function getOpenAiTtsInstructions(input: {
   recruiterId?: WorkZoVoiceRecruiterId;
   recruiterState?: WorkZoVoiceRecruiterState;
   mode?: string;
 }) {
-  const style = getWorkZoVoiceStyle(input.recruiterId, input.recruiterState);
+  const key = normalizeRecruiter(input.recruiterId);
+  const state = String(input.recruiterState || "neutral").toLowerCase();
+  const pressure = state.includes("skeptical") || state.includes("pressuring");
+  const engaged = state.includes("engaged") || state.includes("interested");
+
+  // ── Sarah: specific instructions for warm human delivery ─────────────────
+  if (key === "sarah") {
+    const emotional = pressure
+      ? "You sound gently concerned — like a recruiter who cares but needs more clarity. Slightly firmer but still warm."
+      : engaged
+        ? "You sound genuinely interested and encouraging — like someone who is leaning forward and wants the candidate to succeed."
+        : "You sound warm, professional, and genuinely caring — like a senior HR partner who has heard thousands of interviews and still treats each person as an individual.";
+
+    return [
+      "You are Sarah, a warm and professional HR recruiter on a video call interview.",
+      emotional,
+      "Speak at about 80% of your normal pace — slow enough to be clear, natural enough to be human.",
+      "Use small, natural pauses after each sentence, especially after questions. Let the silence invite the candidate to think.",
+      "Vary your pitch naturally across sentences — start slightly higher, resolve lower at the end. Never monotone.",
+      "Pronounce every word clearly but not robotically — especially multi-syllable words like 'experience', 'opportunity', 'specifically'.",
+      "Do not rush. Do not sound like a text-to-speech system. Sound like a real person on a video call.",
+      "Do not add theatrical emotion or enthusiasm. Warm and professional is the target, not cheerful or salesy.",
+    ].join(" ");
+  }
+
+  // ── Priya: energetic but human ───────────────────────────────────────────
+  if (key === "priya") {
+    const emotional = pressure
+      ? "You sound direct and unconvinced — like a startup recruiter who needs more than what was just said."
+      : "You sound energetic and engaged — like a smart startup PM who is genuinely curious about this person.";
+
+    return [
+      "You are Priya, an energetic startup recruiter on a video call interview.",
+      emotional,
+      "Speak at a natural, lively pace — quicker than a formal interview but not rushed. Think: smart conversation between colleagues.",
+      "Use short natural pauses after questions. Let them breathe without dragging.",
+      "Vary your pitch to convey genuine interest — a slight rise when asking, a slight drop when making a point.",
+      "Sound like a real person, not a transcript being read aloud. Concise and direct.",
+      "Do not sound robotic. Do not rush. Keep pronunciation clear especially for non-native speakers.",
+    ].join(" ");
+  }
+
+  // ── Markus ────────────────────────────────────────────────────────────────
+  if (key === "markus") {
+    return [
+      "You are Markus, a structured corporate recruiter on a video call interview.",
+      pressure ? "You sound measured and precise — evaluating carefully." : "You sound professional and calm — steady and deliberate.",
+      "Speak at a measured, professional pace — about 85% of normal speed.",
+      "Use clear, even pauses between sentences. No rushing. Deliberate pacing.",
+      "Pitch should be slightly lower than neutral — authoritative but not cold.",
+      "Sound professional and precise. Clear enunciation on technical terms and dates.",
+    ].join(" ");
+  }
+
+  // ── Daniel ────────────────────────────────────────────────────────────────
+  if (key === "daniel") {
+    return [
+      "You are Daniel, an analytical hiring manager on a video call interview.",
+      pressure ? "You sound thoughtful and probing — waiting for the evidence you need." : "You sound calm and curious — analytically interested.",
+      "Speak at about 85% of normal pace — thoughtful pauses after questions, not rushed.",
+      "Pitch should be neutral to slightly lower — analytical, not cold.",
+      "Enunciate clearly. Pause naturally between thoughts.",
+      "Sound like a real interviewer who is genuinely thinking about the answer.",
+    ].join(" ");
+  }
+
+  // Default
   return [
-    `Speak as a ${style.label}.`,
-    style.personalityCue,
-    `Pacing: ${style.pacingCue}.`,
-    `Emotion: ${style.emotionalCue}.`,
-    "Sound like a real interviewer on a video call, not a narrator.",
-    "Use natural pauses between thoughts. Do not sound theatrical or salesy.",
-    "Keep pronunciation clear for non-native English speakers.",
+    "You are a professional recruiter on a video call interview.",
+    "Speak at 85% of normal pace — clear, warm, and human.",
+    "Use natural pauses after questions. Vary pitch slightly — never monotone.",
+    "Sound like a real person, not a text-to-speech system. Keep pronunciation clear for non-native English speakers.",
   ].join(" ");
 }
 
@@ -211,7 +255,7 @@ export function getBrowserSpeechRate(input: {
   recruiterState?: WorkZoVoiceRecruiterState;
 }) {
   const style = getWorkZoVoiceStyle(input.recruiterId, input.recruiterState);
-  return clamp(input.baseRate + style.rateBias, 0.82, 1.0);
+  return clamp(input.baseRate + style.rateBias, 0.76, 0.98); // Cap max at 0.98 — never sound rushed
 }
 
 export function getBrowserSpeechPitch(input: {
@@ -220,5 +264,32 @@ export function getBrowserSpeechPitch(input: {
   recruiterState?: WorkZoVoiceRecruiterState;
 }) {
   const style = getWorkZoVoiceStyle(input.recruiterId, input.recruiterState);
-  return clamp(input.basePitch + style.pitchBias, 0.86, 1.16);
+  return clamp(input.basePitch + style.pitchBias, 0.86, 1.18);
+}
+
+export function humanizeRecruiterSpokenText(
+  rawText: string,
+  options?: {
+    recruiterId?: WorkZoVoiceRecruiterId;
+    recruiterState?: WorkZoVoiceRecruiterState;
+    allowFiller?: boolean;
+  },
+): string {
+  if (!rawText) return rawText;
+  let text = rawText.replace(/\s+/g, " ").trim();
+
+  // Strip any candidate-side filler that leaked into recruiter text
+  text = text.replace(/\b(um+|uh+|erm)\b/gi, "").replace(/\s{2,}/g, " ").trim();
+
+  // Shorten very long sentences (>50 words in one breath sounds robotic)
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  if (sentences.length === 1 && text.split(/\s+/).length > 50) {
+    // Find a natural comma break and split there
+    const commaIdx = text.indexOf(", ", Math.floor(text.length * 0.4));
+    if (commaIdx > 0) {
+      text = text.slice(0, commaIdx + 1) + " " + text.slice(commaIdx + 2);
+    }
+  }
+
+  return text;
 }

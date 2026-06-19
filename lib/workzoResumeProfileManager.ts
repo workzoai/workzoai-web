@@ -61,7 +61,7 @@ function compactDecorativeLine(line: string) {
 
   const tokens = cleaned.split(/\s+/).filter(Boolean);
 
-  // H A R I T H A V I J A Y A K U M A R -> HARITHAVIJAYAKUMAR
+  // Decorative spaced-letter names -> compact uppercase token
   if (tokens.length >= 4 && tokens.every((token) => /^\p{Lu}$/u.test(token))) {
     return tokens.join("");
   }
@@ -81,13 +81,13 @@ function prepareLines(rawText: string) {
 
 const STRONG_SECTION_RE = /^(about\s+me|awards?|awards?\s+received|berufliches\s+profil|berufserfahrung|bildung|bildungsweg|contacts?|core\s+competencies|education|education\s+and\s+training|erfolge\s+beim\s+kunden|experience|expertise|fähigkeiten|fahigkeiten|kontakt|languages?|overview|professional\s+experience|professional\s+summary|profile|profile\s+overview|profile\s+summary|profil(?:\s*übersicht|\s*ubersicht)?|projects?|references?|skills?|summary|summary\s+of\s+skills|work\s+experience|certifications?|zertifikate)$/i;
 
-const BAD_NAME_WORD_RE = /\b(candidate|professional|unknown|resume|cv|curriculum|profile|profilesummary|summary|experience|workexperience|education|skills?|projects?|languages?|contact|email|phone|linkedin|github|headline|english|german|deutsch|dutch|french|spanish|italian|portuguese|fluent|native|conversational|support|engineer|analyst|manager|specialist|developer|consultant|technical|data|customer|success|sales|marketing|product|project|program|software|frontend|backend|fullstack|itil|itsm|api|sql|python|tableau|power\s*bi|gcp|aws|rag|nlp|machine\s+learning|matplotlib|seaborn|tensorflow|sklearn|langchain|programming|bash|powershell|security|cloud|ticketing|roadmapping|agile|scrum|stakeholder|competencies|initiative|platform|dashboard|teacher|preschool|accountant|designer|coordinator|assistant|intern|school|university|college|industries|solutions|community|financial|senior|junior|principal|chief|jede|stadt|straße|strasse|anywhere|magist)\b/i;
+const BAD_NAME_WORD_RE = /\b(candidate|professional|unknown|resume|cv|curriculum|profile|profilesummary|summary|experience|workexperience|education|skills?|projects?|languages?|contact|email|phone|linkedin|github|headline|english|german|deutsch|dutch|french|spanish|italian|portuguese|fluent|native|conversational|support|engineer|analyst|manager|specialist|developer|consultant|technical|data|customer|success|sales|marketing|product|project|program|software|frontend|backend|fullstack|itil|itsm|api|sql|python|tableau|power\s*bi|gcp|aws|rag|nlp|machine\s+learning|matplotlib|seaborn|tensorflow|sklearn|langchain|programming|bash|powershell|security|cloud|ticketing|roadmapping|agile|scrum|stakeholder|competencies|initiative|platform|dashboard|teacher|preschool|accountant|designer|coordinator|assistant|intern|school|university|college|industries|solutions|community|financial|senior|junior|principal|chief|jede|stadt|straße|strasse)\b/i;
 
 const ROLE_TITLE_RE = /\b(graphic\s+designer|financial\s+accountant|senior\s+accountant|professional\s+accountant|product\s+manager|project\s+manager|product\s+design\s+engineer|technical\s+support|support\s+engineer|customer\s+success|data\s+analyst|software\s+engineer|cybersecurity\s+engineer|cybersecurity\s+analyst|ux\s+designer|ui\s+designer|account\s+manager|sales\s+manager|business\s+analyst|it\s+support|it\s+project\s+manager|preschool\s+teacher|freelance\s+tutor|volunteer\s+preschool\s+assistant|communications\s+coordinator|pr\s+manager|pr\s+specialist|cloud\s+security|threat\s+detection|application\s+engineer)\b/i;
 
 const ORG_WORD_RE = /\b(gmbh|ug|ag|kg|ltd|limited|llc|inc|corp|corporation|company|co\.?|group|holding|services|solutions|systems|technologies|technology|software|digital|media|industries|university|college|school|schule|hochschule|institute|academy|akademie|foundation|department|bootcamp|preschool|kindergarten)\b/i;
 
-const CONTACT_LOCATION_RE = /@|www\.|https?:|linkedin|github|\+?\d[\d\s()./-]{5,}|\b(street|strasse|straße|road|avenue|weg|platz|city|town|germany|deutschland|india|canada|usa|uk|munich|münchen|w[üu]rzburg|berlin|chennai|london|anywhere|address|adresse)\b/i;
+const CONTACT_LOCATION_RE = /@|www\.|https?:|linkedin|github|\+?\d[\d\s()./-]{5,}|\b(street|strasse|straße|road|avenue|weg|platz|city|town|germany|deutschland|india|canada|usa|uk|munich|münchen|w[üu]rzburg|berlin|chennai|london|address|adresse)\b/i;
 
 const DATE_RE = /\b(?:19|20)\d{2}\b|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|present|current|heute)\b/i;
 
@@ -176,6 +176,29 @@ export function extractNameFromEmail(rawText: string): string {
   return "";
 }
 
+
+export function extractExplicitCandidateName(rawText: string): string {
+  const lines = prepareLines(rawText).slice(0, 80);
+
+  for (const line of lines) {
+    const match = line.match(/^(?:candidate\s*name|applicant\s*name|full\s*name|name)\s*[:\-]\s*(.+)$/i);
+    if (!match) continue;
+    const candidate = validateCandidateName(match[1]);
+    if (candidate) return candidate;
+  }
+
+  // Structured WorkZo context sometimes stores the name as a sentence-like line.
+  // Trust this only when the value after the label passes the global human-name validator.
+  const flat = String(rawText || "").replace(/\r/g, "\n");
+  const inline = flat.match(/(?:^|\n)\s*(?:Candidate name|Applicant name|Full name|Name)\s*[:\-]\s*([^\n|•]+)(?:\n|$)/i);
+  if (inline) {
+    const candidate = validateCandidateName(inline[1]);
+    if (candidate) return candidate;
+  }
+
+  return "";
+}
+
 function nameAppearsInStructuredContent(profile: Partial<ResumeProfile> | ResumeProfile | null | undefined, name: string) {
   const key = norm(name);
   if (!profile || !key) return false;
@@ -200,6 +223,9 @@ export function extractCanonicalCandidateName(
 ): string {
   const lines = prepareLines(rawText);
   const candidates: Array<{ name: string; score: number; reason: string }> = [];
+
+  const explicitCandidate = extractExplicitCandidateName(rawText);
+  if (explicitCandidate) candidates.push({ name: explicitCandidate, score: 240, reason: "explicit-label" });
 
   const knownCandidate = validateCandidateName(knownName);
   if (knownCandidate) candidates.push({ name: knownCandidate, score: 200, reason: "known" });
@@ -249,7 +275,7 @@ export function extractCanonicalCandidateName(
     }
   }
 
-  // Compact confirmation: HARITHAVIJAYAKUMAR must become Haritha Vijayakumar when confirmed by file/email.
+  // Compact confirmation: decorative all-caps names are trusted only when confirmed by file/email/known name.
   for (let i = 0; i < Math.min(lines.length, 120); i += 1) {
     const compact = normalizedNameKey(lines[i]);
     if (compact.length < 8) continue;
@@ -286,7 +312,7 @@ function chooseSaferName(
   if (currentValid && !nameAppearsInStructuredContent(profile, currentValid)) return currentValid;
   if (canonicalValid) return canonicalValid;
   if (currentValid) return currentValid;
-  return "Candidate";
+  return "";
 }
 
 export function enforceCanonicalCandidateName<T extends Partial<ResumeProfile> | ResumeProfile>(
@@ -306,14 +332,11 @@ export function enforceCanonicalCandidateName<T extends Partial<ResumeProfile> |
     knownName,
   );
 
-  next.basics.name = chooseSaferName(current, canonical, next);
-
-  // Always clean the email field — fixes phone+email concatenation from PDF extraction
-  // e.g. "+123-456-7890hello@reallygreatsite.com" → "hello@reallygreatsite.com"
-  if (next.basics.email) {
-    next.basics.email = cleanEmail(next.basics.email);
-  }
-
+  const resolvedName = chooseSaferName(current, canonical, next);
+  next.basics.name = resolvedName;
+  // Some older WorkZo client code and debug tools read profile.name directly.
+  // Keep it synchronized with basics.name so a bad AI-generated name cannot leak downstream.
+  (next as T & { name?: string }).name = resolvedName;
   return next as T;
 }
 
@@ -348,30 +371,72 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
       linkedin: cleanText(basics.linkedin, 300),
     },
     summary: cleanText(p.summary, 1800),
-    experience: unique(Array.isArray(p.experience) ? p.experience : [], (e) => `${e.company}|${e.title}|${e.dates}`).map((e) => ({
+    experience: unique(Array.isArray(p.experience) ? p.experience : [], (e) => {
+      // Deduplicate by company+title only (dates are unreliable from some parsers).
+      // Also reject entries where title === company (parser artifact) or title is a date.
+      const t = cleanText(e.title, 180);
+      const c = cleanText(e.company, 180);
+      if (!t && !c) return `empty-${Math.random()}`;
+      if (t === c) return `dup-title-company-${norm(t)}`;
+      if (/^\d{4}|^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(t)) return `date-title-${Math.random()}`;
+      return `${norm(c)}|${norm(t)}`;
+    }).filter((e) => {
+      const t = cleanText(e.title, 180);
+      const c = cleanText(e.company, 180);
+      // Reject empty entries
+      if (!t && !c) return false;
+      // Reject entries where title is just a technology word (e.g. "Technologies.")
+      if (/^(technologies|software|solutions|systems|services|platforms?)\.?$/i.test(t.trim())) return false;
+      // Reject entries where title is a single generic word with no company
+      if (!c && t.length < 5) return false;
+      return true;
+    }).map((e) => ({
       title: cleanText(e.title, 180),
       company: cleanText(e.company, 180),
       location: cleanText(e.location, 180),
       dates: cleanText(e.dates, 80),
       bullets: Array.isArray(e.bullets) ? e.bullets.map((b) => cleanText(b, 500)).filter(Boolean).slice(0, 10) : [],
     })),
-    education: unique(Array.isArray(p.education) ? p.education : [], (e) => `${e.institution}|${e.degree}|${e.dates}`)
-      .map((e) => ({
-        degree: cleanText(e.degree, 180),
-        institution: cleanText(e.institution, 180),
-        location: cleanText(e.location, 180),
-        dates: cleanText(e.dates, 80),
-      }))
-      .sort((a, b) => {
-        // Sort most-recent education first — normalises non-deterministic AI output ordering
-        const yearA = a.dates.match(/\b(19|20)\d{2}\b/)?.[0];
-        const yearB = b.dates.match(/\b(19|20)\d{2}\b/)?.[0];
-        if (!yearA && !yearB) return 0;
-        if (!yearA) return 1;
-        if (!yearB) return -1;
-        return Number(yearB) - Number(yearA);
-      }),
-    skills: unique(Array.isArray(p.skills) ? p.skills.map((s) => cleanText(s, 90)).filter(Boolean) : [], (s) => s).slice(0, 100),
+    education: unique(Array.isArray(p.education) ? p.education : [], (e) => {
+      // Deduplicate by degree+institution only (dates cause spurious duplication).
+      // Reject entries where degree === institution (parser artifact).
+      const d = cleanText(e.degree, 180);
+      const i = cleanText(e.institution, 180);
+      if (!d && !i) return `empty-edu-${Math.random()}`;
+      if (d === i) return `dup-deg-inst-${norm(d)}`;
+      return `${norm(d)}|${norm(i)}`;
+    }).filter((e) => {
+      // Reject education entries where both degree and institution are empty,
+      // or where the degree field contains only a date range (parser artifact).
+      const d = cleanText(e.degree, 180);
+      const i = cleanText(e.institution, 180);
+      if (!d && !i) return false;
+      if (/^\d{2,4}\s*[-–]\s*\d{2,4}$/.test(d.trim())) return false; // degree = "2013 - 2016"
+      if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4}/i.test(d.trim())) return false;
+      // Reject if degree looks like a location ("University Of X, Country")
+      if (/^(university|universit|college|school|institut|academ)/i.test(d) && !i) return false;
+      return true;
+    }).map((e) => ({
+      degree: cleanText(e.degree, 180),
+      institution: cleanText(e.institution, 180),
+      location: cleanText(e.location, 180),
+      dates: cleanText(e.dates, 80),
+    })),
+    skills: unique(
+      (Array.isArray(p.skills) ? p.skills.map((s) => cleanText(s, 90)).filter(Boolean) : [])
+        .filter((s) => {
+          const sn = norm(s);
+          const nameNorm = norm(resolvedName);
+          const headlineNorm = norm(basics.headline || "");
+          // Reject the candidate's own name or headline from skills (parser artifact).
+          if (nameNorm && sn === nameNorm) return false;
+          if (headlineNorm && sn === headlineNorm) return false;
+          // Reject obvious non-skills: bare personal pronouns, single chars
+          if (s.length < 2) return false;
+          return true;
+        }),
+      (s) => s
+    ).slice(0, 100),
     projects: unique(Array.isArray(p.projects) ? p.projects : [], (proj) => proj.name || proj.bullets?.join(" ") || "").map((proj) => ({
       name: cleanText(proj.name, 180) || "Selected Project",
       bullets: Array.isArray(proj.bullets) ? proj.bullets.map((b) => cleanText(b, 500)).filter(Boolean).slice(0, 10) : [],

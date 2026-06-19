@@ -39,6 +39,7 @@ function buildFallbackStructuredProfile(input: {
   return {
     ok: true,
     source: "deterministic_fallback",
+    candidateName: resumeProfile.basics?.name || "",
     warning: input.reason,
     resumeProfile,
     profile: resumeProfile,
@@ -115,6 +116,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ...result,
         ok: result.ok !== false,
+        candidateName: resumeProfile.basics?.name || "",
         resumeProfile,
         profile: resumeProfile,
       });

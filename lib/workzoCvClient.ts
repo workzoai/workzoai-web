@@ -20,16 +20,28 @@ export async function buildRecruiterMemoryFromCv(input: {
   fileName?: string;
   candidateName?: string;
   language?: string;
+  resumeProfile?: unknown;
 }): Promise<StructureCvResult> {
   const cvText = (input.cvText || "").trim();
   const jobDescription = (input.jobDescription || "").trim();
 
   // Important safety guard:
-  // Never call /api/cv with empty CV and empty JD.
-  if (!cvText && !jobDescription) {
+  // Never call /api/cv unless there is actual CV text.
+  // A job description alone is valid onboarding context, but it is NOT a CV.
+  // Sending JD-only payloads to /api/cv caused false errors like "CV text is required".
+  if (!cvText) {
     return {
       recruiterMemoryProfile: null,
-      jobMemoryProfile: null,
+      jobMemoryProfile: jobDescription
+        ? {
+            targetRole: input.targetRole || "General Role",
+            role: input.targetRole || "General Role",
+            targetMarket: input.targetMarket || "Global",
+            country: input.targetMarket || "Global",
+            jobDescription,
+            jdText: jobDescription,
+          }
+        : null,
       confidence: "skipped",
     };
   }
@@ -47,6 +59,8 @@ export async function buildRecruiterMemoryFromCv(input: {
         targetMarket: input.targetMarket || "Global",
         fileName: input.fileName || "",
         candidateName: input.candidateName || "",
+        resumeProfile: input.resumeProfile || undefined,
+        profile: input.resumeProfile || undefined,
         language: input.language || "English",
       }),
     });
@@ -90,6 +104,7 @@ export async function buildAndSaveInterviewSetup(input: {
   fileName?: string;
   candidateName?: string;
   language?: string;
+  resumeProfile?: unknown;
   save?: boolean;
   baseSetup?: WorkZoInterviewSetup;
 }): Promise<WorkZoInterviewSetup> {
@@ -103,6 +118,7 @@ export async function buildAndSaveInterviewSetup(input: {
     targetMarket: input.targetMarket || "Global",
     fileName: input.fileName || "",
     candidateName: input.candidateName || "",
+    resumeProfile: input.resumeProfile || input.baseSetup?.resumeProfile || undefined,
     language: input.language || "English",
   });
 
