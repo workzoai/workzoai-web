@@ -10,13 +10,13 @@ import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 type LoginStatus = "idle" | "loading" | "sent" | "error";
 
 function sanitizeRedirect(value: string | null) {
-  if (!value) return "/dashboard";
+  if (!value) return "/onboarding";
   try {
     const decoded = decodeURIComponent(value);
-    if (!decoded.startsWith("/") || decoded.startsWith("//")) return "/dashboard";
+    if (!decoded.startsWith("/") || decoded.startsWith("//")) return "/onboarding";
     return decoded;
   } catch {
-    if (!value.startsWith("/") || value.startsWith("//")) return "/dashboard";
+    if (!value.startsWith("/") || value.startsWith("//")) return "/onboarding";
     return value;
   }
 }

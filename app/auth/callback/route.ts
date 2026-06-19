@@ -4,14 +4,14 @@ import { getCurrentWorkZoUserSubscription } from "@/lib/workzoSubscription";
 import { normalizeWorkZoPlan } from "@/lib/workzoPlanLimits";
 
 function sanitizeRedirect(value: string | null) {
-  if (!value) return "/dashboard";
+  if (!value) return "/onboarding";
 
   try {
     const decoded = decodeURIComponent(value);
-    if (!decoded.startsWith("/") || decoded.startsWith("//")) return "/dashboard";
+    if (!decoded.startsWith("/") || decoded.startsWith("//")) return "/onboarding";
     return decoded;
   } catch {
-    if (!value.startsWith("/") || value.startsWith("//")) return "/dashboard";
+    if (!value.startsWith("/") || value.startsWith("//")) return "/onboarding";
     return value;
   }
 }
@@ -33,10 +33,10 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const error = requestUrl.searchParams.get("error");
-  const redirectParam = requestUrl.searchParams.get("redirect");
+  const redirectParam = requestUrl.searchParams.get("next") || requestUrl.searchParams.get("redirect");
   const cookieRedirect = readAfterLoginCookie(request);
 
-  const redirectPath = sanitizeRedirect(redirectParam || cookieRedirect || "/dashboard");
+  const redirectPath = sanitizeRedirect(redirectParam || cookieRedirect || "/onboarding");
   const loginErrorUrl = new URL("/login?error=auth_callback_failed", requestUrl.origin);
 
   if (error || !code) {

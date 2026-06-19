@@ -214,6 +214,7 @@ export default function PricingPage() {
     resetWorkZoTestingUsage();
     if (typeof window !== "undefined") {
       window.localStorage.setItem("workzo_selected_plan_intent", JSON.stringify({ plan: "free", source: "pricing", next: "/onboarding", createdAt: new Date().toISOString() }));
+      document.cookie = `workzo_after_login=${encodeURIComponent("/onboarding")}; Max-Age=900; Path=/; SameSite=Lax`;
       window.location.href = "/onboarding";
     }
   }
