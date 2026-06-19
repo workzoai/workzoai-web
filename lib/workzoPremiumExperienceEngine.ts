@@ -48,43 +48,18 @@ export function getWorkZoLiveReaction(answer: string): WorkZoLiveReaction {
   const clean = answer.replace(/\s+/g, " ").trim();
   const lower = clean.toLowerCase();
   const wordCount = clean.split(" ").filter(Boolean).length;
-  const hasMetric = /\d|percent|saved|reduced|increased|improved|faster|customers?|users?|tickets?|revenue|cost/i.test(clean);
-  const hasOwnership = /\bi\b|\bmy\b|personally|owned|led|built|created|handled|resolved|implemented|improved/i.test(clean);
-  const vague = /things|stuff|something|various|many|a lot|helped|worked on|good|nice/i.test(lower);
 
-  if (wordCount > 120) {
+  const hasMetric = /\d|percent|percentage|csat|satisfaction|score|saved|reduced|increased|improved|faster|customers?|users?|tickets?|revenue|cost|conversion|won|award|top|rank/i.test(clean);
+  const hasOwnership = /\b(i|my|me|personally)\b|owned|led|built|created|handled|resolved|implemented|improved|supported|managed|coordinated|delivered|worked/i.test(clean);
+  const hasOutcome = /customer|client|user|ticket|satisfaction|trust|resolved|won|award|converted|result|impact|improved|reduced|increased|saved|learned/i.test(clean);
+  const vagueOnly = /things|stuff|something|various|a lot|helped|worked on|good|nice/i.test(lower) && !hasMetric && !hasOutcome;
+
+  if (wordCount > 160) {
     return {
-      text: "Let me stop you there — give me the core result.",
+      text: "Let me pause you there — I want the core example and result.",
       visualState: "interrupting",
-      trustDelta: -2,
-      intensity: "strong",
-    };
-  }
-
-  if (wordCount > 18 && !hasMetric) {
-    return {
-      text: "Okay… but I need numbers or measurable impact.",
-      visualState: "skeptical",
-      trustDelta: -2,
-      intensity: "medium",
-    };
-  }
-
-  if (wordCount > 18 && !hasOwnership) {
-    return {
-      text: "I’m not clear what you personally owned there.",
-      visualState: "skeptical",
       trustDelta: -1,
       intensity: "medium",
-    };
-  }
-
-  if (vague) {
-    return {
-      text: "That still sounds a little general.",
-      visualState: "thinking",
-      trustDelta: -1,
-      intensity: "soft",
     };
   }
 
@@ -94,6 +69,33 @@ export function getWorkZoLiveReaction(answer: string): WorkZoLiveReaction {
       visualState: "interested",
       trustDelta: 2,
       intensity: "medium",
+    };
+  }
+
+  if (hasOutcome || hasMetric) {
+    return {
+      text: "Okay, there is useful signal there.",
+      visualState: "thinking",
+      trustDelta: 1,
+      intensity: "soft",
+    };
+  }
+
+  if (wordCount > 35 && !hasOwnership) {
+    return {
+      text: "I want to understand your personal role there.",
+      visualState: "skeptical",
+      trustDelta: -1,
+      intensity: "soft",
+    };
+  }
+
+  if (vagueOnly) {
+    return {
+      text: "I may need one clearer example.",
+      visualState: "thinking",
+      trustDelta: -1,
+      intensity: "soft",
     };
   }
 
@@ -141,22 +143,44 @@ export function updateWorkZoEmotionalMemory(
 
 export function decideWorkZoInterruption(answer: string): WorkZoInterruptionDecision {
   const clean = answer.replace(/\s+/g, " ").trim();
+  const lower = clean.toLowerCase();
   const wordCount = clean.split(" ").filter(Boolean).length;
-  const hasMetric = /\d|percent|saved|reduced|increased|improved|faster|customers?|users?|tickets?/i.test(clean);
-  const hasOwnership = /\bi\b|\bmy\b|personally|owned|led|built|created|handled|resolved|implemented/i.test(clean);
-  const tooGeneric = /things|stuff|various|many|a lot|helped|worked on/i.test(clean.toLowerCase());
 
-  if (wordCount > 140) {
-    return { shouldInterrupt: true, line: "Sorry to interrupt — what was the actual result?", reason: "rambling" };
+  const hasMetric = /\d|percent|percentage|csat|satisfaction|score|saved|reduced|increased|improved|faster|customers?|users?|tickets?|revenue|cost|conversion|won|award|top|rank/i.test(clean);
+  const hasOwnership = /\b(i|my|me|personally)\b|owned|led|built|created|handled|resolved|implemented|supported|managed|coordinated|delivered|worked/i.test(clean);
+  const hasOutcome = /customer|client|user|ticket|satisfaction|trust|resolved|won|award|converted|result|impact|improved|reduced|increased|saved|learned/i.test(clean);
+  const isOnlyFiller = /^(um+|uh+|okay|yes|no|yeah|hmm|i don'?t know)[\s.!,]*$/i.test(clean);
+  const vagueWithoutEvidence = /things|stuff|something|various|a lot|helped|worked on/i.test(lower) && !hasMetric && !hasOutcome;
+
+  // Do NOT interrupt useful early answers. Let the unified recruiter intelligence respond naturally.
+  // Interrupt only when the candidate is clearly rambling, gives almost no answer, or avoids ownership for a long time.
+  if (isOnlyFiller) {
+    return { shouldInterrupt: false, line: "", reason: "none" };
   }
-  if (wordCount > 35 && !hasMetric) {
-    return { shouldInterrupt: true, line: "Let me stop you there. Give me one number or measurable result.", reason: "missing_metrics" };
+
+  if (wordCount > 170) {
+    return {
+      shouldInterrupt: true,
+      line: "Let me pause you there — give me the core situation, your action, and the result in a few sentences.",
+      reason: "rambling",
+    };
   }
-  if (wordCount > 35 && !hasOwnership) {
-    return { shouldInterrupt: true, line: "Hold on — what did you personally do?", reason: "unclear_ownership" };
+
+  if (wordCount > 90 && !hasOwnership) {
+    return {
+      shouldInterrupt: true,
+      line: "Let me pause you there — what was your personal role in that situation?",
+      reason: "unclear_ownership",
+    };
   }
-  if (tooGeneric) {
-    return { shouldInterrupt: true, line: "That is too general. Give me a specific example.", reason: "too_generic" };
+
+  if (wordCount > 80 && vagueWithoutEvidence) {
+    return {
+      shouldInterrupt: true,
+      line: "Let me make this more concrete — choose one real situation and walk me through what happened.",
+      reason: "too_generic",
+    };
   }
+
   return { shouldInterrupt: false, line: "", reason: "none" };
 }

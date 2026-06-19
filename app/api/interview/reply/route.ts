@@ -51,6 +51,7 @@ type ReplyRequestBody = {
   language?: string;
   recruiterTrust?: number;
   recruiterState?: string | null;
+  questionIndex?: number;
   // Pre-computed signals passed in as hints (kept for API compatibility).
   // The unified engine ignores these and makes its own assessment, which is
   // more accurate than keyword-based pattern matching.
@@ -68,6 +69,43 @@ type ReplyRequestBody = {
 function cleanText(value: unknown, maxLength = 6000): string {
   if (typeof value !== "string") return "";
   return value.replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+
+function normalizeLanguageLabel(value: unknown): string {
+  const raw = cleanText(value, 80).toLowerCase();
+  if (raw.includes("german") || raw.includes("deutsch") || raw === "de" || raw === "de-de") return "German";
+  if (raw.includes("dutch") || raw.includes("nederlands") || raw === "nl" || raw === "nl-nl") return "Dutch";
+  if (raw.includes("french") || raw.includes("français") || raw.includes("francais") || raw === "fr" || raw === "fr-fr") return "French";
+  if (raw.includes("spanish") || raw.includes("español") || raw.includes("espanol") || raw === "es" || raw === "es-es") return "Spanish";
+  if (raw.includes("italian") || raw.includes("italiano") || raw === "it" || raw === "it-it") return "Italian";
+  if (raw.includes("portuguese") || raw.includes("portugu") || raw === "pt" || raw === "pt-pt" || raw === "pt-br") return "Portuguese";
+  if (raw.includes("hindi") || raw === "hi" || raw === "hi-in") return "Hindi";
+  return "English";
+}
+
+function isOpeningSmallTalk(answer: string): boolean {
+  const clean = answer.toLowerCase().replace(/[^a-zÀ-ÿ0-9\s']/gi, " ").replace(/\s+/g, " ").trim();
+  if (!clean) return false;
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length > 18) return false;
+
+  return /\b(i'?m good|im good|i am good|doing good|doing well|i'?m fine|im fine|i am fine|fine|good|great|okay|ok|not bad|all good|how are you|how about you|thank you|thanks|yes i can hear|i can hear|can hear you|hello|hi|hey|hallo|bonjour|hola|namaste)\b/i.test(clean);
+}
+
+function buildOpeningIntroReply(languageValue: unknown, targetRole: unknown): string {
+  const language = normalizeLanguageLabel(languageValue);
+  const role = cleanText(targetRole, 140) || "this role";
+
+  if (language === "German") return `Mir geht es gut, danke der Nachfrage. Schön, dass es dir auch gut geht. Ich habe mir deinen Lebenslauf und die Rolle ${role} angesehen. Zum Einstieg: Kannst du dich bitte kurz vorstellen und erklären, wie deine Erfahrung zu dieser Gelegenheit passt?`;
+  if (language === "Dutch") return `Het gaat goed, dank je dat je het vraagt. Fijn om te horen dat het ook goed met jou gaat. Ik heb je cv en de rol ${role} bekeken. Om te beginnen: kun je jezelf kort voorstellen en uitleggen hoe je ervaring aansluit op deze kans?`;
+  if (language === "French") return `Je vais bien, merci de demander. Ravi d’entendre que vous allez bien aussi. J’ai consulté votre CV et le poste ${role}. Pour commencer, pouvez-vous vous présenter brièvement et expliquer en quoi votre expérience correspond à cette opportunité ?`;
+  if (language === "Spanish") return `Estoy bien, gracias por preguntar. Me alegra saber que tú también estás bien. He revisado tu CV y el puesto de ${role}. Para empezar, ¿puedes presentarte brevemente y explicar cómo tu experiencia encaja con esta oportunidad?`;
+  if (language === "Italian") return `Sto bene, grazie per avermelo chiesto. Mi fa piacere sentire che stai bene anche tu. Ho letto il tuo CV e il ruolo ${role}. Per iniziare, puoi presentarti brevemente e spiegare come la tua esperienza si collega a questa opportunità?`;
+  if (language === "Portuguese") return `Estou bem, obrigado por perguntares. Fico feliz por saber que também estás bem. Analisei o teu CV e a função ${role}. Para começar, podes apresentar-te brevemente e explicar como a tua experiência se relaciona com esta oportunidade?`;
+  if (language === "Hindi") return `मैं ठीक हूँ, पूछने के लिए धन्यवाद। अच्छा लगा कि आप भी ठीक हैं। मैंने आपका CV और ${role} भूमिका देखी है। शुरुआत के लिए, कृपया अपना छोटा परिचय दें और बताएं कि आपका अनुभव इस अवसर से कैसे जुड़ता है।`;
+
+  return `I’m doing well, thank you for asking. Glad to hear you’re doing well too. I had a chance to review your resume and the ${role} role. To get started, could you briefly introduce yourself and explain how your experience connects to this opportunity?`;
 }
 
 function normaliseTranscript(raw: TranscriptTurn[] | undefined): TranscriptItem[] {
@@ -112,11 +150,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing answer." }, { status: 400 });
   }
 
+  const transcript = normaliseTranscript(body.transcript);
+  const candidateTurnCount = transcript.filter((turn) => turn.role === "candidate").length;
+  const isOpeningTurn = (typeof body.questionIndex === "number" && body.questionIndex <= 1) || candidateTurnCount <= 1;
+
+  // Critical first-turn guard: short rapport answers must never get swallowed by
+  // the LLM/state engine. This guarantees the interview moves from greeting to
+  // the real self-introduction question.
+  if (isOpeningTurn && isOpeningSmallTalk(answer)) {
+    const reply = buildOpeningIntroReply(body.language, body.targetRole);
+    return NextResponse.json({
+      success: true,
+      reply,
+      displayQuestion: reply,
+      trustDelta: 0,
+      recruiterState: "interested",
+      shouldAdvanceQuestion: true,
+      provider: "opening_guard",
+    });
+  }
+
   try {
     const decision = await decideUnifiedRecruiterResponse({
       answer,
       currentQuestion: cleanText(body.currentQuestion, 400) || "Tell me about yourself.",
-      transcript: normaliseTranscript(body.transcript),
+      transcript,
       setup: {
         cvText: cleanText(body.cvText, 6000),
         jobDescription: cleanText(body.jobDescription, 4000),

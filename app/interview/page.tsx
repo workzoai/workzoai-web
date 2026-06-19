@@ -3755,6 +3755,28 @@ const [questionIndex, setQuestionIndex] = useState(0);
     } catch {}
   }, []);
 
+  const getStableCandidateAnswer = useCallback(() => {
+    const finalAnswer = answerBufferRef.current.trim();
+    const visibleInterim = lastInterimTextRef.current.trim();
+
+    // Chrome/Web Speech sometimes keeps short opening replies like
+    // "I'm good, how are you?" as interim text and never promotes them to
+    // isFinal before our silence timer stops recognition. Without this fallback
+    // the interview stays active but never moves to the next recruiter turn.
+    const merged = `${finalAnswer} ${visibleInterim}`
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return merged || finalAnswer || visibleInterim;
+  }, []);
+
+  const isValidOpeningOrSmallTalkAnswer = useCallback((value: string) => {
+    const clean = value.toLowerCase().replace(/[^a-zÀ-ÿ0-9\s']/gi, " ").replace(/\s+/g, " ").trim();
+    if (!clean) return false;
+
+    return /\b(i'?m good|im good|i am good|doing good|doing well|i'?m fine|im fine|i am fine|fine|good|great|okay|ok|not bad|all good|how are you|how about you|thank you|thanks|yes i can hear|i can hear|can hear you|hello|hi|hey|hallo|bonjour|hola|namaste)\b/i.test(clean);
+  }, []);
+
   // Keep a ref mirror of the transcript so closures (recorder.onstop, async
   // speech-recognition handlers) can read the latest conversation history
   // without stale-closure issues — same reasoning as questionIndexRef etc.
@@ -3967,9 +3989,12 @@ const [questionIndex, setQuestionIndex] = useState(0);
       resetSilenceTimer();
 
       if (interim.trim()) {
-        setInterimText(interim.trim());
+        const cleanInterim = interim.trim();
+        lastInterimTextRef.current = cleanInterim;
+        lastInterimUpdateAtRef.current = Date.now();
+        setInterimText(cleanInterim);
         // Live filler word counter — updates copilot panel in real time
-        setFillerCount(countFillerWords(`${answerBufferRef.current} ${interim}`.trim()));
+        setFillerCount(countFillerWords(`${answerBufferRef.current} ${cleanInterim}`.trim()));
       }
       if (finalText.trim()) {
         answerBufferRef.current = `${answerBufferRef.current} ${finalText}`.trim();
@@ -3990,7 +4015,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
     recognition.onend = async () => {
       listeningRef.current = false;
       if (silenceTimer) clearTimeout(silenceTimer);
-      const answer = answerBufferRef.current.trim();
+      const answer = getStableCandidateAnswer();
+      answerBufferRef.current = answer;
+      lastInterimTextRef.current = "";
+      lastInterimUpdateAtRef.current = 0;
       setInterimText("");
 
       if (!answer || stopRequestedRef.current) {
@@ -4001,12 +4029,14 @@ const [questionIndex, setQuestionIndex] = useState(0);
         return;
       }
 
-      // Minimum word threshold — don't submit partial utterances like "so I have always"
-      // or audio checks like "can you hear me". Real answers need at least 5 words.
+      // Minimum word threshold. Short opening replies such as "good, how are you?"
+      // must still advance the first turn. Previously these were treated as too
+      // short/partial and the interview kept running without moving forward.
       const wordCount = answer.split(/\s+/).filter(Boolean).length;
-      const isAudioCheck = /^(can you hear|hello|hi|test|check|is this|are you|okay|yes|no)/i.test(answer);
-      if (wordCount < 5 && !isAudioCheck) {
-        // Too short — keep listening, append to buffer on next speech
+      const isAudioCheck = /^(can you hear|hello|hi|hey|test|check|is this|are you|okay|ok|yes|no|good|fine|great|thanks|thank you)/i.test(answer);
+      const isOpeningSmallTalk = questionIndexRef.current <= 1 && isValidOpeningOrSmallTalkAnswer(answer);
+
+      if (wordCount < 3 && !isAudioCheck && !isOpeningSmallTalk) {
         setStatus("listening");
         window.setTimeout(() => startListening(), 350);
         return;
@@ -4739,7 +4769,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
       setQuestionIndex(nextQuestionIndex);
 
       const currentPlanForRestore = serverPlan;
-      const restoreVapiEligible = currentPlanForRestore === "premium" || currentPlanForRestore === "premium_pro";
+      const restoreVapiEligible = currentPlanForRestore === "free" || currentPlanForRestore === "premium" || currentPlanForRestore === "premium_pro";
       if (restoreVapiEligible && premiumVoiceEnabledRef.current && audioEnabledRef.current) {
         const reconnectedPremiumVoice = await startPremiumVoice(restoredSetup);
 
@@ -4835,11 +4865,12 @@ const [questionIndex, setQuestionIndex] = useState(0);
     setShareableMoment(null);
 
     // ── Plan-gated voice routing ─────────────────────────────────────────────
-    // Free:         browser STT/TTS only — no Vapi
-    // Premium:      Vapi voice → browser fallback on failure  (spec: Vapi for Premium)
+    // Temporary launch setting:
+    // Free:         Vapi voice → browser fallback on failure
+    // Premium:      Vapi voice → browser fallback on failure
     // Premium Pro:  Vapi voice → browser fallback on failure  (Tavus handled separately)
     // currentPlan already declared above for the limit check — reuse it
-    const isVapiEligible = currentPlan === "premium" || currentPlan === "premium_pro";
+    const isVapiEligible = currentPlan === "free" || currentPlan === "premium" || currentPlan === "premium_pro";
 
     if (isVapiEligible && premiumVoiceEnabledRef.current && audioEnabledRef.current) {
       const startedPremiumVoice = await startPremiumVoice(freshSetup);
@@ -4864,7 +4895,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
       return;
     }
 
-    // Free: go straight to browser voice — no Vapi attempt
+    // Safety fallback: if Vapi is disabled/unavailable, continue with browser voice instead of blocking the interview.
     startBrowserFallbackInterview(freshSetup);
   }, [
     addTranscript,

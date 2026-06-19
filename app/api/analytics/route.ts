@@ -1,4 +1,8 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { NextResponse } from "next/server";
+import { isLocalRequestFromHeaders } from "../../../lib/localOnly";
 import { createClient } from "@supabase/supabase-js";
 
 type AnalyticsBody = {
@@ -332,10 +336,13 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    if (!isLocalRequestFromHeaders(request.headers)) {
+      return NextResponse.json({ ok: false, reason: "local_only" }, { status: 404 });
+    }
     const supabase = getSupabaseAdmin();
-    if (!supabase) return NextResponse.json({ ok: true, configured: false, summary: null, metrics: null, events: [], reason: "supabase_not_configured" });
+    if (!supabase) return NextResponse.json({ ok: true, configured: false, summary: buildAnalyticsResponse([]).summary, metrics: buildAnalyticsResponse([]).metrics, events: [], reason: "supabase_not_configured" });
     const { data, error } = await supabase
       .from("workzo_analytics_events")
       .select("event, visitor_id, session_id, path, source, referrer, host, origin, is_local, device_type, user_agent, role, market, recruiter, mode, score, trust, pressure, metadata, client_timestamp, created_at")
@@ -343,11 +350,11 @@ export async function GET() {
       .limit(10000);
     if (error) {
       console.error("[WorkZo analytics] metrics read failed", { message: error.message, details: error.details, hint: error.hint, code: error.code });
-      return NextResponse.json({ ok: true, configured: true, summary: null, metrics: null, events: [], reason: "read_failed", error: error.message, details: error.details, hint: error.hint, code: error.code });
+      return NextResponse.json({ ok: true, configured: true, summary: buildAnalyticsResponse([]).summary, metrics: buildAnalyticsResponse([]).metrics, events: [], reason: "read_failed", error: error.message, details: error.details, hint: error.hint, code: error.code });
     }
     return NextResponse.json(buildAnalyticsResponse((data || []) as DbAnalyticsEvent[]));
   } catch (error) {
     console.error("[WorkZo analytics] metrics route failed", error);
-    return NextResponse.json({ ok: true, configured: false, summary: null, metrics: null, events: [], reason: "route_failed", error: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({ ok: true, configured: false, summary: buildAnalyticsResponse([]).summary, metrics: buildAnalyticsResponse([]).metrics, events: [], reason: "route_failed", error: error instanceof Error ? error.message : String(error) });
   }
 }

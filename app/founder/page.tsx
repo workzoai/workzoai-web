@@ -1,5 +1,12 @@
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
+import { isLocalhostOnly } from "@/lib/localOnly";
 
-export default function FounderRedirectPage() {
-  redirect("/founder-dashboard");
+export default async function FounderPage() {
+  const allowed = await isLocalhostOnly();
+
+  if (!allowed) {
+    notFound();
+  }
+
+  redirect("/founder/analytics");
 }

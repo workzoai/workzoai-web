@@ -53,12 +53,12 @@ const TESTIMONIALS = [
     avatar: "https://randomuser.me/api/portraits/women/44.jpg",
   },
   {
-    quote: "I used three other prep tools before this. None of them told me why I was failing — just gave me more questions. WorkZo’s trust timeline was the first thing that actually explained what was going wrong.",
-    name: "David M.",
-    role: "Account Executive",
-    location: "Toronto",
-    score: 91,
-    avatar: "https://randomuser.me/api/portraits/men/67.jpg",
+    quote: "Finally, an interview practice tool that feels like talking to a real recruiter. The feedback was actionable, and I felt more prepared after just a few sessions.",
+    name: "Eliana Teixeira",
+    role: "Data Analyst",
+    location: "Portugal",
+    score: 87,
+    avatar: "/testimonials/eliana-teixeira.jpg",
   },
 ];
 
@@ -514,11 +514,18 @@ function TestimonialsSection() {
 
               {/* Author */}
               <div className="flex items-center gap-3">
-                <img
-                  src={t.avatar}
-                  alt={t.name}
-                  className="h-10 w-10 rounded-full object-cover ring-1 ring-white/20"
-                />
+                {t.avatar ? (
+                  <img
+                    src={t.avatar}
+                    alt={t.name}
+                    className="h-10 w-10 rounded-full object-cover ring-1 ring-white/20"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/20 ring-1 ring-white/20 text-sm font-black text-blue-200">
+                    {t.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                  </div>
+                )}
                 <div>
                   <p className="text-sm font-black text-white">{t.name}</p>
                   <p className="text-[11px] text-white/40">{t.role} · {t.location}</p>
@@ -657,7 +664,7 @@ export default function LandingPage() {
         <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-3">
             <div className="relative h-[42px] w-[42px] shrink-0 overflow-hidden rounded-xl">
-              <Image src="/workzo_icon.png" alt="WorkZo AI" fill priority className="object-cover" />
+              <Image src="/workzo_icon.png" alt="WorkZo AI" fill priority className="object-cover" sizes="42px" />
             </div>
             <span className="text-xl font-black tracking-tight sm:text-2xl">
               WorkZo <span className="text-white/70">AI</span>

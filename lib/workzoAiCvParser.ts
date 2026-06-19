@@ -94,6 +94,18 @@ function normalizeForCompare(value: string) {
     .trim();
 }
 
+// ── Deduplicate skills ──────────────────────────────────────────────────────
+// Removes entries that are clearly duplicates differing only in casing or
+// minor punctuation (e.g. "Microsoft Excel" vs "Excel", "Sklearn" vs "sklearn").
+function deduplicateSkills(skills: string[]): string[] {
+  const seen = new Map<string, string>();
+  for (const skill of skills) {
+    const key = skill.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (!seen.has(key)) seen.set(key, skill);
+  }
+  return Array.from(seen.values());
+}
+
 const SECTION_HEADER_RE = /^(contact|contacts|kontakt|kontaktdaten|skills|summary of skills|summary|overview|profile|profil|about me|objective|work experience|professional experience|experience|employment history|berufserfahrung|werdegang|education|education and training|training|bildungsweg|bildung|ausbildung|projects|projekte|certifications|zertifikate|awards|awards received|auszeichnungen|languages|sprachen|interests|references|referenzen)$/i;
 
 const CONTACT_RE = /@|www\.|http|linkedin|github|phone|mobile|email|e-mail|address|adresse|street|straße|strasse|road|avenue|\+?\d[\d\s()./-]{5,}/i;
@@ -104,17 +116,12 @@ const ROLE_OR_HEADLINE_RE = /\b(project|product|program|programme|portfolio|it|u
 
 const NON_NAME_PHRASE_RE = /\b(project management|cost planning|cost planning and analysis|enterprise resource planning|resource planning|software development|process improvement|personal and team training|machine learning|data visualization|data visualisation|data engineering|generative ai|public relations|time management|teamwork|leadership|critical thinking|effective communication|summary of skills|work experience|education and training|programm\s*\d+)\b/i;
 
-// Words that are never part of a real human name. If ALL parts of a multi-word
-// string are in this set, the string is a skill/section phrase, not a name.
 const NEVER_A_NAME_WORD_RE = /^(matplotlib|seaborn|tableau|tensorflow|sklearn|scikit|langchain|langkette|pytorch|numpy|pandas|keras|pyspark|hadoop|spark|airflow|dbt|looker|powerbi|power|bash|powershell|shell|linux|ubuntu|debian|redhat|android|ios|swift|kotlin|flutter|react|angular|vue|django|flask|fastapi|nodejs|express|spring|docker|kubernetes|helm|terraform|ansible|jenkins|gitlab|github|bitbucket|jira|confluence|slack|salesforce|hubspot|zendesk|servicenow|ticketing|systeme|remote|netzwerke|betriebssysteme|programmierung|datenanalyse|weiterbildung|kontakt|fähigkeiten|fahigkeiten|berufserfahrung|ausbildung|bildungsweg|sprachen|profil|profilu|ubersicht|kenntnisse|lebenslauf|bewerbung|programm|programme|programs|relations|teamwork|leadership|communication|thinking|management|planning|analysis|engineering|visualization|visualisation|integration|scraping|generation|retrieval|augmented|generative|bootcamp|certification|intern|freelance|volunteer|candidate|profilesummary|workexperience)$/i;
 
 const ORG_OR_INSTITUTION_RE = /\b(gmbh|ug|ag|kg|ohg|ltd|limited|llc|inc|corp|corporation|company|companies|group|holding|holdings|services|solutions|systems|technologies|technology|tech|software|digital|media|productions?|studio|studios|agency|agencies|partners|consulting|consultants|ventures|labs?|university|universität|universitaet|college|school|schule|hochschule|institute|institut|center|centre|academy|akademie|bootcamp|campus|faculty|department)\b/i;
 
 const DEGREE_OR_EDU_RE = /\b(bachelor|master|mba|msc|ma|ba|bsc|phd|degree|diploma|certificate|certification|arts|science|engineering|management|marketing|grade|thesis|abschluss|studium|ausbildung)\b/i;
 
-// Global address/location rejection. This prevents values like
-// "123 Main Street", "Any City", "Berlin Germany", or street fragments
-// from being accepted as candidate names.
 const ADDRESS_OR_LOCATION_RE = /\b(street|straße|strasse|str\.?|road|rd\.?|avenue|ave\.?|weg|platz|gasse|allee|ring|drive|dr\.?|lane|ln\.?|city|town|village|anywhere|germany|deutschland|france|india|italy|spain|canada|usa|united states|uk|united kingdom|w[üu]rzburg|berlin|frankfurt|munich|münchen|hamburg|cologne|köln|chennai|london|manchester|ostia)\b/i;
 
 const YEAR_OR_DATE_RE = /\b(?:19|20)\d{2}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b|\b(heute|present|current)\b/i;
@@ -126,34 +133,16 @@ function compactDecorativeLine(line: string) {
   if (tokens.length >= 4 && tokens.every((t) => /^[A-ZÄÖÜ]$/u.test(t))) {
     const compact = tokens.join("");
     const sectionMap: Record<string, string> = {
-      CONTACTS: "CONTACTS",
-      CONTACT: "CONTACT",
-      KONTAKT: "KONTAKT",
-      SKILLS: "SKILLS",
-      SUMMARY: "SUMMARY",
-      OVERVIEW: "OVERVIEW",
-      PROFILE: "PROFILE",
-      PROFIL: "PROFIL",
-      WORKEXPERIENCE: "WORK EXPERIENCE",
-      PROFESSIONALERFAHRUNG: "PROFESSIONAL EXPERIENCE",
-      BERUFSERFAHRUNG: "BERUFSERFAHRUNG",
-      EDUCATION: "EDUCATION",
-      EDUCATIONANDTRAINING: "EDUCATION AND TRAINING",
-      BILDUNGSWEG: "BILDUNGSWEG",
-      BILDUNG: "BILDUNG",
-      PROJECTS: "PROJECTS",
-      PROJEKTE: "PROJEKTE",
-      AWARDSRECEIVED: "AWARDS RECEIVED",
-      AWARDS: "AWARDS",
-      LANGUAGES: "LANGUAGES",
-      SPRACHEN: "SPRACHEN",
-      CERTIFICATIONS: "CERTIFICATIONS",
-      ZERTIFIKATE: "ZERTIFIKATE",
+      CONTACTS: "CONTACTS", CONTACT: "CONTACT", KONTAKT: "KONTAKT",
+      SKILLS: "SKILLS", SUMMARY: "SUMMARY", OVERVIEW: "OVERVIEW",
+      PROFILE: "PROFILE", PROFIL: "PROFIL", WORKEXPERIENCE: "WORK EXPERIENCE",
+      BERUFSERFAHRUNG: "BERUFSERFAHRUNG", EDUCATION: "EDUCATION",
+      BILDUNGSWEG: "BILDUNGSWEG", BILDUNG: "BILDUNG", PROJECTS: "PROJECTS",
+      LANGUAGES: "LANGUAGES", SPRACHEN: "SPRACHEN", CERTIFICATIONS: "CERTIFICATIONS",
     };
     if (sectionMap[compact]) return sectionMap[compact];
     return compact;
   }
-
   return trimmed;
 }
 
@@ -195,14 +184,7 @@ function isLikelyHumanName(value: unknown): string {
     if (ROLE_WORD_RE.test(normalizeForCompare(part))) return "";
   }
 
-  // Hard reject: if EVERY word matches a known skill/tool/section word,
-  // this is a phrase like "Matplotlib Seaborn Tableau" or "Public Relations",
-  // not a human name.
   if (parts.every(p => NEVER_A_NAME_WORD_RE.test(p))) return "";
-
-  // A real person name is normally Title Case, ALL CAPS, or mixed case with
-  // each token starting with a letter. This accepts global names while still
-  // rejecting skills, roles, companies and places through the filters above.
   if (!isTitleCaseOrCaps(parts, raw)) return "";
   return titleCaseName(raw);
 }
@@ -224,12 +206,9 @@ function isLikelySingleNameToken(value: unknown): string {
   return titleCaseName(raw);
 }
 
-function addCandidate(
-  candidates: CandidateName[],
-  rawName: string,
-  index: number,
-  score: number,
-) {
+type CandidateName = { name: string; index: number; score: number };
+
+function addCandidate(candidates: CandidateName[], rawName: string, index: number, score: number) {
   const name = isLikelyHumanName(rawName);
   if (!name) return;
   candidates.push({ name, index, score });
@@ -245,7 +224,6 @@ function extractPhone(rawText: string) {
     const value = candidate.replace(/\s+/g, " ").trim();
     const digits = value.replace(/\D/g, "");
     if (digits.length < 7 || digits.length > 16) continue;
-    // Reject pure date ranges like 2017-2021 or 2013 2016.
     if (/^(?:19|20)\d{2}\s*[-–—]\s*(?:19|20)\d{2}$/.test(value)) continue;
     if (!/[+()]|\d{2,}[\s.-]\d{2,}/.test(value)) continue;
     return value;
@@ -253,9 +231,21 @@ function extractPhone(rawText: string) {
   return "";
 }
 
+// ── Email extraction with concatenation cleanup ────────────────────────────
+// Handles PDFs that merge adjacent columns: "+123-456-7890hello@example.com"
+// → "hello@example.com"
 function extractEmail(rawText: string) {
   const compact = rawText.replace(/([A-Z0-9._%+-]+)\s*\n\s*@\s*([A-Z0-9.-]+\.[A-Z]{2,})/gi, "$1@$2");
-  return compact.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
+  const match = compact.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  if (!match) return "";
+  // Strip leading non-email garbage (phone number merged before @-part)
+  const raw = match[0];
+  const atIdx = raw.indexOf("@");
+  const localPart = raw.slice(0, atIdx);
+  const domain = raw.slice(atIdx);
+  // If local part contains non-email characters (digits + separators suggesting phone), strip up to last alpha run
+  const cleanLocal = localPart.replace(/^[^a-z]*/i, "").replace(/[^a-z0-9._%+\-]/gi, "");
+  return cleanLocal + domain;
 }
 
 function extractNameFromEmail(rawText: string) {
@@ -276,8 +266,6 @@ function extractNameFromFileName(fileName = "") {
     .trim();
   return isLikelyHumanName(value);
 }
-
-type CandidateName = { name: string; index: number; score: number };
 
 function scoreNameCandidate(name: string, index: number, lines: string[], fileName = ""): number {
   const original = lines[index] || "";
@@ -321,46 +309,39 @@ export function extractBestCandidateName(rawText: string, fileName = "", modelNa
   const lines = prepareLines(rawText).slice(0, 220);
   const candidates: CandidateName[] = [];
 
-  // 1) Strong source-text candidates. These beat AI every time.
   lines.forEach((line, index) => {
     const cleanedLine = line
       .replace(/^[•\-*]\s*/, "")
       .replace(/^(candidate\s*name|name|applicant)\s*[:\-]\s*/i, "")
       .trim();
 
-    // Multi-word name on one line: HARITHA VIJAYAKUMAR, Laura Hess, Daniel Foster.
     addCandidate(candidates, cleanedLine, index, scoreNameCandidate(cleanedLine, index, lines, fileName));
 
-    // Decorative split over 2 lines: SURENDER / DILLIBABU.
     const first = isLikelySingleNameToken(cleanedLine);
     const next = isLikelySingleNameToken(lines[index + 1] || "");
     if (first && next) {
       addCandidate(candidates, `${first} ${next}`, index, 54 + Math.max(0, 20 - index));
     }
 
-    // Split with job title in the middle: ADELINE / ENGLISH TEACHER / PALMERSTON.
     const afterRole = isLikelySingleNameToken(lines[index + 2] || "");
     const between = lines[index + 1] || "";
     if (first && afterRole && ROLE_OR_HEADLINE_RE.test(between) && !isLikelyHumanName(between)) {
       addCandidate(candidates, `${first} ${afterRole}`, index, 62 + Math.max(0, 20 - index));
     }
 
-    // Sometimes pdf text joins a title and name: "Graphic Designer DANI MARTINEZ".
     const capsName = cleanedLine.match(/\b([A-ZÀ-ÝÄÖÜ]{2,}(?:\s+[A-ZÀ-ÝÄÖÜ]{2,}){1,4})\b/u)?.[1];
     if (capsName && capsName !== cleanedLine) {
       addCandidate(candidates, capsName, index, 40 + Math.max(0, 15 - index));
     }
   });
 
-  // 2) File/email hints are useful but weaker than source text.
   const fileCandidate = extractNameFromFileName(fileName);
   if (fileCandidate) candidates.push({ name: fileCandidate, index: 998, score: 18 });
 
   const emailCandidate = extractNameFromEmail(rawText);
   if (emailCandidate) candidates.push({ name: emailCandidate, index: 997, score: 14 });
 
-  // 3) AI model name is the weakest fallback. It is often a company name on
-  // Canva/two-column CVs, so it must never outrank text-derived candidates.
+  // AI model name is weakest — a company name on Canva CVs must never outrank text candidates
   const modelCandidate = isLikelyHumanName(modelName);
   if (modelCandidate) candidates.push({ name: modelCandidate, index: 999, score: 2 });
 
@@ -390,13 +371,27 @@ function coerceExperience(items: unknown): ResumeExperience[] {
     .slice(0, 10);
 }
 
+// ── Sort education by start year descending ────────────────────────────────
+// Normalises non-deterministic AI ordering; most-recent first is standard CV order.
+function sortEducationByDate(items: ResumeEducation[]): ResumeEducation[] {
+  return [...items].sort((a, b) => {
+    const yearA = String(a.dates || "").match(/\b(19|20)\d{2}\b/)?.[0];
+    const yearB = String(b.dates || "").match(/\b(19|20)\d{2}\b/)?.[0];
+    if (!yearA && !yearB) return 0;
+    if (!yearA) return 1;
+    if (!yearB) return -1;
+    return Number(yearB) - Number(yearA);
+  });
+}
+
 function coerceEducation(items: unknown): ResumeEducation[] {
   if (!Array.isArray(items)) return [];
-  return items
+  const parsed = items
     .filter((item): item is AiResumeEducation => Boolean(item && typeof item === "object"))
     .map((item) => ({ degree: clean(item.degree), institution: clean(item.institution), location: clean(item.location), dates: clean(item.dates) }))
     .filter((item) => item.degree || item.institution)
     .slice(0, 8);
+  return sortEducationByDate(parsed);
 }
 
 function coerceProjects(items: unknown): ResumeProject[] {
@@ -417,13 +412,23 @@ function extractJsonObject(raw: string): AiResumeJson | null {
   return null;
 }
 
+// ── Email cleanup helper ───────────────────────────────────────────────────
+// Handles "+123-456-7890hello@example.com" → "hello@example.com" in any field
+function cleanEmailField(value: unknown): string {
+  const raw = clean(value);
+  if (!raw) return "";
+  const match = raw.match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/);
+  if (!match) return raw;
+  return match[0].toLowerCase();
+}
+
 function repairProfileIdentity(profile: ResumeProfile, rawText: string, fileName = "", modelName = ""): ResumeProfile {
-  // Lock identity from the CV source text first. AI identity is only fallback.
   const lockedName = extractBestCandidateName(rawText, fileName, "");
   const fallbackName = extractBestCandidateName(rawText, fileName, modelName || profile.basics?.name || "");
   const name = lockedName || fallbackName || "";
 
-  const email = extractEmail(rawText) || clean(profile.basics?.email);
+  // Always clean the email — addresses phone+email concatenation from PDF extraction
+  const email = cleanEmailField(extractEmail(rawText) || profile.basics?.email);
   const phone = extractPhone(rawText) || clean(profile.basics?.phone);
   const linkedin = extractLinkedin(rawText) || clean(profile.basics?.linkedin);
 
@@ -445,7 +450,11 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
   const experience = coerceExperience(ai.experience);
   const education = coerceEducation(ai.education);
   const projects = coerceProjects(ai.projects);
-  const skills = unique(asList(ai.skills), 40).filter((s) => !SECTION_HEADER_RE.test(s));
+
+  // Deduplicate skills before storing — avoids "Python", "python", "Microsoft Excel", "Excel" duplicates
+  const rawSkills = unique(asList(ai.skills), 40).filter((s) => !SECTION_HEADER_RE.test(s));
+  const skills = deduplicateSkills(rawSkills);
+
   const languages = unique(asList(ai.languages), 12);
   const certifications = unique(asList(ai.certifications), 12);
 
@@ -455,15 +464,16 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
     basics: {
       name: clean(basics.name),
       headline: clean(basics.headline) || experience[0]?.title || fallback.basics?.headline || "Professional",
-      email: clean(basics.email) || fallback.basics?.email || extractEmail(rawText),
+      // Clean email immediately at construction — never let a concatenated email through
+      email: cleanEmailField(clean(basics.email) || fallback.basics?.email || extractEmail(rawText)),
       phone: clean(basics.phone) || fallback.basics?.phone || "",
       location: clean(basics.location) || fallback.basics?.location || "",
       linkedin: clean(basics.linkedin) || fallback.basics?.linkedin || "",
     },
     summary: clean(ai.summary) || fallback.summary || "",
     experience: experience.length ? experience : fallback.experience || [],
-    education: education.length ? education : fallback.education || [],
-    skills: skills.length ? skills : fallback.skills || [],
+    education: education.length ? education : sortEducationByDate(fallback.education || []),
+    skills: skills.length ? skills : deduplicateSkills(fallback.skills || []),
     projects: projects.length ? projects : fallback.projects || [],
     languages: languages.length ? languages : fallback.languages || [],
     certifications: certifications.length ? certifications : fallback.certifications || [],
@@ -486,13 +496,33 @@ export function repairResumeProfileAfterParsing(profile: ResumeProfile, rawText:
   return repairProfileIdentity(profile, rawText, fileName, profile.basics?.name || "");
 }
 
+// ── Parse result cache ─────────────────────────────────────────────────────
+// Keyed by a short hash of the CV text. Prevents re-parsing identical content
+// within the same server process (e.g. /api/cv + /api/cv/structure called
+// back-to-back with the same file, which doubled AI API spend in the logs).
+const parseCache = new Map<string, { result: WorkZoAiCvParserResult; ts: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function cvTextHash(text: string): string {
+  // Cheap fingerprint — first 120 chars + length is sufficient for dedup
+  return `${text.length}:${text.slice(0, 120)}`;
+}
+
 export async function parseResumeWithAiStructure(input: ParseInput): Promise<WorkZoAiCvParserResult> {
   const rawText = normalizeResumeText(input.layoutText || input.cvText || "");
   const localFallback = repairResumeProfileAfterParsing(extractResumeProfileComplex(rawText), rawText, input.fileName || "");
 
   if (!rawText.trim()) return { ok: false, source: "empty", resumeProfile: localFallback, error: "No CV text provided." };
+
   if (!process.env.OPENROUTER_API_KEY) {
     return { ok: false, source: "local_fallback_no_api_key", resumeProfile: localFallback, error: "OPENROUTER_API_KEY is missing." };
+  }
+
+  // ── Cache check ─────────────────────────────────────────────────────────
+  const cacheKey = cvTextHash(rawText);
+  const cached = parseCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return cached.result;
   }
 
   try {
@@ -525,31 +555,40 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "  - Section headers: Profile Summary, Work Experience, Skills, Education, Contact, Languages, Projects, etc.",
             "  - German section headers: Fähigkeiten, Berufserfahrung, Ausbildung, Kontakt, Sprachen, Profilübersicht, etc.",
             "  - Job titles: Marketing Manager, Data Analyst, IT Support Specialist, Software Engineer, etc.",
-            "basics.email must be a valid email address only. If the extracted email field contains a phone number concatenated with the email (e.g. '+123-456-7890hello@reallygreatsite.com'), strip everything before the @ sign's local part and return only the clean email address (e.g. 'hello@reallygreatsite.com').",
             "  - Companies, universities, schools, bootcamps, or institutions.",
             "  - Soft skills: Leadership, Teamwork, Communication, Public Relations, Critical Thinking, Time Management.",
             "  - Abbreviations, tool categories, or programming language lists.",
             "",
-            "COMMON MISTAKES to avoid:",
-            "  WRONG: basics.name = 'Matplotlib Seaborn Tableau' (these are data viz tools, not a name)",
-            "  WRONG: basics.name = 'Public Relations Teamwork' (these are skills)",
+            "basics.email MUST be a valid email address (user@domain.tld).",
+            "Some PDF extractors concatenate adjacent columns into a single string, e.g. '+123-456-7890hello@reallygreatsite.com'.",
+            "In this case strip everything before the email local part and return only the clean email: 'hello@reallygreatsite.com'.",
+            "Never put a phone number or any other text in the email field.",
+            "",
+            "COMMON NAME MISTAKES to avoid:",
+            "  WRONG: basics.name = 'Matplotlib Seaborn Tableau' (data viz tools, not a name)",
+            "  WRONG: basics.name = 'Public Relations Teamwork' (skills)",
             "  WRONG: basics.name = 'Programming Python Bash PowerShell' (skill category + tools)",
-            "  WRONG: basics.name = 'Tools Ticketing-Systeme Remote Support' (CV skill section text)",
+            "  WRONG: basics.name = 'Tools Ticketing-Systeme Remote Support' (CV section text)",
             "  WRONG: basics.name = 'Profile Summary Work Experience' (CV section headers)",
             "  WRONG: basics.name = 'Valley Heights Community Preschool' (employer name)",
-            "  WRONG: basics.name = 'Financial Accountant' (job title, not a name)",
-            "  WRONG: basics.name = 'Senior Accountant' (job title, not a name)",
-            "  WRONG: basics.name = 'Jede Stadt' (German placeholder meaning Any City — address, not a name)",
             "  WRONG: basics.name = 'Arowwai Industries' (company name, not a person)",
+            "  WRONG: basics.name = 'Educationkey Skills' (concatenated section headers)",
+            "  WRONG: basics.name = 'Financial Accountant' (job title, not a name)",
+            "  WRONG: basics.name = 'Jede Stadt' (German placeholder — address, not a name)",
             "  CORRECT: basics.name = 'Haritha Vijayakumar' (real person name)",
             "  CORRECT: basics.name = 'Daniel Foster' (real person name)",
+            "  CORRECT: basics.name = 'Dani Martinez' (real person name)",
+            "  CORRECT: basics.name = 'Olivia Sanchez' (real person name)",
             "",
             "HOW TO FIND THE REAL NAME:",
             "  1. Look for a standalone line near the top that contains only a person's first and last name.",
             "  2. It is often in ALL CAPS, Title Case, or spaced letters (H A R I T H A V I J A Y A K U M A R).",
             "  3. It usually appears immediately above or below the job title/headline.",
-            "  4. In two-column CVs, the name is typically in the header or sidebar at the TOP — not in the skills or experience section.",
+            "  4. In two-column CVs the name is typically in the header or sidebar at the TOP.",
             "  5. If you cannot confidently identify a human name, set basics.name to empty string — do NOT guess.",
+            "",
+            "EDUCATION ordering: sort education entries by start date DESCENDING (most recent first).",
+            "SKILLS deduplication: remove duplicate skills that differ only in casing (e.g. 'Python' and 'python').",
             "",
             "If the name is split across lines around a job title, combine person-name tokens only: FIRST / ROLE / LAST => FIRST LAST.",
             "Keep bullets factual. Split bullets only when the source clearly separates responsibilities.",
@@ -570,7 +609,17 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
     }
 
     const aiProfile = buildProfileFromAi(parsed, localFallback, rawText, input.fileName || "");
-    return { ok: true, source: "ai_structured_cv", resumeProfile: aiProfile, error: "" };
+    const result: WorkZoAiCvParserResult = { ok: true, source: "ai_structured_cv", resumeProfile: aiProfile, error: "" };
+
+    // Store in cache
+    parseCache.set(cacheKey, { result, ts: Date.now() });
+    // Evict old entries — keep cache size bounded
+    if (parseCache.size > 50) {
+      const oldest = [...parseCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
+      if (oldest) parseCache.delete(oldest[0]);
+    }
+
+    return result;
   } catch (error) {
     return {
       ok: false,
