@@ -91,12 +91,11 @@ export async function POST(request: Request) {
   }
 
   // ── Plan gate — same as /api/interview ────────────────────────────────────
-  if (resolved.plan !== "premium" && resolved.plan !== "premium_pro") {
-    return NextResponse.json(
-      { error: "upgrade_required", requiredPlan: "premium", reply: null },
-      { status: 403 },
-    );
-  }
+  // Free users get full reply intelligence for 2 sessions.
+  // Restore when ready: uncomment below.
+  // if (resolved.plan !== "premium" && resolved.plan !== "premium_pro") {
+  //   return NextResponse.json({ error: "upgrade_required", requiredPlan: "premium", reply: null }, { status: 403 });
+  // }
 
   // ── Rate limit ────────────────────────────────────────────────────────────
   const rateLimitKey = `interview_reply:${resolved.userId}`;

@@ -94,12 +94,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (resolved.plan === "free") {
-    return Response.json(
-      { error: "upgrade_required", requiredPlan: "premium", message: "AI voice requires an upgrade." },
-      { status: 403 },
-    );
-  }
+  // Free users get voice — 2 sessions to feel the full product.
+  // Restore gate when ready: uncomment the block below.
+  // if (resolved.plan === "free") {
+  //   return Response.json({ error: "upgrade_required", requiredPlan: "premium", message: "AI voice requires an upgrade." }, { status: 403 });
+  // }
   // ─────────────────────────────────────────────────────────────────────────
 
   try {

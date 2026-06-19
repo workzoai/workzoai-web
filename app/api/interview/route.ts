@@ -65,10 +65,6 @@ type InterviewRequest = {
   recruiterTrust?: number;
   recruiterState?: string | null;
   recruiterMemorySummary?: string;
-  // Technical mode: candidate's current code and selected language.
-  // Only sent by premium/premium_pro clients when technicalMode is active.
-  codeSnapshot?: string;
-  codeLanguage?: string;
 };
 
 function text(value: unknown, maxChars = 1200) {
@@ -1068,9 +1064,6 @@ export async function POST(request: Request) {
           ? { summary: text(body.recruiterMemorySummary, 280) }
           : undefined,
         jobMemoryProfile: undefined,
-        // Technical mode: code the candidate has written this turn
-        codeSnapshot: body.codeSnapshot ? text(body.codeSnapshot, 2000) : undefined,
-        codeLanguage: body.codeLanguage ? text(body.codeLanguage, 40) : undefined,
       },
     });
 

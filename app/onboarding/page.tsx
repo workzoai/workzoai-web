@@ -605,6 +605,8 @@ export default function OnboardingPage() {
         companyStyle: (draft.companyStyle as CompanyStyle) || companyStyle,
         recruiterPersonality: normalizeRecruiterKey(draft.recruiterPersonality),
         language: normalizeInterviewLanguage(draft.language) || interviewLanguage,
+        fileName: (draft as any).uploadedFileName || "",
+        candidateName: (draft as any).candidateName || (draft.resumeProfile as any)?.basics?.name || "",
       }).then((nextSetup) => {
         const mergedSetup = {
           ...nextSetup, ...draft,
@@ -745,6 +747,23 @@ export default function OnboardingPage() {
       debugCvText("onboarding.upload.cleaned_text", rawCvText, { fileName: file.name });
       const apiProfile = data?.resumeProfile || data?.profile;
       const localProfile = extractResumeProfileComplex(rawCvText);
+
+      // The /api/cv route runs enforceCanonicalCandidateName with the real filename
+      // server-side. Its resolved name is the ground truth. Stamp it onto apiProfile
+      // before keepBetterProfile runs — this prevents the local text scan from
+      // overwriting a correct server-resolved name with a wrong one from the raw text.
+      if (apiProfile && typeof apiProfile === "object" && "basics" in apiProfile) {
+        const serverResolvedName = (
+          (apiProfile as any).basics?.name ||
+          (data?.recruiterMemoryProfile as any)?.candidateName ||
+          ""
+        ).trim();
+        if (serverResolvedName && serverResolvedName.split(" ").length >= 2) {
+          (apiProfile as any).basics.name = serverResolvedName;
+          if (localProfile?.basics) localProfile.basics.name = serverResolvedName;
+        }
+      }
+
       const apiBestProfile = apiProfile && typeof apiProfile === "object" && "basics" in apiProfile
         ? keepBetterProfile(apiProfile as ResumeProfile, localProfile, rawCvText) || localProfile
         : localProfile;
@@ -756,7 +775,7 @@ export default function OnboardingPage() {
       const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || profile.basics.headline || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
       saveCanonicalCvSetup(canonicalSetup, store);
       debugCvProfile("onboarding.upload.canonical_saved", canonicalSetup.resumeProfile, { setupId: canonicalSetup.setupId });
-      void buildAndSaveInterviewSetup({ cvText: rawCvText, jobDescription: jobDescription.trim(), targetRole: role || profile.basics.headline || "General Role", targetMarket: market, companyStyle, recruiterPersonality: normalizeRecruiterKey(recruiter) })
+      void buildAndSaveInterviewSetup({ cvText: rawCvText, jobDescription: jobDescription.trim(), targetRole: role || profile.basics.headline || "General Role", targetMarket: market, companyStyle, recruiterPersonality: normalizeRecruiterKey(recruiter), fileName: file.name, candidateName: profile.basics.name || "" })
         .then((nextSetup) => {
           const enrichedSetup = { ...(nextSetup as SetupState), ...canonicalSetup, cvText: buildInterviewCvContext(profile, rawCvText), uploadedCvText: rawCvText, resumeText: buildInterviewCvContext(profile, rawCvText), candidateCv: buildInterviewCvContext(profile, rawCvText), rawCvText, previewText: profile.previewText, resumeProfile: profile, updatedAt: new Date().toISOString() } as SetupState;
           debugCvProfile("onboarding.upload.enriched_before_save", enrichedSetup.resumeProfile, { note: "This should still match canonical parser profile." });

@@ -18,6 +18,7 @@ export async function buildRecruiterMemoryFromCv(input: {
   targetRole: string;
   targetMarket: string;
   fileName?: string;
+  candidateName?: string;
   language?: string;
 }): Promise<StructureCvResult> {
   const cvText = (input.cvText || "").trim();
@@ -45,6 +46,7 @@ export async function buildRecruiterMemoryFromCv(input: {
         targetRole: input.targetRole || "General Role",
         targetMarket: input.targetMarket || "Global",
         fileName: input.fileName || "",
+        candidateName: input.candidateName || "",
         language: input.language || "English",
       }),
     });
@@ -86,6 +88,7 @@ export async function buildAndSaveInterviewSetup(input: {
   companyStyle?: string;
   recruiterPersonality?: string;
   fileName?: string;
+  candidateName?: string;
   language?: string;
   save?: boolean;
   baseSetup?: WorkZoInterviewSetup;
@@ -99,6 +102,7 @@ export async function buildAndSaveInterviewSetup(input: {
     targetRole: input.targetRole || "General Role",
     targetMarket: input.targetMarket || "Global",
     fileName: input.fileName || "",
+    candidateName: input.candidateName || "",
     language: input.language || "English",
   });
 

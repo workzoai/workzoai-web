@@ -104,12 +104,16 @@ const ROLE_OR_HEADLINE_RE = /\b(project|product|program|programme|portfolio|it|u
 
 const NON_NAME_PHRASE_RE = /\b(project management|cost planning|cost planning and analysis|enterprise resource planning|resource planning|software development|process improvement|personal and team training|machine learning|data visualization|data visualisation|data engineering|generative ai|public relations|time management|teamwork|leadership|critical thinking|effective communication|summary of skills|work experience|education and training|programm\s*\d+)\b/i;
 
+// Words that are never part of a real human name. If ALL parts of a multi-word
+// string are in this set, the string is a skill/section phrase, not a name.
+const NEVER_A_NAME_WORD_RE = /^(matplotlib|seaborn|tableau|tensorflow|sklearn|scikit|langchain|langkette|pytorch|numpy|pandas|keras|pyspark|hadoop|spark|airflow|dbt|looker|powerbi|power|bash|powershell|shell|linux|ubuntu|debian|redhat|android|ios|swift|kotlin|flutter|react|angular|vue|django|flask|fastapi|nodejs|express|spring|docker|kubernetes|helm|terraform|ansible|jenkins|gitlab|github|bitbucket|jira|confluence|slack|salesforce|hubspot|zendesk|servicenow|ticketing|systeme|remote|netzwerke|betriebssysteme|programmierung|datenanalyse|weiterbildung|kontakt|fähigkeiten|fahigkeiten|berufserfahrung|ausbildung|bildungsweg|sprachen|profil|profilu|ubersicht|kenntnisse|lebenslauf|bewerbung|programm|programme|programs|relations|teamwork|leadership|communication|thinking|management|planning|analysis|engineering|visualization|visualisation|integration|scraping|generation|retrieval|augmented|generative|bootcamp|certification|intern|freelance|volunteer|candidate|profilesummary|workexperience)$/i;
+
 const ORG_OR_INSTITUTION_RE = /\b(gmbh|ug|ag|kg|ohg|ltd|limited|llc|inc|corp|corporation|company|companies|group|holding|holdings|services|solutions|systems|technologies|technology|tech|software|digital|media|productions?|studio|studios|agency|agencies|partners|consulting|consultants|ventures|labs?|university|universität|universitaet|college|school|schule|hochschule|institute|institut|center|centre|academy|akademie|bootcamp|campus|faculty|department)\b/i;
 
 const DEGREE_OR_EDU_RE = /\b(bachelor|master|mba|msc|ma|ba|bsc|phd|degree|diploma|certificate|certification|arts|science|engineering|management|marketing|grade|thesis|abschluss|studium|ausbildung)\b/i;
 
 // Global address/location rejection. This prevents values like
-// "Zweierweg Würzburg", "Any City", "Berlin Germany", or street fragments
+// "123 Main Street", "Any City", "Berlin Germany", or street fragments
 // from being accepted as candidate names.
 const ADDRESS_OR_LOCATION_RE = /\b(street|straße|strasse|str\.?|road|rd\.?|avenue|ave\.?|weg|platz|gasse|allee|ring|drive|dr\.?|lane|ln\.?|city|town|village|anywhere|germany|deutschland|france|india|italy|spain|canada|usa|united states|uk|united kingdom|w[üu]rzburg|berlin|frankfurt|munich|münchen|hamburg|cologne|köln|chennai|london|manchester|ostia)\b/i;
 
@@ -125,13 +129,11 @@ function compactDecorativeLine(line: string) {
       CONTACTS: "CONTACTS",
       CONTACT: "CONTACT",
       KONTAKT: "KONTAKT",
-      KONTAKTDATEN: "KONTAKTDATEN",
       SKILLS: "SKILLS",
       SUMMARY: "SUMMARY",
       OVERVIEW: "OVERVIEW",
       PROFILE: "PROFILE",
       PROFIL: "PROFIL",
-      PROFILÜBERSICHT: "PROFILÜBERSICHT",
       WORKEXPERIENCE: "WORK EXPERIENCE",
       PROFESSIONALERFAHRUNG: "PROFESSIONAL EXPERIENCE",
       BERUFSERFAHRUNG: "BERUFSERFAHRUNG",
@@ -139,7 +141,6 @@ function compactDecorativeLine(line: string) {
       EDUCATIONANDTRAINING: "EDUCATION AND TRAINING",
       BILDUNGSWEG: "BILDUNGSWEG",
       BILDUNG: "BILDUNG",
-      AUSBILDUNG: "AUSBILDUNG",
       PROJECTS: "PROJECTS",
       PROJEKTE: "PROJEKTE",
       AWARDSRECEIVED: "AWARDS RECEIVED",
@@ -148,44 +149,8 @@ function compactDecorativeLine(line: string) {
       SPRACHEN: "SPRACHEN",
       CERTIFICATIONS: "CERTIFICATIONS",
       ZERTIFIKATE: "ZERTIFIKATE",
-      EXPERTISE: "EXPERTISE",
-      EXPERIENCE: "EXPERIENCE",
-      FÄHIGKEITEN: "FÄHIGKEITEN",
     };
     if (sectionMap[compact]) return sectionMap[compact];
-
-    // For long sequences (7+ tokens, up to 25) that are NOT known section headers,
-    // this is likely a decorative spaced-letter person name (e.g. H A R I T H A V I J A Y A K U M A R).
-    // Try to split into two words using vowel-boundary scoring so the name extractor
-    // can score it properly as a two-part candidate.
-    if (tokens.length > 6 && tokens.length <= 25) {
-      // nameEndings: common suffixes for first names across cultures
-      const nameEndings = /(?:el|al|an|en|on|er|in|ia|ie|ah|eh|oh|ith|tha|lie|ine|ane|ella|elle|ette|ina|ima|ara|ira|ora|ura|esa|ika|ola|ama|ema|uma|hari|dani|yuki|hiro|kenji|kari|mari|yumi|nori|taro)$/i;
-      let bestScore = -1;
-      let bestSplit = -1;
-      for (let i = 3; i <= tokens.length - 2; i++) {
-        const first = tokens.slice(0, i).join("").toLowerCase();
-        const last = tokens.slice(i).join("").toLowerCase();
-        const vowels = (s: string) => (s.match(/[aeiou]/g) || []).length;
-        const v1 = vowels(first);
-        const v2 = vowels(last);
-        if (v1 < 1 || v2 < 1) continue;
-        if (first.length < 3 || first.length > 10) continue;
-        if (last.length < 2 || last.length > 16) continue;
-        let score = v1 * 2 + v2;
-        if (/[aeiou]$/.test(first)) score += 4;
-        if (nameEndings.test(first)) score += 6;
-        if (first.length >= 4 && first.length <= 7) score += 4;
-        else if (first.length >= 3 && first.length <= 9) score += 2;
-        if (first.length > 9) score -= 4;
-        score -= Math.abs(first.length - last.length) * 0.4;
-        if (score > bestScore) { bestScore = score; bestSplit = i; }
-      }
-      if (bestSplit > 0 && bestScore >= 6) {
-        return tokens.slice(0, bestSplit).join("") + " " + tokens.slice(bestSplit).join("");
-      }
-    }
-
     return compact;
   }
 
@@ -229,6 +194,11 @@ function isLikelyHumanName(value: unknown): string {
     if (!/^[\p{L}]/u.test(part)) return "";
     if (ROLE_WORD_RE.test(normalizeForCompare(part))) return "";
   }
+
+  // Hard reject: if EVERY word matches a known skill/tool/section word,
+  // this is a phrase like "Matplotlib Seaborn Tableau" or "Public Relations",
+  // not a human name.
+  if (parts.every(p => NEVER_A_NAME_WORD_RE.test(p))) return "";
 
   // A real person name is normally Title Case, ALL CAPS, or mixed case with
   // each token starting with a letter. This accepts global names while still
@@ -450,35 +420,7 @@ function extractJsonObject(raw: string): AiResumeJson | null {
 function repairProfileIdentity(profile: ResumeProfile, rawText: string, fileName = "", modelName = ""): ResumeProfile {
   // Lock identity from the CV source text first. AI identity is only fallback.
   const lockedName = extractBestCandidateName(rawText, fileName, "");
-
-  // GLOBAL NAME SAFETY: If the AI-supplied name contains any word that appears in the
-  // parsed skills/languages list, it is a skill phrase masquerading as a name.
-  // In that case, we discard the AI name entirely and use only the text-derived name.
-  // This catches: "Matplotlib Seaborn Tableau", "Tools Ticketing-systeme",
-  // "Programming Python Bash Power Shell", "Programm Programm", etc.
-  function aiNameIsPoisoned(name: string, profile: ResumeProfile): boolean {
-    if (!name) return false;
-    const nameWords = name.toLowerCase().replace(/[^a-z0-9À-ž ]/g, " ").split(/\s+/).filter(w => w.length > 2);
-    // Collect all structured tokens: skills, languages, experience titles/companies, education
-    const structuredItems = [
-      ...(profile.skills || []),
-      ...(profile.languages || []),
-      ...(profile.experience || []).flatMap(x => [x?.title || "", x?.company || ""]),
-      ...(profile.education || []).flatMap(x => [x?.degree || "", x?.institution || ""]),
-    ];
-    const structuredTokens = new Set(
-      structuredItems
-        .flatMap(s => String(s).toLowerCase().replace(/[^a-z0-9À-ž ]/g, " ").split(/\s+/))
-        .filter(w => w.length > 2)
-    );
-    // Also reject known section headers / tool names directly
-    const TOOL_OR_SECTION_RE = /^(matplotlib|seaborn|tableau|sklearn|tensorflow|langchain|pytorch|numpy|pandas|powerbi|snowflake|splunk|wireshark|nessus|crowdstrike|programming|ticketing|betriebssysteme|netzwerke|datenanalyse|programm|programme|programs|programmierung|weiterbildung|fertigkeiten|kenntnisse|profilübersicht|berufserfahrung|ausbildung|fähigkeiten|kontakt|sprachen|bildung|profil|skills|summary|experience|education|contact|languages|projects|certifications|awards)$/i;
-    return nameWords.some(w => structuredTokens.has(w) || TOOL_OR_SECTION_RE.test(w));
-  }
-
-  const aiNamePoisoned = aiNameIsPoisoned(modelName, profile);
-  const safeModelName = aiNamePoisoned ? "" : modelName;
-  const fallbackName = extractBestCandidateName(rawText, fileName, safeModelName || profile.basics?.name || "");
+  const fallbackName = extractBestCandidateName(rawText, fileName, modelName || profile.basics?.name || "");
   const name = lockedName || fallbackName || "";
 
   const email = extractEmail(rawText) || clean(profile.basics?.email);
@@ -576,14 +518,40 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "You are a professional CV parser for WorkZo AI.",
             "Return ONLY valid JSON. Do not write markdown.",
             "Extract facts exactly from the CV. Do not invent anything.",
-            "The candidate name must be a real human person's first and last name only.",
-            "CRITICAL: Never use any of the following as basics.name: skills, tools, technologies, frameworks, programming languages, software names, job titles, company names, university names, degree names, addresses, cities, street names, countries, emails, phone numbers, URLs, section headers (Skills, Education, Experience, Languages, Profile, Summary, Contact, etc.), or any non-person entity.",
-            "CRITICAL: If the CV is two-column or decorative, skill names and tool names often appear before the candidate name in the extracted text. Scan the FULL text for a human name — do not stop at the first two-word phrase.",
-            "CRITICAL: If the file name contains a human name (e.g. 'Haritha Vijayakumar.pdf', 'Daniel Foster Resume.pdf'), that is almost certainly the candidate name. Use it.",
-            "Examples of WRONG basics.name values: 'Matplotlib Seaborn Tableau', 'Tools Ticketing-systeme', 'Programming Python Bash', 'Programm Programm', 'Public Relations', 'Project Management', 'Data Science Bootcamp'.",
-            "Examples of CORRECT basics.name values: 'Haritha Vijayakumar', 'Daniel Foster', 'Jonas Lausch', 'Alice Milani'.",
-            "If the name is split across lines with a job title in between (e.g. ADELINE / ENGLISH TEACHER / PALMERSTON), combine only the person-name tokens: basics.name = 'Adeline Palmerston', basics.headline = 'English Teacher'.",
-            "If you are not confident about the candidate name, leave basics.name as an empty string rather than guessing a skill or phrase.",
+            "",
+            "CRITICAL — basics.name MUST be a real human person's full name (first + last).",
+            "NEVER put any of the following in basics.name:",
+            "  - Skills or tools: Python, SQL, Tableau, Matplotlib, Seaborn, TensorFlow, LangChain, RAG, GCP, etc.",
+            "  - Section headers: Profile Summary, Work Experience, Skills, Education, Contact, Languages, Projects, etc.",
+            "  - German section headers: Fähigkeiten, Berufserfahrung, Ausbildung, Kontakt, Sprachen, Profilübersicht, etc.",
+            "  - Job titles: Marketing Manager, Data Analyst, IT Support Specialist, Software Engineer, etc.",
+            "basics.email must be a valid email address only. If the extracted email field contains a phone number concatenated with the email (e.g. '+123-456-7890hello@reallygreatsite.com'), strip everything before the @ sign's local part and return only the clean email address (e.g. 'hello@reallygreatsite.com').",
+            "  - Companies, universities, schools, bootcamps, or institutions.",
+            "  - Soft skills: Leadership, Teamwork, Communication, Public Relations, Critical Thinking, Time Management.",
+            "  - Abbreviations, tool categories, or programming language lists.",
+            "",
+            "COMMON MISTAKES to avoid:",
+            "  WRONG: basics.name = 'Matplotlib Seaborn Tableau' (these are data viz tools, not a name)",
+            "  WRONG: basics.name = 'Public Relations Teamwork' (these are skills)",
+            "  WRONG: basics.name = 'Programming Python Bash PowerShell' (skill category + tools)",
+            "  WRONG: basics.name = 'Tools Ticketing-Systeme Remote Support' (CV skill section text)",
+            "  WRONG: basics.name = 'Profile Summary Work Experience' (CV section headers)",
+            "  WRONG: basics.name = 'Valley Heights Community Preschool' (employer name)",
+            "  WRONG: basics.name = 'Financial Accountant' (job title, not a name)",
+            "  WRONG: basics.name = 'Senior Accountant' (job title, not a name)",
+            "  WRONG: basics.name = 'Jede Stadt' (German placeholder meaning Any City — address, not a name)",
+            "  WRONG: basics.name = 'Arowwai Industries' (company name, not a person)",
+            "  CORRECT: basics.name = 'Haritha Vijayakumar' (real person name)",
+            "  CORRECT: basics.name = 'Daniel Foster' (real person name)",
+            "",
+            "HOW TO FIND THE REAL NAME:",
+            "  1. Look for a standalone line near the top that contains only a person's first and last name.",
+            "  2. It is often in ALL CAPS, Title Case, or spaced letters (H A R I T H A V I J A Y A K U M A R).",
+            "  3. It usually appears immediately above or below the job title/headline.",
+            "  4. In two-column CVs, the name is typically in the header or sidebar at the TOP — not in the skills or experience section.",
+            "  5. If you cannot confidently identify a human name, set basics.name to empty string — do NOT guess.",
+            "",
+            "If the name is split across lines around a job title, combine person-name tokens only: FIRST / ROLE / LAST => FIRST LAST.",
             "Keep bullets factual. Split bullets only when the source clearly separates responsibilities.",
             "JSON shape: { basics:{name,headline,email,phone,location,linkedin}, summary, experience:[{title,company,location,dates,bullets:[]}], education:[{degree,institution,location,dates}], skills:[], projects:[{name,bullets:[]}], languages:[], certifications:[], strengths:[], additionalEvidence:[], warnings:[] }",
           ].join("\n"),

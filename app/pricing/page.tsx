@@ -279,10 +279,10 @@ export default function PricingPage() {
             Monthly and yearly plans
           </div>
           <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-tight sm:text-6xl">
-            Choose how deeply WorkZo AI supports your job search.
+            Know what the offer costs. Then close the gap.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-300">
-            Free lets you try the interview experience. Premium is the complete interview preparation platform. Premium Pro is your personal AI career coach and growth system.
+            Free shows where the gap is. Premium closes it. Premium Pro builds on every session until the offer lands.
           </p>
 
           <div className="mx-auto mt-8 inline-flex rounded-2xl border border-white/10 bg-black/30 p-1">
@@ -327,46 +327,87 @@ export default function PricingPage() {
           </div>
         </section>
 
-        <section className="mt-12 grid items-start gap-4 lg:grid-cols-3">
+        <section className="mt-12 grid items-stretch gap-4 lg:grid-cols-3">
           {PLAN_CARDS.map((card) => {
             const plan = WORKZO_PLAN_LIMITS[card.id];
             const isPremium = card.id === "premium";
             const isPro = card.id === "premium_pro";
+            const isFree = card.id === "free";
             return (
               <div
                 key={card.id}
                 className={cn(
-                  "relative flex flex-col rounded-3xl border p-6 transition",
-                  isPremium
-                    ? "border-blue-400/50 bg-[#0b1a30] lg:-mt-4 lg:pb-8 lg:pt-8"
-                    : isPro
-                      ? "border-violet-400/30 bg-[#0e0b1f]"
-                      : "border-white/10 bg-white/[0.03]",
+                  "flex flex-col rounded-3xl border p-6",
+                  isPremium ? "border-blue-400/50 bg-[#080f1c]" : "border-white/[0.08] bg-white/[0.03]",
                 )}
               >
-                {/* Badge */}
-                {plan.badge ? (
-                  <div className={cn(
-                    "mb-4 inline-flex self-start rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]",
-                    isPremium
-                      ? "border-blue-400/30 bg-blue-400/10 text-blue-300"
-                      : "border-violet-400/20 bg-violet-400/10 text-violet-300"
-                  )}>
-                    {plan.badge}
-                  </div>
-                ) : (
-                  <div className="mb-4 h-[26px]" />
-                )}
+                {/* Badge — always takes same height so cards align */}
+                <div className="mb-5 h-6">
+                  {plan.badge && (
+                    <span className={cn(
+                      "inline-flex items-center rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em]",
+                      isFree
+                        ? "border border-white/10 bg-white/5 text-white/40"
+                        : isPremium
+                          ? "bg-blue-500/20 text-blue-300"
+                          : "bg-violet-500/15 text-violet-300",
+                    )}>
+                      {plan.badge}
+                    </span>
+                  )}
+                </div>
 
-                {/* Plan name + price */}
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-white/40">{plan.label}</p>
-                <h2 className="mt-1 text-xl font-black text-white">{plan.shortLabel}</h2>
+                {/* Plan identity */}
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">{plan.label}</p>
+                <h2 className="mt-1.5 text-lg font-black leading-snug text-white">{plan.shortLabel}</h2>
+
+                {/* Price */}
                 <PriceLine plan={card.id} billingCycle={billingCycle} />
 
                 {/* Description */}
-                <p className="mt-4 text-sm leading-6 text-slate-400">{plan.description}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-400">{plan.description}</p>
 
-                {/* CTA button */}
+                {/* Trial note */}
+                {isPremium && (
+                  <p className="mt-2 text-xs font-black text-emerald-400">
+                    24-hour free trial · cancel anytime before charged
+                  </p>
+                )}
+                {isPro && (
+                  <p className="mt-2 text-xs font-black text-violet-400">
+                    2 free live recruiter minutes included
+                  </p>
+                )}
+
+                {/* Divider */}
+                <div className="my-5 h-px bg-white/[0.07]" />
+
+                {/* Included features */}
+                <div className="flex-1 space-y-2.5">
+                  {plan.included.map((item) => (
+                    <div key={item} className="flex items-start gap-2.5">
+                      <CheckCircle2 className={cn(
+                        "mt-0.5 h-[15px] w-[15px] shrink-0",
+                        isPro ? "text-violet-400" : isPremium ? "text-blue-400" : "text-emerald-400",
+                      )} />
+                      <span className="text-sm leading-[1.45] text-slate-200">{item}</span>
+                    </div>
+                  ))}
+
+                  {/* Not-included — muted, no XCircle */}
+                  {plan.notIncluded.length > 0 && (
+                    <div className="mt-4 space-y-2.5 border-t border-white/[0.06] pt-4">
+                      {plan.notIncluded.map((item) => (
+                        <div key={item} className="flex items-start gap-2.5">
+                          <div className="mt-[5px] h-[6px] w-[6px] shrink-0 rounded-full bg-white/15" />
+                          <span className="text-sm leading-[1.45] text-slate-600">{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* CTA — always at bottom */}
                 <button
                   type="button"
                   onClick={() => choosePlan(card.id)}
@@ -377,36 +418,8 @@ export default function PricingPage() {
                   )}
                 >
                   {checkoutLoading === card.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                  {card.id === "free" ? "Start Free" : checkoutLoading === card.id ? "Connecting…" : `Choose ${plan.label}`}
+                  {isFree ? "Start Free" : checkoutLoading === card.id ? "Connecting…" : `Choose ${plan.label}`}
                 </button>
-
-                {/* Divider */}
-                <div className="my-6 h-px bg-white/[0.08]" />
-
-                {/* Included features */}
-                <div className="space-y-3">
-                  {plan.included.map((item) => (
-                    <div key={item} className="flex items-start gap-2.5">
-                      <CheckCircle2 className={cn(
-                        "mt-0.5 h-4 w-4 shrink-0",
-                        isPro ? "text-violet-400" : isPremium ? "text-blue-400" : "text-emerald-400"
-                      )} />
-                      <span className="text-sm leading-5 text-slate-200">{item}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Not-included — dashed style, no XCircle noise */}
-                {plan.notIncluded.length > 0 && (
-                  <div className="mt-5 space-y-3 border-t border-white/[0.07] pt-5">
-                    {plan.notIncluded.map((item) => (
-                      <div key={item} className="flex items-start gap-2.5">
-                        <div className="mt-1.5 h-3 w-3 shrink-0 rounded-full border border-white/20" />
-                        <span className="text-sm leading-5 text-slate-500">{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             );
           })}
@@ -435,8 +448,8 @@ export default function PricingPage() {
 
         <section className="mt-14 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.03]">
           <div className="border-b border-white/10 p-6">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">Plan comparison</p>
-            <h2 className="mt-2 text-2xl font-black sm:text-3xl">What changes between plans?</h2>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">Plan breakdown</p>
+            <h2 className="mt-2 text-2xl font-black sm:text-3xl">What each plan actually includes</h2>
           </div>
           <div className="overflow-x-auto">
             <div className="min-w-[760px]">

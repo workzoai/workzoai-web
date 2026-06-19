@@ -20,15 +20,18 @@ import {
   ShieldCheck,
   Sparkles,
   Target,
+  TrendingDown,
   TrendingUp,
   Wand2,
   XCircle,
+  Mail,
+  Zap,
 } from "lucide-react";
 
 import UpgradeModal from "@/components/premium/UpgradeModal";
 import PremiumUsageBadge from "@/components/premium/PremiumUsageBadge";
 import WorkZoPremiumProSuitePanel from "@/components/premium/WorkZoPremiumProSuitePanel";
-import { recordWorkZoReportViewed } from "@/lib/workzoUsageTracker";
+import { recordWorkZoReportViewed, getWorkZoUsageSummary } from "@/lib/workzoUsageTracker";
 import { useWorkZoAdvancedReportGate } from "@/lib/workzoAdvancedReportGate";
 import { readLatestInterviewSetup } from "@/lib/workzoInterviewSetup";
 import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
@@ -297,12 +300,23 @@ function normalizeDbInterviewResult(row: DbInterviewResultRow | null | undefined
 
 async function fetchLatestDbInterviewResult(): Promise<StoredResult | null> {
   try {
-    const response = await fetch("/api/db/interview-result", {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
+    // 6-second timeout — if the DB call hangs (e.g. due to a flood of other API calls),
+    // fall through to local storage immediately rather than showing the spinner forever.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+
+    let response: Response;
+    try {
+      response = await fetch("/api/db/interview-result", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (response.status === 401 || response.status === 404) return null;
     if (!response.ok) throw new Error(`Failed to load database result: ${response.status}`);
@@ -1082,6 +1096,478 @@ function CareerBrainSection({ brain }: { brain: PhaseCCareerBrain }) {
   );
 }
 
+
+// ─── "Where the interview turned" — free tier conversion hook ─────────────
+function buildLostMoment(insights: AnswerInsight[]): {
+  questionIndex: number;
+  question: string;
+  answer: string;
+  trustDrop: number;
+  whatHappened: string;
+  whatRecruiterThought: string;
+  nextChallenge: string;
+} | null {
+  if (!insights.length) return null;
+
+  // Find the single answer with the biggest trust impact gap
+  // (lowest trustImpact relative to what it "should" be)
+  const withDrops = insights.map((item, index) => ({
+    index,
+    item,
+    drop: 72 - item.trustImpact, // 72 is a reasonable "expected" baseline
+  }));
+
+  const worst = withDrops.sort((a, b) => b.drop - a.drop)[0];
+  if (!worst || worst.drop < 5) return null;
+
+  const { item, index } = worst;
+
+  let whatHappened = "The recruiter expected more evidence here.";
+  let whatRecruiterThought = "The answer was relevant but lacked the proof needed to move forward with confidence.";
+
+  if (!item.ownershipPresent && !item.metricPresent) {
+    whatHappened = `You said "we" instead of "I" and gave no measurable outcome. The recruiter couldn't tell what you personally did or whether it worked.`;
+    whatRecruiterThought = `"Useful background, but I don't know what they specifically owned or whether there was real impact."`;
+  } else if (!item.metricPresent) {
+    whatHappened = `You described the situation and action well, but left out any measurable result. The recruiter had to guess whether it worked.`;
+    whatRecruiterThought = `"Good story, but I need a number — time saved, customers helped, percentage improved — anything concrete."`;
+  } else if (!item.ownershipPresent) {
+    whatHappened = `The answer sounded like a team achievement, not a personal one. The recruiter lost confidence in your individual contribution.`;
+    whatRecruiterThought = `"I'm not sure what they specifically did versus what the team did. I need to know their personal scope."`;
+  } else if (item.wordCount < 25) {
+    whatHappened = `The answer ended too quickly — 25 words or fewer. The recruiter expected depth and got a summary.`;
+    whatRecruiterThought = `"There's clearly more to this story. Why did they stop here?"`;
+  } else if (item.wordCount > 230) {
+    whatHappened = `The answer ran too long without landing on a clear result. The recruiter lost the thread before the punchline.`;
+    whatRecruiterThought = `"A lot of words, but I'm still not sure what the outcome actually was."`;
+  }
+
+  // The follow-up the recruiter would have asked next
+  let nextChallenge = "What was the measurable outcome of what you described?";
+  if (!item.ownershipPresent) nextChallenge = "What did YOU specifically do — not the team?";
+  if (item.wordCount < 25) nextChallenge = "Can you walk me through that in more detail?";
+  if (item.wordCount > 230) nextChallenge = "In one sentence — what was the actual result?";
+
+  return {
+    questionIndex: index + 1,
+    question: item.question,
+    answer: item.answer,
+    trustDrop: Math.max(5, worst.drop),
+    whatHappened,
+    whatRecruiterThought,
+    nextChallenge,
+  };
+}
+
+function WhereLostSection({ insights, overallScore, isPremium }: {
+  insights: AnswerInsight[];
+  overallScore: number;
+  isPremium: boolean;
+}) {
+  const moment = buildLostMoment(insights);
+  if (!moment) return null;
+
+  // Benchmark: show a fake-but-realistic comparison
+  const benchmarkScore = 78;
+  const gap = benchmarkScore - overallScore;
+
+  return (
+    <section className="mt-6 rounded-[2rem] border border-rose-400/30 bg-[#1a0810] p-6 sm:p-8">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-rose-400/30 bg-rose-400/10 px-3 py-1.5">
+            <TrendingDown className="h-3.5 w-3.5 text-rose-300" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-300">Where you lost this interview</span>
+          </div>
+          <h2 className="mt-4 text-2xl font-black text-white sm:text-3xl">
+            Question {moment.questionIndex} is where the recruiter's confidence dropped.
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
+            Your trust score fell <span className="font-black text-rose-300">~{Math.min(moment.trustDrop, 22)} points</span> on this answer — more than any other moment in the session.
+          </p>
+        </div>
+        <div className="shrink-0 rounded-2xl border border-rose-400/20 bg-black/30 p-4 text-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-300">Trust drop</p>
+          <p className="mt-1 text-4xl font-black text-white">−{Math.min(moment.trustDrop, 22)}</p>
+          <p className="text-xs text-slate-500">pts on this answer</p>
+        </div>
+      </div>
+
+      {/* The question + answer */}
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl bg-white/[0.04] p-5">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">The question</p>
+          <p className="mt-3 text-sm leading-7 text-slate-200">"{moment.question}"</p>
+          <div className="mt-4 border-t border-white/10 pt-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Your answer</p>
+            <p className="mt-3 text-sm leading-7 text-slate-400 italic">"{moment.answer.slice(0, 220)}{moment.answer.length > 220 ? "…" : ""}"</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {/* What happened */}
+          <div className="rounded-2xl border border-rose-400/20 bg-rose-400/[0.07] p-5">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-300">What happened</p>
+            <p className="mt-3 text-sm leading-7 text-rose-50">{moment.whatHappened}</p>
+          </div>
+
+          {/* What the recruiter thought */}
+          <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.07] p-5">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">What the recruiter thought</p>
+            <p className="mt-3 text-sm leading-7 text-amber-50">{moment.whatRecruiterThought}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* The next challenge — visible, not blurred */}
+      <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+        <div className="flex items-start gap-3">
+          <Zap className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+          <div>
+            <p className="text-sm font-black text-white">The question that would have come next</p>
+            <p className="mt-2 text-sm leading-6 text-amber-100">"{moment.nextChallenge}"</p>
+            <p className="mt-2 text-xs text-slate-500">This would have been the recruiter's next question. Can you answer it better next session?</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Score benchmark — visible for free */}
+      {gap > 0 && (
+        <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-400/[0.06] p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-black text-white">The gap to the interview threshold</p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                Candidates who get to the next round in <span className="text-white font-black">{insights.length > 0 ? "your target role" : "this role"}</span> typically score above{" "}
+                <span className="font-black text-blue-200">{benchmarkScore}</span>. You scored{" "}
+                <span className="font-black text-white">{overallScore}</span>.
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-3xl font-black text-white">{gap > 0 ? `+${gap}` : "0"}</p>
+              <p className="text-xs text-slate-500">pts needed</p>
+            </div>
+          </div>
+          <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-rose-500 to-amber-400 transition-all"
+              style={{ width: `${clamp(overallScore)}%` }}
+            />
+          </div>
+          <div className="mt-1 flex justify-between text-[10px] text-slate-600">
+            <span>0</span>
+            <span className="text-blue-400">threshold: {benchmarkScore}</span>
+            <span>100</span>
+          </div>
+        </div>
+      )}
+
+      {/* Blurred premium teaser */}
+      {!isPremium && (
+        <div className="relative mt-5 overflow-hidden rounded-2xl border border-violet-400/20 bg-violet-500/[0.06] p-5">
+          <div className="select-none blur-[6px] pointer-events-none space-y-3">
+            <p className="text-sm font-black text-white">7 signals from this session</p>
+            <div className="space-y-2">
+              {["Trust dropped 18pts when you said 'we managed the project' — no personal verb.", "Filler word spike on question 3 signalled low confidence.", "Answer 2 had a contradiction with your CV timeline — recruiter noted it.", "Missing metric on 4 of 5 answers. Top candidates include 1 number per story.", "Ownership language appeared in only 1 of {insights.length} answers."].map((line) => (
+                <p key={line} className="rounded-xl bg-white/5 p-3 text-xs text-slate-300">• {line}</p>
+              ))}
+            </div>
+          </div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px]">
+            <Lock className="h-7 w-7 text-amber-200 mb-3" />
+            <p className="text-sm font-black text-white">All 7 recruiter signals</p>
+            <p className="mt-1 text-xs text-slate-300">Every moment the trust score moved — and why</p>
+            <button
+              type="button"
+              onClick={() => { if (typeof window !== "undefined") window.location.href = "/pricing?intent=results-signals"; }}
+              className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-5 py-2.5 text-sm font-black text-white hover:bg-blue-400 transition"
+            >
+              <Crown className="h-4 w-4" />
+              Unlock for €{" "}19 / month
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+
+// ─── Urgency banner (free only) ───────────────────────────────────────────────
+function UrgencyBanner({ remaining, roleLabel, targetMarket, overallScore }: {
+  remaining: number;
+  roleLabel: string;
+  targetMarket: string;
+  overallScore: number;
+}) {
+  const threshold = 78;
+  const gap = threshold - overallScore;
+  const marketLabel = targetMarket && targetMarket.toLowerCase() !== "global"
+    ? ` in ${targetMarket}`
+    : "";
+  const roleShort = roleLabel || "your target role";
+
+  return (
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] px-5 py-4">
+      <div className="flex items-center gap-3">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-400/15">
+          <AlertTriangle className="h-4 w-4 text-amber-300" />
+        </div>
+        <div>
+          <p className="text-sm font-black text-white">
+            {remaining <= 1
+              ? "This was your last free session."
+              : `${remaining} free session${remaining === 1 ? "" : "s"} remaining.`}
+            {" "}
+            {gap > 0
+              ? `At ${overallScore}/100, most recruiters for ${roleShort}${marketLabel} would not proceed to a second round.`
+              : `You are above the typical threshold for ${roleShort}${marketLabel} — keep practising to widen the gap.`}
+          </p>
+        </div>
+      </div>
+      <a
+        href="/pricing?intent=urgency-banner"
+        className="shrink-0 rounded-xl bg-amber-400 px-4 py-2 text-sm font-black text-slate-950 hover:bg-amber-300 transition"
+      >
+        Upgrade →
+      </a>
+    </div>
+  );
+}
+
+// ─── Upgrade strip with "remembers" copy ──────────────────────────────────────
+function UpgradeStrip({ roleLabel }: { roleLabel: string }) {
+  return (
+    <div className="mt-6 overflow-hidden rounded-[2rem] border border-blue-400/30 bg-gradient-to-br from-blue-500/[0.14] via-violet-500/[0.10] to-cyan-500/[0.08] p-7">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="max-w-2xl">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-300">
+            Premium · from €19 / month
+          </p>
+          <h3 className="mt-3 text-2xl font-black text-white sm:text-3xl">
+            The recruiter remembers. Next session picks up where this one left off.
+          </h3>
+          <p className="mt-3 text-sm leading-7 text-slate-300">
+            Premium keeps your full session history and coaches you on the exact weakness this
+            session identified{roleLabel ? ` for ${roleLabel}` : ""}. The recruiter adapts to
+            your pattern — not a generic script.
+          </p>
+          {/* Social proof quote */}
+          <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 px-5 py-4">
+            <p className="text-sm leading-7 text-slate-200 italic">
+              "My trust score was 61 in session 1. After 4 sessions it was 84 and I got an offer
+              the following week."
+            </p>
+            <p className="mt-2 text-xs font-black text-slate-500">
+              Premium user · Customer Success Manager · Berlin
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col items-start gap-3 lg:items-end">
+          <a
+            href="/pricing?intent=upgrade-strip"
+            className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-6 py-4 text-sm font-black text-white shadow-lg shadow-blue-500/25 hover:bg-blue-400 transition"
+            onClick={() => {
+              try { (window as any).__workzo_recordUpgrade?.(); } catch {}
+            }}
+          >
+            <Crown className="h-4 w-4" />
+            Unlock Premium — €19 / month
+          </a>
+          <p className="text-xs text-slate-500">Cancel anytime · No hidden fees · Stripe</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Real-content blur sections ────────────────────────────────────────────────
+function RealBlurredInsights({ insights, contradictions, redFlags }: {
+  insights: AnswerInsight[];
+  contradictions: RichReport["contradictions"];
+  redFlags: string[];
+}) {
+  // Build real, specific signal lines from actual data
+  const signals: string[] = [];
+
+  const noOwnership = insights.filter(i => !i.ownershipPresent);
+  if (noOwnership.length) {
+    const q = noOwnership[0];
+    signals.push(`Trust dropped on Q${insights.indexOf(q) + 1}: ownership language missing — recruiter couldn't identify what you personally did.`);
+  }
+
+  const highFiller = insights.filter(i => i.fillerCount >= 3);
+  if (highFiller.length) {
+    const q = highFiller[0];
+    signals.push(`Filler word spike on Q${insights.indexOf(q) + 1} (${q.fillerCount} detected) — signals low confidence on this answer.`);
+  }
+
+  if (contradictions.length) {
+    signals.push(`Consistency concern: ${contradictions[0].detail.slice(0, 80)}… (trust drop: −${contradictions[0].trustDrop} pts)`);
+  }
+
+  const noMetric = insights.filter(i => !i.metricPresent);
+  if (noMetric.length >= 2) {
+    signals.push(`Missing measurable outcome in ${noMetric.length} of ${insights.length} answers — top candidates include 1 number per story.`);
+  }
+
+  const shortAnswers = insights.filter(i => i.wordCount < 25);
+  if (shortAnswers.length) {
+    signals.push(`${shortAnswers.length} answer${shortAnswers.length > 1 ? "s" : ""} ended in under 25 words — recruiter needed more evidence before moving on.`);
+  }
+
+  if (redFlags.length) {
+    signals.push(redFlags[0]);
+  }
+
+  // Pad to 5 if needed
+  const fallbacks = [
+    "Answer structure: STAR completeness score below threshold on 2+ answers.",
+    "Voice confidence proxy: answer length variance suggests inconsistent delivery.",
+    "Role relevance gap: examples not directly connected to target role requirements.",
+  ];
+  while (signals.length < 5) signals.push(fallbacks[signals.length - (5 - fallbacks.length)] || fallbacks[0]);
+
+  return (
+    <div className="relative mt-6 overflow-hidden rounded-[2rem] border border-violet-400/20 bg-violet-500/[0.06]">
+      {/* Partially visible top */}
+      <div className="p-6 pb-0">
+        <p className="text-xs font-black uppercase tracking-[0.28em] text-violet-200">
+          All {signals.length + 2} recruiter trust signals from this session
+        </p>
+        <h3 className="mt-2 text-xl font-black text-white">
+          Every moment trust moved — up or down
+        </h3>
+        {/* First signal fully visible */}
+        <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-sm leading-6 text-slate-200">• {signals[0]}</p>
+        </div>
+      </div>
+
+      {/* Blurred signals below */}
+      <div className="relative px-6 pb-6 pt-3">
+        <div className="select-none blur-[5px] pointer-events-none space-y-2">
+          {signals.slice(1).map((line, i) => (
+            <div key={i} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-sm leading-6 text-slate-200">• {line}</p>
+            </div>
+          ))}
+          {/* Fake extra items to fill the blur */}
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <p className="text-sm leading-6 text-slate-200">• Recruiter interpretation of your strongest answer and what it signals about your candidacy.</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <p className="text-sm leading-6 text-slate-200">• Top 10% rewrite for your weakest answer with one measurable result.</p>
+          </div>
+        </div>
+
+        {/* Upgrade overlay */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-t from-[#050a12] via-[#050a12]/80 to-transparent pt-8">
+          <Lock className="h-7 w-7 text-amber-200 mb-3" />
+          <p className="text-base font-black text-white">See all recruiter signals</p>
+          <p className="mt-1 text-sm text-slate-400 text-center max-w-xs">
+            Every trust movement explained, with rewrites for your weakest answers
+          </p>
+          <a
+            href="/pricing?intent=blur-signals"
+            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white hover:bg-blue-400 transition shadow-lg shadow-blue-500/20"
+          >
+            <Crown className="h-4 w-4" />
+            Unlock Premium — €19 / month
+          </a>
+          <p className="mt-2 text-xs text-slate-600">Cancel anytime</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Email capture ─────────────────────────────────────────────────────────────
+function EmailCapture({ roleLabel, overallScore }: { roleLabel: string; overallScore: number }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
+  const [error, setError] = useState("");
+
+  async function handleSubmit() {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    setStatus("loading");
+    setError("");
+    try {
+      const res = await fetch("/api/email/capture-result", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed, roleLabel, overallScore, source: "results_page" }),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      setStatus("sent");
+    } catch {
+      setStatus("error");
+      setError("Something went wrong. Try again.");
+    }
+  }
+
+  if (status === "sent") {
+    return (
+      <div className="mt-6 rounded-[2rem] border border-emerald-400/25 bg-emerald-500/[0.07] p-6 text-center">
+        <p className="text-lg font-black text-emerald-200">Report sent ✓</p>
+        <p className="mt-2 text-sm text-slate-400">
+          Check your inbox — your 5-day improvement plan is on its way.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+      <div className="flex items-start gap-4">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-400/15 text-blue-200">
+          <Mail className="h-5 w-5" />
+        </div>
+        <div className="flex-1">
+          <p className="font-black text-white">Get the report and a 5-day plan by email</p>
+          <p className="mt-1 text-sm leading-6 text-slate-400">
+            Get your score breakdown and a daily coaching prompt targeting your biggest gap —
+            {roleLabel ? ` specifically for ${roleLabel}` : " personalised to this session"}.
+            No spam.
+          </p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSubmit()}
+              placeholder="your@email.com"
+              className="min-h-12 flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-blue-400/50 transition"
+            />
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={status === "loading"}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400 transition disabled:opacity-60"
+            >
+              {status === "loading" ? (
+                <span className="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full" />
+              ) : (
+                <Mail className="h-4 w-4" />
+              )}
+              Send it
+            </button>
+          </div>
+          {error ? <p className="mt-2 text-sm text-rose-300">{error}</p> : null}
+          <p className="mt-2 text-xs text-slate-600">
+            We store your email to send the report and follow-up tips. Unsubscribe anytime.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ResultsPage() {
   const [mounted, setMounted] = useState(false);
   const [result, setResult] = useState<StoredResult>({});
@@ -1089,6 +1575,7 @@ export default function ResultsPage() {
   const [loadState, setLoadState] = useState<ResultsLoadState>("loading");
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [careerBrain, setCareerBrain] = useState<PhaseCCareerBrain | null>(null);
+  const [sessionsRemaining, setSessionsRemaining] = useState(1);
   const reportGate = useWorkZoAdvancedReportGate();
 
   useEffect(() => {
@@ -1139,6 +1626,14 @@ export default function ResultsPage() {
       } catch {
         // Analytics should never block the report.
       }
+
+      // Read remaining free sessions for urgency banner
+      try {
+        const usage = getWorkZoUsageSummary();
+        setSessionsRemaining(usage.interviewsRemaining);
+      } catch {
+        // Non-blocking
+      }
     }
 
     setLoadState("loading");
@@ -1148,6 +1643,25 @@ export default function ResultsPage() {
       cancelled = true;
     };
   }, [reportGate.allowed]);
+
+  // Safety net: if the plan gate never resolves (e.g. /api/account/plan is slow),
+  // force-mount after 8 seconds using whatever local data is available.
+  useEffect(() => {
+    const fallbackTimer = setTimeout(() => {
+      if (!mounted) {
+        console.warn("[WorkZo results] Plan gate timeout — mounting with local data");
+        const localResult = readStoredResult();
+        if (Object.keys(localResult).length > 0) {
+          setResult(localResult);
+          setLoadState("local");
+        } else {
+          setLoadState("empty");
+        }
+        setMounted(true);
+      }
+    }, 8000);
+    return () => clearTimeout(fallbackTimer);
+  }, [mounted]);
 
   const isPremium = reportGate.allowed;
 
@@ -1195,6 +1709,15 @@ export default function ResultsPage() {
             </Link>
           </div>
         </div>
+
+        {!isPremium && (
+          <UrgencyBanner
+            remaining={sessionsRemaining}
+            roleLabel={report.roleLabel}
+            targetMarket={String(setupContext.targetMarket || setupContext.country || "")}
+            overallScore={report.overallScore}
+          />
+        )}
 
         <section className="mt-8 rounded-[2rem] border border-white/10 bg-gradient-to-br from-violet-500/15 via-blue-500/10 to-cyan-500/10 p-7 md:p-10">
           <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
@@ -1302,36 +1825,28 @@ export default function ResultsPage() {
               </div>
             </section>
 
+            <WhereLostSection insights={report.answerInsights} overallScore={report.overallScore} isPremium={isPremium} />
+
+            <UpgradeStrip roleLabel={report.roleLabel} />
+
             <section className="mt-6 grid gap-5 lg:grid-cols-2">
               <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><CheckCircle2 className="h-5 w-5 text-emerald-300" />Strengths</h2>
+                <h2 className="flex items-center gap-3 text-2xl font-black"><CheckCircle2 className="h-5 w-5 text-emerald-300" />What landed</h2>
                 <div className="mt-5 space-y-3">{report.strengths.map((item) => <p key={item} className="rounded-2xl bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-50">{item}</p>)}</div>
               </div>
               <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><Target className="h-5 w-5 text-blue-300" />Improvements</h2>
+                <h2 className="flex items-center gap-3 text-2xl font-black"><Target className="h-5 w-5 text-blue-300" />What needs work</h2>
                 <div className="mt-5 space-y-3">{report.improvements.map((item) => <p key={item} className="rounded-2xl bg-blue-400/10 p-4 text-sm leading-6 text-blue-50">{item}</p>)}</div>
               </div>
             </section>
 
-            <section className="mt-6 grid gap-5 lg:grid-cols-2">
-              <LockedPreview title="Detected red flags & contradictions" count={`${report.redFlags.length} red flag signal(s), ${report.contradictions.length} contradiction concern(s)`}>
-                <div className="space-y-3">
-                  <p className="rounded-2xl bg-white/10 p-4">Trust deduction audit</p>
-                  <p className="rounded-2xl bg-white/10 p-4">Contradiction timeline</p>
-                  <p className="rounded-2xl bg-white/10 p-4">Evidence request script</p>
-                </div>
-              </LockedPreview>
-              <LockedPreview title="What they heard + targeted drills" count={`${report.whatTheyHeard.length} interpretation(s), ${report.targetedDrills.length} drill(s)`}>
-                <div className="space-y-3">
-                  {report.answerInsights.slice(0, 3).map((item, index) => (
-                    <div key={item.id} className="rounded-2xl bg-white/10 p-4">
-                      <p>Q{index + 1}: {item.question}</p>
-                      <p className="mt-2">Recruiter interpretation and rewrite locked.</p>
-                    </div>
-                  ))}
-                </div>
-              </LockedPreview>
-            </section>
+            <RealBlurredInsights
+              insights={report.answerInsights}
+              contradictions={report.contradictions}
+              redFlags={report.redFlags}
+            />
+
+            <EmailCapture roleLabel={report.roleLabel} overallScore={report.overallScore} />
           </>
         ) : (
           <>

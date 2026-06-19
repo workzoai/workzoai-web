@@ -11,6 +11,14 @@ function cleanText(value: unknown, max = 50000) {
     .slice(0, max);
 }
 
+// Extract a clean email from a field that may have phone number concatenated.
+// e.g. "+123-456-7890hello@reallygreatsite.com" → "hello@reallygreatsite.com"
+function cleanEmail(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const match = value.match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/);
+  return match ? match[0].toLowerCase() : "";
+}
+
 function norm(value: unknown) {
   return cleanText(value, 500)
     .toLowerCase()
@@ -33,13 +41,13 @@ function unique<T>(items: T[], keyFn: (item: T) => string) {
   return out;
 }
 
-const BAD_NAME_RE = /\b(candidate|professional|unknown|resume|cv|curriculum|profile|summary|experience|education|skills?|projects?|languages?|contact|email|phone|linkedin|github|english|german|deutsch|dutch|french|spanish|italian|portuguese|fluent|native|conversational|support|engineer|analyst|manager|specialist|developer|consultant|technical|data|customer|success|sales|marketing|product|project|program|software|frontend|backend|fullstack|itil|itsm|api|sql|python|tableau|power bi|gcp|aws|rag|nlp|machine learning|matplotlib|seaborn|tensorflow|sklearn|langchain|headline|workexperience|profilesummary|coordinator|assistant|intern|teacher|preschool|accountant|designer|cybersecurity|programming|bash|powershell|power shell|security|cloud|threat|detection|ticketing|roadmapping|agile|scrum|stakeholder|competencies|initiative|platform|dashboard|tutor|volunteer|self-employed|school|university|college|industries|solutions|community|e-scooter|scooter)\b/i;
+const BAD_NAME_RE = /\\b(candidate|professional|unknown|resume|cv|curriculum|profile|summary|experience|education|skills?|projects?|languages?|contact|email|phone|linkedin|github|english|german|deutsch|dutch|french|spanish|italian|portuguese|fluent|native|conversational|support|engineer|analyst|manager|specialist|developer|consultant|technical|data|customer|success|sales|marketing|product|project|program|software|frontend|backend|fullstack|itil|itsm|api|sql|python|tableau|power bi|gcp|aws|rag|nlp|machine learning|matplotlib|seaborn|tensorflow|sklearn|langchain|headline|workexperience|profilesummary|coordinator|assistant|intern|teacher|preschool|accountant|designer|cybersecurity|programming|bash|powershell|power shell|security|cloud|threat|detection|ticketing|roadmapping|agile|scrum|stakeholder|competencies|initiative|platform|dashboard|tutor|volunteer|self-employed|school|university|college|industries|solutions|community|e-scooter|scooter|financial|accountant|senior|junior|coordinator|assistant|designer|architect|director|officer|president|founder|principal|head|chief|jede|stadt|straße|strasse|anywhere|heights|valley|community|preschool|teacher|tutor|instructor|professor|lecturer|trainer|coach|contractor)\\b/i;
 const SECTION_RE = /^(contact|skills|expertise|languages|education|work experience|professional experience|experience|projects|profile summary|summary|certifications|awards|interests|references|headline professional experience)$/i;
 const COMPANY_EDU_RE = /\b(gmbh|ug|ag|kg|ltd|llc|inc|corp|corporation|company|group|services|solutions|systems|technologies|software|university|college|school|institute|academy|bootcamp|campus)\b/i;
 const CONTACT_DATE_RE = /@|www\.|http|linkedin|github|\+?\d[\d\s()./-]{5,}|\b(19|20)\d{2}\b|\b(street|strasse|straße|road|weg|platz|gasse|allee|city|town|germany|deutschland|india|canada|usa|uk)\b/i;
 
 
-const COMMON_ROLE_TITLE_RE = /\b(graphic\s+designer|financial\s+accountant|senior\s+accountant|professional\s+accountant|product\s+manager|project\s+manager|product\s+design\s+engineer|technical\s+support|support\s+engineer|customer\s+success|data\s+analyst|software\s+engineer|cybersecurity\s+engineer|cybersecurity\s+analyst|ux\s+designer|ui\s+designer|account\s+manager|sales\s+manager|business\s+analyst|it\s+project\s+manager|preschool\s+teacher|freelance\s+tutor|volunteer\s+preschool\s+assistant|communications\s+coordinator|pr\s+manager|pr\s+specialist|cloud\s+security|threat\s+detection|analysis\s+content|content\s+manager|web\s+content|applications\s+developer|app\s+developer|data\s+science\s+manager|principal\s+consultant|lead\s+product|senior\s+product|junior\s+data|core\s+competencies|key\s+projects|executive\s+summary|berufliches\s+profil|berufsprofil|marketing\s+managerin|marketing\s+managerin|healthcare\s+predictive|supply\s+chain|knowledge\s+assistant|predictive\s+analytics)\b/i;
+const COMMON_ROLE_TITLE_RE = /\b(graphic\s+designer|financial\s+accountant|senior\s+accountant|professional\s+accountant|product\s+manager|project\s+manager|product\s+design\s+engineer|technical\s+support|support\s+engineer|customer\s+success|data\s+analyst|software\s+engineer|cybersecurity\s+engineer|cybersecurity\s+analyst|ux\s+designer|ui\s+designer|account\s+manager|sales\s+manager|business\s+analyst|it\s+project\s+manager|preschool\s+teacher|freelance\s+tutor|volunteer\s+preschool\s+assistant|communications\s+coordinator|pr\s+manager|pr\s+specialist|cloud\s+security|threat\s+detection)\b/i;
 const STRONG_SECTION_RE = /^(about\s+me|awards?\s+received|berufliches\s+profil|berufserfahrung|bildung|contacts?|core\s+competencies|education|education\s+and\s+training|erfolge\s+beim\s+kunden|experience|expertise|fähigkeiten|fahigkeiten|kontakt|languages?|overview|professional\s+experience|professional\s+summary|profile\s+overview|profile\s+summary|profil(?:\s*übersicht|\s*ubersicht)?|projects?|references?|skills?|summary\s+of\s+skills|work\s+experience)$/i;
 const NOISE_NAME_RE = /\b(core\s+competencies|summary\s+of\s+skills|professional\s+experience|work\s+experience|education\s+and\s+training|awards?\s+received|about\s+me|berufliches\s+profil|profil\s*übersicht|profil\s*ubersicht|professional\s+summary|technical\s+skills|security\s+projects|academic\s+history|awards\s+and\s+certification|tools?|ticketing|systems?|windows|server|active\s+directory|roadmapping|agile|scrum|stakeholder|management|auditing|financial\s+reporting|lorem\s+ipsum|programming|python|bash|power\s*shell|splunk|wireshark|nessus|crowdstrike|cloud|iam|soc|siem|threat|hunting|platform|initiative|dashboard|e-scooter|gans)\b/i;
 const ORG_WORD_RE = /\b(gmbh|ug|ag|kg|ltd|limited|llc|inc|corp|corporation|company|co\.?|group|holding|services|solutions|systems|technologies|technology|software|digital|media|industries|university|college|school|schule|hochschule|institute|academy|akademie|foundation|department)\b/i;
@@ -76,7 +84,8 @@ function normalizedNameKey(value: unknown) {
 }
 
 function nameAppearsInStructuredContent(profile: Partial<ResumeProfile> | ResumeProfile | null | undefined, name: string) {
-  if (!profile || !name) return false;
+  const key = norm(name);
+  if (!profile || !key) return false;
   const p = profile as ResumeProfile;
   const haystacks = [
     ...(Array.isArray(p.skills) ? p.skills : []),
@@ -85,48 +94,12 @@ function nameAppearsInStructuredContent(profile: Partial<ResumeProfile> | Resume
     ...(Array.isArray(p.experience) ? p.experience.flatMap((x) => [x?.title || "", x?.company || ""]) : []),
     ...(Array.isArray(p.education) ? p.education.flatMap((x) => [x?.degree || "", x?.institution || ""]) : []),
   ];
-
-  // Full-name exact match (original check)
-  const nameKey = norm(name);
-  if (nameKey && haystacks.some((item) => norm(item) === nameKey)) return true;
-
-  // Word-level check: if any individual word of the name (3+ chars) matches any
-  // individual token in the structured content. This catches cases like:
-  // "Matplotlib Seaborn Tableau" where each word appears separately in skills,
-  // even though the full phrase doesn't match any single skill entry.
-  const nameWords = name
-    .toLowerCase()
-    .split(/\s+/)
-    .map((w) => w.replace(/[^a-z0-9À-ž]/gi, ""))
-    .filter((w) => w.length > 2);
-
-  if (nameWords.length === 0) return false;
-
-  const structuredTokens = new Set(
-    haystacks.flatMap((s) =>
-      String(s)
-        .toLowerCase()
-        .split(/\s+/)
-        .map((w) => w.replace(/[^a-z0-9À-ž]/gi, ""))
-        .filter((w) => w.length > 2),
-    ),
-  );
-
-  return nameWords.some((w) => structuredTokens.has(w));
+  return haystacks.some((item) => norm(item) === key);
 }
 
-function chooseSaferName(current: string, canonical: string, profile?: Partial<ResumeProfile> | ResumeProfile | null, knownName = "") {
+function chooseSaferName(current: string, canonical: string, profile?: Partial<ResumeProfile> | ResumeProfile | null) {
   const currentValid = validateCandidateName(current);
   const canonicalValid = validateCandidateName(canonical);
-  const knownValid = validateCandidateName(knownName);
-
-  // knownName: a previously validated name from an earlier parse (e.g. from the file-upload
-  // parse where the filename provided a reliable signal). It overrides the current AI parser
-  // output when the AI parser produced a non-name string that happens to pass validateCandidateName
-  // (e.g. "Profilesummary Workexperience", "Programm Programm", "Tools Ticketing-systeme").
-  // We check that the knownName doesn't appear in structured content (skills, companies, etc.)
-  // as a final safety check, but otherwise prefer it over the parser output.
-  if (knownValid && !nameAppearsInStructuredContent(profile, knownValid)) return knownValid;
 
   // Important: never replace an already-valid human name with a lower-confidence
   // line found later in the CV. This prevents correct names like "Olivia Wilson"
@@ -134,13 +107,8 @@ function chooseSaferName(current: string, canonical: string, profile?: Partial<R
   if (currentValid && !nameAppearsInStructuredContent(profile, currentValid)) return currentValid;
 
   if (canonicalValid && !nameAppearsInStructuredContent(profile, canonicalValid)) return canonicalValid;
-
-  // Final fallback: only return currentValid if it's truly safe (not a company/title/skill).
-  // Without this check, "Wardrobe Wear" and "Financial Accountant" escape back through.
-  if (currentValid && !nameAppearsInStructuredContent(profile, currentValid)) return currentValid;
-
-  // All options are poisoned — use canonical if available, else "Candidate".
-  return canonicalValid || knownValid || "Candidate";
+  if (currentValid) return currentValid;
+  return canonicalValid || "Candidate";
 }
 
 export function isDefinitelyNotHumanName(value: unknown): boolean {
@@ -176,7 +144,7 @@ export function validateCandidateName(value: unknown): string {
 
 export function extractNameFromFileName(fileName = ""): string {
   const clean = String(fileName || "")
-    .replace(/\.(pdf|docx|doc|txt)$/gi, "")
+    .replace(/(?:\.(pdf|docx|doc|txt))+$/gi, "")  // strip ALL trailing extensions e.g. .pdf.pdf
     .replace(/\([^)]*\)/g, " ")
     .replace(/[_-]+/g, " ")
     .replace(/\d+/g, " ")
@@ -199,7 +167,7 @@ export function extractNameFromEmail(rawText: string): string {
   return "";
 }
 
-export function extractCanonicalCandidateName(rawText: string, fileName = "", parserName = "", knownName = "", profile?: Partial<ResumeProfile> | null): string {
+export function extractCanonicalCandidateName(rawText: string, fileName = "", parserName = "", knownName = ""): string {
   const lines = prepareCvNameLines(rawText);
   const candidates: Array<{ name: string; score: number; reason: string }> = [];
   const fileNameCandidate = extractNameFromFileName(fileName);
@@ -210,14 +178,8 @@ export function extractCanonicalCandidateName(rawText: string, fileName = "", pa
   if (knownCandidate) candidates.push({ name: knownCandidate, score: 150, reason: "known" });
   const emailName = extractNameFromEmail(rawText);
   if (emailName) candidates.push({ name: emailName, score: 18, reason: "email" });
-  // parserName: AI-returned name. Gets high priority ONLY if it doesn't appear in the
-  // profile's structured content (experience companies/titles, skills, education).
-  // This prevents "Wardrobe Wear", "Financial Accountant", "Matplotlib Seaborn Tableau"
-  // from being accepted just because the AI returned them with score 130.
   const parserCandidate = validateCandidateName(parserName);
-  if (parserCandidate && !nameAppearsInStructuredContent(profile, parserCandidate)) {
-    candidates.push({ name: parserCandidate, score: 130, reason: "parser" });
-  }
+  if (parserCandidate) candidates.push({ name: parserCandidate, score: 130, reason: "parser" });
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
@@ -275,10 +237,16 @@ export function extractCanonicalCandidateName(rawText: string, fileName = "", pa
 export function enforceCanonicalCandidateName<T extends Partial<ResumeProfile> | ResumeProfile>(profile: T, rawText = "", fileName = "", knownName = ""): T {
   const next = { ...(profile || {}) } as T & { basics?: any; warnings?: string[] };
   next.basics = { ...(next.basics || {}) };
+  // When a validated name is supplied from a previous parse with the real filename,
+  // trust it unconditionally — skip all re-derivation from raw text.
+  const validKnownName = validateCandidateName(knownName);
+  if (validKnownName) {
+    next.basics.name = validKnownName;
+    return next as T;
+  }
   const current = next.basics?.name || "";
-  // Pass `next` as profile so extractCanonicalCandidateName can check structured content
-  const canonical = extractCanonicalCandidateName(rawText || (next as any).rawText || "", fileName, current, knownName, next);
-  next.basics.name = chooseSaferName(current, canonical, next, knownName);
+  const canonical = extractCanonicalCandidateName(rawText || (next as any).rawText || "", fileName, current, "");
+  next.basics.name = chooseSaferName(current, canonical, next);
   return next as T;
 }
 
@@ -296,12 +264,19 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
   const p = (profile || {}) as Partial<ResumeProfile>;
   const basics = (p.basics || {}) as ResumeProfile["basics"];
 
+  // If basics.name is already a valid human name, trust it and do not re-derive
+  // from rawText. Re-deriving overwrites correct names when the raw text starts
+  // with skill words or section headers (common in two-column PDF extractions).
+  const existingValidName = validateCandidateName(basics.name);
+  const resolvedName = existingValidName ||
+    chooseSaferName(basics.name, extractCanonicalCandidateName(rawText || p.rawText || "", "", basics.name), p);
+
   return {
     rawText: cleanText(p.rawText || rawText, 50000),
     basics: {
-      name: chooseSaferName(basics.name, extractCanonicalCandidateName(rawText || p.rawText || "", "", basics.name), p),
+      name: resolvedName,
       headline: cleanText(basics.headline, 200) || "Professional",
-      email: cleanText(basics.email, 200),
+      email: cleanEmail(basics.email) || cleanText(basics.email, 200),
       phone: cleanText(basics.phone, 80),
       location: cleanText(basics.location, 200),
       linkedin: cleanText(basics.linkedin, 300),

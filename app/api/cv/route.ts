@@ -30,6 +30,7 @@ type RequestBody = {
   targetRole?: string;
   targetMarket?: string;
   fileName?: string;
+  candidateName?: string;
   language?: string;
   mode?: string;
 };
@@ -789,7 +790,7 @@ function mapAffindaProfile(
 
   // Final identity repair using WorkZo rules, but keep Affinda structure.
   const repaired = repairResumeProfileAfterParsing(profile, rawText, fileName);
-  return enforceCanonicalCandidateName(repaired, rawText, fileName) as ResumeProfile;
+  return enforceCanonicalCandidateName(repaired, rawText, fileName, "") as ResumeProfile;
 }
 
 async function sleep(ms: number) {
@@ -986,6 +987,7 @@ function buildResponse(input: {
   rawCvText: string;
   resumeProfile: ResumeProfile;
   fileName?: string;
+  candidateName?: string;
   jobDescription?: string;
   targetRole?: string;
   targetMarket?: string;
@@ -994,6 +996,7 @@ function buildResponse(input: {
     input.resumeProfile,
     input.rawCvText,
     input.fileName || "",
+    input.candidateName || "",
   ) as ResumeProfile;
   const finalName = resumeProfile.basics?.name || "";
   if (finalName && finalName !== input.resumeProfile.basics?.name) {
@@ -1088,6 +1091,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
       rawCvText: rawCv,
       resumeProfile: profile,
       fileName: body.fileName || "pasted-cv.txt",
+      candidateName: body.candidateName || "",
       jobDescription: jd,
       targetRole: body.targetRole,
       targetMarket: body.targetMarket,

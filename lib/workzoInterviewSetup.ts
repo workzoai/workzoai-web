@@ -106,7 +106,7 @@ const LEGACY_KEYS_TO_CLEAR = [
   "workzo_onboarding",
 ];
 
-const BLOCKED_NAME_WORDS = /\b(resume|cv|curriculum|profile|summary|experience|education|skills?|projects?|languages?|english|german|dutch|french|spanish|italian|portuguese|fluent|native|conversational|professional|engineer|analyst|manager|developer|specialist|consultant|support|sales|executive|objective|contact|email|phone|linkedin|github)\b/i;
+const BLOCKED_NAME_WORDS = /\b(resume|cv|curriculum|profile|summary|experience|education|skills?|projects?|languages?|english|german|dutch|french|spanish|italian|portuguese|fluent|native|conversational|professional|engineer|analyst|manager|developer|specialist|consultant|support|sales|executive|objective|contact|email|phone|linkedin|github|public|relations|management|leadership|teamwork|communication|critical|thinking|programming|python|javascript|typescript|java|sql|data|science|machine|learning|visualization|engineering|tableau|matplotlib|seaborn|tensorflow|sklearn|langchain|generative|retrieval|augmented|generation|ticketing|networking|remote|tools|systems|windows|linux|cloud|platform|functions|scraping|integration|bootcamp|bachelor|master|degree|university|college|school|institute|certification|intern|freelance|volunteer|candidate|profilesummary|workexperience|profile\s*summary|work\s*experience)\b/i;
 
 function cleanString(value: unknown, max = 20000) {
   if (typeof value !== "string") return "";
@@ -199,7 +199,17 @@ export function normalizeCandidateName(value: unknown): string {
     .replace(/\s+/g, " ")
     .trim();
 
-  return isValidCandidateName(text) ? text : "";
+  if (!isValidCandidateName(text)) return "";
+
+  // Extra guard: reject names where EVERY word is title-cased AND the phrase
+  // reads like a skill category or CV section (e.g. "Public Relations",
+  // "Project Management", "Matplotlib Seaborn Tableau", "Tools Ticketing Systeme").
+  // Real names have at least one word that is not a common English noun/adjective.
+  const words = text.split(" ").filter(Boolean);
+  const SKILL_LIKE_WORDS = /^(public|relations|project|management|critical|thinking|time|effective|communication|programming|tools|ticketing|systeme|remote|support|data|science|machine|learning|visualization|engineering|matplotlib|seaborn|tableau|tensorflow|sklearn|langchain|generative|retrieval|augmented|generation|profil|ubersicht|fähigkeiten|berufserfahrung|ausbildung|kontakt|sprachen)$/i;
+  if (words.length >= 2 && words.every(w => SKILL_LIKE_WORDS.test(w))) return "";
+
+  return text;
 }
 
 function sanitizeResumeProfile(profile: any, rawCvText = "") {

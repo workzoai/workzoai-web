@@ -1068,8 +1068,8 @@ function safeLocalStorageList(key: string) {
 }
 
 function isWorkZoPremiumUnlocked(plan: "free" | "premium" | "premium_pro") {
-  const limits = getWorkZoPlanLimits(plan);
-  return limits.tavus || limits.advancedReports;
+  // Free users get premium intelligence and personas — only session count is limited.
+  return true;
 }
 
 function pushWorkZoLocalEvent(key: string, eventName: string, payload: Record<string, unknown> = {}, limit = 500) {
@@ -3069,8 +3069,7 @@ function cleanVisibleTranscriptText(text: string) {
   return text
     .replace(/\s+/g, " ")
     .replace(/\bhigh\s+/i, "Hi ")
-    .replace(/\bherathivudayakuma\b/gi, "Haritha")
-    .replace(/\bharithavijayakumar\b/gi, "Haritha Vijayakumar")
+    // Founder-specific STT corrections removed — do not add personal names here
     .replace(/\bHi,?\s+surrender\b/gi, "Hi there")
     .replace(/\bsurrender\b/gi, "there")
     .replace(/\s+([,.!?])/g, "$1")
@@ -3376,6 +3375,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const [codeLanguage, setCodeLanguage] = useState("python");
   const codeSnapshotRef = useRef("");
   const codeLanguageRef = useRef("python");
+  // First-time user hint — shown after the recruiter's opening line, dismissed permanently
+  const [showFirstTimeHint, setShowFirstTimeHint] = useState(false);
   const interviewSessionIdRef = useRef<string>(`workzo-session-${Date.now()}`);
   const [moreOpen, setMoreOpen] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
@@ -3410,6 +3411,12 @@ const [questionIndex, setQuestionIndex] = useState(0);
   }, [serverPlan]);
 
   useEffect(() => {
+    // Show first-time hint if never dismissed
+    if (typeof window !== "undefined") {
+      const dismissed = localStorage.getItem("workzo_interview_hint_dismissed");
+      if (!dismissed) setShowFirstTimeHint(true);
+    }
+
     let active = true;
     fetchWorkZoAuthoritativePlan()
       .then((resolved) => {
@@ -3769,9 +3776,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
       const currentSetup = setupRef.current;
       const fallback = () => buildRecruiterReply(answer, questionIndexRef.current, currentSetup, recruiterMemoryRef.current);
 
-      if (serverPlan !== "premium" && serverPlan !== "premium_pro") {
-        return fallback();
-      }
+      // Free users get GPT-4o intelligence — only session count is limited.
+      // if (serverPlan !== "premium" && serverPlan !== "premium_pro") return fallback();
 
       try {
         const signalAnalysis = analyzeAnswerSignals(answer, currentSetup);
@@ -3829,6 +3835,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
   // Keep refs in sync so the interview API call always has the latest code
   // without needing to add codeSnapshot to every useCallback dependency array.
+  const dismissFirstTimeHint = useCallback(() => {
+    setShowFirstTimeHint(false);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("workzo_interview_hint_dismissed", "1");
+    }
+  }, []);
+
   const handleCodeChange = useCallback((code: string, language: string) => {
     setCodeSnapshot(code);
     setCodeLanguage(language);
@@ -3912,15 +3925,31 @@ const [questionIndex, setQuestionIndex] = useState(0);
     } catch {}
 
     const recognition = new Recognition();
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = getSpeechRecognitionLang(setupRef.current);
+
+    // Silence timer — fires onend after 2.2 seconds of no new speech.
+    // continuous=true means the browser keeps listening through natural pauses;
+    // we manually stop after sustained silence to submit the full answer.
+    let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+    const SILENCE_MS = 2200;
+
+    function resetSilenceTimer() {
+      if (silenceTimer) clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(() => {
+        if (recognitionRef.current && listeningRef.current) {
+          recognitionRef.current.stop();
+        }
+      }, SILENCE_MS);
+    }
 
     recognition.onstart = () => {
       listeningRef.current = true;
       setStatus("listening");
       setInterimText("");
       answerBufferRef.current = "";
+      resetSilenceTimer();
     };
 
     recognition.onresult = (event) => {
@@ -3933,6 +3962,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
         if (result.isFinal) finalText += text;
         else interim += text;
       }
+
+      // Any new speech resets the silence timer — candidate is still speaking
+      resetSilenceTimer();
 
       if (interim.trim()) {
         setInterimText(interim.trim());
@@ -3957,6 +3989,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
     recognition.onend = async () => {
       listeningRef.current = false;
+      if (silenceTimer) clearTimeout(silenceTimer);
       const answer = answerBufferRef.current.trim();
       setInterimText("");
 
@@ -3965,6 +3998,17 @@ const [questionIndex, setQuestionIndex] = useState(0);
           setStatus("listening");
           window.setTimeout(() => startListening(), 350);
         }
+        return;
+      }
+
+      // Minimum word threshold — don't submit partial utterances like "so I have always"
+      // or audio checks like "can you hear me". Real answers need at least 5 words.
+      const wordCount = answer.split(/\s+/).filter(Boolean).length;
+      const isAudioCheck = /^(can you hear|hello|hi|test|check|is this|are you|okay|yes|no)/i.test(answer);
+      if (wordCount < 5 && !isAudioCheck) {
+        // Too short — keep listening, append to buffer on next speech
+        setStatus("listening");
+        window.setTimeout(() => startListening(), 350);
         return;
       }
 
@@ -3998,7 +4042,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
       // with a generic templated question here would silently undo the point of
       // the LLM integration — this was also the exact condition (missingMetrics >= 2)
       // behind the "repeats the same sentence" bug found earlier in testing.
-      const isFreeRuleEnginePath = serverPlan !== "premium" && serverPlan !== "premium_pro";
+      const isFreeRuleEnginePath = false; // Free gets premium intelligence
       const simStyle = companyMode === "google" ? "analytical" : companyMode === "mckinsey" ? "pressure" : companyMode === "startup" ? "pressure" : "supportive";
       const adaptiveFollowUp = isFreeRuleEnginePath && !interruptDecision.shouldInterrupt && nextEmoMem.missingMetrics >= 2
         ? buildAdaptiveFollowUpQuestion({ style: simStyle, targetRole: setupRef.current.targetRole, weaknessSignals: nextEmoMem.weakMoments, previousAnswer: answer })
@@ -5549,6 +5593,24 @@ const [questionIndex, setQuestionIndex] = useState(0);
             </div>
           </section>
         ) : null}
+
+        {/* First-time user hint — shown once, dismissed permanently */}
+        {showFirstTimeHint && (
+          <div className="mx-4 mt-3 flex items-start gap-3 rounded-2xl border border-blue-400/20 bg-blue-400/[0.06] px-4 py-3">
+            <span className="mt-0.5 shrink-0 text-base text-blue-300">💡</span>
+            <p className="flex-1 text-xs leading-5 text-blue-200">
+              The recruiter will ask questions — respond as you would in a real interview. Speak naturally, then pause. WorkZo listens automatically.
+            </p>
+            <button
+              type="button"
+              onClick={dismissFirstTimeHint}
+              aria-label="Dismiss hint"
+              className="ml-2 shrink-0 text-white/30 transition hover:text-white/70"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Technical mode: show code panel between recruiter video and sidebar */}
         {technicalMode && premiumUnlocked && (

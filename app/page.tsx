@@ -22,22 +22,22 @@ import AuthNavButton from "@/components/auth/AuthNavButton";
 import { getWorkZoDisplayPrices } from "@/lib/workzoLocalizedPricing";
 
 const trustItems = [
-  "Company + role blueprint",
-  "High-friction recruiter simulation",
-  "Hiring committee style analytics",
+  "Reads the CV. Knows the role.",
+  "Pressure. Follow-ups. Real feedback.",
+  "Used in 10+ countries",
 ];
 
 const quickFeatures = [
-  { title: "Recruiter Pressure Simulation", text: "Messy follow-ups, pushback, and hiring-manager scrutiny.", icon: Mic },
-  { title: "CV + Job Aware", text: "Practice for the exact role you want.", icon: FileText },
-  { title: "Live Copilot", text: "Know what to say next during practice.", icon: Zap },
-  { title: "Recruiter Feedback", text: "See score, trust, verdict, and weak answers.", icon: BarChart3 },
+  { title: "Recruiter That Reads Your CV", text: "Questions are built from your actual background. Gaps get probed.", icon: Mic },
+  { title: "Role and Market Aware", text: "DACH, US, and UK recruiters behave differently. So does WorkZo.", icon: FileText },
+  { title: "Live Copilot", text: "Mid-session guidance on what to say — and what not to.", icon: Zap },
+  { title: "Trust Score Timeline", text: "See the exact question where the recruiter's confidence dropped.", icon: BarChart3 },
 ];
 
 const TESTIMONIALS = [
   {
     quote: "I’d been getting to final rounds and bombing. WorkZo showed me my trust score dropped every time I answered ownership questions. Two sessions later I had a framework — got an offer the following week.",
-    name: "Fayaz Ahmed",
+    name: "Amir K.",
     role: "Product Manager",
     location: "London",
     score: 84,
@@ -46,7 +46,7 @@ const TESTIMONIALS = [
   },
   {
     quote: "The follow-up questions are what got me. I’d give an answer I thought was fine, then Sarah would ask ‘what was the measurable outcome?’ and I’d realise I had nothing. Fixed that in three sessions.",
-    name: "Emma De Vries",
+    name: "Rachel L.",
     role: "Senior Data Analyst",
     location: "Amsterdam",
     score: 79,
@@ -64,7 +64,7 @@ const TESTIMONIALS = [
 
 const RECRUITER_PERSONAS = [
   {
-    name: "Sarah",
+    name: "Sarah M.",
     title: "Senior Hiring Manager",
     image: "/recruiters/sarah.png",
     style: "Sceptical · Evidence-driven",
@@ -78,7 +78,7 @@ const RECRUITER_PERSONAS = [
     accentStyle: "text-blue-300",
   },
   {
-    name: "James",
+    name: "James K.",
     title: "Tech Recruiter",
     image: "/recruiters/markus.png",
     style: "Fast-paced · No-nonsense",
@@ -92,7 +92,7 @@ const RECRUITER_PERSONAS = [
     accentStyle: "text-emerald-300",
   },
   {
-    name: "Priya",
+    name: "Priya N.",
     title: "Culture & Values Lead",
     image: "/recruiters/priya.png",
     style: "Empathetic · Values-focused",
@@ -106,7 +106,7 @@ const RECRUITER_PERSONAS = [
     accentStyle: "text-violet-300",
   },
   {
-    name: "Daniel",
+    name: "Daniel R.",
     title: "Executive Search Partner",
     image: "/recruiters/daniel.png",
     style: "Strategic · High-stakes",
@@ -352,7 +352,7 @@ function DemoSection() {
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>How it works</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-            Watch a live practice session
+            Watch a live session
           </h2>
           <p className="mt-4 text-lg leading-8 text-white/60">
             Two minutes. Real recruiter follow-ups. Trust score updating in real time.
@@ -462,7 +462,7 @@ function DemoSection() {
 
         {/* Caption row */}
         <div className="mt-5 flex flex-wrap items-center justify-center gap-4 text-[11px] text-white/40">
-          {["CV-aware recruiter questions", "Live trust score", "Real follow-ups on your answers", "Weakest answer detected"].map((label) => (
+          {["Questions built from the actual CV", "Live trust score per answer", "Follow-ups based on what was said", "Weakest moment flagged with reasoning"].map((label) => (
             <div key={label} className="flex items-center gap-1.5">
               <div className="h-1 w-1 rounded-full bg-blue-400/60" />
               {label}
@@ -481,10 +481,10 @@ function TestimonialsSection() {
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>What candidates say</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-            Real results from real practice
+            What changes after the first session
           </h2>
           <p className="mt-4 text-lg leading-8 text-white/60">
-            After one session, candidates know exactly what was costing them offers.
+            The trust score drop is usually the moment it clicks.
           </p>
         </div>
 
@@ -676,7 +676,7 @@ export default function LandingPage() {
 
               <div className="invisible absolute left-0 top-full z-50 mt-4 w-72 translate-y-2 rounded-2xl border border-white/10 bg-[#071120]/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
                 {[
-                  ["Interview Flight Simulator", "/features/interview-practice", "See how recruiter-style practice works."],
+                  ["How it works", "/features/interview-practice", "See how the recruiter reads the CV and where offers are lost."],
                   ["Improve CV", "/features/improve-cv", "View CV optimization details before upgrading."],
                   ["Cover Letter", "/features/cover-letter", "See how tailored letters are generated."],
                   ["Job Assist", "/features/job-assist", "Understand role-preparation tools."],
@@ -734,22 +734,17 @@ export default function LandingPage() {
 
         <div className="mx-auto max-w-7xl px-4 pb-20 pt-14 sm:px-6 lg:px-8 lg:pb-24 lg:pt-20">
           <div className="flex flex-col items-center text-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.20em] text-white/80 backdrop-blur">
-              <Sparkles className="h-3.5 w-3.5" />
-              Interview Flight Simulator
-            </div>
-
             <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.02] tracking-tight sm:text-6xl lg:text-[68px]">
-              Simulate real hiring pressure<br className="hidden sm:block" /> before the real interview.
+              Find out why the offer went to someone else.<br className="hidden sm:block" /> Before a real recruiter shows you.
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg leading-8 text-white/70 sm:text-xl">
-              WorkZo turns your CV, target role, and company context into a realistic recruiter simulation with pushback, deep-dives, trust drops, and hiring-committee style feedback.
+              WorkZo reads the CV, the role, and the company. Then it asks the exact questions a recruiter would — with follow-ups, pressure, and a live trust score that shows exactly where the interview turned.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link href="/pricing?intent=interview" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-7 py-4 text-base font-black text-slate-900 shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-blue-50">
-                Start Simulation
+                See Where Offers Are Lost
                 <ArrowRight className="h-5 w-5" />
               </Link>
               <Link href="/demo" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-7 py-4 text-base font-black text-white backdrop-blur transition hover:bg-white/20">
@@ -779,7 +774,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {[
-              ["500+", "simulations completed"],
+              ["500+", "sessions run"],
               ["74", "Avg. trust improvement"],
               ["10+", "Countries"],
               ["4", "recruiter personas"],
@@ -791,7 +786,7 @@ export default function LandingPage() {
             ))}
           </div>
           <p className="mt-4 text-center text-xs text-white/40">
-            Helping candidates find and fix what was costing them offers.
+            Built to show what recruiters notice — and what candidates never see coming.
           </p>
         </div>
       </section>
@@ -1112,119 +1107,149 @@ export default function LandingPage() {
           <div className="mx-auto max-w-3xl text-center">
             <SectionLabel>Pricing</SectionLabel>
             <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-              Start free. Upgrade when you need more.
+              Know what the offer costs. Then close the gap.
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-300">
-              Free lets you try the simulator. Premium unlocks full interview preparation. Premium Pro adds advanced career strategy and live recruiter sessions.
+              Free shows where the gap is. Premium closes it. Premium Pro builds on every session until the offer lands.
             </p>
           </div>
 
-          <div className="mt-10 grid gap-5 lg:grid-cols-3">
-            <div className="flex flex-col rounded-[2rem] border border-emerald-300/20 bg-emerald-400/[0.06] p-7 backdrop-blur-sm">
-              <p className="text-sm font-black uppercase tracking-[0.20em] text-emerald-300">Free</p>
-              <h3 className="mt-3 text-2xl font-black">Try WorkZo AI</h3>
-              <p className="mt-4 text-5xl font-black">{localizedPlans.free.amount}</p>
-              <p className="mt-3 min-h-[48px] text-sm leading-6 text-white/60">
-                Try realistic voice interview practice before upgrading.
+          <div className="mt-10 grid items-stretch gap-4 lg:grid-cols-3">
+
+            {/* Free */}
+            <div className="flex flex-col rounded-3xl border border-white/[0.08] bg-white/[0.03] p-6">
+              <div className="mb-5 h-6">
+                <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/40">
+                  Free forever
+                </span>
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">Free</p>
+              <h3 className="mt-1.5 text-lg font-black leading-snug text-white">Start here</h3>
+              <p className="mt-4 text-4xl font-black text-white sm:text-5xl">{localizedPlans.free.amount}</p>
+              <p className="mt-3 text-sm leading-6 text-slate-400">
+                Two sessions. Enough to find the question that would have cost the offer.
               </p>
-              <ul className="mt-5 space-y-2.5">
+              <div className="my-5 h-px bg-white/[0.07]" />
+              <div className="flex-1 space-y-2.5">
                 {[
-                  "2 Recruiter simulations / month",
-                  "Recruiter intelligence trial",
-                  "Realistic follow-up questions",
-                  "Basic interview report",
-                  "Limited interview history",
+                  "2 voice interviews / month",
+                  "CV-aware recruiter questions",
+                  "Follow-ups based on what was said",
+                  "Post-session breakdown",
+                  "3 recruiter personas",
                 ].map((item) => (
-                  <li key={item} className="flex items-center gap-2 text-sm text-white/80">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />{item}
-                  </li>
+                  <div key={item} className="flex items-start gap-2.5">
+                    <CheckCircle2 className="mt-0.5 h-[15px] w-[15px] shrink-0 text-emerald-400" />
+                    <span className="text-sm leading-[1.45] text-slate-200">{item}</span>
+                  </div>
                 ))}
-              </ul>
-              <Link href="/pricing?intent=interview" className="mt-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-black text-slate-900 shadow-lg transition hover:scale-[1.02] hover:bg-blue-50">
-                Start Free
-                <ArrowRight className="h-4 w-4" />
+                <div className="mt-4 space-y-2.5 border-t border-white/[0.06] pt-4">
+                  {["Session history", "CV diagnostics", "Live AI recruiter"].map((item) => (
+                    <div key={item} className="flex items-start gap-2.5">
+                      <div className="mt-[5px] h-[6px] w-[6px] shrink-0 rounded-full bg-white/15" />
+                      <span className="text-sm leading-[1.45] text-slate-600">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <Link
+                href="/pricing?intent=interview"
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-6 py-3 text-sm font-black text-white transition hover:bg-white/20"
+              >
+                Start Free <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
 
-            <div className="relative flex flex-col rounded-[2rem] border border-blue-300/25 bg-blue-500/[0.10] p-7 shadow-2xl shadow-blue-950/20 backdrop-blur-sm">
-              <div className="absolute right-5 top-5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">
-                Most Popular
+            {/* Premium */}
+            <div className="flex flex-col rounded-3xl border-2 border-blue-400/50 bg-[#080f1c] p-6">
+              <div className="mb-5 h-6">
+                <span className="inline-flex items-center rounded-full bg-blue-500/20 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-blue-300">
+                  Most popular
+                </span>
               </div>
-              <p className="text-sm font-black uppercase tracking-[0.20em] text-blue-200">Premium</p>
-              <h3 className="mt-3 pr-24 text-2xl font-black text-white">Complete Preparation</h3>
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <span className="text-lg font-black text-white/40 line-through decoration-2">{localizedPlans.premium.regular}</span>
-                <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-200">Launch offer</span>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">Premium</p>
+              <h3 className="mt-1.5 text-lg font-black leading-snug text-white">Full readiness system</h3>
+              <div className="mt-4 flex flex-wrap items-baseline gap-2">
+                <span className="text-sm font-black text-white/35 line-through decoration-2">{localizedPlans.premium.regular}</span>
+                <span className="text-4xl font-black text-white sm:text-5xl">{localizedPlans.premium.amount}</span>
+                <span className="text-base text-white/45">/month</span>
               </div>
-              <p className="mt-2 text-5xl font-black">
-                {localizedPlans.premium.amount}<span className="text-xl text-white/50">/month</span>
+              <p className="mt-3 text-sm leading-6 text-slate-400">
+                Everything needed to close the gap — sessions, CV diagnostics, cover letters, and full history.
               </p>
-              <p className="mt-3 min-h-[48px] text-sm leading-6 text-white/60">
-                50 voice interviews, CV improvement, cover letters, Job Assist, Career Brain, and advanced reports.
+              <p className="mt-2 text-xs font-black text-emerald-400">
+                24-hour free trial · cancel anytime before charged
               </p>
-              <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/[0.08] px-3 py-2">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
-                <p className="text-xs font-black text-emerald-300">24-hour free trial · cancel anytime before you&apos;re charged</p>
-              </div>
-              <ul className="mt-5 space-y-2.5">
+              <div className="my-5 h-px bg-white/[0.07]" />
+              <div className="flex-1 space-y-2.5">
                 {[
-                  "50 Recruiter simulations / month",
-                  "Advanced recruiter intelligence",
-                  "CV Improvement + ATS Optimization",
-                  "Cover Letter Generator",
-                  "Job Assist",
+                  "50 voice interviews / month",
+                  "Trust score timeline per session",
+                  "Full session history",
+                  "CV diagnostics + ATS optimisation",
+                  "Cover letter builder",
+                  "Job analysis tool",
                   "Career Brain + performance tracking",
                 ].map((item) => (
-                  <li key={item} className="flex items-center gap-2 text-sm text-white/80">
-                    <ShieldCheck className="h-4 w-4 shrink-0 text-blue-200" />{item}
-                  </li>
+                  <div key={item} className="flex items-start gap-2.5">
+                    <CheckCircle2 className="mt-0.5 h-[15px] w-[15px] shrink-0 text-blue-400" />
+                    <span className="text-sm leading-[1.45] text-slate-200">{item}</span>
+                  </div>
                 ))}
-              </ul>
-              <Link href="/pricing?plan=premium" className="mt-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] hover:bg-blue-400">
-                Choose Premium
-                <ArrowRight className="h-4 w-4" />
+              </div>
+              <Link
+                href="/pricing?plan=premium"
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white transition hover:bg-blue-400"
+              >
+                Choose Premium <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
 
-            <div className="relative flex flex-col rounded-[2rem] border border-violet-300/25 bg-violet-500/[0.10] p-7 shadow-2xl shadow-violet-950/20 backdrop-blur-sm">
-              <div className="absolute right-5 top-5 rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-violet-100">
-                Best Experience
+            {/* Premium Pro */}
+            <div className="flex flex-col rounded-3xl border border-violet-400/30 bg-white/[0.03] p-6">
+              <div className="mb-5 h-6">
+                <span className="inline-flex items-center rounded-full bg-violet-500/15 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-violet-300">
+                  Full system
+                </span>
               </div>
-              <p className="text-sm font-black uppercase tracking-[0.20em] text-violet-200">Premium Pro</p>
-              <h3 className="mt-3 pr-24 text-2xl font-black text-white">Career Strategy + Live Recruiter</h3>
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <span className="text-lg font-black text-white/40 line-through decoration-2">{localizedPlans.premiumPro.regular}</span>
-                <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-200">Launch offer</span>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">Premium Pro</p>
+              <h3 className="mt-1.5 text-lg font-black leading-snug text-white">Long-term career system</h3>
+              <div className="mt-4 flex flex-wrap items-baseline gap-2">
+                <span className="text-sm font-black text-white/35 line-through decoration-2">{localizedPlans.premiumPro.regular}</span>
+                <span className="text-4xl font-black text-white sm:text-5xl">{localizedPlans.premiumPro.amount}</span>
+                <span className="text-base text-white/45">/month</span>
               </div>
-              <p className="mt-2 text-5xl font-black">
-                {localizedPlans.premiumPro.amount}<span className="text-xl text-white/50">/month</span>
+              <p className="mt-3 text-sm leading-6 text-slate-400">
+                For candidates who want more than one-off prep. Builds session to session.
               </p>
-              <p className="mt-3 min-h-[48px] text-sm leading-6 text-white/60">
-                Full career support with unlimited voice interviews and 60 Live AI Recruiter minutes per month.
+              <p className="mt-2 text-xs font-black text-violet-400">
+                2 free live recruiter minutes included
               </p>
-              <div className="mt-3 flex items-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/[0.08] px-3 py-2">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
-                <p className="text-xs font-black text-violet-300">2 free live recruiter minutes to try it</p>
-              </div>
-              <ul className="mt-5 space-y-2.5">
+              <div className="my-5 h-px bg-white/[0.07]" />
+              <div className="flex-1 space-y-2.5">
                 {[
                   "Everything in Premium",
-                  "Unlimited Recruiter simulations",
-                  "60 Live AI Recruiter Minutes / month",
-                  "Live AI Video Recruiter",
+                  "Unlimited voice interviews",
+                  "Live AI video recruiter",
+                  "60 live recruiter minutes / month",
                   "Premium recruiter personas",
-                  "Career strategy + roadmaps",
+                  "AI career coach",
+                  "30/60/90 day roadmaps",
                 ].map((item) => (
-                  <li key={item} className="flex items-center gap-2 text-sm text-white/80">
-                    <Sparkles className="h-4 w-4 shrink-0 text-violet-200" />{item}
-                  </li>
+                  <div key={item} className="flex items-start gap-2.5">
+                    <CheckCircle2 className="mt-0.5 h-[15px] w-[15px] shrink-0 text-violet-400" />
+                    <span className="text-sm leading-[1.45] text-slate-200">{item}</span>
+                  </div>
                 ))}
-              </ul>
-              <Link href="/pricing?plan=premium_pro" className="mt-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition hover:scale-[1.02] hover:bg-violet-400">
-                Choose Premium Pro
-                <ArrowRight className="h-4 w-4" />
+              </div>
+              <Link
+                href="/pricing?plan=premium_pro"
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-violet-500 px-6 py-3 text-sm font-black text-white transition hover:bg-violet-400"
+              >
+                Choose Premium Pro <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
+
           </div>
         </div>
       </section>
@@ -1240,12 +1265,12 @@ export default function LandingPage() {
           </div>
           <div className="space-y-2">
             {[
-              ["Is WorkZo just a question bank?", "No. WorkZo is a dynamic AI recruiter that reacts to exactly what you say — follow-up questions, pressure, and trust scores change based on your answers."],
-              ["How realistic are the AI recruiters?", "Each recruiter has a distinct personality based on real hiring patterns — they push for evidence, ownership, and specifics just like real interviewers do."],
-              ["What does the trust score measure?", "Recruiter confidence in your answers across the full interview, updated question by question. A drop means the recruiter needed more proof or specifics."],
-              ["Can I use my actual CV?", "Yes. Paste or upload your resume and WorkZo tailors every question to your real background and the target role."],
-              ["What is in a full interview report?", "Trust timeline per question, weakest answer, recruiter thoughts on your performance, and a detailed improvement plan."],
-              ["Which languages are supported?", "English, German, Dutch, French, Spanish, Italian, and Portuguese. The recruiter speaks in your selected language — not just the UI."],
+              ["Is WorkZo just another question bank?", "No. The recruiter reacts to exactly what was said — follow-up questions, pushback, and trust scores change based on each answer. There are no preset scripts."],
+              ["How realistic are the recruiters?", "Each persona is built on real hiring patterns. German recruiters probe timelines and scope. US recruiters want ownership and metrics. The pressure is not random — it follows a logic."],
+              ["What does the trust score actually measure?", "Recruiter confidence, updated after each answer. A drop means something was vague, ownership was unclear, or a claim went unproven. The timeline shows exactly which answer caused it."],
+              ["Does it read my actual CV?", "Yes. Upload or paste a CV and the recruiter asks about the specific roles, gaps, and claims in it. Generic prep tools cannot do that."],
+              ["What does the report show?", "Trust score per question, the exact moment confidence dropped, the follow-up that would have come next, and a specific improvement plan — not general tips."],
+              ["Which languages work?", "English, German, Dutch, French, Spanish, Italian, and Portuguese. The recruiter speaks in the selected language — not just the interface."],
             ].map(([question, answer]) => (
               <FaqItem key={question} question={question} answer={answer} />
             ))}
