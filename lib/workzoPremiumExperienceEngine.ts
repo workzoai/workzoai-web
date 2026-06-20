@@ -158,7 +158,13 @@ export function decideWorkZoInterruption(answer: string): WorkZoInterruptionDeci
     return { shouldInterrupt: false, line: "", reason: "none" };
   }
 
-  if (wordCount > 170) {
+  // Raised from 170 and now also requires the answer to genuinely be going
+  // nowhere (no outcome signal) before cutting in — pure length was
+  // interrupting complete, well-structured STAR answers just for being
+  // long, which is exactly the opposite of what an interrupt should do.
+  // Confirmed from live testing: a clear situation→action→patience→result
+  // answer (~90 words) was getting cut off immediately.
+  if (wordCount > 220 && !hasOutcome) {
     return {
       shouldInterrupt: true,
       line: "Let me pause you there — give me the core situation, your action, and the result in a few sentences.",

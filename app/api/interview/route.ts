@@ -168,7 +168,7 @@ function buildLocalizedIntroQuestion(languageValue: string | undefined, roleValu
     case "pl-PL": return `Dobrze. Zapoznałem się z twoim CV i rolą ${role}. Na początek przedstaw się krótko i wyjaśnij, jak twoje doświadczenie pasuje do tej możliwości.`;
     case "ru-RU": return `Хорошо. Я посмотрел ваше резюме и роль ${role}. Для начала коротко представьтесь и объясните, как ваш опыт связан с этой возможностью.`;
     case "tr-TR": return `Güzel. Özgeçmişini ve ${role} rolünü inceledim. Başlamak için kendini kısaca tanıtıp deneyiminin bu fırsatla nasıl bağlantılı olduğunu açıklar mısın?`;
-    default: return `Great. I had a chance to review your resume and the ${role} role. To get started, could you briefly introduce yourself and explain how your experience connects to this opportunity?`;
+    default: return `Great. I’ve had a look at your background and I can see you’re targeting a ${role} position. To get started, tell me about yourself — what you’ve been doing and what’s driving you toward this direction.`;
   }
 }
 

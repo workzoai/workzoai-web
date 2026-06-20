@@ -615,14 +615,27 @@ function buildMemoryAwareCallbackQuestion(
     /learn.*quick|learn something quickly|adapt/i,
   );
 
+  // BUG FIXED: this used to assert a specific, invented personal narrative
+  // ("you mentioned learning German after moving to Germany") triggered by
+  // ANY match of the word "german"/"language" anywhere in recent context —
+  // including a CV's static language-skills line the candidate never
+  // actually talked about. Confirmed from live testing: this fired on a
+  // candidate who never mentioned Germany at all, just had a language listed
+  // on their CV. Never assert what the candidate said — ask, don't claim.
   if (
-    /language|germany|german|grammar|fluent|learn the language/.test(recent) &&
+    /language|grammar|fluent|learn the language/.test(recent) &&
     !askedLearning
   ) {
-    return "You mentioned learning German after moving to Germany. Tell me about another situation where you had to learn something quickly for work.";
+    return "I want to follow up on adapting quickly — tell me about a recent situation at work where you had to learn something new fast, and how you handled it.";
   }
 
+  // BUG FIXED: this fired for every role regardless of fit — a manufacturing
+  // or engineering candidate would get a customer-service question purely
+  // because the word "support" or "client" appeared anywhere nearby. Gated
+  // to roles that are actually customer-facing.
+  const isCustomerFacingRole = /customer|client|account|support|success|sales/i.test(targetRole);
   if (
+    isCustomerFacingRole &&
     /customer|client|support|ticket|satisfaction|rapport|relationship|csat/.test(
       recent,
     ) &&
@@ -635,7 +648,9 @@ function buildMemoryAwareCallbackQuestion(
     /weakness|grammar|language|not sure|improve/.test(recent) &&
     askedWeakness
   ) {
-    return "Thanks for being honest. How are you actively improving that area, and how would you make sure it does not affect customers?";
+    return isCustomerFacingRole
+      ? "Thanks for being honest. How are you actively improving that area, and how would you make sure it does not affect customers?"
+      : "Thanks for being honest. How are you actively improving that area, and how would you make sure it does not affect your work?";
   }
 
   const missingSkills = findMissingJobSkills(
@@ -657,7 +672,9 @@ function buildMemoryAwareCallbackQuestion(
     return "What would you say is your strongest professional strength, and can you back it up with one example?";
   }
 
-  return `Let’s make this practical for ${targetRole}. Imagine a customer is unhappy after repeated technical issues. How would you handle that conversation?`;
+  return isCustomerFacingRole
+    ? `Let’s make this practical for ${targetRole}. Imagine a customer is unhappy after repeated technical issues. How would you handle that conversation?`
+    : `Let's make this practical for ${targetRole}. Walk me through a real situation where something went wrong on your side and you had to personally fix it under pressure.`;
 }
 
 function buildNaturalNextQuestion(
@@ -689,7 +706,7 @@ function buildNaturalNextQuestion(
 
   // Follow the candidate's thread first. This is what makes it feel like a real interviewer.
   if (
-    /language|germany|german|grammar|fluent|quick learner|learn/.test(
+    /learn(ed|ing)? (a |the )?(new |quickly|fast)|quick learner|picked up (a |the )?new/i.test(
       answerLower,
     )
   ) {
@@ -2634,9 +2651,43 @@ function buildFallbackDecision(
   }
 
   if (intent === "clarification" || intent === "interruption") {
+    // BUG FIXED: an explicit "I don't understand, can you explain / give me
+    // an example" request was previously treated identically to a vague
+    // fragment and got a deflecting "answer it like a real interview" line —
+    // it never actually explained anything, then later pivoted to an
+    // unrelated topic. Confirmed from live testing this is what candidates
+    // experience as "it skips to the next question instead of explaining."
+    // A genuine clarification request gets a genuine answer: the actual
+    // current question, restated, with concrete examples attached.
+    const isExplicitClarificationRequest = /\b(don'?t understand|can you (explain|clarify|make.*clear|simplify|rephrase)|what do you mean|not clear|give (me )?(an )?example|could you repeat|say that again|come again|confus(ed|ing))\b/i.test(answer);
+    if (isExplicitClarificationRequest) {
+      return withProfile({
+        intent,
+        spokenReply: `Sure, let me put it another way. ${currentQuestion} For example: something got noticeably faster, an error or complaint stopped happening, a colleague or manager specifically pointed it out, or a number you track actually moved. Just walk me through one real moment like that.`,
+        displayQuestion: currentQuestion,
+        shouldAdvanceQuestion: false,
+        shouldCountAsAnswer: false,
+        shouldStayOnCurrentQuestion: true,
+        trustDelta: 0,
+        recruiterState: "interested",
+        feedback: "Candidate explicitly asked for clarification — restated the actual question with concrete examples instead of deflecting or pivoting.",
+        psychology: basePsychology,
+      });
+    }
+
+    // A very short, fragment-sounding answer ("this part is...") right after
+    // a substantial question is far more often a candidate who paused mid-
+    // thought (or got cut off by the silence timer) than someone genuinely
+    // asking for clarification. Saying so directly — instead of a generic
+    // "answer it properly" line — is both more accurate and far less likely
+    // to make someone feel dismissed for something that wasn't their fault.
+    const looksLikeCutoffFragment = /\b(this part is|that was|the part where|it was|i think it|so basically|and then|the hardest)\b/i.test(answer.trim())
+      && answer.trim().split(/\s+/).filter(Boolean).length <= 6;
     return withProfile({
       intent,
-      spokenReply: `No problem. Answer it like a real interview: what you did, why it mattered, and how it connects to ${targetRole}. We’ll stay with this question for now.`,
+      spokenReply: looksLikeCutoffFragment
+        ? `Sorry, I may have cut you off there — go ahead and continue, take your time.`
+        : `No problem. Answer it like a real interview: what you did, why it mattered, and how it connects to ${targetRole}. We’ll stay with this question for now.`,
       displayQuestion: currentQuestion,
       shouldAdvanceQuestion: false,
       shouldCountAsAnswer: false,
@@ -3740,6 +3791,163 @@ function deriveHonestFeedback(
 // SECTION: LLM system prompt
 // ============================================================
 
+// Sending all ~7 role-knowledge blocks on every single call regardless of the
+// candidate's actual role was pure prompt bloat — wasted tokens, slower
+// calls, and no benefit. This selects only what's relevant. A role that
+// doesn't match anything still gets a real instruction, not silence.
+export function selectRoleKnowledgeBlock(targetRole: string, jobDescription: string): string {
+  const probe = `${targetRole} ${jobDescription}`.toLowerCase();
+  const blocks: Array<{ match: RegExp; text: string }> = [
+    {
+      match: /customer success|\bcsm\b|account manager|key account/,
+      text: `Customer Success Manager (CSM) / Account Manager:
+- Core job: proactive relationship ownership. Unlike support, CSM calls the customer BEFORE they call you.
+- Key areas: onboarding new customers, driving product adoption, managing renewal risk, conducting QBRs (quarterly business reviews), preventing churn, account expansion, escalation handling, customer health scores, building executive trust.
+- When a support-background candidate says "I handled customers": probe the difference. "In support you react to problems. In CSM you own the relationship before a problem appears. Have you ever proactively reached out to a customer before they complained?"
+- If they mention CSAT/satisfaction: go deeper. "How would you turn a one-time satisfied support customer into a renewed, expanded account?"
+- Red flag: candidates who describe reactive support and call it customer success.`,
+    },
+    {
+      match: /software engineer|\bdeveloper\b|backend|front[\s-]?end|full[\s-]?stack|web developer|mobile (developer|engineer)/,
+      text: `Software Engineer / Developer:
+- Not just coding. System design, architectural tradeoffs, production reliability, testing strategy.
+- "I built X" always needs: what problem it solved, what tradeoffs were made, how it scales, what broke in production, what they'd do differently.
+- Senior roles: architectural decisions, team unblocking, technical leadership without direct management authority.
+- Probe: time complexity, edge cases, deployment approach, monitoring, what failed and how they diagnosed it.`,
+    },
+    {
+      match: /data analyst|data scientist|data engineer|machine learning|\bml\b/,
+      text: `Data Analyst / Data Scientist:
+- Not tools — outcomes. The question is always: what decision did the data actually change? Who acted on it?
+- "I used Python/SQL/Tableau": probe the business question, the finding, the person who acted on it, the outcome.
+- Key signal: hypothesis-first thinking, communicating ambiguous findings to non-technical stakeholders.
+- Red flag: knows tools but can't describe business impact of any single analysis.`,
+    },
+    {
+      match: /it support|helpdesk|help desk|it specialist|system integration|system administrator|sysadmin|network engineer/,
+      text: `IT Support / IT Specialist / Helpdesk:
+- Probe troubleshooting methodology: how do they diagnose before escalating? Most complex issue personally resolved end-to-end?
+- How they communicate a technical fix to a non-technical user frustrated by downtime.
+- For System Integration: networking, Active Directory, Windows Server, scripting, infrastructure ownership depth.
+- Transferable to other roles: SLA discipline, escalation judgment, customer empathy under pressure.`,
+    },
+    {
+      match: /product manager|\bpm\b(?!.{0,15}(office|administrator))/,
+      text: `Product Manager:
+- Owns roadmap, not code. Cross-functional leadership without authority.
+- Probe: how they said no to a stakeholder, a feature they killed and why, a time they had to prioritize between competing customer needs, a feature they shipped and its measurable outcome.
+- Red flag: describes features built instead of customer problems solved.`,
+    },
+    {
+      match: /administrative|office coordinator|admin assistant|executive assistant|office manager/,
+      text: `Administrative / Office Coordinator:
+- Probe: competing priorities from multiple executives simultaneously, anticipating a problem before it became urgent, managing confidential information at scale, system for staying on top of high-volume coordination.`,
+    },
+    {
+      match: /marketing|\bsales\b|business development|account executive/,
+      text: `Marketing / Sales:
+- Marketing: campaign ROI, channel attribution, what they optimized and why, A/B testing decisions.
+- Sales: pipeline management, how they handle objections, largest deal closed, what they do when a deal goes quiet.`,
+    },
+    {
+      match: /project manager|program manager|implementation/,
+      text: `Project / Program / Implementation Manager:
+- Owns delivery against a timeline through people who don't report to them. The real test is how they move things when someone else is blocking progress.
+- Probe: a project that slipped and why, how they escalated a stuck stakeholder or partner, how they kept multiple workstreams visible, a milestone they had to renegotiate and how they handled that conversation.
+- Red flag: describes process and tools but can't name a specific moment they had to push, escalate, or say no.`,
+    },
+    {
+      match: /cybersecurity|security analyst|\binfosec\b|soc analyst|penetration test|\bpentest\b/,
+      text: `Cybersecurity / Security Analyst:
+- The job is judgment under uncertainty, not tool knowledge. Probe a real incident or alert they personally investigated — how did they tell signal from noise?
+- "We use [tool]" needs: what did you actually find with it, what did you do next, who did you have to convince.
+- Probe how they balance security controls against business velocity — a time security said no, and what happened.
+- Red flag: certifications and tool names with no real incident, finding, or judgment call attached.`,
+    },
+    {
+      match: /cloud architect|solutions? architect|cloud engineer|infrastructure architect|platform architect/,
+      text: `Cloud / Solutions Architect:
+- Not about knowing AWS/Azure/GCP — about trade-offs: cost vs. reliability vs. speed of delivery, and who they had to convince.
+- Probe a specific architecture decision: what alternatives did they reject and why, what broke after it shipped, what they'd design differently now.
+- Probe how they explain a technical trade-off to a non-technical stakeholder who just wants it cheaper or faster.
+- Red flag: certification/diagram talk with no real decision, real constraint, or real failure attached.`,
+    },
+    {
+      match: /ui\/?ux|ux designer|ui designer|product designer|user experience designer/,
+      text: `UI/UX / Product Designer:
+- Probe a design decision driven by user research or data, not personal taste — what did they learn, and what did they change because of it.
+- Probe a disagreement with a PM or engineer over a design call — how was it actually resolved.
+- Probe a time user testing proved their first instinct wrong.
+- Red flag: portfolio narration ("I designed this screen") with no decision rationale or evidence behind it.`,
+    },
+    {
+      match: /physician|\bdoctor\b|registered nurse|\brn\b|pharmacist|physical therapist|clinical|patient care|nursing|paramedic|nurse practitioner/,
+      text: `Clinical / Healthcare (Physician, Nurse, Pharmacist, Therapist):
+- Probe a high-pressure patient situation and the actual clinical judgment made with incomplete information — not the textbook protocol.
+- Probe how they communicated a difficult outcome or diagnosis to a patient or family — what did they actually say.
+- Probe collaboration/conflict with another clinician or department under time pressure.
+- Red flag: protocol-recitation with no real patient-specific decision or moment of uncertainty.`,
+    },
+    {
+      match: /civil engineer|mechanical engineer|biomedical engineer|structural engineer|electrical engineer|chemical engineer/,
+      text: `Engineering — Civil / Mechanical / Biomedical / Structural / Electrical:
+- Probe a real design or safety trade-off they personally made, not coursework or theory.
+- Probe a project that went over budget, behind schedule, or needed rework after real-world/field testing — what did they actually do.
+- Probe regulatory or safety-standard awareness tied to a specific project, not in the abstract.
+- Red flag: describes tools/software/theory fluently but can't name one real project decision with a consequence.`,
+    },
+    {
+      match: /financial analyst|\baccountant\b|auditor|accounting|bookkeeping|\bcpa\b|controller/,
+      text: `Financial Analyst / Accountant / Auditor:
+- Probe a specific model, forecast, or analysis that actually changed a real business decision — who acted on it, what changed.
+- Probe a discrepancy, error, or irregularity they personally caught — how, and what they did next.
+- Probe pressure to present numbers more favorably than the data supports — how they handled it.
+- Red flag: fluent on tools (Excel, SAP, ERP) but can't describe one real judgment call or finding with consequence.`,
+    },
+    {
+      match: /human resources|\bhr\b|people operations|talent acquisition|recruiting manager|people partner/,
+      text: `HR / People Operations / Talent Acquisition:
+- Probe a difficult employee-relations situation handled personally — what they decided, not just company policy.
+- Probe a hiring decision that went wrong and what changed because of it.
+- Probe how they balanced employee wellbeing against business/legal constraints in a specific case.
+- Red flag: policy-recitation with no real, specific judgment call or outcome attached.`,
+    },
+    {
+      match: /\bceo\b|chief executive|\bcoo\b|\bcfo\b|\bcto\b|vice president|\bvp\b|director of|head of (engineering|sales|marketing|product|operations)/,
+      text: `Executive / Senior Leadership:
+- Probe one significant strategic decision and the real trade-off behind it — what they gave up to get it.
+- Probe a major setback or public failure and how they handled it, not just the recovery narrative.
+- Probe a hard people decision (restructuring, letting someone go, a leadership change) and how they made it.
+- Red flag: vision/mission language with no concrete decision, trade-off, or consequence attached to it.`,
+    },
+    {
+      match: /lawyer|attorney|paralegal|compliance officer|legal counsel|general counsel|legal assistant/,
+      text: `Legal / Compliance (Lawyer, Paralegal, Compliance Officer):
+- Probe a specific case or matter they personally handled — not legal knowledge in the abstract.
+- Probe a judgment call made under regulatory ambiguity — what they decided when the rule wasn't clear.
+- Probe how they explained legal/compliance risk to a non-legal stakeholder who wanted to move faster.
+- Red flag: textbook legal knowledge with no real matter, decision, or consequence attached.`,
+    },
+    {
+      match: /research scientist|laboratory|\br&d\b|biologist|chemist|physicist|environmental consultant|sustainability/,
+      text: `Research Scientist / R&D / Environmental & Sustainability:
+- Probe a hypothesis that turned out wrong and what they learned from it — not just successful results.
+- Probe how they decided an experiment had genuinely failed versus needed another iteration.
+- Probe communicating ambiguous or negative findings to a stakeholder, PI, or client who wanted a clean answer.
+- Red flag: technique/equipment fluency with no real research judgment call or finding attached.`,
+    },
+  ];
+
+  const matched = blocks.filter((block) => block.match.test(probe)).map((block) => block.text);
+  if (matched.length) return matched.slice(0, 2).join("\n\n");
+
+  return `This role doesn't map to one of the common archetypes above. Use the
+job description and CV excerpts below directly: identify the 2-3 core
+responsibilities actually stated in the job description, and hold the
+candidate to the same standard a specialized interviewer would — concrete
+personal action and outcome against each one, not generic competency talk.`;
+}
+
 function buildSystemPrompt(
   input: UnifiedRecruiterInput,
   cvRead: CandidateEvidenceProfile,
@@ -3790,56 +3998,126 @@ or at closing ("One last question before we wrap up, [name]...").
 Never use it robotically after every reply. Used sparingly, it makes the interview feel real.
 
 ROLE KNOWLEDGE — USE THIS TO ASK INTELLIGENT QUESTIONS:
-You are not just asking questions — you understand what each role actually requires.
+You are not just asking questions — you understand what this role actually requires.
 
-Customer Success Manager (CSM):
-- Core job: proactive relationship ownership. Unlike support, CSM calls the customer BEFORE they call you.
-- Key areas: onboarding new customers, driving product adoption, managing renewal risk, conducting QBRs (quarterly business reviews), preventing churn, account expansion, escalation handling, customer health scores, building executive trust.
-- When a support-background candidate says "I handled customers": probe the difference. "In support you react to problems. In CSM you own the relationship before a problem appears. Have you ever proactively reached out to a customer before they complained?"
-- If they mention CSAT/satisfaction: go deeper. "How would you turn a one-time satisfied support customer into a renewed, expanded account?"
-- Red flag: candidates who describe reactive support and call it customer success.
+${selectRoleKnowledgeBlock(targetRole, jobDescription)}
 
-Software Engineer / Developer:
-- Not just coding. System design, architectural tradeoffs, production reliability, testing strategy.
-- "I built X" always needs: what problem it solved, what tradeoffs were made, how it scales, what broke in production, what they'd do differently.
-- Senior roles: architectural decisions, team unblocking, technical leadership without direct management authority.
-- Probe: time complexity, edge cases, deployment approach, monitoring, what failed and how they diagnosed it.
+TECHNICAL CALIBRATION — THIS APPLIES TO EVERY ROLE, INCLUDING ONES NOT NAMED ABOVE:
+The role knowledge above covers common titles, but you must calibrate by what
+the CV and JD actually show, not just the job title string. Decide once, at
+the start, whether this is a technical role (engineering, data, DevOps/SRE,
+security, QA, IT/systems, technical architecture, ML, embedded, etc.) or a
+non-technical role (CSM, sales, marketing, HR, finance, operations, admin,
+recruiting, etc.) — and hold that lane for the whole interview:
 
-Data Analyst / Data Scientist:
-- Not tools — outcomes. The question is always: what decision did the data actually change? Who acted on it?
-- "I used Python/SQL/Tableau": probe the business question, the finding, the person who acted on it, the outcome.
-- Key signal: hypothesis-first thinking, communicating ambiguous findings to non-technical stakeholders.
-- Red flag: knows tools but can't describe business impact of any single analysis.
+IF TECHNICAL:
+- Pull actual technologies, languages, and tools named in the CV and ask about
+  THOSE specifically — never ask "tell me about your tech stack" in the
+  abstract when the CV already lists Python, AWS, Kubernetes, etc. Name them.
+- Push for the real decision behind a claim: which approach, why that one over
+  the alternative, what broke, how they found it, what they'd change today.
+  A vague "I built a scalable system" is not an answer — drill into the
+  specific architecture, the actual bottleneck, the actual fix.
+- If CANDIDATE'S CURRENT CODE is present below, treat it like a real technical
+  interviewer would: ask about a specific line or decision in it, why that
+  approach, what the complexity/failure modes are — don't just acknowledge
+  that code exists.
+- Treat "it depends" or buzzword answers (scalable, robust, clean code) with
+  no concrete specifics as a red flag worth probing, the same way a senior
+  engineer interviewing a candidate would.
+- Seniority changes depth: junior candidates get probed on fundamentals and
+  what they personally wrote; senior candidates get probed on trade-offs,
+  system design, and technical judgment under ambiguity.
 
-IT Support / IT Specialist / Helpdesk:
-- Probe troubleshooting methodology: how do they diagnose before escalating? Most complex issue personally resolved end-to-end?
-- How they communicate a technical fix to a non-technical user frustrated by downtime.
-- For System Integration: networking, Active Directory, Windows Server, scripting, infrastructure ownership depth.
-- Transferable to other roles: SLA discipline, escalation judgment, customer empathy under pressure.
+IF NON-TECHNICAL:
+- Do not ask generic trivia or use engineering language ("architecture",
+  "the engineering judgment behind it") — it reads as broken, not rigorous.
+- Push for business substance instead: the actual decision made, the
+  stakeholders involved, the real number that moved, what they'd have done
+  differently. Same rigor as the technical lane, different vocabulary.
+- A candidate describing team outcomes instead of their own decision is the
+  non-technical equivalent of a vague technical answer — probe it the same
+  way: "What did YOU decide, not what did the team do."
 
-Product Manager:
-- Owns roadmap, not code. Cross-functional leadership without authority.
-- Probe: how they said no to a stakeholder, a feature they killed and why, a time they had to prioritize between competing customer needs, a feature they shipped and its measurable outcome.
-- Red flag: describes features built instead of customer problems solved.
+JD-GROUNDED PROBING — THIS IS WHAT MAKES IT FEEL LIKE A REAL INTERVIEW, NOT A GENERIC ONE:
+A real interviewer has read the actual job posting, not just the job title.
+You have the full job description below — use it. At least once in the
+interview (earlier rather than later), pick a SPECIFIC requirement, phrase,
+or responsibility stated in the job description that is NOT clearly
+evidenced anywhere in the CV or in what the candidate has said so far, and
+ask about it directly and specifically — quote or closely paraphrase the
+actual JD language, don't generalize it away:
 
-Administrative / Office Coordinator:
-- Probe: competing priorities from multiple executives simultaneously, anticipating a problem before it became urgent, managing confidential information at scale, system for staying on top of high-volume coordination.
+RIGHT (JD mentions escalating to management when a project stalls, CV shows
+no people-management or stakeholder-escalation experience):
+→ "This role involves escalating to management level when a customer or
+partner isn't moving — I don't see anything in your background about
+managing up or escalating to leadership. Have you done that before?"
 
-Marketing / Sales:
-- Marketing: campaign ROI, channel attribution, what they optimized and why, A/B testing decisions.
-- Sales: pipeline management, how they handle objections, largest deal closed, what they do when a deal goes quiet.
+RIGHT (JD requires familiarity with HR administration processes, CV is pure
+technical support):
+→ "The role assumes you're already familiar with HR administration
+processes — that's not something I'm seeing in your CV. Is that something
+you've worked with, even informally?"
+
+WRONG: asking only generic, role-archetype questions (the same ones you'd
+ask any Customer Success Manager anywhere) and never once referencing
+anything specific to THIS job description. If you haven't asked about at
+least one specific JD requirement by the middle of the interview, that's a
+miss — do it on your next turn.
+
+Do not rely solely on any pre-extracted "JD skills" list provided in memory
+state below — that list is a starting hint, not exhaustive. Read the actual
+job description excerpt yourself and use your own judgment about what's
+genuinely required and not yet evidenced.
 
 ANSWER THREADING — CRITICAL FOR WOW FACTOR:
-Build the next question from what the candidate just demonstrated. Never jump to a pre-planned topic.
+Every single reply MUST follow this exact structural loop. This is not a style
+preference — it is a hard requirement:
+
+1. ACKNOWLEDGE: Your first sentence must speak directly to the specific
+   detail, story, or claim the candidate just gave — not a generic "great" or
+   "got it," but something that proves you understood the actual content.
+   If they mention a non-tech-savvy elderly client, your acknowledgment must
+   reference that specific situation, not customers in general.
+2. PIVOT: Connect that specific detail to what the target role actually
+   requires (use ROLE KNOWLEDGE above) — make the relevance explicit.
+3. PROBE: Ask one sharp follow-up about THAT scenario. Never jump to a new
+   pre-planned topic while there is still depth to extract from this one.
+
+THE THREE-DEEP RULE: stay on a single thread for up to three layers before
+moving on:
+  Layer 1 — the surface situation (what happened).
+  Layer 2 — challenge the specific choice or claim ("Why that approach over
+  the alternative?" / "What was the actual hard part?").
+  Layer 3 — personal impact or reflection ("What would you do differently
+  today?" / "What did that change about how you handle similar cases?").
+Only advance to a new competency once you've gone at least two layers deep,
+OR the candidate is clearly stuck after two follow-ups.
 
 RIGHT: Candidate described taking over a frustrated customer from a colleague.
-→ "After you fixed the issue, how did you follow up to make sure the relationship was actually repaired — not just the ticket closed?"
+→ "Stepping into a relationship a colleague already damaged is a hard spot —
+and you talked them down. In a Customer Success seat you won't just be fixing
+that moment, you'll own whether they renew. After you closed the ticket, what
+did you actually do to rebuild trust long-term, not just resolve the issue?"
 
-WRONG: "Now let's talk about stakeholder management." (ignores what they just said)
+WRONG: "Now let's talk about stakeholder management." (ignores what they just
+said and skips straight to a new pre-planned topic)
 
-Stay on the same thread for 1-2 turns before switching topics.
-Only switch when: (a) the competency is clearly demonstrated, or (b) 2+ follow-ups with no progress.
-The candidate's last answer should always visibly influence the next question.
+WRONG: "Great, that's helpful. What attracted you to this role?" (a generic
+acknowledgment glued to an unrelated question is still a thread-break, even
+though it technically "acknowledges" something)
+
+BANNED TRANSITION PHRASES — never open a reply with these, they are the
+single biggest tell of a scripted question bank:
+"Great answer." / "Moving on to the next question." / "Let's look at your
+CV." / "Now let's talk about [unrelated topic]." / Any acknowledgment that is
+generic enough to apply to literally any answer the candidate could have
+given.
+
+The candidate's last answer should always visibly, specifically influence the
+next question — a reader should be able to tell what they said just from
+reading your reply.
 
 
 
@@ -3896,6 +4174,8 @@ TECHNICAL CODE RULES:
 5. Never say: "answer too generic", "answer too short", "STAR format", "I noticed this pattern earlier", or "as an AI".
 6. CANDIDATE NAME RULE: Before using the candidate name in ANY greeting or sentence, verify it is a real human first name. Do not use auth visibility labels, placeholders, CV section headers, job titles, skills, technologies, company names, project names, education names, or any phrase extracted from the body of the CV as a name. If the value is missing or suspicious, say "there" in the greeting or skip the name entirely. Example: "Hi there. Thank you for joining today." Never greet with words such as Public, Candidate, User, Profile, Skills, Tools, Education, Experience, Programming, or a technology/project phrase.
 7. ORIENTATION RULE: If the candidate asks "what should I do", "how does this work", "what am I supposed to say", "what do I do now", "can you explain", or any similar question about how the interview works — do NOT treat it as an interview answer. Respond briefly and warmly to orient them, then immediately ask your opening question. Example: "No worries — just answer as you would in a real interview. I will ask questions, you respond naturally. Let us start: [ask the opening question]." Keep it short, then move straight into the interview.
+8. CUTOFF RULE: If the candidate's turn is a short fragment that reads like the start of a sentence cut off mid-thought (e.g. "this part is", "so basically", "and then", "the hardest") rather than a complete thought or a real question, assume they were likely cut off by the mic/silence detection, not that they have nothing to say. Say so directly and warmly — e.g. "Sorry, I may have cut you off there — go ahead and continue" — and stay on the same question. Do not treat it as a weak or incomplete answer, and do not advance.
+9. CLARIFICATION RULE: If the candidate explicitly asks for clarification or an example ("I don't understand", "can you explain", "give me an example", "what do you mean") — actually explain. Restate the SAME active question in simpler, more concrete words and give 2-3 short concrete examples of what would count as an answer. Never pivot to a different topic or question when asked for clarification, and never fabricate or assume a detail the candidate never said (e.g. inventing a country, language, or story they didn't mention) — restating must use only what they actually said or the question itself, nothing invented.
 
 NATURAL INTERVIEW FLOW:
 - Start like a real interview: greet, acknowledge the candidate, and let them introduce themselves before deep pressure.
@@ -4023,9 +4303,11 @@ MEMORY LINKING RULES — CRITICAL:
 
 HARD BANS:
 - Do not say: "answer too generic", "answer too short", "I noticed this pattern earlier", "STAR format", "as an AI".
+- Do not say: "great answer", "moving on to the next question", "let's look at your CV", "next question" — these are the clearest tells of a scripted question bank.
 - Do not lecture about companies for more than one sentence unless the candidate explicitly asks.
 - Do not ask multiple questions at once unless it sounds natural.
 - Do not automatically say "let's switch gears" after every response.
+- If the candidate's turn mixes a tech-check or social aside with something else ("can you hear me", "sorry, one sec", "what's your name") — answer that part naturally and briefly in one clause, then continue the actual interview thread in the same breath. Do not let the aside replace the substance, and do not silently drop the substance either.
 
 MARKET EXPECTATION RULES — UPGRADE 9:
 - Adapt the interviewer to the chosen market and company style.
@@ -5538,6 +5820,7 @@ export async function decideUnifiedRecruiterResponse(
     );
 
   if (!process.env.OPENAI_API_KEY) {
+    console.warn("[unifiedRecruiterIntelligence] OPENAI_API_KEY is not set in this environment — every turn will use the deterministic fallback engine, not GPT-4o.");
     return applyPhase15TrustPressure(
       input,
       applyNaturalConversationGuard(input, {
@@ -5589,10 +5872,15 @@ export async function decideUnifiedRecruiterResponse(
 
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const llmStartedAt = Date.now();
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_INTERVIEW_MODEL || "gpt-4o",
       temperature: 0.62,
-      max_tokens: 1100,
+      // Was 1100, then 700 — the JSON payload is spokenReply (1-3 sentences)
+      // plus a handful of small fields. 500 is still comfortable headroom and
+      // reduces worst-case generation time. Raise back up only if replies
+      // start getting cut off mid-JSON.
+      max_tokens: 500,
       response_format: { type: "json_object" },
       messages: [
         {
@@ -5617,6 +5905,7 @@ export async function decideUnifiedRecruiterResponse(
     });
 
     const raw = completion.choices[0]?.message?.content || "{}";
+    console.log(`[unifiedRecruiterIntelligence] OpenAI call took ${Date.now() - llmStartedAt}ms`);
     const parsed = JSON.parse(raw) as Partial<UnifiedRecruiterDecision>;
     const normalized = normalizeDecision(parsed, fallback, input);
     const updated = updateMemoryAfterDecision(
@@ -5670,7 +5959,11 @@ export async function decideUnifiedRecruiterResponse(
           ),
       }),
     );
-  } catch {
+  } catch (error) {
+    console.error(
+      "[unifiedRecruiterIntelligence] OpenAI call failed — falling back to heuristic decision.",
+      error instanceof Error ? `${error.name}: ${error.message}` : error,
+    );
     return applyPhase15TrustPressure(
       input,
       applyNaturalConversationGuard(input, fallback),

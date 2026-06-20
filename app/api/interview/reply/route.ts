@@ -29,6 +29,7 @@ import {
   decideUnifiedRecruiterResponse,
   type TranscriptItem,
 } from "@/lib/unifiedRecruiterIntelligence";
+import { buildWorkZoRecruiterReplyV2 } from "@/lib/workzoRecruiterIntelligenceV2";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -173,19 +174,87 @@ function isOpeningSmallTalk(answer: string): boolean {
   return false;
 }
 
-function buildOpeningIntroReply(languageValue: unknown, targetRole: unknown): string {
+// Opening turns are almost always short ("can you hear me", "I'm good how are
+// you"), but they are NOT all the same message — a candidate who only checked
+// audio should not get the exact same reply as one who also asked "how are
+// you". This reads the actual words instead of returning one static string
+// regardless of input, so the opening doesn't feel like it ignored half of
+// what was said.
+function buildOpeningIntroReply(languageValue: unknown, targetRole: unknown, answer = ""): string {
   const language = normalizeLanguageLabel(languageValue);
   const role = cleanRoleLabel(targetRole);
+  const clean = answer.toLowerCase();
 
-  if (language === "German") return `Mir geht es gut, danke der Nachfrage. Schön, dass es dir auch gut geht. Ich habe mir den Rollenkontext für ${role} angesehen. Zum Einstieg: Kannst du dich bitte kurz vorstellen und erklären, wie deine Erfahrung zu dieser Gelegenheit passt?`;
-  if (language === "Dutch") return `Het gaat goed, dank je dat je het vraagt. Fijn om te horen dat het ook goed met jou gaat. Ik heb de rolcontext voor ${role} bekeken. Om te beginnen: kun je jezelf kort voorstellen en uitleggen hoe je ervaring aansluit op deze kans?`;
-  if (language === "French") return `Je vais bien, merci de demander. Ravi d’entendre que vous allez bien aussi. J’ai consulté le contexte du poste ${role}. Pour commencer, pouvez-vous vous présenter brièvement et expliquer en quoi votre expérience correspond à cette opportunité ?`;
-  if (language === "Spanish") return `Estoy bien, gracias por preguntar. Me alegra saber que tú también estás bien. He revisado el contexto del puesto ${role}. Para empezar, ¿puedes presentarte brevemente y explicar cómo tu experiencia encaja con esta oportunidad?`;
-  if (language === "Italian") return `Sto bene, grazie per avermelo chiesto. Mi fa piacere sentire che stai bene anche tu. Ho letto il contesto del ruolo ${role}. Per iniziare, puoi presentarti brevemente e spiegare come la tua esperienza si collega a questa opportunità?`;
-  if (language === "Portuguese") return `Estou bem, obrigado por perguntares. Fico feliz por saber que também estás bem. Analisei o contexto da função ${role}. Para começar, podes apresentar-te brevemente e explicar como a tua experiência se relaciona com esta oportunidade?`;
-  if (language === "Hindi") return `मैं ठीक हूँ, पूछने के लिए धन्यवाद। अच्छा लगा कि आप भी ठीक हैं। मैंने ${role} भूमिका का संदर्भ देखा है। शुरुआत के लिए, कृपया अपना छोटा परिचय दें और बताएं कि आपका अनुभव इस अवसर से कैसे जुड़ता है।`;
+  const askedCanYouHear = /\b(can|do|could) you hear me\b|\bhear me (ok|okay|fine|clearly)?\b|\baudio (ok|okay|test|working)\b|\bcan you see me\b/.test(clean);
+  const askedHowAreYou = /\bhow are you\b|\bhow(?:'?s| is) it going\b|\bhow are things\b|\bhow you doing\b/.test(clean);
+  const saidGreetingOnly = /\b(hi|hello|hey)\b/.test(clean) && !askedHowAreYou;
 
-  return `I’m doing well, thank you for asking. Glad to hear you’re doing well too. I've reviewed the role context you provided for ${role}. To get started, could you briefly introduce yourself and explain how your experience connects to this opportunity?`;
+  const PARTS: Record<string, { hear: string; wellbeingAsked: string; wellbeingMutual: string; greetingOnly: string; body: string }> = {
+    German: {
+      hear: "Ja, ich kann dich gut hören. ",
+      wellbeingAsked: "Mir geht es gut, danke der Nachfrage. ",
+      wellbeingMutual: "Schön, dass es dir auch gut geht. ",
+      greetingOnly: "Danke für die Begrüßung. ",
+      body: `Ich habe mir den Rollenkontext für ${role} angesehen. Zum Einstieg: Kannst du dich bitte kurz vorstellen und erklären, wie deine Erfahrung zu dieser Gelegenheit passt?`,
+    },
+    Dutch: {
+      hear: "Ja, ik kan je goed horen. ",
+      wellbeingAsked: "Het gaat goed, dank je dat je het vraagt. ",
+      wellbeingMutual: "Fijn om te horen dat het ook goed met jou gaat. ",
+      greetingOnly: "Bedankt voor de begroeting. ",
+      body: `Ik heb de rolcontext voor ${role} bekeken. Om te beginnen: kun je jezelf kort voorstellen en uitleggen hoe je ervaring aansluit op deze kans?`,
+    },
+    French: {
+      hear: "Oui, je vous entends bien. ",
+      wellbeingAsked: "Je vais bien, merci de demander. ",
+      wellbeingMutual: "Ravi d’entendre que vous allez bien aussi. ",
+      greetingOnly: "Merci pour votre message. ",
+      body: `J’ai consulté le contexte du poste ${role}. Pour commencer, pouvez-vous vous présenter brièvement et expliquer en quoi votre expérience correspond à cette opportunité ?`,
+    },
+    Spanish: {
+      hear: "Sí, te escucho bien. ",
+      wellbeingAsked: "Estoy bien, gracias por preguntar. ",
+      wellbeingMutual: "Me alegra saber que tú también estás bien. ",
+      greetingOnly: "Gracias por el saludo. ",
+      body: `He revisado el contexto del puesto ${role}. Para empezar, ¿puedes presentarte brevemente y explicar cómo tu experiencia encaja con esta oportunidad?`,
+    },
+    Italian: {
+      hear: "Sì, ti sento bene. ",
+      wellbeingAsked: "Sto bene, grazie per avermelo chiesto. ",
+      wellbeingMutual: "Mi fa piacere sentire che stai bene anche tu. ",
+      greetingOnly: "Grazie per il saluto. ",
+      body: `Ho letto il contesto del ruolo ${role}. Per iniziare, puoi presentarti brevemente e spiegare come la tua esperienza si collega a questa opportunità?`,
+    },
+    Portuguese: {
+      hear: "Sim, consigo ouvir-te bem. ",
+      wellbeingAsked: "Estou bem, obrigado por perguntares. ",
+      wellbeingMutual: "Fico feliz por saber que também estás bem. ",
+      greetingOnly: "Obrigado pelo cumprimento. ",
+      body: `Analisei o contexto da função ${role}. Para começar, podes apresentar-te brevemente e explicar como a tua experiência se relaciona com esta oportunidade?`,
+    },
+    Hindi: {
+      hear: "हाँ, मैं आपको साफ़ सुन पा रही हूँ। ",
+      wellbeingAsked: "मैं ठीक हूँ, पूछने के लिए धन्यवाद। ",
+      wellbeingMutual: "अच्छा लगा कि आप भी ठीक हैं। ",
+      greetingOnly: "नमस्ते कहने के लिए धन्यवाद। ",
+      body: `मैंने ${role} भूमिका का संदर्भ देखा है। शुरुआत के लिए, कृपया अपना छोटा परिचय दें और बताएं कि आपका अनुभव इस अवसर से कैसे जुड़ता है।`,
+    },
+    English: {
+      hear: "Yes, I can hear you clearly. ",
+      wellbeingAsked: "I’m doing well, thank you for asking. ",
+      wellbeingMutual: "Glad to hear you’re doing well too. ",
+      greetingOnly: "Thanks for the hello. ",
+      body: `I've reviewed the role context you provided for ${role}. To get started, could you briefly introduce yourself and explain how your experience connects to this opportunity?`,
+    },
+  };
+
+  const set = PARTS[language] || PARTS.English;
+  let prefix = "";
+  if (askedCanYouHear) prefix += set.hear;
+  if (askedHowAreYou) prefix += set.wellbeingAsked + set.wellbeingMutual;
+  else if (saidGreetingOnly && !askedCanYouHear) prefix += set.greetingOnly;
+
+  return `${prefix}${set.body}`;
 }
 
 function normaliseTranscript(raw: TranscriptTurn[] | undefined): TranscriptItem[] {
@@ -205,19 +274,19 @@ function normalizeForSimilarity(value: string) {
     .trim();
 }
 
-function isBadRecruiterReply(reply: string, transcript: TranscriptItem[]) {
+function getBadRecruiterReplyReason(reply: string, transcript: TranscriptItem[]): string | null {
   const clean = normalizeForSimilarity(reply);
-  if (!clean) return true;
+  if (!clean) return "empty_reply";
 
   // Never let CV layout artifacts leak into the spoken interview.
   if (/\b(professional experience contact|experience contact|skills contact|education contact|profile summary|core competencies|tools ticketing|gans e scooter|candidate\b|public\b)\b/i.test(reply)) {
-    return true;
+    return "cv_layout_artifact";
   }
 
   // Kill the old robotic metric loop globally. The recruiter can ask for evidence,
   // but not this repeated template sentence.
   if (/give me one concrete metric or proof point|time saved, tickets reduced, customer impact|before-and-after result/i.test(reply)) {
-    return true;
+    return "banned_metric_template";
   }
 
   const recentRecruiter = transcript
@@ -227,15 +296,19 @@ function isBadRecruiterReply(reply: string, transcript: TranscriptItem[]) {
     .slice(-3);
 
   for (const previous of recentRecruiter) {
-    if (previous === clean) return true;
+    if (previous === clean) return "exact_repeat";
     const words = clean.split(" ").filter((word) => word.length > 4);
     if (words.length >= 7) {
       const overlap = words.filter((word) => previous.includes(word)).length / words.length;
-      if (overlap >= 0.72) return true;
+      if (overlap >= 0.72) return "near_repeat";
     }
   }
 
-  return false;
+  return null;
+}
+
+function isBadRecruiterReply(reply: string, transcript: TranscriptItem[]) {
+  return getBadRecruiterReplyReason(reply, transcript) !== null;
 }
 
 function buildSafeFallbackRecruiterReply(body: ReplyRequestBody, answer: string, transcript: TranscriptItem[]) {
@@ -279,15 +352,38 @@ function buildSafeFallbackRecruiterReply(body: ReplyRequestBody, answer: string,
   return `That helps. Let’s move to a new area: what part of ${role} do you feel strongest in today, and what part would need the most ramp-up?`;
 }
 
+// Structured, greppable logging so a degraded/failed LLM turn is always
+// visible in server logs — never just a silent client-side fallback.
+// Search server logs for "[interview/reply]" to see every turn's outcome.
+function logReplyOutcome(info: {
+  userId?: string | null;
+  outcome: "opening_guard" | "unified_engine" | "deterministic_guard" | "deterministic_fallback" | "hard_failure";
+  durationMs: number;
+  reason?: string | null;
+  questionIndex?: number;
+}) {
+  const line = `[interview/reply] outcome=${info.outcome} durationMs=${info.durationMs} user=${info.userId || "unknown"} q=${info.questionIndex ?? "?"}${info.reason ? ` reason=${info.reason}` : ""}`;
+  if (info.outcome === "unified_engine" || info.outcome === "opening_guard") {
+    console.log(line);
+  } else {
+    // deterministic_guard / deterministic_fallback / hard_failure all mean the
+    // candidate did NOT get the real LLM reply this turn — always a warning.
+    console.warn(line);
+  }
+}
+
 export async function POST(request: Request) {
+  const requestStartedAt = Date.now();
   // ── Auth gate ──────────────────────────────────────────────────────────────
   let resolved;
   try {
     resolved = await resolveWorkZoServerPlan();
-  } catch {
+  } catch (error) {
+    console.error("[interview/reply] resolveWorkZoServerPlan failed — client will silently fall back to rule engine.", error);
     return NextResponse.json({ error: "Could not resolve account plan." }, { status: 500 });
   }
   if (!resolved.authenticated) {
+    console.warn("[interview/reply] Unauthenticated request — client will silently fall back to rule engine.");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -303,6 +399,7 @@ export async function POST(request: Request) {
   const rateLimit = resolved.plan === "premium_pro" ? 60 : 30;
   const { allowed } = await checkWorkZoRateLimit(rateLimitKey, rateLimit);
   if (!allowed) {
+    console.warn(`[interview/reply] Rate limited — user=${resolved.userId} plan=${resolved.plan} limit=${rateLimit}/min. Client will silently fall back to rule engine.`);
     return NextResponse.json({ error: "rate_limited", reply: null }, { status: 429 });
   }
 
@@ -321,7 +418,23 @@ export async function POST(request: Request) {
   // the LLM/state engine. This guarantees the interview moves from greeting to
   // the real self-introduction question.
   if (isOpeningTurn && isOpeningSmallTalk(answer)) {
-    const reply = buildOpeningIntroReply(body.language, body.targetRole);
+    const reply = buildOpeningIntroReply(body.language, body.targetRole, answer);
+    // Also initialise V2 memory for a clean slate when the opening guard fires.
+    const v2Opening = buildWorkZoRecruiterReplyV2({
+      answer,
+      setup: {
+        cvText: cleanText(body.cvText, 6000),
+        jobDescription: cleanText(body.jobDescription, 4000),
+        targetRole: cleanRoleLabel(body.targetRole),
+        targetMarket: cleanText(body.targetMarket, 120),
+        recruiterPersonality: cleanText(body.recruiterPersonality, 120),
+        language: cleanText(body.language, 40),
+        recruiterName: cleanText(body.recruiterName, 120),
+        recruiterTitle: cleanText(body.recruiterTitle, 120),
+      },
+      memory: body.recruiterMemoryV2 || undefined,
+    });
+    logReplyOutcome({ userId: resolved.userId, outcome: "opening_guard", durationMs: Date.now() - requestStartedAt, questionIndex: body.questionIndex });
     return NextResponse.json({
       success: true,
       reply,
@@ -330,18 +443,30 @@ export async function POST(request: Request) {
       recruiterState: "interested",
       shouldAdvanceQuestion: true,
       provider: "opening_guard",
+      // Return V2 memory even on opening turn so first real answer is tracked
+      recruiterMemoryV2: v2Opening.memory,
     });
   }
 
   try {
-    const decision = await decideUnifiedRecruiterResponse({
+    // ── Step 1: Run V2 engine to update persistent state ──────────────────
+    // V2 tracks: competency coverage (never re-tests covered dimensions),
+    // concern resolution (moves on when evidence given), topic progression
+    // (structured roadmap), JD gaps, candidate goals, metrics, strengths.
+    // The memory is returned to the client and sent back next turn —
+    // this is what prevents repeated questions across the full interview.
+    const cvText = cleanText(body.cvText, 6000);
+    const jobDescription = cleanText(body.jobDescription, 4000);
+    const targetRole = cleanRoleLabel(body.targetRole);
+
+    const v2 = buildWorkZoRecruiterReplyV2({
       answer,
       currentQuestion: cleanText(body.currentQuestion, 400) || "Tell me about yourself.",
       transcript,
       setup: {
-        cvText: cleanText(body.cvText, 6000),
-        jobDescription: cleanText(body.jobDescription, 4000),
-        targetRole: cleanRoleLabel(body.targetRole),
+        cvText,
+        jobDescription,
+        targetRole,
         targetMarket: cleanText(body.targetMarket, 120),
         companyStyle: cleanText(body.companyStyle, 120),
         recruiterPersonality: cleanText(body.recruiterPersonality, 120),
@@ -351,6 +476,73 @@ export async function POST(request: Request) {
         recruiterName: cleanText(body.recruiterName, 120),
         recruiterTitle: cleanText(body.recruiterTitle, 120),
       },
+      trust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : undefined,
+      memory: body.recruiterMemoryV2 || undefined,
+    });
+
+    // ── Step 2: Build brain context from V2 memory ─────────────────────────
+    // This tells GPT-4o exactly what's been covered, what concerns remain,
+    // what JD gaps are open, and what topic to move to next. The recruiter
+    // uses this to avoid repeating questions and to thread answers naturally.
+    const mem = v2.memory as Record<string, unknown>;
+    const lines: string[] = [];
+
+    const answeredCompetencies = Array.isArray(mem.answeredCompetencies) ? mem.answeredCompetencies as string[] : [];
+    const activeConcerns = Array.isArray(mem.activeConcerns) ? mem.activeConcerns as Array<{id:string;score:number;askedCount:number}> : [];
+    const resolvedConcerns = Array.isArray(mem.resolvedConcerns) ? mem.resolvedConcerns as string[] : [];
+    const jdMissingSkills = Array.isArray(mem.jdMissingSkills) ? mem.jdMissingSkills as string[] : [];
+    const jdMatchedSkills = Array.isArray(mem.jdMatchedSkills) ? mem.jdMatchedSkills as string[] : [];
+    const topicOrder = Array.isArray(mem.interviewTopicOrder) ? mem.interviewTopicOrder as string[] : [];
+    const topicIndex = typeof mem.currentTopicIndex === "number" ? mem.currentTopicIndex : 0;
+    const metrics = Array.isArray(mem.metrics) ? mem.metrics as string[] : [];
+    const candidateGoals = Array.isArray(mem.candidateGoals) ? mem.candidateGoals as string[] : [];
+    const strengths = Array.isArray(mem.strengths) ? mem.strengths as string[] : [];
+    const companies = Array.isArray(mem.companies) ? mem.companies as string[] : [];
+    const contradictions = Array.isArray(mem.contradictions) ? mem.contradictions as string[] : [];
+
+    if (answeredCompetencies.length)
+      lines.push("COMPETENCIES COVERED — DO NOT RE-TEST: " + answeredCompetencies.join(", "));
+    if (activeConcerns.length)
+      lines.push("ACTIVE CONCERNS (address once if score >40, then move on): " +
+        activeConcerns.map((c) => `${c.id} (score:${c.score}/100, asked:${c.askedCount}x)`).join(", "));
+    if (resolvedConcerns.length)
+      lines.push("RESOLVED CONCERNS — NEVER REVISIT: " + resolvedConcerns.join(", "));
+    if (jdMissingSkills.length)
+      lines.push("JD SKILLS NOT YET EVIDENCED — probe naturally: " + jdMissingSkills.join(", "));
+    if (jdMatchedSkills.length)
+      lines.push("JD SKILLS EVIDENCED: " + jdMatchedSkills.join(", "));
+    const nextTopic = topicOrder[topicIndex];
+    if (nextTopic) lines.push("NEXT INTERVIEW TOPIC — follow this: " + nextTopic);
+    if (metrics.length) lines.push("CANDIDATE METRICS TO REFERENCE: " + metrics.slice(0, 3).join(", "));
+    if (candidateGoals.length) lines.push("CANDIDATE GOALS: " + candidateGoals.join("; "));
+    if (strengths.length) lines.push("DEMONSTRATED STRENGTHS: " + strengths.join(", "));
+    if (companies.length) lines.push("COMPANIES MENTIONED: " + companies.join(", "));
+    if (contradictions.length) lines.push("CONTRADICTIONS DETECTED: " + contradictions.join(" | "));
+
+    const recruiterBrainContext = lines.length
+      ? "=== RECRUITER MEMORY STATE ===\n" + lines.join("\n") + "\n=== END MEMORY STATE ==="
+      : "";
+
+    // ── Step 3: Call GPT-4o with the full context ──────────────────────────
+    const decision = await decideUnifiedRecruiterResponse({
+      answer,
+      currentQuestion: cleanText(body.currentQuestion, 400) || "Tell me about yourself.",
+      transcript,
+      setup: {
+        cvText,
+        jobDescription,
+        targetRole,
+        targetMarket: cleanText(body.targetMarket, 120),
+        companyStyle: cleanText(body.companyStyle, 120),
+        recruiterPersonality: cleanText(body.recruiterPersonality, 120),
+        language: cleanText(body.language, 40),
+        candidateName: cleanText(body.candidateName, 120),
+        targetCompany: cleanText(body.targetCompany, 160),
+        recruiterName: cleanText(body.recruiterName, 120),
+        recruiterTitle: cleanText(body.recruiterTitle, 120),
+        // V2 brain state injected directly into the LLM system prompt
+        recruiterBrainContext,
+      },
       recruiterTrust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : undefined,
       recruiterState: body.recruiterState ?? null,
     });
@@ -358,10 +550,21 @@ export async function POST(request: Request) {
     const unifiedReply = decision.spokenReply.trim();
     if (!unifiedReply) throw new Error("Empty reply from unified engine.");
 
-    const deterministicReply = buildSafeFallbackRecruiterReply(body, answer, transcript);
-    const reply = isBadRecruiterReply(unifiedReply, transcript) && deterministicReply
-      ? deterministicReply
-      : unifiedReply;
+    const badReplyReason = getBadRecruiterReplyReason(unifiedReply, transcript);
+    const deterministicReply = badReplyReason ? buildSafeFallbackRecruiterReply(body, answer, transcript) : null;
+    const reply = badReplyReason && deterministicReply ? deterministicReply : unifiedReply;
+
+    logReplyOutcome({
+      userId: resolved.userId,
+      outcome: reply === unifiedReply ? "unified_engine" : "deterministic_guard",
+      durationMs: Date.now() - requestStartedAt,
+      reason: badReplyReason,
+      questionIndex: body.questionIndex,
+    });
+
+    // Update V2 trust from LLM decision
+    (v2.memory as Record<string, unknown>).trustScore =
+      Math.max(0, Math.min(100, ((v2.memory as Record<string, unknown>).trustScore as number ?? 70) + (decision.trustDelta || 0)));
 
     return NextResponse.json({
       success: true,
@@ -371,11 +574,21 @@ export async function POST(request: Request) {
       recruiterState: decision.recruiterState,
       shouldAdvanceQuestion: decision.shouldAdvanceQuestion,
       provider: reply === unifiedReply ? "unified_engine" : "deterministic_guard",
+      durationMs: Date.now() - requestStartedAt,
+      // ── V2 memory — client MUST persist and send back next turn ──────────
+      // Without this, all memory resets to zero every question.
+      recruiterMemoryV2: v2.memory,
     });
   } catch (error) {
-    console.error("[interview/reply] Unified engine call failed:", error);
+    const durationMs = Date.now() - requestStartedAt;
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      `[interview/reply] HARD FAILURE — falling back to rule engine. user=${resolved.userId || "unknown"} durationMs=${durationMs} questionIndex=${body.questionIndex ?? "?"} answerPreview="${answer.slice(0, 80)}" error=${message}`,
+      error instanceof Error ? error.stack : error,
+    );
     const reply = buildSafeFallbackRecruiterReply(body, answer, transcript);
     if (reply) {
+      logReplyOutcome({ userId: resolved.userId, outcome: "deterministic_fallback", durationMs, reason: message, questionIndex: body.questionIndex });
       return NextResponse.json({
         success: true,
         reply,
@@ -384,14 +597,17 @@ export async function POST(request: Request) {
         recruiterState: "engaged",
         shouldAdvanceQuestion: true,
         provider: "deterministic_fallback",
+        durationMs,
       });
     }
 
+    logReplyOutcome({ userId: resolved.userId, outcome: "hard_failure", durationMs, reason: message, questionIndex: body.questionIndex });
     return NextResponse.json(
       {
         success: false,
         reply: null,
-        error: error instanceof Error ? error.message : "Engine call failed.",
+        error: message,
+        durationMs,
       },
       { status: 200 },
     );

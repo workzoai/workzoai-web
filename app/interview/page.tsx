@@ -1335,6 +1335,51 @@ function buildLiveRecruiterThoughts(
   return thoughts.slice(0, 3);
 }
 
+// A short, soft "go ahead" tone played exactly when the mic genuinely starts
+// capturing. The Web Speech API has an inherent cold-start lag between
+// .start() and actually receiving audio — that's a browser/engine limitation,
+// not something fixable in app logic alone. The standard, proven mitigation
+// (same one Alexa/Google Assistant/Siri use) is a clear, consistent audio
+// cue people learn to wait for — it doesn't eliminate the underlying lag,
+// but it eliminates the *guessing*, which is what actually causes people to
+// start talking too early and lose their first words.
+function playListeningChime() {
+  try {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = 880;
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.02);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.13);
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.14);
+    oscillator.onended = () => {
+      try { ctx.close(); } catch {}
+    };
+  } catch {
+    // Non-critical — silently skip if audio context isn't available.
+  }
+}
+
+// Catches answers that are technically 3+ words (so the raw word-count gate
+// misses them) but carry essentially no real content — audio-check fragments
+// like "hey can you" or "to you can you hear me" mid-interview. Strips known
+// filler/audio-check phrases out and checks what's actually left.
+function isLowContentAnswerFragment(value: string): boolean {
+  const clean = value.toLowerCase().replace(/[^a-zà-ÿ0-9\s']/gi, " ").replace(/\s+/g, " ").trim();
+  if (!clean) return true;
+  const filler = /\b(hey+|hi+|hello+|okay+|ok+|yes+|no+|yeah+|sure+|right+|um+|uh+|to you|can you|hear me|do you|are you|there|please|sorry|wait|thanks?|thank you)\b/gi;
+  const stripped = clean.replace(filler, " ").replace(/\s+/g, " ").trim();
+  const strippedWordCount = stripped.split(/\s+/).filter(Boolean).length;
+  return strippedWordCount <= 2;
+}
+
 function getRecognitionConstructor() {
   if (typeof window === "undefined") return null;
   const speechWindow = window as WindowWithSpeechRecognition;
@@ -1762,7 +1807,7 @@ function buildLocalizedGreeting(setup: InterviewSetup) {
     case "ta-IN":
       return `வணக்கம் ${name}. இன்று நேர்காணலில் சேர்ந்ததற்கு நன்றி. எப்படி இருக்கிறீர்கள்?`;
     default:
-      return `Hi ${name}. Thank you for joining today. How are you doing?`;
+      return `Hi ${name}. I'm ${setup.recruiterName || 'Sarah'}, ${setup.recruiterTitle || 'Senior Talent Partner'}. Thanks for joining today — how are you doing?`;
   }
 }
 
@@ -1802,7 +1847,7 @@ function buildLocalizedIntroQuestion(setup: InterviewSetup) {
     case "ta-IN":
       return `சரி. உங்கள் CV மற்றும் ${role} பொறுப்பை பார்த்தேன். ஆரம்பமாக, உங்களைச் சுருக்கமாக அறிமுகப்படுத்தி, உங்கள் அனுபவம் இந்த வாய்ப்புடன் எப்படி தொடர்புடையது என்பதை சொல்ல முடியுமா?`;
     default:
-      return `Great. I had a chance to review your resume and the ${role} role. To get started, could you briefly introduce yourself and explain how your experience connects to this opportunity?`;
+      return `Great. I’ve had a look at your background and I can see you’re targeting a ${role} position. To get started, tell me about yourself — what you’ve been doing and what’s driving you toward this direction.`;
   }
 }
 
@@ -3144,6 +3189,16 @@ function shouldMergeVisibleTranscript(
   if (previous.role !== next.role) return false;
   if (previous.speaker !== next.speaker) return false;
   if (next.role === "system") return false;
+  // BUG FIXED: this used to merge ANY two consecutive same-speaker entries
+  // with no check for whether they were actually the same utterance. If two
+  // separate recruiter replies ever landed back-to-back (race condition,
+  // double-fire, anything), they got silently concatenated into one bubble
+  // with no separator — confirmed from live testing, producing a garbled
+  // message that read as two unrelated sentences glued together. Only
+  // candidate turns should merge (catching a single answer split across
+  // multiple speech-recognition segments) — a recruiter turn is always one
+  // complete reply and should never be merged with another one.
+  if (next.role !== "candidate") return false;
   return true;
 }
 
@@ -3862,10 +3917,21 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const getRecruiterReply = useCallback(
     async (answer: string): Promise<string> => {
       const currentSetup = setupRef.current;
-      const fallback = () => buildRecruiterReply(answer, questionIndexRef.current, currentSetup, recruiterMemoryRef.current);
+      const callStartedAt = Date.now();
+      const fallback = (reason: string) => {
+        const durationMs = Date.now() - callStartedAt;
+        console.error(`[interview] LLM reply NOT used this turn — using rule-engine fallback. reason="${reason}" durationMs=${durationMs}`);
+        trackWorkZoErrorEvent("interview_reply_fallback", reason, {
+          role: currentSetup.targetRole,
+          recruiter: currentSetup.recruiterName,
+          questionIndex: questionIndexRef.current,
+          durationMs,
+        }, "medium");
+        return buildRecruiterReply(answer, questionIndexRef.current, currentSetup, recruiterMemoryRef.current);
+      };
 
       // Free users get GPT-4o intelligence — only session count is limited.
-      // if (serverPlan !== "premium" && serverPlan !== "premium_pro") return fallback();
+      // if (serverPlan !== "premium" && serverPlan !== "premium_pro") return fallback("free_plan_disabled");
 
       try {
         const signalAnalysis = analyzeAnswerSignals(answer, currentSetup);
@@ -3875,10 +3941,31 @@ const [questionIndex, setQuestionIndex] = useState(0);
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          signal: AbortSignal.timeout(8000), // don't let a slow call hang the interview indefinitely
+          // 8000ms was too tight — confirmed in live testing the LLM call
+          // legitimately takes >8s sometimes (more so as transcript/context
+          // grows), which was dumping real answers into the robotic
+          // deterministic fallback. 13s gives the call room to finish while
+          // still bounding worst-case wait.
+          // 13s still failed once in testing (13021ms) — right at the edge.
+          // Combined with the role-knowledge prompt trim (only the matching
+          // role block is sent now, not all ~7), this should hit far less
+          // often, but the cap itself needed more headroom regardless.
+          signal: AbortSignal.timeout(18000),
           body: JSON.stringify({
             answer,
-            transcript: transcriptRef.current.map((item) => ({ role: item.role, speaker: item.speaker, text: item.text })),
+            // BUG FIXED: currentQuestion was never sent at all, so the server
+            // always fell back to its hardcoded default ("Tell me about
+            // yourself"), regardless of what was actually just asked. That
+            // caused real, on-topic answers to get rejected as "not
+            // addressing the question" — they were being compared against
+            // the wrong question. This sends the actual last thing the
+            // recruiter said, which is the real active question.
+            currentQuestion: [...transcriptRef.current].reverse().find((item) => item.role === "recruiter")?.text || "",
+            // Only the last 10 turns are sent — GPT-4o needs recent thread
+            // context, not the entire interview transcript. Sending the full
+            // history made every request's input larger (and slower) as the
+            // interview progressed, compounding the latency problem.
+            transcript: transcriptRef.current.slice(-10).map((item) => ({ role: item.role, speaker: item.speaker, text: item.text })),
             cvText: currentSetup.cvText,
             jobDescription: currentSetup.jobDescription,
             targetRole: currentSetup.targetRole,
@@ -3907,20 +3994,25 @@ const [questionIndex, setQuestionIndex] = useState(0);
         });
 
         const data = await response.json().catch(() => null);
+        const durationMs = Date.now() - callStartedAt;
 
         if (response.ok && data?.success && typeof data.reply === "string" && data.reply.trim()) {
           if (data.recruiterMemoryV2) {
             recruiterMemoryV2Ref.current = data.recruiterMemoryV2;
           }
+          if (data.provider && data.provider !== "unified_engine" && data.provider !== "opening_guard") {
+            // The server itself fell back to its rule engine — still real text,
+            // but worth knowing about. Not a hard failure, so no fallback() call.
+            console.warn(`[interview] Server used "${data.provider}" instead of GPT-4o this turn. durationMs=${durationMs}`);
+          } else {
+            console.log(`[interview] LLM reply used. durationMs=${durationMs}`);
+          }
           return data.reply.trim();
         }
 
-        // Non-200, or success:false, or empty reply — fall back quietly.
-        console.warn("[interview] LLM reply unavailable, using rule-engine fallback", data?.error);
-        return fallback();
+        return fallback(`http_${response.status}_${data?.error || "no_reply"}`);
       } catch (error) {
-        console.warn("[interview] LLM reply call failed, using rule-engine fallback", error);
-        return fallback();
+        return fallback(error instanceof Error ? `${error.name}: ${error.message}` : "unknown_error");
       }
     },
     [serverPlan],
@@ -3989,20 +4081,106 @@ const [questionIndex, setQuestionIndex] = useState(0);
           setStatus("thinking");
 
           const interruptDecision = decideWorkZoInterruption(answer);
+          if (interruptDecision.shouldInterrupt) {
+            const wc = answer.trim().split(/\s+/).filter(Boolean).length;
+            console.warn(`[interview] decideWorkZoInterruption fired (recorder fallback) — reason=${interruptDecision.reason} wordCount=${wc} answerLength=${answer.length} answer="${answer}"`);
+          }
           const baseReply = interruptDecision.shouldInterrupt
             ? interruptDecision.line
             : await getRecruiterReply(answer);
           const reply = enforceRuntimeLanguageForReply(setupRef.current, baseReply);
+          // 150ms: state settles fast enough, silence already provides the pause.
           window.setTimeout(() => {
             if (stopRequestedRef.current) return;
             setQuestionIndex((value) => Math.min(value + 1, 12));
             speakRecruiter(reply);
-          }, 650);
+          }, 150);
         };
         recorder.start();
-        window.setTimeout(() => {
+
+        // Real silence detection instead of a fixed cutoff. The old code
+        // hard-stopped recording at exactly 9 seconds regardless of content —
+        // any answer longer than that (most real interview answers are
+        // 20-60s+) was silently truncated and submitted as if it were
+        // complete, then the interview advanced anyway. This watches actual
+        // mic volume via the Web Audio API and stops only after sustained
+        // silence, mirroring the SILENCE_MS behavior of the primary
+        // SpeechRecognition path above. A generous hard cap remains only as
+        // a last-resort safety backstop, not the normal stop condition.
+        const SILENCE_THRESHOLD_RMS = 0.012;
+        const SILENCE_STOP_MS = 2000;
+        const MIN_RECORDING_MS = 800; // ignore the initial silence while the mic warms up
+        const HARD_CAP_MS = 90000; // backstop only — should essentially never be hit
+        // Same "paused right after starting" problem as the primary path —
+        // this path has no live transcript to count words from, so total
+        // detected speech time is used as the proxy instead. One grace
+        // extension only.
+        const GRACE_SPEECH_MS_THRESHOLD = 2000;
+        const GRACE_EXTENSION_MS = 2800;
+        let speechDetectedMs = 0;
+        let graceUsed = false;
+        let graceDeadline: number | null = null;
+
+        const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        const sourceNode = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        sourceNode.connect(analyser);
+        const buffer = new Uint8Array(analyser.fftSize);
+
+        const recordingStartedAt = Date.now();
+        let lastSpeechAt = Date.now();
+        let stopped = false;
+
+        const stopRecording = () => {
+          if (stopped) return;
+          stopped = true;
+          window.clearInterval(silenceCheckInterval);
+          try {
+            sourceNode.disconnect();
+            audioContext.close();
+          } catch {}
           if (recorder.state !== "inactive") recorder.stop();
-        }, 9000);
+        };
+
+        const silenceCheckInterval = window.setInterval(() => {
+          analyser.getByteTimeDomainData(buffer);
+          let sumSquares = 0;
+          for (let i = 0; i < buffer.length; i += 1) {
+            const normalized = (buffer[i] - 128) / 128;
+            sumSquares += normalized * normalized;
+          }
+          const rms = Math.sqrt(sumSquares / buffer.length);
+          const elapsedSinceStart = Date.now() - recordingStartedAt;
+
+          if (rms > SILENCE_THRESHOLD_RMS) {
+            lastSpeechAt = Date.now();
+            speechDetectedMs += 150;
+          }
+
+          const silentFor = Date.now() - lastSpeechAt;
+          const silenceThresholdHit = elapsedSinceStart > MIN_RECORDING_MS && silentFor > SILENCE_STOP_MS;
+
+          if (silenceThresholdHit && !graceUsed && speechDetectedMs > 0 && speechDetectedMs < GRACE_SPEECH_MS_THRESHOLD) {
+            graceUsed = true;
+            graceDeadline = Date.now() + GRACE_EXTENSION_MS;
+          }
+
+          if (graceDeadline !== null) {
+            if (rms > SILENCE_THRESHOLD_RMS) {
+              graceDeadline = null; // they kept talking — cancel the grace deadline, normal flow resumes
+            } else if (Date.now() > graceDeadline) {
+              stopRecording();
+            }
+            return;
+          }
+
+          if (silenceThresholdHit) {
+            stopRecording();
+          } else if (elapsedSinceStart > HARD_CAP_MS) {
+            stopRecording();
+          }
+        }, 150);
       } catch (error) {
         trackWorkZoErrorEvent("server_transcription_fallback_failed", error, {
           role: setupRef.current.targetRole,
@@ -4022,17 +4200,41 @@ const [questionIndex, setQuestionIndex] = useState(0);
     recognition.interimResults = true;
     recognition.lang = getSpeechRecognitionLang(setupRef.current);
 
-    // Silence timer — fires onend after 2.2 seconds of no new speech.
+    // Silence timer — fires onend after sustained silence to submit the full answer.
     // continuous=true means the browser keeps listening through natural pauses;
     // we manually stop after sustained silence to submit the full answer.
     let silenceTimer: ReturnType<typeof setTimeout> | null = null;
-    // 1400ms silence before submitting — enough for natural pauses in speech
-    // but fast enough to feel responsive. 2200ms (the old value) felt like lag.
-    const SILENCE_MS = 1400;
+    // Real interview answers include thinking pauses (people pause mid-story
+    // while recalling details). 1400ms was tuned purely for responsiveness and
+    // was cutting candidates off mid-answer — confirmed from live testing.
+    // 2000ms is closer to a natural "I'm actually done" pause without
+    // reintroducing the noticeable lag the original 2200ms had.
+    const SILENCE_MS = 2000;
+    // People very often pause right after starting a hard question — "The
+    // hardest part was... [pause to think]" — confirmed from live testing
+    // where this produced a 3-word fragment ("this part is") submitted as a
+    // complete answer. A flat silence threshold can't distinguish "done
+    // talking" from "thinking about what to say next" when only a few words
+    // have been captured. One extra grace window, granted only once per
+    // turn and only when the buffer is still this short, fixes exactly that
+    // case without slowing down every normal answer.
+    const GRACE_WORD_THRESHOLD = 6;
+    const GRACE_EXTENSION_MS = 2800;
+    let graceUsed = false;
 
     function resetSilenceTimer() {
       if (silenceTimer) clearTimeout(silenceTimer);
       silenceTimer = setTimeout(() => {
+        const wordsSoFar = answerBufferRef.current.trim().split(/\s+/).filter(Boolean).length;
+        if (!graceUsed && wordsSoFar > 0 && wordsSoFar <= GRACE_WORD_THRESHOLD) {
+          graceUsed = true;
+          silenceTimer = setTimeout(() => {
+            if (recognitionRef.current && listeningRef.current) {
+              recognitionRef.current.stop();
+            }
+          }, GRACE_EXTENSION_MS);
+          return;
+        }
         if (recognitionRef.current && listeningRef.current) {
           recognitionRef.current.stop();
         }
@@ -4045,6 +4247,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
       setInterimText("");
       answerBufferRef.current = "";
       resetSilenceTimer();
+      playListeningChime();
     };
 
     recognition.onresult = (event) => {
@@ -4088,7 +4291,17 @@ const [questionIndex, setQuestionIndex] = useState(0);
     recognition.onend = async () => {
       listeningRef.current = false;
       if (silenceTimer) clearTimeout(silenceTimer);
-      const answer = getStableCandidateAnswer();
+      // De-duplicate here, once, before this text is used for ANYTHING —
+      // word counts, the interrupt check, and the LLM call all read this same
+      // variable. Previously only the *displayed* transcript text was
+      // deduplicated (inside addTranscript), while the interrupt check and
+      // the LLM submission used the raw, still-duplicated buffer. That meant
+      // a single ~90-word answer accidentally double-captured by the Web
+      // Speech API (a known continuous-mode quirk) could silently read as
+      // ~180 words to the interrupt check and cross the rambling threshold,
+      // while looking completely normal on screen — confirmed from live
+      // testing where a clean, complete answer got cut off immediately.
+      const answer = removeRepeatedSpeechChunks(getStableCandidateAnswer());
       answerBufferRef.current = answer;
       lastInterimTextRef.current = "";
       lastInterimUpdateAtRef.current = 0;
@@ -4106,12 +4319,30 @@ const [questionIndex, setQuestionIndex] = useState(0);
       // must still advance the first turn. Previously these were treated as too
       // short/partial and the interview kept running without moving forward.
       const wordCount = answer.split(/\s+/).filter(Boolean).length;
-      const isAudioCheck = /^(can you hear|hello|hi|hey|test|check|is this|are you|okay|ok|yes|no|good|fine|great|thanks|thank you)/i.test(answer);
+      // BUG FIXED: this used to apply at ANY question index, which meant
+      // "okay okay", "hey", "yes" etc. mid-interview were treated as
+      // complete, real answers instead of being rejected as too short —
+      // confirmed from live testing where "okay okay" was submitted as the
+      // answer to "tell me about your background." An audio-check phrase is
+      // only a legitimate non-answer during the opening handshake.
+      const isAudioCheck = questionIndexRef.current <= 1 && /^(can you hear|hello|hi|hey|test|check|is this|are you|okay|ok|yes|no|good|fine|great|thanks|thank you)/i.test(answer);
       const isOpeningSmallTalk = questionIndexRef.current <= 1 && isValidOpeningOrSmallTalkAnswer(answer);
+      // Catches things like "hey can you" or "to you can you hear me" —
+      // technically 3+ words so the raw word-count check alone misses them,
+      // but they carry no real content at any point past the opening turn.
+      const isLowContentFragment = questionIndexRef.current > 1 && isLowContentAnswerFragment(answer);
 
-      if (wordCount < 3 && !isAudioCheck && !isOpeningSmallTalk) {
+      if ((wordCount < 3 && !isAudioCheck && !isOpeningSmallTalk) || isLowContentFragment) {
         setStatus("listening");
-        window.setTimeout(() => startListening(), 350);
+        if (isLowContentFragment) {
+          // Speak the acknowledgment instead of silently re-listening —
+          // silent re-prompting is exactly what reads as "it's not
+          // listening to me." A quick spoken nudge confirms it heard
+          // something, just not enough to go on.
+          window.setTimeout(() => speakRecruiter("Sorry, I didn't quite catch that — go ahead and continue."), 150);
+        } else {
+          window.setTimeout(() => startListening(), 200);
+        }
         return;
       }
 
@@ -4135,6 +4366,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
       // Live interruption engine — recruiter can cut off rambling answers
       const interruptDecision = decideWorkZoInterruption(answer);
+      if (interruptDecision.shouldInterrupt) {
+        const wc = answer.trim().split(/\s+/).filter(Boolean).length;
+        console.warn(`[interview] decideWorkZoInterruption fired — reason=${interruptDecision.reason} wordCount=${wc} answerLength=${answer.length} answer="${answer}"`);
+      }
       const baseReply = interruptDecision.shouldInterrupt
         ? interruptDecision.line
         : await getRecruiterReply(answer);
@@ -4202,7 +4437,14 @@ const [questionIndex, setQuestionIndex] = useState(0);
       }
 
       if (!audioEnabled) {
-        window.setTimeout(() => startListening(), 650);
+        // All startListening() delays below were reduced from 280-650ms to
+        // 50ms — eager candidates often start answering the instant the
+        // recruiter stops talking, and the old delay was losing those first
+        // words before the mic was even live. 50ms is just enough for React
+        // state to settle, not a perceptible pause. The listening chime
+        // (added separately) still gives a clear "go" signal regardless of
+        // this timing, so this isn't relying on timing alone.
+        window.setTimeout(() => startListening(), 50);
         return;
       }
 
@@ -4214,7 +4456,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
       ) {
         try {
           await speakWithElevenLabs(activeSetup.recruiterId, text);
-          window.setTimeout(() => startListening(), 280);
+          window.setTimeout(() => startListening(), 50);
           return;
         } catch {
           // ElevenLabs failed — fall through to browser TTS
@@ -4246,7 +4488,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
               audio.onerror = () => { URL.revokeObjectURL(audioUrl); currentAudioRef.current = null; resolve(); };
               audio.play().catch(() => resolve());
             });
-            window.setTimeout(() => startListening(), 280);
+            window.setTimeout(() => startListening(), 50);
             return;
           }
         } catch {
@@ -4255,7 +4497,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
       }
 
       if (typeof window === "undefined" || !window.speechSynthesis) {
-        window.setTimeout(() => startListening(), 650);
+        window.setTimeout(() => startListening(), 50);
         return;
       }
       // ── ElevenLabs tier-2 voice (better than browser, lighter than Vapi) ──
@@ -4280,7 +4522,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
             audio.onended = () => {
               URL.revokeObjectURL(audioUrl);
               currentAudioRef.current = null;
-              if (!stopRequestedRef.current) window.setTimeout(() => startListening(), 280);
+              if (!stopRequestedRef.current) window.setTimeout(() => startListening(), 50);
             };
             audio.onerror = () => {
               URL.revokeObjectURL(audioUrl);
@@ -4318,7 +4560,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
         const releaseToListening = () => {
           if (released || stopRequestedRef.current) return;
           released = true;
-          window.setTimeout(() => startListening(), 280);
+          window.setTimeout(() => startListening(), 50);
         };
 
         utterance.onend = releaseToListening;
@@ -4570,9 +4812,29 @@ const [questionIndex, setQuestionIndex] = useState(0);
         });
 
         client.on?.("call-end", () => {
+          const wasMidInterview = vapiConnectedRef.current && !stopRequestedRef.current;
           vapiConnectedRef.current = false;
           vapiStartingRef.current = false;
-          setPremiumVoiceStatus((current) => (current === "connected" ? "idle" : current));
+          if (wasMidInterview) {
+            // BUG FIXED: this used to leave status at "idle" after an
+            // unexpected disconnect, which is ambiguous — not explicitly
+            // "fallback", so different parts of speakRecruiter's tier
+            // selection disagreed turn to turn about whether Vapi was still
+            // in play, producing a different voice (or engine) on
+            // consecutive turns. Confirmed from user reports of the voice
+            // changing every turn. An unexpected mid-interview disconnect
+            // now commits to fallback explicitly and for the rest of the
+            // session, instead of leaving it to flicker.
+            console.warn("[interview] Vapi call-end fired unexpectedly mid-interview — committing to fallback voice for the rest of the session.");
+            trackWorkZoErrorEvent("vapi_unexpected_disconnect", "call-end fired mid-interview", {
+              role: setupRef.current.targetRole,
+              recruiter: setupRef.current.recruiterName,
+            }, "medium");
+            setPremiumVoiceStatus("fallback");
+            setPremiumVoiceError("Voice connection dropped. Switching to browser voice.");
+          } else {
+            setPremiumVoiceStatus((current) => (current === "connected" ? "idle" : current));
+          }
           if (!stopRequestedRef.current) setStatus("idle");
         });
 

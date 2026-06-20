@@ -1,5 +1,6 @@
 import { getOpenAiTtsInstructions } from "@/lib/workzoVoiceHumanizer";
 import { resolveRecruiterVoiceKey, RECRUITER_VOICE_TABLE } from "@/lib/recruiterVoiceConfig";
+import { selectRoleKnowledgeBlock } from "@/lib/unifiedRecruiterIntelligence";
 
 export type WorkZoVapiTranscriptMessage = {
   role: "assistant" | "user" | "system" | string;
@@ -166,6 +167,13 @@ export function buildWorkZoVapiVariableValues(input: {
       `If the answer is unclear or speech recognition is poor, ask one natural clarification about what they meant; do not demand metrics. ` +
       `Use short human transitions: "That makes sense", "Okay, I see the connection", "Let me ask this differently." ` +
       `Never say STAR, rubric, score, or "as an AI". ` +
+      // A real interviewer always covers these — they were missing from this
+      // prompt entirely, even though the text-based engine has covered them
+      // for a while. Stated explicitly here so live voice candidates get the
+      // same baseline questions every real interview includes.
+      `Early in the interview, naturally ask what the candidate currently does (or most recently did) and why they're interested in this specific role — not generically, but tied to what this role actually involves. ` +
+      `At least once, pick a specific requirement stated in the job description below that you don't see clearly evidenced in the CV, and ask about it directly — e.g. "This role needs X, I'm not seeing that in your background, do you have experience with that?" Don't rely only on generic competency questions; ground at least one question in the actual job description text. ` +
+      `${selectRoleKnowledgeBlock(input.targetRole || "", input.jobDescription || "")} ` +
       `${input.recruiterPersonality || ""} ${input.companyStyleInstructions || ""}`.trim(),
     voiceDirection:
       `${getOpenAiTtsInstructions({

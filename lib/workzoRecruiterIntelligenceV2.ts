@@ -503,6 +503,33 @@ const TOPIC_LABEL: Record<CompetencyId, string> = {
   closing: "closing questions",
 };
 
+// ── Technical vs. non-technical calibration ───────────────────────────────────
+// A real interviewer asks completely differently depending on the role: an
+// engineer gets pushed on architecture, trade-offs, and production failure;
+// a CSM or salesperson gets pushed on business impact and stakeholder
+// dynamics. Treating every role identically (or worse, using engineering
+// language like "the engineering judgment behind it" on a sales answer) is
+// exactly what makes an interview feel generic instead of real.
+const TECHNICAL_ROLE_PATTERN = /\b(software|backend|back-end|frontend|front-end|full[\s-]?stack|web|mobile|ios|android)\s*(engineer|developer)\b|\bdeveloper\b|\bsoftware engineer\b|\bdata (scientist|engineer|analyst)\b|\bmachine learning\b|\bml engineer\b|\bai engineer\b|\bdevops\b|\bsite reliability\b|\bsre\b|\bplatform engineer\b|\bcloud engineer\b|\bsecurity engineer\b|\bcybersecurity\b|\bqa engineer\b|\btest engineer\b|\bsystems? engineer\b|\bnetwork engineer\b|\bit support\b|\bhelpdesk\b|\bsystem administrator\b|\bsysadmin\b|\bdatabase administrator\b|\bdba\b|\bsolutions? architect\b|\btechnical architect\b|\bembedded\b|\bfirmware\b|\bgame developer\b|\bblockchain\b/i;
+
+const TECHNICAL_SKILL_HINTS = /\b(python|java(script)?|typescript|react|node\.?js|sql|aws|azure|gcp|kubernetes|docker|c\+\+|c#|golang|\bgo\b|rust|api|microservices?|ci\/cd|git|linux|terraform|django|spring|kafka|redis|graphql)\b/i;
+
+function isTechnicalRole(setup: RecruiterIntelligenceSetup): boolean {
+  const role = text(setup.targetRole);
+  const jd = text(setup.jobDescription).slice(0, 1500);
+  const cv = text(setup.cvText).slice(0, 1500);
+  if (TECHNICAL_ROLE_PATTERN.test(role)) return true;
+  // Role title alone doesn't always say it (e.g. "Engineer II", "Platform
+  // Team"), so also check the JD/CV for a meaningful concentration of
+  // concrete technical-skill keywords rather than a single stray mention.
+  const combined = `${role} ${jd}`;
+  if (TECHNICAL_ROLE_PATTERN.test(combined)) return true;
+  const skillMatches = combined.match(new RegExp(TECHNICAL_SKILL_HINTS.source, "gi")) || [];
+  if (skillMatches.length >= 3) return true;
+  const cvSkillMatches = cv.match(new RegExp(TECHNICAL_SKILL_HINTS.source, "gi")) || [];
+  return cvSkillMatches.length >= 4;
+}
+
 function buildTopicQuestion(topic: CompetencyId, setup: RecruiterIntelligenceSetup, memory: RecruiterMemoryV2, answer: string): string {
   const target = text(setup.targetRole, "this role");
   const skills = memory.skills.slice(0, 3).join(", ");
@@ -524,9 +551,17 @@ function buildTopicQuestion(topic: CompetencyId, setup: RecruiterIntelligenceSet
     case "customer_management":
       return `Tell me about a time you handled a difficult customer situation. What did you personally do, and what was the outcome?`;
 
-    case "technical_depth":
-      if (skills) return `You mentioned ${skills}. Give me one example where you used that skill to solve a real problem — what did you actually do technically?`;
-      return `What technical skills are you strongest in, and can you give me a concrete example of using them to solve a problem?`;
+    case "technical_depth": {
+      const technical = isTechnicalRole(setup);
+      if (technical && skills) {
+        return `You mentioned ${skills}. Walk me through a specific time you used that — what was the actual technical decision you had to make, what trade-off did it involve, and what would you do differently if you rebuilt it today?`;
+      }
+      if (technical) {
+        return `What's the part of your stack you know deepest? Pick one real piece of it and walk me through a production issue you personally diagnosed there — what broke, how did you find it, and what fixed it?`;
+      }
+      if (skills) return `You mentioned ${skills}. Give me one example where you used that skill to solve a real problem — what did you actually do, and how did you know it worked?`;
+      return `What are you strongest at in this kind of work, and can you give me a concrete example of using that to solve a real problem?`;
+    }
 
     case "problem_solving":
       return `Tell me about a complex problem you personally diagnosed or solved. What was your thinking process, and what changed after your work?`;
@@ -538,9 +573,15 @@ function buildTopicQuestion(topic: CompetencyId, setup: RecruiterIntelligenceSet
       if (company) return `While at ${company}, how did you manage situations where different stakeholders had conflicting priorities or needs?`;
       return `Tell me about a time you had to manage expectations with multiple stakeholders who had conflicting needs. How did you handle it?`;
 
-    case "success_metrics":
-      if (metrics) return `You mentioned ${metrics}. That is useful evidence. Now help me understand the engineering judgment behind it — what change did you make, why did you choose that approach, and how did you confirm it worked?`;
-      return `Let us talk about impact in a practical way. In ${target}, what outcome would show that your work is successful — customer adoption, quality, delivery speed, reliability, or another result?`;
+    case "success_metrics": {
+      const technical = isTechnicalRole(setup);
+      if (metrics) {
+        return technical
+          ? `You mentioned ${metrics}. That's useful evidence. Walk me through the actual technical decision behind it — what approach did you choose, why that one over the alternatives, and how did you confirm it actually worked?`
+          : `You mentioned ${metrics}. That's useful evidence. Walk me through the actual decision behind it — what did you choose to do, why that approach, and how did you confirm it actually worked?`;
+      }
+      return `Let's talk about impact in a practical way. In ${target}, what outcome would show that your work is successful — and can you point to a specific time you moved that number?`;
+    }
 
     case "motivation_fit":
       return `What specifically attracted you to ${target}, and what would make this role a step forward for you rather than just a lateral move?`;
@@ -1096,6 +1137,54 @@ export function updateRecruiterMemoryV2(
 
 // ── Main decision function ────────────────────────────────────────────────────
 
+// ── Natural acknowledgment layer ──────────────────────────────────────────────
+// The topic-roadmap questions below (buildTopicQuestion) are a SAFETY NET —
+// they only fire when the GPT-4o call fails or is unavailable. But a safety
+// net that just announces "next topic" with zero acknowledgment of what the
+// candidate said is exactly what feels like "a mock test" instead of a real
+// interviewer. This layer prepends a short, varied acknowledgment so even the
+// deterministic fallback sounds like someone who was listening, not a form
+// stepping through fixed questions.
+
+const GENERIC_ACK_VARIANTS = [
+  "Okay, that's helpful context.",
+  "Got it, thanks for walking me through that.",
+  "That's a clear picture, thank you.",
+  "I appreciate the detail there.",
+  "Alright, that gives me something concrete to go on.",
+  "Understood, thanks.",
+];
+
+// Picks a short, concrete thing to reference from what the candidate actually
+// said this turn — preferring a remembered metric, goal, or company over a
+// generic line, since a callback to specifics is what makes a recruiter sound
+// like they're actually tracking the conversation rather than reading a list.
+function buildNaturalAcknowledgment(
+  answer: string,
+  memory: RecruiterMemoryV2,
+  turns: number,
+): string {
+  const lastMetric = memory.metrics[memory.metrics.length - 1];
+  if (lastMetric && answer.toLowerCase().includes(lastMetric.toLowerCase().slice(0, 6))) {
+    return `Okay, ${lastMetric} is a useful data point.`;
+  }
+  if (memory.candidateGoals.length && /\b(want|hope|looking to|goal|grow|move into|interested in)\b/i.test(answer)) {
+    return "That motivation comes through clearly.";
+  }
+  const lower = answer.toLowerCase();
+  if (/\b(patient|patience|calm|reassur)/.test(lower)) {
+    return "That patience with the customer stands out.";
+  }
+  if (/\b(took over|stepped in|inherited|frustrated)\b/.test(lower)) {
+    return "Stepping into an already-frustrated situation isn't easy — good context.";
+  }
+  return GENERIC_ACK_VARIANTS[turns % GENERIC_ACK_VARIANTS.length];
+}
+
+function withAcknowledgment(question: string, answer: string, memory: RecruiterMemoryV2, turns: number): string {
+  return `${buildNaturalAcknowledgment(answer, memory, turns)} ${question}`;
+}
+
 export function decideRecruiterResponseV2(input: {
   answer: string;
   currentQuestion?: string;
@@ -1208,7 +1297,7 @@ export function decideRecruiterResponseV2(input: {
     // Do NOT ask another transition/customer-management duplicate; move to the next uncovered competency.
     const next = findNextUntestedTopic(memory, roadmap, memory.currentTopicIndex + 1);
     concern = "Transition question resolved or limited. Moving to next uncovered competency.";
-    reply = buildTopicQuestion(next.topic, setup, memory, answer);
+    reply = withAcknowledgment(buildTopicQuestion(next.topic, setup, memory, answer), answer, memory, turns);
     trustDelta = 2;
     interestDelta = 3;
     memory.currentTopicIndex = next.index;
@@ -1222,7 +1311,7 @@ export function decideRecruiterResponseV2(input: {
       reply = `That customer-facing experience is relevant. Could you tell me about one difficult customer situation you handled and what you personally did?`;
     } else {
       const next = findNextUntestedTopic(memory, roadmap, memory.currentTopicIndex + 1);
-      reply = buildTopicQuestion(next.topic, setup, memory, answer);
+      reply = withAcknowledgment(buildTopicQuestion(next.topic, setup, memory, answer), answer, memory, turns);
       memory.currentTopicIndex = next.index;
     }
     trustDelta = 2;
@@ -1272,29 +1361,18 @@ export function decideRecruiterResponseV2(input: {
       }
       const next = findNextUntestedTopic(memory, roadmap, memory.currentTopicIndex);
       const targetTopic = next.topic;
-      reply = buildTopicQuestion(targetTopic, setup, memory, answer);
+      reply = withAcknowledgment(buildTopicQuestion(targetTopic, setup, memory, answer), answer, memory, turns);
       concern = `Testing competency: ${TOPIC_LABEL[targetTopic]}`;
       trustDelta = 4;
       interestDelta = 4;
       memory.currentTopicIndex = next.index;
-
-      // Add a memory callback if we have something strong to reference
-      if (memory.metrics.length && turns >= 4) {
-        const metric = memory.metrics[0];
-        const hasCue = !reply.toLowerCase().includes(metric.toLowerCase().slice(0, 8));
-        if (hasCue && Math.random() < 0.35) {
-          reply = `Earlier you mentioned ${metric} — that's useful context. ${reply}`;
-        }
-      } else if (memory.candidateGoals.length && turns >= 5 && targetTopic === "motivation_fit") {
-        reply = `You mentioned earlier that you ${memory.candidateGoals[0]}. ${reply}`;
-      }
     }
   }
 
   // Prevent near-duplicate replies
   if (isNearDuplicateReply(reply, input.transcript)) {
     const next = findNextUntestedTopic(memory, roadmap, memory.currentTopicIndex + 1);
-    reply = buildTopicQuestion(next.topic, setup, memory, answer);
+    reply = withAcknowledgment(buildTopicQuestion(next.topic, setup, memory, answer), answer, memory, turns);
     concern = concern || "Prevented repeated recruiter follow-up.";
     memory.currentTopicIndex = next.index;
     memory.answeredCompetencies = [...new Set([

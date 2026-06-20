@@ -115,20 +115,38 @@ export async function fetchWorkZoAuthoritativePlan(options?: {
 }
 
 export function useWorkZoAuthoritativePlan() {
-  const [state, setState] = useState<WorkZoClientPlanState>(() => ({
+  // Always start from the SSR-safe baseline ("free", not authenticated) so
+  // the server-rendered HTML and the client's first paint match exactly.
+  // Reading localStorage inside the useState initializer used to branch on
+  // `typeof window` — that's the textbook hydration-mismatch pattern: the
+  // server renders "free" but the client's very first render (before
+  // hydration finishes reconciling) already had the cached plan from
+  // localStorage, so React saw two different trees for the same render.
+  // The cached plan is now applied inside the effect below instead, which
+  // only runs after hydration is done — so the UI still updates fast (one
+  // extra, imperceptible re-render) without ever mismatching the server HTML.
+  const [state, setState] = useState<WorkZoClientPlanState>({
     loading: true,
     authenticated: false,
-    plan: getCachedPlan(),
+    plan: "free",
     email: null,
     status: "loading",
     billingCycle: null,
     currentPeriodEnd: null,
     stripeCustomerId: null,
     stripeSubscriptionId: null,
-  }));
+  });
 
   useEffect(() => {
     let active = true;
+
+    // Apply the locally cached plan right after mount (post-hydration) so
+    // returning users don't see a flash of "free" UI while the network call
+    // below resolves.
+    const cached = getCachedPlan();
+    if (cached !== "free") {
+      setState((prev) => ({ ...prev, plan: cached }));
+    }
 
     fetchWorkZoAuthoritativePlan()
       .then((resolved) => {
