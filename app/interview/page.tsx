@@ -55,6 +55,11 @@ import {
   type WorkZoVapiClient,
 } from "@/lib/workzoVapiVoice";
 import {
+  advanceDirector,
+  hydrateDirectorState,
+  type InterviewDirectorState,
+} from "@/lib/interviewDirector";
+import {
   classifyVoiceError,
   requestMicrophoneAccess,
 } from "@/lib/workzoVoiceReliability";
@@ -1047,6 +1052,9 @@ type WorkZoInterviewSnapshot = {
   recruiterSignal: RecruiterSignalState;
   recruiterMemory: RecruiterMemoryState;
   transcript: TranscriptItem[];
+  // Interview Director control state (voice mode) — optional so older snapshots
+  // still parse. Restored on recovery so a resumed call keeps its coverage.
+  directorState?: InterviewDirectorState | null;
 };
 
 const WORKZO_ACTIVE_INTERVIEW_KEY = "workzo_active_interview";
@@ -3538,6 +3546,12 @@ const [questionIndex, setQuestionIndex] = useState(0);
   // V2 recruiter memory — persists competency tracker, concern resolution,
   // topic progression, and JD gaps across every turn of the interview.
   const recruiterMemoryV2Ref = useRef<unknown>(null);
+  // Interview Director (voice mode) — persistent control state used to steer the
+  // live Vapi assistant via injected system "DIRECTOR NOTE" messages.
+  const directorStateRef = useRef<InterviewDirectorState | null>(null);
+  const lastDirectorNoteSigRef = useRef("");
+  const lastDirectorSentAtRef = useRef(0);
+  const directorSendSupportedRef = useRef(true);
   const vapiConnectedRef = useRef(false);
   const vapiStartingRef = useRef(false);
   const vapiFallbackStartedRef = useRef(false);
@@ -3665,6 +3679,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
       recruiterSignal,
       recruiterMemory,
       transcript,
+      directorState: directorStateRef.current,
     });
   }, [elapsed, questionIndex, recruiterMemory, recruiterSignal, scoreReady, setup, status, transcript]);
 
@@ -3685,6 +3700,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
         recruiterSignal,
         recruiterMemory,
         transcript,
+        directorState: directorStateRef.current,
       });
 
       pushWorkZoLocalEvent(WORKZO_FAILURE_EVENTS_KEY, "page_refresh_during_interview", {
@@ -4455,6 +4471,80 @@ const [questionIndex, setQuestionIndex] = useState(0);
     }
   }, []);
 
+  // Interview Director (voice) — after each final candidate answer, advance the
+  // control loop and inject a binding "DIRECTOR NOTE" so the live Vapi assistant
+  // moves to the next area instead of repeating a completed topic. Runs
+  // synchronously so the note lands inside Vapi's pre-reply pause window.
+  const pushDirectorNote = useCallback(
+    (answer: string, suppress: boolean) => {
+      if (!answer.trim()) return;
+      if (!directorSendSupportedRef.current) return;
+      // A contradiction/fact-check on this turn means "stay and challenge" —
+      // the opposite of "advance". Let the fact-check note win; don't compete.
+      if (suppress) return;
+
+      const activeSetup = setupRef.current;
+      const transcript = transcriptRef.current.map((item) => ({
+        role: item.role,
+        text: item.text,
+      }));
+
+      const prior =
+        directorStateRef.current ?? hydrateDirectorState(directorStateRef.current);
+      const { state, directive } = advanceDirector({
+        prior,
+        answer,
+        transcript,
+        cvText: activeSetup.cvText || "",
+        jobDescription: activeSetup.jobDescription || "",
+        targetRole: activeSetup.targetRole || "",
+        companyStyle: detectCompanyInterviewStyle(activeSetup),
+        trust: recruiterSignalRef.current?.trust ?? 70,
+        recruiterState: recruiterSignalRef.current?.mood ?? "neutral",
+      });
+
+      const newlyComplete = state.completedTopics
+        .filter((id) => !(prior?.completedTopics || []).includes(id))
+        .map((id) => state.topics[id]?.label || id);
+      directorStateRef.current = state;
+
+      if (directive.intent === "closing") return; // let the baked closing flow run
+
+      // Throttle + dedup so we don't spam the assistant mid-call.
+      const now = Date.now();
+      const signature = `${directive.topicLabel}|${newlyComplete.join(",")}`;
+      if (signature === lastDirectorNoteSigRef.current) return;
+      if (now - lastDirectorSentAtRef.current < 4000) return;
+
+      const callbacks = state.memoryFacts
+        .filter((f) => !f.referenced)
+        .slice(-3)
+        .map((f) => f.text);
+
+      const lines = [
+        "DIRECTOR NOTE (internal, do not read aloud):",
+        `- NEXT AREA: ${directive.topicLabel}`,
+        `- APPROACH: ${directive.angle}`,
+      ];
+      if (newlyComplete.length) lines.push(`- COMPLETE, do NOT re-ask: ${newlyComplete.join("; ")}`);
+      if (callbacks.length) lines.push(`- MEMORY to reference naturally: ${callbacks.join("; ")}`);
+      lines.push("Ask exactly ONE question that advances NEXT AREA. Never repeat a COMPLETE topic.");
+
+      try {
+        vapiClientRef.current?.send?.({
+          type: "add-message",
+          message: { role: "system", content: lines.join("\n") },
+        });
+        lastDirectorNoteSigRef.current = signature;
+        lastDirectorSentAtRef.current = now;
+      } catch {
+        // SDK without send() — baked-prompt steering remains the only safeguard.
+        directorSendSupportedRef.current = false;
+      }
+    },
+    [],
+  );
+
   const startBrowserFallbackInterview = useCallback(
     (activeSetup: InterviewSetup) => {
       if (vapiFallbackStartedRef.current || stopRequestedRef.current) return;
@@ -4567,6 +4657,18 @@ const [questionIndex, setQuestionIndex] = useState(0);
             window.clearTimeout(vapiTimeoutRef.current);
             vapiTimeoutRef.current = null;
           }
+          // Interview Director per-call setup: probe live-steering capability and
+          // reset throttle/dedup. Keep any director state restored from recovery.
+          directorSendSupportedRef.current = typeof vapiClientRef.current?.send === "function";
+          lastDirectorNoteSigRef.current = "";
+          lastDirectorSentAtRef.current = 0;
+          if (!directorSendSupportedRef.current) {
+            trackWorkZoFailureEvent(
+              "vapi_director_send_unavailable",
+              { recruiter: setupRef.current.recruiterName },
+              "low",
+            );
+          }
         });
 
         client.on?.("call-end", () => {
@@ -4643,6 +4745,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
             applyRecruiterSignalUpdate(finalText);
             analyzeVapiUserAnswer(finalText);
+            // Steer the live assistant to the next area. Suppress when an
+            // unsupported-claim challenge is in flight — that takes priority.
+            pushDirectorNote(finalText, strictUnsupportedClaimHint);
             return;
           }
 
@@ -5161,6 +5266,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
     setupRef.current = snapshot.setup;
     recruiterMemoryRef.current = snapshot.recruiterMemory;
+    directorStateRef.current = hydrateDirectorState(snapshot.directorState);
     recruiterSignalRef.current = snapshot.recruiterSignal;
     scoreReadyRef.current = snapshot.scoreReady;
     elapsedRef.current = snapshot.elapsed;

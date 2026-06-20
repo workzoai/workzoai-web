@@ -29,6 +29,12 @@ import {
   type TranscriptItem,
 } from "@/lib/unifiedRecruiterIntelligence";
 import { buildWorkZoRecruiterReplyV2 } from "@/lib/workzoRecruiterIntelligenceV2";
+import {
+  advanceDirector,
+  serializeDirectorConstraint,
+  hydrateDirectorState,
+  type InterviewDirectorState,
+} from "@/lib/interviewDirector";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -237,6 +243,15 @@ export async function POST(request: Request) {
   const candidateTurnCount = transcript.filter((turn) => turn.role === "candidate").length;
   const isOpeningTurn = (typeof body.questionIndex === "number" && body.questionIndex <= 1) || candidateTurnCount <= 1;
 
+  // Interview Director — persistent control state threaded via recruiterMemoryV2.
+  const memoryEnvelope =
+    body.recruiterMemoryV2 && typeof body.recruiterMemoryV2 === "object"
+      ? (body.recruiterMemoryV2 as Record<string, unknown>)
+      : {};
+  const priorDirector = hydrateDirectorState(memoryEnvelope.director);
+  const withDirector = (state: InterviewDirectorState | null) =>
+    state ? { ...memoryEnvelope, director: state } : memoryEnvelope;
+
   // Critical first-turn guard: short rapport answers must never get swallowed by
   // the LLM/state engine. This guarantees the interview moves from greeting to
   // the real self-introduction question.
@@ -250,8 +265,31 @@ export async function POST(request: Request) {
       recruiterState: "interested",
       shouldAdvanceQuestion: true,
       provider: "opening_guard",
+      // Pass prior director state through untouched — the opening rapport turn
+      // isn't a real answer, so it shouldn't advance the control loop.
+      recruiterMemoryV2: withDirector(priorDirector),
     });
   }
+
+  // Advance the Interview Director: ingest this answer, update competencies /
+  // concerns / memory, and decide the single NEXT AREA the model must cover.
+  // The brain is computed inside advanceDirector and reused via the constraint.
+  const cvText = cleanText(body.cvText, 6000);
+  const jobDescription = cleanText(body.jobDescription, 4000);
+  const targetRole = cleanText(body.targetRole, 160);
+  const companyStyle = cleanText(body.companyStyle, 120);
+  const { state: directorState, directive } = advanceDirector({
+    prior: priorDirector,
+    answer,
+    transcript,
+    cvText,
+    jobDescription,
+    targetRole,
+    companyStyle,
+    trust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : 70,
+    recruiterState: body.recruiterState ?? "neutral",
+  });
+  const directorConstraint = serializeDirectorConstraint(directorState, directive);
 
   try {
     const decision = await decideUnifiedRecruiterResponse({
@@ -259,17 +297,18 @@ export async function POST(request: Request) {
       currentQuestion: cleanText(body.currentQuestion, 400) || "Tell me about yourself.",
       transcript,
       setup: {
-        cvText: cleanText(body.cvText, 6000),
-        jobDescription: cleanText(body.jobDescription, 4000),
-        targetRole: cleanText(body.targetRole, 160),
+        cvText,
+        jobDescription,
+        targetRole,
         targetMarket: cleanText(body.targetMarket, 120),
-        companyStyle: cleanText(body.companyStyle, 120),
+        companyStyle,
         recruiterPersonality: cleanText(body.recruiterPersonality, 120),
         language: cleanText(body.language, 40),
         candidateName: cleanText(body.candidateName, 120),
         targetCompany: cleanText(body.targetCompany, 160),
         recruiterName: cleanText(body.recruiterName, 120),
         recruiterTitle: cleanText(body.recruiterTitle, 120),
+        directorConstraint,
       },
       recruiterTrust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : undefined,
       recruiterState: body.recruiterState ?? null,
@@ -283,6 +322,9 @@ export async function POST(request: Request) {
       ? deterministicReply
       : unifiedReply;
 
+    // Reflect the post-decision trust back into the director state we persist.
+    directorState.trustScore = Math.max(0, Math.min(100, directorState.trustScore + (decision.trustDelta || 0)));
+
     return NextResponse.json({
       success: true,
       reply,
@@ -291,6 +333,8 @@ export async function POST(request: Request) {
       recruiterState: decision.recruiterState,
       shouldAdvanceQuestion: decision.shouldAdvanceQuestion,
       provider: reply === unifiedReply ? "unified_engine" : "deterministic_guard",
+      recruiterMemoryV2: withDirector(directorState),
+      directorArea: directive.topicLabel,
     });
   } catch (error) {
     console.error("[interview/reply] Unified engine call failed:", error);
@@ -304,6 +348,10 @@ export async function POST(request: Request) {
         recruiterState: "engaged",
         shouldAdvanceQuestion: true,
         provider: "deterministic_fallback",
+        // The director already advanced before the LLM call, so persist it even
+        // on fallback — the next turn keeps its coverage/concern progress.
+        recruiterMemoryV2: withDirector(directorState),
+        directorArea: directive.topicLabel,
       });
     }
 
