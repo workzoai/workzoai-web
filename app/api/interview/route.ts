@@ -55,6 +55,8 @@ type InterviewRequest = {
     candidateFactProfile?: CandidateFactProfile;
     targetRole?: string;
     targetMarket?: string;
+    companyDescription?: string;
+    companyName?: string;
     companyStyle?: string;
     recruiterPersonality?: string;
     language?: string;
@@ -65,6 +67,8 @@ type InterviewRequest = {
   jobDescription?: string;
   targetRole?: string;
   targetMarket?: string;
+  companyDescription?: string;
+  targetCompany?: string;
   companyStyle?: string;
   recruiterPersonality?: string;
   recruiterTrust?: number;
