@@ -9,7 +9,6 @@ import {
   Check,
   ChevronDown,
   FileText,
-  LayoutDashboard,
   Lock,
   Plus,
   Sparkles,
@@ -19,10 +18,7 @@ import {
 import { ChangeEvent, useEffect, useId, useMemo, useState } from "react";
 
 import { useInterviewStore } from "@/store/interviewStore";
-import {
-  buildAndSaveInterviewSetup,
-  structureResumeProfileFromCv,
-} from "@/lib/workzoCvClient";
+import { buildAndSaveInterviewSetup, structureResumeProfileFromCv } from "@/lib/workzoCvClient";
 import {
   extractResumeProfileComplex,
   normalizeResumeText,
@@ -37,337 +33,69 @@ import {
 import PrivacyNotice from "@/components/BetaPrivacyNotice";
 import { trackWorkZoLaunchEvent } from "@/lib/workzoLaunchAnalytics";
 import { useWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
-import {
-  debugCvPipeline,
-  debugCvProfile,
-  debugCvText,
-} from "@/lib/workzoCvPipelineDebug";
+import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 import { buildWorkZoCompanyBlueprint } from "@/lib/workzoCompanyBlueprint";
-import { keepBetterProfile } from "@/lib/workzoResumeProfileManager";
 
 type Market = "Global" | "Germany" | "US" | "UK" | "India" | "Netherlands";
-type CompanyStyle =
-  | "Realistic"
-  | "Startup"
-  | "Corporate"
-  | "Technical"
-  | "Consulting";
+type CompanyStyle = "Realistic" | "Startup" | "Corporate" | "Technical" | "Consulting";
 type RecruiterKey =
-  | "friendly_hr"
-  | "analytical_hiring_manager"
-  | "startup_recruiter"
-  | "german_corporate"
-  | "faang_hiring_manager"
-  | "startup_founder"
-  | "consulting_partner"
-  | "sales_director"
-  | "product_leader"
-  | "executive_recruiter"
-  | "enterprise_recruiter";
-type InterviewLanguage =
-  | "English"
-  | "German"
-  | "Dutch"
-  | "French"
-  | "Spanish"
-  | "Italian"
-  | "Portuguese"
-  | "Chinese"
-  | "Japanese"
-  | "Korean"
-  | "Hindi"
-  | "Arabic"
-  | "Polish"
-  | "Russian"
-  | "Turkish";
+  | "friendly_hr" | "analytical_hiring_manager" | "startup_recruiter" | "german_corporate"
+  | "faang_hiring_manager" | "startup_founder" | "consulting_partner" | "sales_director"
+  | "product_leader" | "executive_recruiter" | "enterprise_recruiter";
+type InterviewLanguage = "English" | "German" | "Dutch" | "French" | "Spanish" | "Italian" | "Portuguese";
 
 type SetupState = {
   [key: string]: unknown;
-  cvText?: string;
-  targetRole?: string;
-  jobDescription?: string;
-  targetMarket?: string;
-  country?: string;
-  companyStyle?: string;
-  recruiterStyle?: string;
-  recruiterPersonality?: string;
-  language?: string;
-  recruiterMemoryProfile?: unknown;
-  jobMemoryProfile?: unknown;
-  setupVersion?: number;
-  setupId?: string;
-  updatedAt?: string;
-  source?: string;
+  cvText?: string; targetRole?: string; jobDescription?: string;
+  targetMarket?: string; country?: string; companyStyle?: string;
+  recruiterStyle?: string; recruiterPersonality?: string; language?: string;
+  recruiterMemoryProfile?: unknown; jobMemoryProfile?: unknown;
+  setupVersion?: number; setupId?: string; updatedAt?: string; source?: string;
 };
 
 const markets: { label: Market; flag: string }[] = [
-  { label: "Global", flag: "🌍" },
-  { label: "Germany", flag: "🇩🇪" },
-  { label: "US", flag: "🇺🇸" },
-  { label: "UK", flag: "🇬🇧" },
-  { label: "India", flag: "🇮🇳" },
-  { label: "Netherlands", flag: "🇳🇱" },
+  { label: "Global", flag: "🌍" }, { label: "Germany", flag: "🇩🇪" },
+  { label: "US", flag: "🇺🇸" }, { label: "UK", flag: "🇬🇧" },
+  { label: "India", flag: "🇮🇳" }, { label: "Netherlands", flag: "🇳🇱" },
 ];
-const companyStyles: CompanyStyle[] = [
-  "Realistic",
-  "Startup",
-  "Corporate",
-  "Technical",
-  "Consulting",
+const companyStyles: CompanyStyle[] = ["Realistic", "Startup", "Corporate", "Technical", "Consulting"];
+
+const recruiters: { key: RecruiterKey; name: string; role: string; avatar: string; quote: string; description: string }[] = [
+  { key: "friendly_hr", name: "Sarah", role: "Friendly HR", avatar: "👩🏻‍💼", quote: "I'd love to understand how you work with people.", description: "Warm, supportive, and communication-focused." },
+  { key: "analytical_hiring_manager", name: "Daniel", role: "Hiring Manager", avatar: "👨🏻‍💼", quote: "Can you prove the business impact behind that answer?", description: "Evidence-driven and focused on measurable impact." },
+  { key: "startup_recruiter", name: "Priya", role: "Startup Recruiter", avatar: "👩🏽‍💼", quote: "What did YOU specifically own in that project?", description: "Fast-paced, practical, and ownership-focused." },
+  { key: "german_corporate", name: "Markus", role: "Corporate Recruiter", avatar: "👨🏼‍💼", quote: "Please keep the answer concise and relevant.", description: "Structured, professional, and process-oriented." },
 ];
 
-function normalizeCompanyStyle(value?: unknown): CompanyStyle {
-  if (typeof value !== "string") return "Realistic";
-  const raw = value.trim().toLowerCase().replace(/[_-]+/g, " ");
-  if (raw.includes("startup")) return "Startup";
-  if (raw.includes("corporate")) return "Corporate";
-  if (raw.includes("technical")) return "Technical";
-  if (raw.includes("consulting")) return "Consulting";
-  if (raw.includes("realistic")) return "Realistic";
-  return "Realistic";
-}
-
-function normalizeMarket(value?: unknown): Market {
-  if (typeof value !== "string") return "Global";
-  const raw = value.trim().toLowerCase().replace(/[_-]+/g, " ");
-  if (raw.includes("germany") || raw === "de") return "Germany";
-  if (raw.includes("us") || raw.includes("united states")) return "US";
-  if (
-    raw.includes("uk") ||
-    raw.includes("united kingdom") ||
-    raw.includes("britain")
-  )
-    return "UK";
-  if (raw.includes("india")) return "India";
-  if (raw.includes("netherlands") || raw.includes("holland"))
-    return "Netherlands";
-  return "Global";
-}
-
-const recruiters: {
-  key: RecruiterKey;
-  name: string;
-  role: string;
-  avatar: string;
-  quote: string;
-  description: string;
-}[] = [
-  {
-    key: "friendly_hr",
-    name: "Sarah",
-    role: "Friendly HR",
-    avatar: "👩🏻‍💼",
-    quote: "I'd love to understand how you work with people.",
-    description: "Warm, supportive, and communication-focused.",
-  },
-  {
-    key: "analytical_hiring_manager",
-    name: "Daniel",
-    role: "Hiring Manager",
-    avatar: "👨🏻‍💼",
-    quote: "Can you prove the business impact behind that answer?",
-    description: "Evidence-driven and focused on measurable impact.",
-  },
-  {
-    key: "startup_recruiter",
-    name: "Priya",
-    role: "Startup Recruiter",
-    avatar: "👩🏽‍💼",
-    quote: "What did YOU specifically own in that project?",
-    description: "Fast-paced, practical, and ownership-focused.",
-  },
-  {
-    key: "german_corporate",
-    name: "Markus",
-    role: "Corporate Recruiter",
-    avatar: "👨🏼‍💼",
-    quote: "Please keep the answer concise and relevant.",
-    description: "Structured, professional, and process-oriented.",
-  },
+const proRecruiters: { key: RecruiterKey; name: string; role: string; avatar: string; quote: string; description: string }[] = [
+  { key: "faang_hiring_manager", name: "Alex Chen", role: "FAANG Hiring Manager", avatar: "👨🏻‍💻", quote: "Walk me through the exact trade-off you made and how you measured success.", description: "Technical, systematic, and expects structured thinking with data. Probes every assumption." },
+  { key: "startup_founder", name: "Zoe Park", role: "Startup Founder", avatar: "👩🏻‍🚀", quote: "What broke, what did you own, and what would you do differently at 10x scale?", description: "Moves fast, hates buzzwords, rewards radical ownership. Expects you to talk about failure honestly." },
+  { key: "consulting_partner", name: "James Harrington", role: "Consulting Partner", avatar: "👨🏻‍💼", quote: "Structure your answer. Situation, what was at stake, and your recommendation.", description: "Case-style pressure, frameworks, and structured delivery. Will redirect a rambling answer." },
+  { key: "sales_director", name: "Marcus Webb", role: "Sales Director", avatar: "👨🏾‍💼", quote: "Give me a number. Revenue impact, quota attainment, deal size — be specific.", description: "Numbers-first, commercial mindset. Will push you to quantify everything." },
+  { key: "product_leader", name: "Aisha Patel", role: "Product Leader", avatar: "👩🏾‍💼", quote: "How did you decide what NOT to build, and what was the user evidence?", description: "User empathy, prioritisation, and cross-functional influence. Expects product sense." },
+  { key: "executive_recruiter", name: "Victoria Stern", role: "Executive Recruiter", avatar: "👩🏼‍💼", quote: "What would your last manager say is your biggest development area? Be honest.", description: "Senior-level strategic questioning. Expects board-ready communication and leadership narrative." },
+  { key: "enterprise_recruiter", name: "David Kimura", role: "Enterprise Recruiter", avatar: "👨🏻‍💼", quote: "How did you manage stakeholders at different levels? Give me a cross-functional example.", description: "Process, governance, and stakeholder management. Structured answers with clear escalation." },
 ];
 
-const proRecruiters: {
-  key: RecruiterKey;
-  name: string;
-  role: string;
-  avatar: string;
-  quote: string;
-  description: string;
-}[] = [
-  {
-    key: "faang_hiring_manager",
-    name: "Alex Chen",
-    role: "FAANG Hiring Manager",
-    avatar: "👨🏻‍💻",
-    quote:
-      "Walk me through the exact trade-off you made and how you measured success.",
-    description:
-      "Technical, systematic, and expects structured thinking with data. Probes every assumption.",
-  },
-  {
-    key: "startup_founder",
-    name: "Zoe Park",
-    role: "Startup Founder",
-    avatar: "👩🏻‍🚀",
-    quote:
-      "What broke, what did you own, and what would you do differently at 10x scale?",
-    description:
-      "Moves fast, hates buzzwords, rewards radical ownership. Expects you to talk about failure honestly.",
-  },
-  {
-    key: "consulting_partner",
-    name: "James Harrington",
-    role: "Consulting Partner",
-    avatar: "👨🏻‍💼",
-    quote:
-      "Structure your answer. Situation, what was at stake, and your recommendation.",
-    description:
-      "Case-style pressure, frameworks, and structured delivery. Will redirect a rambling answer.",
-  },
-  {
-    key: "sales_director",
-    name: "Marcus Webb",
-    role: "Sales Director",
-    avatar: "👨🏾‍💼",
-    quote:
-      "Give me a number. Revenue impact, quota attainment, deal size — be specific.",
-    description:
-      "Numbers-first, commercial mindset. Will push you to quantify everything.",
-  },
-  {
-    key: "product_leader",
-    name: "Aisha Patel",
-    role: "Product Leader",
-    avatar: "👩🏾‍💼",
-    quote:
-      "How did you decide what NOT to build, and what was the user evidence?",
-    description:
-      "User empathy, prioritisation, and cross-functional influence. Expects product sense.",
-  },
-  {
-    key: "executive_recruiter",
-    name: "Victoria Stern",
-    role: "Executive Recruiter",
-    avatar: "👩🏼‍💼",
-    quote:
-      "What would your last manager say is your biggest development area? Be honest.",
-    description:
-      "Senior-level strategic questioning. Expects board-ready communication and leadership narrative.",
-  },
-  {
-    key: "enterprise_recruiter",
-    name: "David Kimura",
-    role: "Enterprise Recruiter",
-    avatar: "👨🏻‍💼",
-    quote:
-      "How did you manage stakeholders at different levels? Give me a cross-functional example.",
-    description:
-      "Process, governance, and stakeholder management. Structured answers with clear escalation.",
-  },
-];
-
-const interviewLanguages: {
-  label: InterviewLanguage;
-  nativeLabel: string;
-  hint: string;
-}[] = [
-  {
-    label: "English",
-    nativeLabel: "English",
-    hint: "Global interview practice",
-  },
-  {
-    label: "German",
-    nativeLabel: "Deutsch",
-    hint: "Formal German-style practice",
-  },
-  {
-    label: "Dutch",
-    nativeLabel: "Nederlands",
-    hint: "Netherlands / Dutch practice",
-  },
-  {
-    label: "French",
-    nativeLabel: "Français",
-    hint: "French interview practice",
-  },
-  {
-    label: "Spanish",
-    nativeLabel: "Español",
-    hint: "Spanish interview practice",
-  },
-  {
-    label: "Italian",
-    nativeLabel: "Italiano",
-    hint: "Italian interview practice",
-  },
-  {
-    label: "Portuguese",
-    nativeLabel: "Português",
-    hint: "Portuguese interview practice",
-  },
-  { label: "Chinese", nativeLabel: "中文", hint: "Mandarin Chinese practice" },
-  {
-    label: "Japanese",
-    nativeLabel: "日本語",
-    hint: "Japanese interview practice",
-  },
-  { label: "Korean", nativeLabel: "한국어", hint: "Korean interview practice" },
-  { label: "Hindi", nativeLabel: "हिन्दी", hint: "Hindi interview practice" },
-  {
-    label: "Arabic",
-    nativeLabel: "العربية",
-    hint: "Arabic interview practice",
-  },
-  { label: "Polish", nativeLabel: "Polski", hint: "Polish interview practice" },
-  {
-    label: "Russian",
-    nativeLabel: "Русский",
-    hint: "Russian interview practice",
-  },
-  {
-    label: "Turkish",
-    nativeLabel: "Türkçe",
-    hint: "Turkish interview practice",
-  },
+const interviewLanguages: { label: InterviewLanguage; nativeLabel: string; hint: string }[] = [
+  { label: "English", nativeLabel: "English", hint: "Global interview practice" },
+  { label: "German", nativeLabel: "Deutsch", hint: "Formal German-style practice" },
+  { label: "Dutch", nativeLabel: "Nederlands", hint: "Netherlands / Dutch practice" },
+  { label: "French", nativeLabel: "Français", hint: "French interview practice" },
+  { label: "Spanish", nativeLabel: "Español", hint: "Spanish interview practice" },
+  { label: "Italian", nativeLabel: "Italiano", hint: "Italian interview practice" },
+  { label: "Portuguese", nativeLabel: "Português", hint: "Portuguese interview practice" },
 ];
 
 function normalizeInterviewLanguage(value?: unknown): InterviewLanguage {
   if (typeof value !== "string") return "English";
   const raw = value.trim().toLowerCase();
-  if (raw.includes("german") || raw.includes("deutsch") || raw === "de")
-    return "German";
-  if (raw.includes("dutch") || raw.includes("nederlands") || raw === "nl")
-    return "Dutch";
-  if (raw.includes("french") || raw.includes("français") || raw === "fr")
-    return "French";
-  if (raw.includes("spanish") || raw.includes("español") || raw === "es")
-    return "Spanish";
-  if (raw.includes("italian") || raw.includes("italiano") || raw === "it")
-    return "Italian";
-  if (raw.includes("portuguese") || raw.includes("português") || raw === "pt")
-    return "Portuguese";
-  if (
-    raw.includes("chinese") ||
-    raw.includes("mandarin") ||
-    raw === "zh" ||
-    raw.includes("中文")
-  )
-    return "Chinese";
-  if (raw.includes("japanese") || raw === "ja" || raw.includes("日本語"))
-    return "Japanese";
-  if (raw.includes("korean") || raw === "ko" || raw.includes("한국어"))
-    return "Korean";
-  if (raw.includes("hindi") || raw === "hi" || raw.includes("हिन्दी"))
-    return "Hindi";
-  if (raw.includes("arabic") || raw === "ar" || raw.includes("العربية"))
-    return "Arabic";
-  if (raw.includes("polish") || raw.includes("polski") || raw === "pl")
-    return "Polish";
-  if (raw.includes("russian") || raw.includes("русский") || raw === "ru")
-    return "Russian";
-  if (raw.includes("turkish") || raw.includes("türkçe") || raw === "tr")
-    return "Turkish";
+  if (raw.includes("german") || raw.includes("deutsch") || raw === "de") return "German";
+  if (raw.includes("dutch") || raw.includes("nederlands") || raw === "nl") return "Dutch";
+  if (raw.includes("french") || raw.includes("français") || raw === "fr") return "French";
+  if (raw.includes("spanish") || raw.includes("español") || raw === "es") return "Spanish";
+  if (raw.includes("italian") || raw.includes("italiano") || raw === "it") return "Italian";
+  if (raw.includes("portuguese") || raw.includes("português") || raw === "pt") return "Portuguese";
   return "English";
 }
 
@@ -386,33 +114,16 @@ function normalizeRecruiterKey(value?: unknown): RecruiterKey {
   const raw = value.trim().toLowerCase();
   const key = raw.replace(/·/g, " ").replace(/-/g, "_").replace(/\s+/g, "_");
   if (key === "friendly_hr" || raw.includes("sarah")) return "friendly_hr";
-  if (key === "analytical_hiring_manager" || raw.includes("daniel"))
-    return "analytical_hiring_manager";
-  if (key === "startup_recruiter" || raw.includes("priya"))
-    return "startup_recruiter";
-  if (
-    key === "german_corporate" ||
-    key === "corporate_recruiter" ||
-    raw.includes("markus")
-  )
-    return "german_corporate";
-  if (key === "faang_hiring_manager" || raw.includes("faang"))
-    return "faang_hiring_manager";
-  if (
-    key === "startup_founder" ||
-    (raw.includes("founder") && !raw.includes("startup_recruiter"))
-  )
-    return "startup_founder";
-  if (key === "consulting_partner" || raw.includes("harrington"))
-    return "consulting_partner";
-  if (key === "sales_director" || raw.includes("marcus webb"))
-    return "sales_director";
-  if (key === "product_leader" || raw.includes("aisha"))
-    return "product_leader";
-  if (key === "executive_recruiter" || raw.includes("victoria stern"))
-    return "executive_recruiter";
-  if (key === "enterprise_recruiter" || raw.includes("kimura"))
-    return "enterprise_recruiter";
+  if (key === "analytical_hiring_manager" || raw.includes("daniel")) return "analytical_hiring_manager";
+  if (key === "startup_recruiter" || raw.includes("priya")) return "startup_recruiter";
+  if (key === "german_corporate" || key === "corporate_recruiter" || raw.includes("markus")) return "german_corporate";
+  if (key === "faang_hiring_manager" || raw.includes("faang")) return "faang_hiring_manager";
+  if (key === "startup_founder" || (raw.includes("founder") && !raw.includes("startup_recruiter"))) return "startup_founder";
+  if (key === "consulting_partner" || raw.includes("harrington")) return "consulting_partner";
+  if (key === "sales_director" || raw.includes("marcus webb")) return "sales_director";
+  if (key === "product_leader" || raw.includes("aisha")) return "product_leader";
+  if (key === "executive_recruiter" || raw.includes("victoria stern")) return "executive_recruiter";
+  if (key === "enterprise_recruiter" || raw.includes("kimura")) return "enterprise_recruiter";
   return "analytical_hiring_manager";
 }
 
@@ -435,14 +146,10 @@ function saveSetupToStore(nextSetup: SetupState, store: unknown) {
     saveSetup?: (s: SetupState) => void;
     setInterviewSetup?: (s: SetupState) => void;
   };
-  if (typeof storeAny.setSetup === "function")
-    storeAny.setSetup(normalizedSetup);
-  else if (typeof storeAny.updateSetup === "function")
-    storeAny.updateSetup(normalizedSetup);
-  else if (typeof storeAny.saveSetup === "function")
-    storeAny.saveSetup(normalizedSetup);
-  else if (typeof storeAny.setInterviewSetup === "function")
-    storeAny.setInterviewSetup(normalizedSetup);
+  if (typeof storeAny.setSetup === "function") storeAny.setSetup(normalizedSetup);
+  else if (typeof storeAny.updateSetup === "function") storeAny.updateSetup(normalizedSetup);
+  else if (typeof storeAny.saveSetup === "function") storeAny.saveSetup(normalizedSetup);
+  else if (typeof storeAny.setInterviewSetup === "function") storeAny.setInterviewSetup(normalizedSetup);
   else useInterviewStore.setState({ setup: normalizedSetup } as never);
   try {
     const s = JSON.stringify(normalizedSetup);
@@ -458,31 +165,21 @@ function saveSetupToStore(nextSetup: SetupState, store: unknown) {
     window.localStorage.removeItem("workzo_setup");
     window.localStorage.removeItem("workzo-onboarding");
     window.localStorage.removeItem("workzo_onboarding");
-  } catch {
-    /* localStorage may be blocked */
-  }
+  } catch { /* localStorage may be blocked */ }
 }
 
-function buildInterviewCvContext(
-  profile: ResumeProfile,
-  fallbackRawText: string,
-) {
+function buildInterviewCvContext(profile: ResumeProfile, fallbackRawText: string) {
   const lines: string[] = [];
   const basics = profile.basics || {};
   if (basics.name?.trim()) lines.push(`Candidate name: ${basics.name.trim()}`);
-  if (basics.headline?.trim())
-    lines.push(`Headline: ${basics.headline.trim()}`);
-  const contact = [basics.email, basics.phone, basics.location, basics.linkedin]
-    .filter(Boolean)
-    .join(" • ");
+  if (basics.headline?.trim()) lines.push(`Headline: ${basics.headline.trim()}`);
+  const contact = [basics.email, basics.phone, basics.location, basics.linkedin].filter(Boolean).join(" • ");
   if (contact) lines.push(`Contact: ${contact}`);
   if (profile.summary?.trim()) lines.push(`Summary: ${profile.summary.trim()}`);
   if (profile.experience?.length) {
     lines.push("Experience:");
     profile.experience.slice(0, 6).forEach((item) => {
-      const title = [item.title, item.company, item.dates]
-        .filter(Boolean)
-        .join(" • ");
+      const title = [item.title, item.company, item.dates].filter(Boolean).join(" • ");
       if (title) lines.push(`- ${title}`);
       item.bullets?.slice(0, 4).forEach((b) => lines.push(`  • ${b}`));
     });
@@ -490,14 +187,11 @@ function buildInterviewCvContext(
   if (profile.education?.length) {
     lines.push("Education:");
     profile.education.slice(0, 4).forEach((item) => {
-      const label = [item.degree, item.institution, item.dates]
-        .filter(Boolean)
-        .join(" • ");
+      const label = [item.degree, item.institution, item.dates].filter(Boolean).join(" • ");
       if (label) lines.push(`- ${label}`);
     });
   }
-  if (profile.skills?.length)
-    lines.push(`Skills: ${profile.skills.slice(0, 24).join(", ")}`);
+  if (profile.skills?.length) lines.push(`Skills: ${profile.skills.slice(0, 24).join(", ")}`);
   if (profile.projects?.length) {
     lines.push("Projects:");
     profile.projects.slice(0, 4).forEach((p) => {
@@ -505,31 +199,19 @@ function buildInterviewCvContext(
       p.bullets?.slice(0, 3).forEach((b) => lines.push(`  • ${b}`));
     });
   }
-  if (profile.languages?.length)
-    lines.push(`Languages: ${profile.languages.slice(0, 8).join(", ")}`);
-  if (profile.certifications?.length)
-    lines.push(
-      `Certifications: ${profile.certifications.slice(0, 8).join(", ")}`,
-    );
+  if (profile.languages?.length) lines.push(`Languages: ${profile.languages.slice(0, 8).join(", ")}`);
+  if (profile.certifications?.length) lines.push(`Certifications: ${profile.certifications.slice(0, 8).join(", ")}`);
   return lines.join("\n").trim() || fallbackRawText;
 }
 
 function buildCanonicalCvSetup(input: {
-  setup: SetupState;
-  rawCvText: string;
-  jobDescription: string;
-  role: string;
-  market: string;
-  companyStyle: string;
-  recruiter: RecruiterKey;
-  language: string;
-  profile?: ResumeProfile | null;
+  setup: SetupState; rawCvText: string; jobDescription: string;
+  role: string; market: string; companyStyle: string;
+  recruiter: RecruiterKey; language: string; profile?: ResumeProfile | null;
 }) {
   const profile = input.profile || extractResumeProfileComplex(input.rawCvText);
   const companyBlueprint = buildWorkZoCompanyBlueprint({
-    companyName: String(
-      input.setup.companyName || input.setup.targetCompany || "Target company",
-    ),
+    companyName: String(input.setup.companyName || input.setup.targetCompany || "Target company"),
     targetRole: input.role || profile.basics.headline || "General Role",
     jobDescription: input.jobDescription,
     cvText: input.rawCvText,
@@ -571,40 +253,22 @@ function buildCanonicalCvSetup(input: {
 }
 
 function saveCanonicalCvSetup(setup: SetupState, store: unknown) {
-  debugCvProfile(
-    "onboarding.saveCanonicalCvSetup.before",
-    setup.resumeProfile,
-    {
-      setupId: setup.setupId,
-      source: setup.source,
-      cvChars: typeof setup.cvText === "string" ? setup.cvText.length : 0,
-    },
-  );
+  debugCvProfile("onboarding.saveCanonicalCvSetup.before", setup.resumeProfile, {
+    setupId: setup.setupId, source: setup.source,
+    cvChars: typeof setup.cvText === "string" ? setup.cvText.length : 0,
+  });
   saveSetupToStore(setup, store);
-  const saved = saveLatestInterviewSetup(
-    setup as Parameters<typeof saveLatestInterviewSetup>[0],
-  );
+  const saved = saveLatestInterviewSetup(setup as Parameters<typeof saveLatestInterviewSetup>[0]);
   debugCvProfile("onboarding.saveCanonicalCvSetup.after", saved.resumeProfile, {
-    setupId: saved.setupId,
-    source: saved.source,
+    setupId: saved.setupId, source: saved.source,
     cvChars: typeof saved.cvText === "string" ? saved.cvText.length : 0,
   });
 }
 
 type PersonaItem = (typeof recruiters)[number];
 
-function PersonaCard({
-  persona,
-  selected,
-  locked,
-  pro,
-  onClick,
-}: {
-  persona: PersonaItem;
-  selected: boolean;
-  locked?: boolean;
-  pro?: boolean;
-  onClick: () => void;
+function PersonaCard({ persona, selected, locked, pro, onClick }: {
+  persona: PersonaItem; selected: boolean; locked?: boolean; pro?: boolean; onClick: () => void;
 }) {
   return (
     <button
@@ -623,58 +287,30 @@ function PersonaCard({
     >
       {pro && locked && (
         <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full border border-violet-300/25 bg-violet-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-violet-200">
-          <Lock className="h-2.5 w-2.5" />
-          Pro
+          <Lock className="h-2.5 w-2.5" />Pro
         </span>
       )}
       {selected && !locked && (
-        <span
-          className={cn(
-            "absolute right-2.5 top-2.5 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em]",
-            pro
-              ? "bg-violet-300/15 text-violet-200"
-              : "bg-cyan-300/15 text-cyan-200",
-          )}
-        >
+        <span className={cn("absolute right-2.5 top-2.5 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em]",
+          pro ? "bg-violet-300/15 text-violet-200" : "bg-cyan-300/15 text-cyan-200")}>
           Selected
         </span>
       )}
       <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.07] text-base">
-          {persona.avatar}
-        </span>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.07] text-base">{persona.avatar}</span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-black leading-4 text-white">
-            {persona.name}
-          </p>
-          <p className="mt-0.5 truncate text-[11px] font-bold text-slate-400">
-            {persona.role}
-          </p>
+          <p className="truncate text-sm font-black leading-4 text-white">{persona.name}</p>
+          <p className="mt-0.5 truncate text-[11px] font-bold text-slate-400">{persona.role}</p>
         </div>
       </div>
-      <p className="mt-2.5 text-xs leading-4 text-slate-400">
-        {persona.description}
-      </p>
+      <p className="mt-2.5 text-xs leading-4 text-slate-400">{persona.description}</p>
     </button>
   );
 }
 
-function ProPersonaDropdown({
-  open,
-  onToggle,
-  isProUser,
-  recruiter,
-  onSelect,
-  nudgeKey,
-  onLockedClick,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  isProUser: boolean;
-  recruiter: RecruiterKey;
-  onSelect: (key: RecruiterKey) => void;
-  nudgeKey: number;
-  onLockedClick: () => void;
+function ProPersonaDropdown({ open, onToggle, isProUser, recruiter, onSelect, nudgeKey, onLockedClick }: {
+  open: boolean; onToggle: () => void; isProUser: boolean; recruiter: RecruiterKey;
+  onSelect: (key: RecruiterKey) => void; nudgeKey: number; onLockedClick: () => void;
 }) {
   return (
     <div className="mt-3 overflow-hidden rounded-2xl border border-violet-300/15 bg-violet-500/[0.05]">
@@ -682,44 +318,26 @@ function ProPersonaDropdown({
         role="button"
         tabIndex={0}
         onClick={onToggle}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onToggle();
-          }
-        }}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }}
         className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-3 text-left transition hover:bg-violet-500/[0.08]"
       >
         <Lock className="h-4 w-4 shrink-0 text-violet-300" />
-        <span className="text-sm font-black text-violet-100">
-          Premium Pro personas
-        </span>
-        <span className="rounded-full border border-violet-300/25 bg-violet-400/15 px-2 py-0.5 text-[10px] font-black text-violet-200">
-          {proRecruiters.length}
-        </span>
-        <span className="hidden text-xs text-slate-500 sm:inline">
-          High-pressure interviewers for senior prep
-        </span>
+        <span className="text-sm font-black text-violet-100">Premium Pro personas</span>
+        <span className="rounded-full border border-violet-300/25 bg-violet-400/15 px-2 py-0.5 text-[10px] font-black text-violet-200">{proRecruiters.length}</span>
+        <span className="hidden text-xs text-slate-500 sm:inline">High-pressure interviewers for senior prep</span>
         {!isProUser && (
           <Link
             key={nudgeKey}
             href="/pricing?plan=premium_pro&intent=personas"
             onClick={(e) => e.stopPropagation()}
-            className={cn(
-              "ml-auto shrink-0 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-black text-white transition hover:bg-violet-400",
-              nudgeKey > 0 && "animate-[wzNudge_0.45s_ease-in-out_2]",
-            )}
+            className={cn("ml-auto shrink-0 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-black text-white transition hover:bg-violet-400",
+              nudgeKey > 0 && "animate-[wzNudge_0.45s_ease-in-out_2]")}
           >
             Unlock
           </Link>
         )}
-        <ChevronDown
-          className={cn(
-            "h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200",
-            !isProUser ? "" : "ml-auto",
-            open && "rotate-180",
-          )}
-        />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200",
+          !isProUser ? "" : "ml-auto", open && "rotate-180")} />
       </div>
       {open && (
         <div className="border-t border-violet-300/10 p-3">
@@ -731,17 +349,14 @@ function ProPersonaDropdown({
                 pro
                 locked={!isProUser}
                 selected={recruiter === item.key}
-                onClick={() => {
-                  if (isProUser) onSelect(item.key);
-                  else onLockedClick();
-                }}
+                onClick={() => { if (isProUser) onSelect(item.key); else onLockedClick(); }}
               />
             ))}
           </div>
           {!isProUser && (
             <p className="mt-3 text-center text-xs font-bold text-slate-500">
-              These personas are visible to everyone, but interviewing with them
-              requires <span className="text-violet-300">Premium Pro</span>.
+              These personas are visible to everyone, but interviewing with them requires{" "}
+              <span className="text-violet-300">Premium Pro</span>.
             </p>
           )}
         </div>
@@ -750,10 +365,7 @@ function ProPersonaDropdown({
   );
 }
 
-const readinessChecklist: {
-  key: "cv" | "jd" | "role" | "style";
-  label: string;
-}[] = [
+const readinessChecklist: { key: "cv" | "jd" | "role" | "style"; label: string }[] = [
   { key: "cv", label: "CV uploaded" },
   { key: "jd", label: "Job description" },
   { key: "role", label: "Target role" },
@@ -761,29 +373,18 @@ const readinessChecklist: {
 ];
 
 function readinessHint(readiness: number) {
-  if (readiness >= 100)
-    return "Fully personalised. The recruiter knows your story.";
-  if (readiness >= 75)
-    return "Almost there — one more detail sharpens the questions.";
-  if (readiness >= 50)
-    return "Good base. Add more context for sharper follow-ups.";
+  if (readiness >= 100) return "Fully personalised. The recruiter knows your story.";
+  if (readiness >= 75) return "Almost there — one more detail sharpens the questions.";
+  if (readiness >= 50) return "Good base. Add more context for sharper follow-ups.";
   return "Add your CV to unlock a personal interview.";
 }
 
-function ReadinessRail({
-  readiness,
-  checks,
-  summaryLine,
-  onStart,
-  hideCta,
-  pendingCv,
-}: {
+function ReadinessRail({ readiness, checks, summaryLine, onStart, hideCta }: {
   readiness: number;
   checks: Record<"cv" | "jd" | "role" | "style", boolean>;
   summaryLine: string;
   onStart: () => void;
   hideCta?: boolean;
-  pendingCv?: boolean;
 }) {
   const gradientId = useId().replace(/:/g, "");
   const circumference = 251.3;
@@ -805,77 +406,28 @@ function ReadinessRail({
                   <stop offset="100%" stopColor="#34d399" />
                 </linearGradient>
               </defs>
-              <circle
-                cx="48"
-                cy="48"
-                r="40"
-                fill="none"
-                strokeWidth="7"
-                className="stroke-white/[0.08]"
-              />
-              <circle
-                cx="48"
-                cy="48"
-                r="40"
-                fill="none"
-                strokeWidth="7"
-                strokeLinecap="round"
-                stroke={`url(#${gradientId})`}
-                strokeDasharray={circumference}
-                strokeDashoffset={dashOffset}
-                className="transition-all duration-500"
-              />
+              <circle cx="48" cy="48" r="40" fill="none" strokeWidth="7" className="stroke-white/[0.08]" />
+              <circle cx="48" cy="48" r="40" fill="none" strokeWidth="7" strokeLinecap="round"
+                stroke={`url(#${gradientId})`} strokeDasharray={circumference}
+                strokeDashoffset={dashOffset} className="transition-all duration-500" />
             </svg>
-            <span className="absolute inset-0 grid place-items-center text-xl font-black">
-              {readiness}%
-            </span>
+            <span className="absolute inset-0 grid place-items-center text-xl font-black">{readiness}%</span>
           </div>
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-cyan-200">
-              Readiness
-            </p>
-            <p className="mt-1 text-sm font-bold leading-5 text-slate-300">
-              {readinessHint(readiness)}
-            </p>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-cyan-200">Readiness</p>
+            <p className="mt-1 text-sm font-bold leading-5 text-slate-300">{readinessHint(readiness)}</p>
           </div>
         </div>
         <div className="relative mt-4 space-y-1.5">
           {readinessChecklist.map((item) => {
             const done = checks[item.key];
-            const pending = item.key === "cv" && !done && pendingCv;
             return (
-              <div
-                key={item.key}
-                className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm"
-              >
-                <span
-                  className={cn(
-                    "grid h-5 w-5 place-items-center rounded-full border",
-                    done
-                      ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-300"
-                      : pending
-                        ? "border-amber-300/40 bg-amber-400/15"
-                        : "border-white/15 text-slate-500",
-                  )}
-                >
+              <div key={item.key} className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm">
+                <span className={cn("grid h-5 w-5 place-items-center rounded-full border",
+                  done ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-300" : "border-white/15 text-slate-500")}>
                   {done && <Check className="h-3 w-3" strokeWidth={3.5} />}
-                  {pending && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-300 [animation:wzDotPulse_1.4s_ease-in-out_infinite]" />
-                  )}
                 </span>
-                <span
-                  className={cn(
-                    "font-bold",
-                    done
-                      ? "text-slate-200"
-                      : pending
-                        ? "text-amber-200"
-                        : "text-slate-500",
-                  )}
-                >
-                  {item.label}
-                  {pending ? " — confirm to use" : ""}
-                </span>
+                <span className={cn("font-bold", done ? "text-slate-200" : "text-slate-500")}>{item.label}</span>
               </div>
             );
           })}
@@ -887,12 +439,8 @@ function ReadinessRail({
             <Sparkles className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
-              Your interview
-            </p>
-            <p className="mt-1.5 text-sm font-black leading-6 text-white">
-              {summaryLine}
-            </p>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">Your interview</p>
+            <p className="mt-1.5 text-sm font-black leading-6 text-white">{summaryLine}</p>
           </div>
         </div>
       </div>
@@ -929,85 +477,16 @@ export default function OnboardingPage() {
 
   const effectiveCvText = manualCv || (useRestoredCv ? restoredCvText : "");
   const [role, setRole] = useState(setup.targetRole || "");
-  const [companyName, setCompanyName] = useState(
-    String(setup.companyName || setup.targetCompany || ""),
-  );
-  const [jobDescription, setJobDescription] = useState(
-    setup.jobDescription || "",
-  );
-  const [companyUrl, setCompanyUrl] = useState("");
-  const [isScraping, setIsScraping] = useState(false);
-  const [scrapeError, setScrapeError] = useState("");
-  const [scrapeResult, setScrapeResult] = useState<{
-    companyName?: string;
-    companyDescription?: string;
-    jobTitle?: string;
-    jobDescription?: string;
-    requiredSkills?: string[];
-    confidence?: string;
-  } | null>(null);
-
-  async function handleScrapeUrl() {
-    const url = companyUrl.trim();
-    if (!url) return;
-    setIsScraping(true);
-    setScrapeError("");
-    setScrapeResult(null);
-    try {
-      const res = await fetch("/api/company-scrape", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        setScrapeError(data.error || "Could not load that page. Try pasting the job description text instead.");
-        return;
-      }
-      setScrapeResult(data);
-      // Auto-fill fields from scraped data
-      if (data.companyName && !companyName) setCompanyName(data.companyName);
-      if (data.jobTitle && !role) setRole(data.jobTitle);
-      if (data.jobDescription) setJobDescription(data.jobDescription);
-    } catch {
-      setScrapeError("Something went wrong. Try pasting the job description text instead.");
-    } finally {
-      setIsScraping(false);
-    }
-  }
-  const [market, setMarket] = useState<Market>(
-    normalizeMarket(setup.targetMarket || setup.country),
-  );
-  const [companyStyle, setCompanyStyle] = useState<CompanyStyle>(
-    normalizeCompanyStyle(setup.companyStyle || setup.recruiterStyle),
-  );
-  const [recruiter, setRecruiter] = useState<RecruiterKey>(
-    normalizeRecruiterKey(setup.recruiterPersonality),
-  );
+  const [companyName, setCompanyName] = useState(String(setup.companyName || setup.targetCompany || ""));
+  const [jobDescription, setJobDescription] = useState(setup.jobDescription || "");
+  const [market, setMarket] = useState<Market>((setup.targetMarket as Market) || (setup.country as Market) || "Global");
+  const [companyStyle, setCompanyStyle] = useState<CompanyStyle>((setup.companyStyle as CompanyStyle) || (setup.recruiterStyle as CompanyStyle) || "Realistic");
+  const [recruiter, setRecruiter] = useState<RecruiterKey>(normalizeRecruiterKey(setup.recruiterPersonality));
   const planState = useWorkZoAuthoritativePlan();
   const isProUser = planState.plan === "premium_pro";
-
-  // Auth/plan check must never block onboarding.
-  // If /api/account/plan is slow, timing out, or temporarily failing, keep the page usable.
-  // Only redirect when the API has clearly completed and confirmed the user is unauthenticated.
-  useEffect(() => {
-    const status = String(planState.status || "").toLowerCase();
-    const uncertain =
-      planState.loading ||
-      status === "timeout" ||
-      status === "error" ||
-      status === "network_error";
-    if (!uncertain && !planState.authenticated) {
-      router.push("/login?next=/onboarding");
-    }
-  }, [planState.loading, planState.authenticated, planState.status, router]);
-  const [interviewLanguage, setInterviewLanguage] = useState<InterviewLanguage>(
-    normalizeInterviewLanguage(setup.language),
-  );
+  const [interviewLanguage, setInterviewLanguage] = useState<InterviewLanguage>(normalizeInterviewLanguage(setup.language));
   const [, setAiResumeProfile] = useState<ResumeProfile | null>(null);
-  const [aiCvStructuringStatus, setAiCvStructuringStatus] = useState<
-    "idle" | "structuring" | "ready" | "fallback"
-  >("idle");
+  const [aiCvStructuringStatus, setAiCvStructuringStatus] = useState<"idle" | "structuring" | "ready" | "fallback">("idle");
 
   const [contextModalOpen, setContextModalOpen] = useState(false);
   const [jdDraft, setJdDraft] = useState("");
@@ -1019,24 +498,10 @@ export default function OnboardingPage() {
   const readiness = useMemo(() => {
     const cvReady = Boolean(effectiveCvText.trim());
     const roleReady = Boolean(role.trim());
-    const preferencesReady = Boolean(
-      market && companyStyle && recruiter && interviewLanguage,
-    );
+    const preferencesReady = Boolean(market && companyStyle && recruiter && interviewLanguage);
     const jdBonus = Boolean(jobDescription.trim());
-    return Math.min(
-      100,
-      [cvReady, roleReady, preferencesReady, jdBonus].filter(Boolean).length *
-        25,
-    );
-  }, [
-    effectiveCvText,
-    role,
-    market,
-    companyStyle,
-    recruiter,
-    interviewLanguage,
-    jobDescription,
-  ]);
+    return Math.min(100, [cvReady, roleReady, preferencesReady, jdBonus].filter(Boolean).length * 25);
+  }, [effectiveCvText, role, market, companyStyle, recruiter, interviewLanguage, jobDescription]);
 
   const checks = {
     cv: Boolean(effectiveCvText.trim()),
@@ -1045,41 +510,27 @@ export default function OnboardingPage() {
     style: true,
   };
 
-  const selectedPersona =
-    [...recruiters, ...proRecruiters].find((item) => item.key === recruiter) ||
-    recruiters[1];
+  const selectedPersona = [...recruiters, ...proRecruiters].find((item) => item.key === recruiter) || recruiters[1];
   const summaryLine = `${selectedPersona.name} · ${selectedPersona.role} — ${companyStyle} style, ${market} market, in ${interviewLanguage}${role.trim() ? `, for a ${role.trim()} role` : ""}.`;
 
   function buildDraftSetup(): SetupState {
     const cvText = effectiveCvText.trim();
     const jdText = jobDescription.trim();
     const draftBlueprint = buildWorkZoCompanyBlueprint({
-      companyName:
-        companyName ||
-        String(setup.companyName || setup.targetCompany || "Target company"),
+      companyName: companyName || String(setup.companyName || setup.targetCompany || "Target company"),
       targetRole: role || setup.targetRole || "General Role",
-      jobDescription: jdText,
-      cvText,
-      market,
-      companyStyle,
+      jobDescription: jdText, cvText, market, companyStyle,
     });
     return {
-      ...setup,
-      cvText,
-      jobDescription: jdText,
+      ...setup, cvText, jobDescription: jdText,
       targetRole: role || setup.targetRole || "General Role",
-      companyName: draftBlueprint.companyName,
-      targetCompany: draftBlueprint.companyName,
-      companyBlueprint: draftBlueprint,
-      targetMarket: market,
-      country: market,
-      companyStyle,
-      recruiterStyle: companyStyle,
+      companyName: draftBlueprint.companyName, targetCompany: draftBlueprint.companyName,
+      companyBlueprint: draftBlueprint, targetMarket: market, country: market,
+      companyStyle, recruiterStyle: companyStyle,
       recruiterPersonality: normalizeRecruiterKey(recruiter),
       language: normalizeInterviewLanguage(interviewLanguage),
       source: setup.source || "mobile-fast-onboarding",
-      setupVersion: 4,
-      setupId: setup.setupId || `setup_${Date.now()}`,
+      setupVersion: 4, setupId: setup.setupId || `setup_${Date.now()}`,
       updatedAt: new Date().toISOString(),
     };
   }
@@ -1090,79 +541,47 @@ export default function OnboardingPage() {
     if (!cvText && !jdText) return;
     window.setTimeout(() => {
       void buildAndSaveInterviewSetup({
-        cvText,
-        jobDescription: jdText,
+        cvText, jobDescription: jdText,
         targetRole: draft.targetRole || "General Role",
         targetMarket: (draft.targetMarket as Market) || market,
         companyStyle: (draft.companyStyle as CompanyStyle) || companyStyle,
         recruiterPersonality: normalizeRecruiterKey(draft.recruiterPersonality),
-        language:
-          normalizeInterviewLanguage(draft.language) || interviewLanguage,
-        fileName: (draft as any).uploadedFileName || "",
-        candidateName:
-          (draft as any).candidateName ||
-          (draft.resumeProfile as any)?.basics?.name ||
-          "",
-      })
-        .then((nextSetup) => {
-          const mergedSetup = {
-            ...nextSetup,
-            ...draft,
-            recruiterMemoryProfile:
-              nextSetup.recruiterMemoryProfile || draft.recruiterMemoryProfile,
-            jobMemoryProfile:
-              nextSetup.jobMemoryProfile || draft.jobMemoryProfile,
-          } as SetupState;
-          saveCanonicalCvSetup(mergedSetup, store);
-        })
-        .catch(() => {
-          /* keep fast local setup */
-        });
+        language: normalizeInterviewLanguage(draft.language) || interviewLanguage,
+      }).then((nextSetup) => {
+        const mergedSetup = {
+          ...nextSetup, ...draft,
+          recruiterMemoryProfile: nextSetup.recruiterMemoryProfile || draft.recruiterMemoryProfile,
+          jobMemoryProfile: nextSetup.jobMemoryProfile || draft.jobMemoryProfile,
+        } as SetupState;
+        saveCanonicalCvSetup(mergedSetup, store);
+      }).catch(() => { /* keep fast local setup */ });
     }, 40);
   }
 
   function persistFast() {
     const draft = buildDraftSetup();
-    const rawCvText = normalizeResumeText(
-      draft.cvText || effectiveCvText || "",
-    );
+    const rawCvText = normalizeResumeText(draft.cvText || effectiveCvText || "");
     const profile = extractResumeProfileComplex(rawCvText);
     const fastBlueprint = buildWorkZoCompanyBlueprint({
-      companyName:
-        companyName ||
-        String(draft.companyName || draft.targetCompany || "Target company"),
+      companyName: companyName || String(draft.companyName || draft.targetCompany || "Target company"),
       targetRole: role || profile.basics.headline || "General Role",
-      jobDescription: jobDescription.trim(),
-      cvText: rawCvText,
-      market,
-      companyStyle,
+      jobDescription: jobDescription.trim(), cvText: rawCvText, market, companyStyle,
     });
     const canonicalSetup = {
       ...draft,
       cvText: buildInterviewCvContext(profile, rawCvText),
-      uploadedCvText: rawCvText,
-      resumeText: buildInterviewCvContext(profile, rawCvText),
-      candidateCv: buildInterviewCvContext(profile, rawCvText),
-      rawCvText,
-      previewText: profile.previewText,
-      jobDescription: jobDescription.trim(),
+      uploadedCvText: rawCvText, resumeText: buildInterviewCvContext(profile, rawCvText),
+      candidateCv: buildInterviewCvContext(profile, rawCvText), rawCvText,
+      previewText: profile.previewText, jobDescription: jobDescription.trim(),
       jdText: jobDescription.trim(),
       targetRole: role || profile.basics.headline || "General Role",
       role: role || profile.basics.headline || "General Role",
-      companyName: fastBlueprint.companyName,
-      targetCompany: fastBlueprint.companyName,
-      companyBlueprint: fastBlueprint,
-      targetMarket: market,
-      country: market,
-      candidateName: profile.basics.name,
-      candidateHeadline: profile.basics.headline,
-      candidateEmail: profile.basics.email,
-      candidatePhone: profile.basics.phone,
-      candidateLocation: profile.basics.location,
-      candidateLinkedin: profile.basics.linkedin,
-      resumeProfile: profile,
-      setupVersion: 7,
-      updatedAt: new Date().toISOString(),
+      companyName: fastBlueprint.companyName, targetCompany: fastBlueprint.companyName,
+      companyBlueprint: fastBlueprint, targetMarket: market, country: market,
+      candidateName: profile.basics.name, candidateHeadline: profile.basics.headline,
+      candidateEmail: profile.basics.email, candidatePhone: profile.basics.phone,
+      candidateLocation: profile.basics.location, candidateLinkedin: profile.basics.linkedin,
+      resumeProfile: profile, setupVersion: 7, updatedAt: new Date().toISOString(),
     } as SetupState;
     saveCanonicalCvSetup(canonicalSetup, store);
     enrichSetupInBackground(canonicalSetup);
@@ -1173,19 +592,12 @@ export default function OnboardingPage() {
     if (!restored) return;
     setRestoredCvText((prev) => prev || String(restored.cvText || ""));
     setRole((prev) => prev || String(restored.targetRole || ""));
-    setCompanyName(
-      (prev) =>
-        prev || String(restored.companyName || restored.targetCompany || ""),
-    );
+    setCompanyName((prev) => prev || String(restored.companyName || restored.targetCompany || ""));
     setJobDescription((prev) => prev || String(restored.jobDescription || ""));
-    const restoredMarket = normalizeMarket(
-      restored.targetMarket || restored.country,
-    );
-    setMarket((prev) => (prev === "Global" ? restoredMarket : prev));
-    const restoredStyle = normalizeCompanyStyle(
-      restored.companyStyle || restored.recruiterStyle,
-    );
-    setCompanyStyle((prev) => (prev === "Realistic" ? restoredStyle : prev));
+    const restoredMarket = (restored.targetMarket || restored.country) as Market | undefined;
+    if (restoredMarket) setMarket((prev) => (prev === "Global" ? restoredMarket : prev));
+    const restoredStyle = (restored.companyStyle || restored.recruiterStyle) as CompanyStyle | undefined;
+    if (restoredStyle) setCompanyStyle((prev) => (prev === "Realistic" ? restoredStyle : prev));
     if (restored.recruiterPersonality) {
       const r = normalizeRecruiterKey(restored.recruiterPersonality);
       setRecruiter((prev) => (prev === "analytical_hiring_manager" ? r : prev));
@@ -1197,123 +609,39 @@ export default function OnboardingPage() {
   }, []);
 
   useEffect(() => {
-    trackWorkZoLaunchEvent({
-      event: "onboarding_viewed",
-      role,
-      market,
-      recruiter: recruiterLabel(recruiter),
-    });
+    trackWorkZoLaunchEvent({ event: "onboarding_viewed", role, market, recruiter: recruiterLabel(recruiter) });
   }, [market, recruiter, role]);
 
   async function persist() {
     const cvText = effectiveCvText.trim();
     const jdText = jobDescription.trim();
-    if (cvText)
-      trackWorkZoLaunchEvent({
-        event: "cv_uploaded",
-        role,
-        market,
-        recruiter: recruiterLabel(recruiter),
-      });
-    if (jdText)
-      trackWorkZoLaunchEvent({
-        event: "jd_added",
-        role,
-        market,
-        recruiter: recruiterLabel(recruiter),
-      });
+    if (cvText) trackWorkZoLaunchEvent({ event: "cv_uploaded", role, market, recruiter: recruiterLabel(recruiter) });
+    if (jdText) trackWorkZoLaunchEvent({ event: "jd_added", role, market, recruiter: recruiterLabel(recruiter) });
     const rawCvText = normalizeResumeText(cvText);
     const canonicalSetup = rawCvText
-      ? buildCanonicalCvSetup({
-          setup,
-          rawCvText,
-          jobDescription: jdText,
-          role: role || "General Role",
-          market,
-          companyStyle,
-          recruiter,
-          language: interviewLanguage,
-        })
-      : ({
-          ...setup,
-          cvText: "",
-          jobDescription: jdText,
-          jdText,
-          targetRole: role || "General Role",
-          targetMarket: market,
-          country: market,
-          companyStyle,
-          recruiterStyle: companyStyle,
-          recruiterPersonality: normalizeRecruiterKey(recruiter),
-          updatedAt: new Date().toISOString(),
-        } as SetupState);
+      ? buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jdText, role: role || "General Role", market, companyStyle, recruiter, language: interviewLanguage })
+      : ({ ...setup, cvText: "", jobDescription: jdText, jdText, targetRole: role || "General Role", targetMarket: market, country: market, companyStyle, recruiterStyle: companyStyle, recruiterPersonality: normalizeRecruiterKey(recruiter), updatedAt: new Date().toISOString() } as SetupState);
     let nextSetup: SetupState;
     if (cvText.length > 0 || jdText.length > 0) {
-      const memorySetup = (await buildAndSaveInterviewSetup({
-        cvText,
-        jobDescription: jdText,
-        targetRole: role || "General Role",
-        targetMarket: market,
-        companyStyle,
-        recruiterPersonality: normalizeRecruiterKey(recruiter),
-      })) as SetupState;
-      nextSetup = {
-        ...memorySetup,
-        ...canonicalSetup,
-        recruiterMemoryProfile:
-          memorySetup.recruiterMemoryProfile ||
-          canonicalSetup.recruiterMemoryProfile,
-        jobMemoryProfile:
-          memorySetup.jobMemoryProfile || canonicalSetup.jobMemoryProfile,
-      } as SetupState;
+      const memorySetup = (await buildAndSaveInterviewSetup({ cvText, jobDescription: jdText, targetRole: role || "General Role", targetMarket: market, companyStyle, recruiterPersonality: normalizeRecruiterKey(recruiter) })) as SetupState;
+      nextSetup = { ...memorySetup, ...canonicalSetup, recruiterMemoryProfile: memorySetup.recruiterMemoryProfile || canonicalSetup.recruiterMemoryProfile, jobMemoryProfile: memorySetup.jobMemoryProfile || canonicalSetup.jobMemoryProfile } as SetupState;
     } else {
       nextSetup = canonicalSetup;
     }
     saveCanonicalCvSetup(nextSetup, store);
   }
 
-  async function structureCvWithAi(
-    rawCvText: string,
-    uploadedFileName = "",
-    existingProfile?: ResumeProfile,
-  ) {
-    const localProfile = extractResumeProfileComplex(rawCvText);
-    if (!rawCvText.trim())
-      return (
-        keepBetterProfile(existingProfile, localProfile, rawCvText) ||
-        localProfile
-      );
-
+  async function structureCvWithAi(rawCvText: string, uploadedFileName = "") {
+    if (!rawCvText.trim()) return extractResumeProfileComplex(rawCvText);
     setAiCvStructuringStatus("structuring");
     try {
-      const data = await structureResumeProfileFromCv({
-        cvText: rawCvText,
-        layoutText: rawCvText,
-        jobDescription: jobDescription.trim(),
-        targetRole: role || "General Role",
-        targetMarket: market,
-        fileName: uploadedFileName,
-        // Pass the already-resolved name so the structure route doesn't re-derive a wrong one
-        // from pasted/layout text that lacks reliable name header signals (e.g. spaced letters).
-        candidateName: existingProfile?.basics?.name || "",
-      });
-      const aiProfile =
-        data?.resumeProfile && typeof data.resumeProfile === "object"
-          ? (data.resumeProfile as ResumeProfile)
-          : undefined;
-      const profile =
-        keepBetterProfile(
-          aiProfile,
-          existingProfile || localProfile,
-          rawCvText,
-        ) || localProfile;
+      const data = await structureResumeProfileFromCv({ cvText: rawCvText, jobDescription: jobDescription.trim(), targetRole: role || "General Role", targetMarket: market, fileName: uploadedFileName });
+      const profile = data?.resumeProfile && typeof data.resumeProfile === "object" ? (data.resumeProfile as ResumeProfile) : extractResumeProfileComplex(rawCvText);
       setAiResumeProfile(profile);
       setAiCvStructuringStatus(data?.ok ? "ready" : "fallback");
       return profile;
     } catch {
-      const fallback =
-        keepBetterProfile(existingProfile, localProfile, rawCvText) ||
-        localProfile;
+      const fallback = extractResumeProfileComplex(rawCvText);
       setAiResumeProfile(fallback);
       setAiCvStructuringStatus("fallback");
       return fallback;
@@ -1330,228 +658,62 @@ export default function OnboardingPage() {
       clearLatestInterviewSetup();
       const form = new FormData();
       form.append("file", file);
-      const response = await fetch("/api/cv", {
-        method: "POST",
-        body: form,
-        credentials: "include",
-      });
+      const response = await fetch("/api/cv", { method: "POST", body: form, credentials: "include" });
       const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        if (response.status === 401) {
-          router.push("/login?next=/onboarding");
-          return;
-        }
-        throw new Error(data?.error || "CV extraction failed");
-      }
-      debugCvPipeline("onboarding.upload.api_response", {
-        keys: data && typeof data === "object" ? Object.keys(data) : [],
-        fileName: file.name,
-        chars: data?.chars || null,
-      });
-      const extracted =
-        data?.text ||
-        data?.cvText ||
-        data?.content ||
-        data?.resumeText ||
-        data?.extractedText ||
-        "";
-      if (!String(extracted).trim())
-        throw new Error(
-          "PDF uploaded, but no readable CV text was found. Paste the CV text manually.",
-        );
+      if (!response.ok) throw new Error(data?.error || "CV extraction failed");
+      debugCvPipeline("onboarding.upload.api_response", { keys: data && typeof data === "object" ? Object.keys(data) : [], fileName: file.name, chars: data?.chars || null });
+      const extracted = data?.text || data?.cvText || data?.content || data?.resumeText || data?.extractedText || "";
+      if (!String(extracted).trim()) throw new Error("PDF uploaded, but no readable CV text was found. Paste the CV text manually.");
       const rawCvText = normalizeResumeText(String(extracted));
-      debugCvText("onboarding.upload.cleaned_text", rawCvText, {
-        fileName: file.name,
-      });
+      debugCvText("onboarding.upload.cleaned_text", rawCvText, { fileName: file.name });
       const apiProfile = data?.resumeProfile || data?.profile;
-      const localProfile = extractResumeProfileComplex(rawCvText);
-
-      // The /api/cv route runs enforceCanonicalCandidateName with the real filename
-      // server-side. Its resolved name is the ground truth. Stamp it onto apiProfile
-      // before keepBetterProfile runs — this prevents the local text scan from
-      // overwriting a correct server-resolved name with a wrong one from the raw text.
-      if (
-        apiProfile &&
-        typeof apiProfile === "object" &&
-        "basics" in apiProfile
-      ) {
-        const serverResolvedName = (
-          (apiProfile as any).basics?.name ||
-          (data?.recruiterMemoryProfile as any)?.candidateName ||
-          ""
-        ).trim();
-        if (serverResolvedName && serverResolvedName.split(" ").length >= 2) {
-          (apiProfile as any).basics.name = serverResolvedName;
-          if (localProfile?.basics)
-            localProfile.basics.name = serverResolvedName;
-        }
-      }
-
-      const apiBestProfile =
-        apiProfile && typeof apiProfile === "object" && "basics" in apiProfile
-          ? keepBetterProfile(
-              apiProfile as ResumeProfile,
-              localProfile,
-              rawCvText,
-            ) || localProfile
-          : localProfile;
+      const localProfile = apiProfile && typeof apiProfile === "object" && "basics" in apiProfile ? (apiProfile as ResumeProfile) : extractResumeProfileComplex(rawCvText);
       setAiCvStructuringStatus("structuring");
-      const structuredProfile = await structureCvWithAi(
-        rawCvText,
-        file.name,
-        apiBestProfile,
-      );
-      const profile =
-        keepBetterProfile(structuredProfile, apiBestProfile, rawCvText) ||
-        apiBestProfile;
-      debugCvProfile("onboarding.upload.profile_selected", profile, {
-        source:
-          profile === localProfile ? "local_profile" : "best_available_profile",
-        fileName: file.name,
-      });
+      const profile = await structureCvWithAi(rawCvText, file.name);
+      debugCvProfile("onboarding.upload.profile_selected", profile, { source: profile === localProfile ? "local_profile" : "ai_structured_profile", fileName: file.name });
       setManualCv(rawCvText);
-      const canonicalSetup = buildCanonicalCvSetup({
-        setup,
-        rawCvText,
-        jobDescription: jobDescription.trim(),
-        role: role || profile.basics.headline || "General Role",
-        market,
-        companyStyle,
-        recruiter: recruiter as RecruiterKey,
-        language: interviewLanguage,
-        profile,
-      });
+      const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || profile.basics.headline || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
       saveCanonicalCvSetup(canonicalSetup, store);
-      debugCvProfile(
-        "onboarding.upload.canonical_saved",
-        canonicalSetup.resumeProfile,
-        { setupId: canonicalSetup.setupId },
-      );
-      void buildAndSaveInterviewSetup({
-        cvText: rawCvText,
-        jobDescription: jobDescription.trim(),
-        targetRole: role || profile.basics.headline || "General Role",
-        targetMarket: market,
-        companyStyle,
-        recruiterPersonality: normalizeRecruiterKey(recruiter),
-        fileName: file.name,
-        candidateName: profile.basics.name || "",
-        resumeProfile: profile,
-      })
+      debugCvProfile("onboarding.upload.canonical_saved", canonicalSetup.resumeProfile, { setupId: canonicalSetup.setupId });
+      void buildAndSaveInterviewSetup({ cvText: rawCvText, jobDescription: jobDescription.trim(), targetRole: role || profile.basics.headline || "General Role", targetMarket: market, companyStyle, recruiterPersonality: normalizeRecruiterKey(recruiter) })
         .then((nextSetup) => {
-          const enrichedSetup = {
-            ...(nextSetup as SetupState),
-            ...canonicalSetup,
-            cvText: buildInterviewCvContext(profile, rawCvText),
-            uploadedCvText: rawCvText,
-            resumeText: buildInterviewCvContext(profile, rawCvText),
-            candidateCv: buildInterviewCvContext(profile, rawCvText),
-            rawCvText,
-            previewText: profile.previewText,
-            resumeProfile: profile,
-            updatedAt: new Date().toISOString(),
-          } as SetupState;
-          debugCvProfile(
-            "onboarding.upload.enriched_before_save",
-            enrichedSetup.resumeProfile,
-            { note: "This should still match canonical parser profile." },
-          );
+          const enrichedSetup = { ...(nextSetup as SetupState), ...canonicalSetup, cvText: buildInterviewCvContext(profile, rawCvText), uploadedCvText: rawCvText, resumeText: buildInterviewCvContext(profile, rawCvText), candidateCv: buildInterviewCvContext(profile, rawCvText), rawCvText, previewText: profile.previewText, resumeProfile: profile, updatedAt: new Date().toISOString() } as SetupState;
+          debugCvProfile("onboarding.upload.enriched_before_save", enrichedSetup.resumeProfile, { note: "This should still match canonical parser profile." });
           saveCanonicalCvSetup(enrichedSetup, store);
         })
-        .catch(() => {
-          /* keep canonical */
-        });
+        .catch(() => { /* keep canonical */ });
     } catch (error) {
-      setUploadError(
-        error instanceof Error
-          ? error.message
-          : "Could not read this CV. Paste the CV text manually for now.",
-      );
+      setUploadError(error instanceof Error ? error.message : "Could not read this CV. Paste the CV text manually for now.");
     } finally {
       setUploading(false);
     }
   }
 
-  function startInterview() {
-    persistFast();
-    router.push("/interview");
-  }
-  function requestPersist() {
-    setPersistRequest((c) => c + 1);
-  }
+  function startInterview() { persistFast(); router.push("/interview"); }
+  function requestPersist() { setPersistRequest((c) => c + 1); }
 
-  useEffect(() => {
-    if (persistRequest > 0) persistFast();
-  }, [persistRequest]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (persistFullRequest > 0) void persist();
-  }, [persistFullRequest]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (persistRequest > 0) persistFast(); }, [persistRequest]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (persistFullRequest > 0) void persist(); }, [persistFullRequest]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!contextModalOpen) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setContextModalOpen(false);
-    }
+    function onKeyDown(e: KeyboardEvent) { if (e.key === "Escape") setContextModalOpen(false); }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [contextModalOpen]);
 
-  function openContextModal() {
-    setJdDraft(jobDescription);
-    setContextModalOpen(true);
-  }
-  function saveContextModal() {
-    setJobDescription(jdDraft);
-    setContextModalOpen(false);
-    setPersistFullRequest((c) => c + 1);
-  }
+  function openContextModal() { setJdDraft(jobDescription); setContextModalOpen(true); }
+  function saveContextModal() { setJobDescription(jdDraft); setContextModalOpen(false); setPersistFullRequest((c) => c + 1); }
 
   const hasContext = checks.cv || checks.jd;
-  const showRestoredBanner =
-    Boolean(restoredCvText.trim()) &&
-    !restoredCvDismissed &&
-    !manualCv &&
-    !useRestoredCv;
-
-  const planCheckIsSlow =
-    planState.loading ||
-    String(planState.status || "").toLowerCase() === "timeout";
+  const showRestoredBanner = Boolean(restoredCvText.trim()) && !restoredCvDismissed && !manualCv && !useRestoredCv;
 
   return (
     <main className="wz-mobile-no-animation wz-mobile-bottom-safe min-h-screen overflow-x-hidden overflow-y-auto bg-[#020712] pb-[calc(env(safe-area-inset-bottom)+110px)] text-white xl:pb-8">
       <style jsx global>{`
-        @keyframes wzDotPulse {
-          0%,
-          100% {
-            opacity: 0.45;
-            transform: scale(0.86);
-          }
-          50% {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-        @keyframes wzNudge {
-          0%,
-          100% {
-            transform: scale(1);
-            box-shadow: none;
-          }
-          50% {
-            transform: scale(1.08);
-            box-shadow: 0 0 24px rgba(139, 92, 246, 0.5);
-          }
-        }
-        @keyframes wzModalIn {
-          from {
-            opacity: 0;
-            transform: translateY(18px) scale(0.97);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
+        @keyframes wzDotPulse { 0%,100%{opacity:.45;transform:scale(.86)}50%{opacity:1;transform:scale(1)} }
+        @keyframes wzNudge { 0%,100%{transform:scale(1);box-shadow:none}50%{transform:scale(1.08);box-shadow:0 0 24px rgba(139,92,246,.5)} }
+        @keyframes wzModalIn { from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)} }
       `}</style>
 
       <div className="pointer-events-none fixed inset-0">
@@ -1561,43 +723,18 @@ export default function OnboardingPage() {
       </div>
 
       <div className="relative z-10 mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 pt-3 sm:px-5">
-        {planCheckIsSlow ? (
-          <div className="mb-3 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm font-semibold text-amber-100">
-            WorkZo is still checking your account in the background. You can
-            continue setting up your interview.
-          </div>
-        ) : null}
         <header className="flex min-h-[58px] shrink-0 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 shadow-[0_18px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:px-5">
-          <Link
-            href="/"
-            className="flex items-center gap-3 text-slate-200 transition hover:text-white"
-          >
+          <Link href="/" className="flex items-center gap-3 text-slate-200 transition hover:text-white">
             <ArrowLeft className="h-5 w-5" />
             <span className="font-black tracking-tight">Interview Setup</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/10"
-            >
-              <LayoutDashboard className="h-4 w-4" />
-              <span className="hidden sm:inline">Dashboard</span>
-            </Link>
             <span className="hidden items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-400/[0.08] px-3 py-1.5 text-xs font-black text-emerald-200 sm:inline-flex">
               <span className="h-2 w-2 rounded-full bg-emerald-300 [animation:wzDotPulse_1.6s_ease-in-out_infinite]" />
               Auto-saved
             </span>
-            <Link
-              href="/"
-              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/10"
-            >
-              <Image
-                src="/workzo_icon.png"
-                alt="WorkZo"
-                width={22}
-                height={22}
-                className="rounded-md"
-              />
+            <Link href="/" className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/10">
+              <Image src="/workzo_icon.png" alt="WorkZo" width={22} height={22} className="rounded-md" />
               WorkZo AI
             </Link>
           </div>
@@ -1608,16 +745,9 @@ export default function OnboardingPage() {
         <section className="mt-4 grid flex-1 items-start gap-4 xl:grid-cols-[1fr_360px]">
           <div className="flex min-w-0 flex-col gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.26em] text-cyan-300/80">
-                Interview setup
-              </p>
-              <h1 className="mt-1.5 text-3xl font-black tracking-tight sm:text-4xl">
-                Set up your interview
-              </h1>
-              <p className="mt-1.5 text-sm leading-6 text-slate-400">
-                Add your context, pick a style, and start. Everything is
-                editable right here.
-              </p>
+              <p className="text-xs font-black uppercase tracking-[0.26em] text-cyan-300/80">Interview setup</p>
+              <h1 className="mt-1.5 text-3xl font-black tracking-tight sm:text-4xl">Set up your interview</h1>
+              <p className="mt-1.5 text-sm leading-6 text-slate-400">Add your context, pick a style, and start. Everything is editable right here.</p>
             </div>
 
             {/* 1 · interview context */}
@@ -1629,133 +759,66 @@ export default function OnboardingPage() {
                   </div>
                   <div>
                     <p className="text-sm font-black">Interview context</p>
-                    <p className="text-xs text-slate-500">
-                      CV + job description make the recruiter ask about your
-                      real experience.
-                    </p>
+                    <p className="text-xs text-slate-500">CV + job description make the recruiter ask about your real experience.</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={openContextModal}
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-blue-300/30 bg-blue-500/15 px-4 text-sm font-black text-blue-100 transition hover:bg-blue-500/25"
-                >
+                <button type="button" onClick={openContextModal} className="inline-flex h-10 items-center gap-2 rounded-xl border border-blue-300/30 bg-blue-500/15 px-4 text-sm font-black text-blue-100 transition hover:bg-blue-500/25">
                   <Plus className="h-4 w-4" strokeWidth={2.5} />
-                  {hasContext
-                    ? "Edit CV & job description"
-                    : "Add CV & job description"}
+                  {hasContext ? "Edit CV & job description" : "Add CV & job description"}
                 </button>
               </div>
 
               {showRestoredBanner && (
                 <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-blue-300/20 bg-blue-500/[0.06] p-3.5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-3">
-                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-500/15 text-blue-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-500/15 text-blue-200"><FileText className="h-4 w-4" /></div>
                     <div>
-                      <p className="text-sm font-black text-white">
-                        CV from a previous session found
-                      </p>
-                      <p className="mt-0.5 text-xs leading-5 text-slate-400">
-                        Reuse it to skip re-uploading, or start fresh with a new
-                        CV.
-                      </p>
+                      <p className="text-sm font-black text-white">CV from a previous session found</p>
+                      <p className="mt-0.5 text-xs leading-5 text-slate-400">Reuse it to skip re-uploading, or start fresh with a new CV.</p>
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUseRestoredCv(true);
-                        requestPersist();
-                      }}
-                      className="rounded-xl bg-blue-500 px-4 py-2 text-xs font-black text-white hover:bg-blue-400"
-                    >
-                      Use this CV
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRestoredCvDismissed(true)}
-                      className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-black text-slate-300 hover:bg-white/[0.08]"
-                    >
-                      Start fresh
-                    </button>
+                    <button type="button" onClick={() => { setUseRestoredCv(true); requestPersist(); }} className="rounded-xl bg-blue-500 px-4 py-2 text-xs font-black text-white hover:bg-blue-400">Use this CV</button>
+                    <button type="button" onClick={() => setRestoredCvDismissed(true)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-black text-slate-300 hover:bg-white/[0.08]">Start fresh</button>
                   </div>
                 </div>
               )}
 
-              {(hasContext ||
-                uploading ||
-                aiCvStructuringStatus === "structuring") && (
+              {(hasContext || uploading || aiCvStructuringStatus === "structuring") && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(uploading || aiCvStructuringStatus === "structuring") && (
                     <span className="inline-flex items-center gap-2 rounded-full border border-blue-300/20 bg-blue-400/[0.08] px-3 py-1.5 text-xs font-bold text-blue-100">
-                      <span className="h-2 w-2 rounded-full bg-blue-300 [animation:wzDotPulse_1.2s_ease-in-out_infinite]" />
-                      Reading your CV…
+                      <span className="h-2 w-2 rounded-full bg-blue-300 [animation:wzDotPulse_1.2s_ease-in-out_infinite]" />Reading your CV…
                     </span>
                   )}
                   {checks.cv && !uploading && (
                     <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/[0.08] px-3 py-1.5 text-xs font-bold text-emerald-100">
                       <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                      {fileName ||
-                        (useRestoredCv
-                          ? "CV from previous session"
-                          : "CV added")}
+                      {fileName || (useRestoredCv ? "CV from previous session" : "CV added")}
                     </span>
                   )}
                   {checks.jd && (
                     <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/[0.08] px-3 py-1.5 text-xs font-bold text-emerald-100">
-                      <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                      Job description added
+                      <Check className="h-3.5 w-3.5" strokeWidth={3} />Job description added
                     </span>
                   )}
                 </div>
               )}
 
               {uploadError && !contextModalOpen && (
-                <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">
-                  {uploadError}
-                </div>
+                <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">{uploadError}</div>
               )}
             </div>
 
             {/* 2 · role + company */}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[22px] border border-white/10 bg-white/[0.032] p-4 backdrop-blur-2xl">
-                <label
-                  htmlFor="wz-target-role"
-                  className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500"
-                >
-                  Target role
-                </label>
-                <input
-                  id="wz-target-role"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  onBlur={requestPersist}
-                  placeholder="e.g. Customer Success Manager"
-                  className="mt-2.5 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-[15px] font-bold text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
-                />
+                <label htmlFor="wz-target-role" className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Target role</label>
+                <input id="wz-target-role" value={role} onChange={(e) => setRole(e.target.value)} onBlur={requestPersist} placeholder="e.g. Customer Success Manager" className="mt-2.5 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-[15px] font-bold text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50" />
               </div>
               <div className="rounded-[22px] border border-white/10 bg-white/[0.032] p-4 backdrop-blur-2xl">
-                <label
-                  htmlFor="wz-target-company"
-                  className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500"
-                >
-                  Target company{" "}
-                  <span className="normal-case tracking-normal text-slate-600">
-                    · optional
-                  </span>
-                </label>
-                <input
-                  id="wz-target-company"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  onBlur={requestPersist}
-                  placeholder="e.g. Google, Siemens, a startup"
-                  className="mt-2.5 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-[15px] font-bold text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
-                />
+                <label htmlFor="wz-target-company" className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Target company <span className="normal-case tracking-normal text-slate-600">· optional</span></label>
+                <input id="wz-target-company" value={companyName} onChange={(e) => setCompanyName(e.target.value)} onBlur={requestPersist} placeholder="e.g. Google, Siemens, a startup" className="mt-2.5 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-[15px] font-bold text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50" />
               </div>
             </div>
 
@@ -1763,80 +826,36 @@ export default function OnboardingPage() {
             <div className="rounded-[22px] border border-white/10 bg-white/[0.032] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-2xl sm:p-5">
               <div className="grid gap-5 lg:grid-cols-3">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
-                    Market
-                  </p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Market</p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     {markets.map((item) => (
-                      <button
-                        key={item.label}
-                        type="button"
-                        onClick={() => {
-                          setMarket(item.label);
-                          requestPersist();
-                        }}
-                        className={cn(
-                          "rounded-xl border px-3 py-2 text-[13px] font-black transition active:scale-[0.97]",
-                          market === item.label
-                            ? "border-cyan-300/45 bg-cyan-400/[0.13] text-white shadow-[0_0_22px_rgba(34,211,238,0.14)]"
-                            : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]",
-                        )}
-                      >
-                        <span className="mr-1.5">{item.flag}</span>
-                        {item.label}
+                      <button key={item.label} type="button" onClick={() => { setMarket(item.label); requestPersist(); }}
+                        className={cn("rounded-xl border px-3 py-2 text-[13px] font-black transition active:scale-[0.97]",
+                          market === item.label ? "border-cyan-300/45 bg-cyan-400/[0.13] text-white shadow-[0_0_22px_rgba(34,211,238,0.14)]" : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]")}>
+                        <span className="mr-1.5">{item.flag}</span>{item.label}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
-                    Company style
-                  </p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Company style</p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     {companyStyles.map((item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => {
-                          setCompanyStyle(item);
-                          requestPersist();
-                        }}
-                        className={cn(
-                          "rounded-xl border px-3 py-2 text-[13px] font-black transition active:scale-[0.97]",
-                          companyStyle === item
-                            ? "border-violet-300/45 bg-violet-400/[0.14] text-white shadow-[0_0_22px_rgba(139,92,246,0.16)]"
-                            : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]",
-                        )}
-                      >
+                      <button key={item} type="button" onClick={() => { setCompanyStyle(item); requestPersist(); }}
+                        className={cn("rounded-xl border px-3 py-2 text-[13px] font-black transition active:scale-[0.97]",
+                          companyStyle === item ? "border-violet-300/45 bg-violet-400/[0.14] text-white shadow-[0_0_22px_rgba(139,92,246,0.16)]" : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]")}>
                         {item}
                       </button>
                     ))}
                   </div>
                 </div>
-
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
-                    Interview language
-                  </p>
-                  <p className="mt-0.5 text-[10px] text-slate-600">
-                    Your recruiter speaks in this language
-                  </p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Language</p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     {interviewLanguages.map((item) => (
-                      <button
-                        key={item.label}
-                        type="button"
-                        onClick={() => {
-                          setInterviewLanguage(item.label);
-                          requestPersist();
-                        }}
-                        className={cn(
-                          "rounded-xl border px-3 py-2 text-[13px] font-black transition active:scale-[0.97]",
-                          interviewLanguage === item.label
-                            ? "border-blue-300/50 bg-blue-400/[0.15] text-white shadow-[0_0_22px_rgba(59,130,246,0.16)]"
-                            : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]",
-                        )}
-                      >
+                      <button key={item.label} type="button" onClick={() => { setInterviewLanguage(item.label); requestPersist(); }}
+                        className={cn("rounded-xl border px-3 py-2 text-[13px] font-black transition active:scale-[0.97]",
+                          interviewLanguage === item.label ? "border-blue-300/50 bg-blue-400/[0.15] text-white shadow-[0_0_22px_rgba(59,130,246,0.16)]" : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]")}>
                         {item.nativeLabel}
                       </button>
                     ))}
@@ -1848,176 +867,87 @@ export default function OnboardingPage() {
             {/* 4 · recruiter */}
             <div className="rounded-[22px] border border-white/10 bg-white/[0.032] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-2xl sm:p-5">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
-                  Recruiter personality
-                </p>
+                <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Recruiter personality</p>
                 <span className="hidden rounded-full border border-cyan-300/15 bg-cyan-400/[0.08] px-3 py-1 text-xs font-black text-cyan-200 sm:inline-flex">
                   {selectedPersona.name} · {selectedPersona.role}
                 </span>
               </div>
               <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
                 {recruiters.map((item) => (
-                  <PersonaCard
-                    key={item.key}
-                    persona={item}
-                    selected={recruiter === item.key}
-                    onClick={() => {
-                      setRecruiter(item.key);
-                      requestPersist();
-                    }}
-                  />
+                  <PersonaCard key={item.key} persona={item} selected={recruiter === item.key}
+                    onClick={() => { setRecruiter(item.key); requestPersist(); }} />
                 ))}
               </div>
-              <ProPersonaDropdown
-                open={proListOpen}
-                onToggle={() => setProListOpen((o) => !o)}
-                isProUser={isProUser}
-                recruiter={recruiter}
-                onSelect={(key) => {
-                  setRecruiter(key);
-                  requestPersist();
-                }}
-                nudgeKey={nudgeKey}
-                onLockedClick={() => setNudgeKey((k) => k + 1)}
-              />
+              <ProPersonaDropdown open={proListOpen} onToggle={() => setProListOpen((o) => !o)}
+                isProUser={isProUser} recruiter={recruiter}
+                onSelect={(key) => { setRecruiter(key); requestPersist(); }}
+                nudgeKey={nudgeKey} onLockedClick={() => setNudgeKey((k) => k + 1)} />
             </div>
 
             {/* readiness rail mobile */}
             <div className="xl:hidden">
-              <ReadinessRail
-                readiness={readiness}
-                checks={checks}
-                summaryLine={summaryLine}
-                onStart={startInterview}
-                hideCta
-                pendingCv={showRestoredBanner}
-              />
+              <ReadinessRail readiness={readiness} checks={checks} summaryLine={summaryLine} onStart={startInterview} hideCta />
             </div>
           </div>
 
           {/* right rail desktop */}
           <aside className="hidden xl:sticky xl:top-3 xl:block">
-            <ReadinessRail
-              readiness={readiness}
-              checks={checks}
-              summaryLine={summaryLine}
-              onStart={startInterview}
-              pendingCv={showRestoredBanner}
-            />
+            <ReadinessRail readiness={readiness} checks={checks} summaryLine={summaryLine} onStart={startInterview} />
           </aside>
         </section>
       </div>
 
       {/* mobile launch bar */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[rgba(5,8,22,0.94)] px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 backdrop-blur-xl xl:hidden">
-        <button
-          type="button"
-          onClick={startInterview}
-          className="flex h-13 min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 text-base font-black text-white shadow-[0_14px_36px_rgba(14,165,233,0.30)] transition active:scale-[0.99]"
-        >
+        <button type="button" onClick={startInterview}
+          className="flex h-13 min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 text-base font-black text-white shadow-[0_14px_36px_rgba(14,165,233,0.30)] transition active:scale-[0.99]">
           Start Interview <ArrowRight className="h-5 w-5" />
         </button>
       </div>
 
       {/* context modal */}
       {contextModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setContextModalOpen(false);
-          }}
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setContextModalOpen(false); }}>
           <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-[26px] border border-white/10 bg-[#070d1d] p-5 shadow-[0_40px_120px_rgba(0,0,0,0.6)] [animation:wzModalIn_0.28s_cubic-bezier(0.22,1,0.36,1)] sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black tracking-tight">
-                  Add your context
-                </h2>
-                <p className="mt-1 text-sm leading-5 text-slate-400">
-                  Both are optional — but the more you add, the more personal
-                  the interview gets.
-                </p>
+                <h2 className="text-xl font-black tracking-tight">Add your context</h2>
+                <p className="mt-1 text-sm leading-5 text-slate-400">Both are optional — but the more you add, the more personal the interview gets.</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setContextModalOpen(false)}
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition hover:bg-white/10 hover:text-white"
-                aria-label="Close"
-              >
+              <button type="button" onClick={() => setContextModalOpen(false)}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition hover:bg-white/10 hover:text-white" aria-label="Close">
                 <X className="h-4 w-4" strokeWidth={2.5} />
               </button>
             </div>
 
-            <label
-              className={cn(
-                "mt-5 flex min-h-[108px] cursor-pointer flex-col items-center justify-center rounded-2xl border-[1.5px] p-4 text-center transition",
-                manualCv && fileName
-                  ? "border-emerald-300/40 bg-emerald-400/[0.07]"
-                  : "border-dashed border-blue-300/35 bg-blue-500/[0.07] hover:bg-blue-500/[0.12]",
-              )}
-            >
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx,.txt"
-                onChange={handleCvUpload}
-                className="hidden"
-              />
+            <label className={cn("mt-5 flex min-h-[108px] cursor-pointer flex-col items-center justify-center rounded-2xl border-[1.5px] p-4 text-center transition",
+              manualCv && fileName ? "border-emerald-300/40 bg-emerald-400/[0.07]" : "border-dashed border-blue-300/35 bg-blue-500/[0.07] hover:bg-blue-500/[0.12]")}>
+              <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleCvUpload} className="hidden" />
               {uploading ? (
-                <>
-                  <Upload className="h-7 w-7 text-blue-200" />
-                  <span className="mt-2 block text-sm font-black">
-                    Reading your CV…
-                  </span>
-                </>
+                <><Upload className="h-7 w-7 text-blue-200" /><span className="mt-2 block text-sm font-black">Reading your CV…</span></>
               ) : manualCv && fileName ? (
-                <>
-                  <Check
-                    className="h-7 w-7 text-emerald-300"
-                    strokeWidth={2.5}
-                  />
-                  <span className="mt-2 block text-sm font-black text-emerald-100">
-                    {fileName}
-                  </span>
-                  <span className="mt-1 block text-xs text-slate-500">
-                    Click to replace
-                  </span>
-                </>
+                <><Check className="h-7 w-7 text-emerald-300" strokeWidth={2.5} /><span className="mt-2 block text-sm font-black text-emerald-100">{fileName}</span><span className="mt-1 block text-xs text-slate-500">Click to replace</span></>
               ) : (
-                <>
-                  <Upload className="h-7 w-7 text-blue-200" />
-                  <span className="mt-2 block text-sm font-black">
-                    Upload your CV
-                  </span>
-                  <span className="mt-1 block text-xs text-slate-500">
-                    PDF, DOCX or TXT
-                  </span>
-                </>
+                <><Upload className="h-7 w-7 text-blue-200" /><span className="mt-2 block text-sm font-black">Upload your CV</span><span className="mt-1 block text-xs text-slate-500">PDF, DOCX or TXT</span></>
               )}
             </label>
 
             {uploadError && (
-              <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">
-                {uploadError}
-              </div>
+              <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">{uploadError}</div>
             )}
 
             {aiCvStructuringStatus !== "idle" && (
               <div className="mt-3 rounded-2xl border border-blue-300/15 bg-blue-500/[0.08] px-4 py-3 text-xs font-bold leading-5 text-blue-100">
-                {aiCvStructuringStatus === "structuring"
-                  ? "Reading and structuring your CV…"
-                  : aiCvStructuringStatus === "ready"
-                    ? "CV ready. It will be used to personalise your interview."
-                    : "CV parsed using local extraction. It will be used to personalise your interview."}
+                {aiCvStructuringStatus === "structuring" ? "Reading and structuring your CV…"
+                  : aiCvStructuringStatus === "ready" ? "CV ready. It will be used to personalise your interview."
+                  : "CV parsed using local extraction. It will be used to personalise your interview."}
               </div>
             )}
 
             <details className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-4">
-              <summary className="cursor-pointer text-sm font-black text-slate-200">
-                Paste or edit CV text manually
-              </summary>
-              <p className="mt-2 text-xs leading-5 text-slate-500">
-                Use this if the upload missed something important.
-              </p>
+              <summary className="cursor-pointer text-sm font-black text-slate-200">Paste or edit CV text manually</summary>
+              <p className="mt-2 text-xs leading-5 text-slate-500">Use this if the upload missed something important.</p>
               <textarea
                 value={effectiveCvText}
                 onChange={(e) => {
@@ -2028,17 +958,7 @@ export default function OnboardingPage() {
                   const rawCvText = normalizeResumeText(nextCv);
                   if (!rawCvText.trim()) return;
                   const profile = extractResumeProfileComplex(rawCvText);
-                  const canonicalSetup = buildCanonicalCvSetup({
-                    setup,
-                    rawCvText,
-                    jobDescription: jobDescription.trim(),
-                    role: role || profile.basics.headline || "General Role",
-                    market,
-                    companyStyle,
-                    recruiter: recruiter as RecruiterKey,
-                    language: interviewLanguage,
-                    profile,
-                  });
+                  const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || profile.basics.headline || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
                   saveCanonicalCvSetup(canonicalSetup, store);
                 }}
                 placeholder="Or paste your CV text here..."
@@ -2047,76 +967,15 @@ export default function OnboardingPage() {
             </details>
 
             <div className="mt-4">
-              {/* ── Company / Job URL scraper ─────────────────────────────── */}
-              <label className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
-                Company or job posting URL
-              </label>
-              <p className="mt-1 text-xs text-slate-600">
-                Paste a link to the job posting. WorkZo reads it automatically — LinkedIn, Greenhouse, Lever, any job board.
-              </p>
-              <div className="mt-2 flex gap-2">
-                <input
-                  type="url"
-                  value={companyUrl}
-                  onChange={(e) => { setCompanyUrl(e.target.value); setScrapeError(""); setScrapeResult(null); }}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleScrapeUrl(); } }}
-                  placeholder="https://company.com/jobs/role"
-                  className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:border-blue-400/40 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => void handleScrapeUrl()}
-                  disabled={isScraping || !companyUrl.trim()}
-                  className="flex items-center gap-2 rounded-xl border border-blue-400/30 bg-blue-500/10 px-4 py-2.5 text-sm font-black text-blue-300 transition hover:bg-blue-500/20 disabled:opacity-40"
-                >
-                  {isScraping
-                    ? <><span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-300/30 border-t-blue-300" /> Reading…</>
-                    : "Read URL"}
-                </button>
-              </div>
-              {scrapeError && <p className="mt-1.5 text-xs text-rose-400">{scrapeError}</p>}
-              {scrapeResult && (
-                <div className="mt-2 rounded-xl border border-emerald-400/20 bg-emerald-500/[0.06] p-3 text-xs text-emerald-300 space-y-0.5">
-                  <p className="font-black">✓ Page read — fields filled automatically</p>
-                  {scrapeResult.companyName && <p className="text-emerald-400/70">Company: {scrapeResult.companyName}</p>}
-                  {scrapeResult.jobTitle && <p className="text-emerald-400/70">Role: {scrapeResult.jobTitle}</p>}
-                  {scrapeResult.requiredSkills?.length ? <p className="text-emerald-400/70">Skills: {scrapeResult.requiredSkills.slice(0, 6).join(", ")}</p> : null}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4">
-              <label
-                htmlFor="wz-jd-draft"
-                className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500"
-              >
-                Job description
-              </label>
-              <textarea
-                id="wz-jd-draft"
-                value={jdDraft}
-                onChange={(e) => setJdDraft(e.target.value)}
-                rows={5}
-                placeholder="Or paste the job description text here…"
-                className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
-              />
+              <label htmlFor="wz-jd-draft" className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Job description</label>
+              <textarea id="wz-jd-draft" value={jdDraft} onChange={(e) => setJdDraft(e.target.value)} rows={5}
+                placeholder="Paste the job description here so the recruiter can ask job-specific follow-ups…"
+                className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50" />
             </div>
 
             <div className="mt-4 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setContextModalOpen(false)}
-                className="h-11 rounded-xl border border-white/10 bg-white/[0.04] px-5 text-sm font-bold text-slate-300 transition hover:bg-white/10"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={saveContextModal}
-                className="h-11 rounded-xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-6 text-sm font-black text-white shadow-[0_10px_28px_rgba(37,99,235,0.26)] transition hover:scale-[1.02]"
-              >
-                Save context
-              </button>
+              <button type="button" onClick={() => setContextModalOpen(false)} className="h-11 rounded-xl border border-white/10 bg-white/[0.04] px-5 text-sm font-bold text-slate-300 transition hover:bg-white/10">Cancel</button>
+              <button type="button" onClick={saveContextModal} className="h-11 rounded-xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 px-6 text-sm font-black text-white shadow-[0_10px_28px_rgba(37,99,235,0.26)] transition hover:scale-[1.02]">Save context</button>
             </div>
           </div>
         </div>

@@ -4227,6 +4227,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
           const ttsRes = await fetch("/api/tts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify({
               text,
               recruiterId: activeSetup.recruiterId,
@@ -4263,6 +4264,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
           const el11Res = await fetch("/api/elevenlabs", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify({
               text,
               recruiterId: activeSetup.recruiterId,
