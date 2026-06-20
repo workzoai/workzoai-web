@@ -28,7 +28,6 @@ import {
   decideUnifiedRecruiterResponse,
   type TranscriptItem,
 } from "@/lib/unifiedRecruiterIntelligence";
-import { buildWorkZoRecruiterReplyV2 } from "@/lib/workzoRecruiterIntelligenceV2";
 import {
   advanceDirector,
   serializeDirectorConstraint,
@@ -86,6 +85,59 @@ function cleanText(value: unknown, maxLength = 6000): string {
 }
 
 
+function stripRepeatedSpeech(value: string): string {
+  const clean = cleanText(value, 2000);
+  if (!clean) return "";
+
+  const normalized = clean.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  const words = normalized.split(" ").filter(Boolean);
+  const originalWords = clean.split(/\s+/).filter(Boolean);
+
+  if (words.length < 6) return clean;
+
+  // Exact duplicated halves from STT/Vapi: "answer answer".
+  if (words.length % 2 === 0) {
+    const half = words.length / 2;
+    const first = words.slice(0, half).join(" ");
+    const second = words.slice(half).join(" ");
+    if (first === second) return originalWords.slice(0, half).join(" ");
+  }
+
+  // Near duplicated halves with one or two filler-word differences.
+  for (let half = Math.floor(words.length / 2) - 2; half <= Math.ceil(words.length / 2) + 2; half += 1) {
+    if (half < 4 || half >= words.length) continue;
+    const first = words.slice(0, half);
+    const second = words.slice(half, half * 2);
+    if (second.length < Math.max(4, first.length - 2)) continue;
+    const overlap = first.filter((word, index) => second[index] === word).length / Math.max(first.length, second.length);
+    if (overlap >= 0.82) return originalWords.slice(0, half).join(" ");
+  }
+
+  // Repeated sentence-like chunks without punctuation.
+  const chunkSize = Math.floor(words.length / 2);
+  if (chunkSize >= 5) {
+    const firstChunk = words.slice(0, chunkSize).join(" ");
+    const remaining = words.slice(chunkSize).join(" ");
+    if (remaining.includes(firstChunk) || firstChunk.includes(remaining)) {
+      return originalWords.slice(0, chunkSize).join(" ");
+    }
+  }
+
+  return clean;
+}
+
+function cleanRoleLabel(value: unknown): string {
+  const raw = cleanText(value, 140);
+  if (!raw) return "this role";
+  if (/^(interview role|role|job role|target role|position|this role)$/i.test(raw)) return "this role";
+  return raw.replace(/\s+role$/i, "");
+}
+
+function hasMeaningfulJdOrCv(body: ReplyRequestBody): boolean {
+  return Boolean(cleanText(body.cvText, 200).length > 80 || cleanText(body.jobDescription, 200).length > 80);
+}
+
+
 function normalizeLanguageLabel(value: unknown): string {
   const raw = cleanText(value, 80).toLowerCase();
   if (raw.includes("german") || raw.includes("deutsch") || raw === "de" || raw === "de-de") return "German";
@@ -128,24 +180,24 @@ function isOpeningSmallTalk(answer: string): boolean {
 
 function buildOpeningIntroReply(languageValue: unknown, targetRole: unknown): string {
   const language = normalizeLanguageLabel(languageValue);
-  const role = cleanText(targetRole, 140) || "this role";
+  const role = cleanRoleLabel(targetRole);
 
-  if (language === "German") return `Mir geht es gut, danke der Nachfrage. Schön, dass es dir auch gut geht. Ich habe mir deinen Lebenslauf und die Rolle ${role} angesehen. Zum Einstieg: Kannst du dich bitte kurz vorstellen und erklären, wie deine Erfahrung zu dieser Gelegenheit passt?`;
-  if (language === "Dutch") return `Het gaat goed, dank je dat je het vraagt. Fijn om te horen dat het ook goed met jou gaat. Ik heb je cv en de rol ${role} bekeken. Om te beginnen: kun je jezelf kort voorstellen en uitleggen hoe je ervaring aansluit op deze kans?`;
-  if (language === "French") return `Je vais bien, merci de demander. Ravi d’entendre que vous allez bien aussi. J’ai consulté votre CV et le poste ${role}. Pour commencer, pouvez-vous vous présenter brièvement et expliquer en quoi votre expérience correspond à cette opportunité ?`;
-  if (language === "Spanish") return `Estoy bien, gracias por preguntar. Me alegra saber que tú también estás bien. He revisado tu CV y el puesto de ${role}. Para empezar, ¿puedes presentarte brevemente y explicar cómo tu experiencia encaja con esta oportunidad?`;
-  if (language === "Italian") return `Sto bene, grazie per avermelo chiesto. Mi fa piacere sentire che stai bene anche tu. Ho letto il tuo CV e il ruolo ${role}. Per iniziare, puoi presentarti brevemente e spiegare come la tua esperienza si collega a questa opportunità?`;
-  if (language === "Portuguese") return `Estou bem, obrigado por perguntares. Fico feliz por saber que também estás bem. Analisei o teu CV e a função ${role}. Para começar, podes apresentar-te brevemente e explicar como a tua experiência se relaciona com esta oportunidade?`;
-  if (language === "Hindi") return `मैं ठीक हूँ, पूछने के लिए धन्यवाद। अच्छा लगा कि आप भी ठीक हैं। मैंने आपका CV और ${role} भूमिका देखी है। शुरुआत के लिए, कृपया अपना छोटा परिचय दें और बताएं कि आपका अनुभव इस अवसर से कैसे जुड़ता है।`;
+  if (language === "German") return `Mir geht es gut, danke der Nachfrage. Schön, dass es dir auch gut geht. Ich habe mir den Rollenkontext für ${role} angesehen. Zum Einstieg: Kannst du dich bitte kurz vorstellen und erklären, wie deine Erfahrung zu dieser Gelegenheit passt?`;
+  if (language === "Dutch") return `Het gaat goed, dank je dat je het vraagt. Fijn om te horen dat het ook goed met jou gaat. Ik heb de rolcontext voor ${role} bekeken. Om te beginnen: kun je jezelf kort voorstellen en uitleggen hoe je ervaring aansluit op deze kans?`;
+  if (language === "French") return `Je vais bien, merci de demander. Ravi d’entendre que vous allez bien aussi. J’ai consulté le contexte du poste ${role}. Pour commencer, pouvez-vous vous présenter brièvement et expliquer en quoi votre expérience correspond à cette opportunité ?`;
+  if (language === "Spanish") return `Estoy bien, gracias por preguntar. Me alegra saber que tú también estás bien. He revisado el contexto del puesto ${role}. Para empezar, ¿puedes presentarte brevemente y explicar cómo tu experiencia encaja con esta oportunidad?`;
+  if (language === "Italian") return `Sto bene, grazie per avermelo chiesto. Mi fa piacere sentire che stai bene anche tu. Ho letto il contesto del ruolo ${role}. Per iniziare, puoi presentarti brevemente e spiegare come la tua esperienza si collega a questa opportunità?`;
+  if (language === "Portuguese") return `Estou bem, obrigado por perguntares. Fico feliz por saber que também estás bem. Analisei o contexto da função ${role}. Para começar, podes apresentar-te brevemente e explicar como a tua experiência se relaciona com esta oportunidade?`;
+  if (language === "Hindi") return `मैं ठीक हूँ, पूछने के लिए धन्यवाद। अच्छा लगा कि आप भी ठीक हैं। मैंने ${role} भूमिका का संदर्भ देखा है। शुरुआत के लिए, कृपया अपना छोटा परिचय दें और बताएं कि आपका अनुभव इस अवसर से कैसे जुड़ता है।`;
 
-  return `I’m doing well, thank you for asking. Glad to hear you’re doing well too. I had a chance to review your resume and the ${role} role. To get started, could you briefly introduce yourself and explain how your experience connects to this opportunity?`;
+  return `I’m doing well, thank you for asking. Glad to hear you’re doing well too. I've reviewed the role context you provided for ${role}. To get started, could you briefly introduce yourself and explain how your experience connects to this opportunity?`;
 }
 
 function normaliseTranscript(raw: TranscriptTurn[] | undefined): TranscriptItem[] {
   if (!Array.isArray(raw)) return [];
   return raw.slice(-20).map((turn) => ({
     role: turn.role === "candidate" ? "candidate" : "recruiter",
-    text: cleanText(turn.text, 800),
+    text: stripRepeatedSpeech(cleanText(turn.text, 800)),
   }));
 }
 
@@ -167,6 +219,12 @@ function isBadRecruiterReply(reply: string, transcript: TranscriptItem[]) {
     return true;
   }
 
+  // Kill the old robotic metric loop globally. The recruiter can ask for evidence,
+  // but not this repeated template sentence.
+  if (/give me one concrete metric or proof point|time saved, tickets reduced, customer impact|before-and-after result/i.test(reply)) {
+    return true;
+  }
+
   const recentRecruiter = transcript
     .filter((turn) => turn.role === "recruiter")
     .map((turn) => normalizeForSimilarity(turn.text))
@@ -185,24 +243,45 @@ function isBadRecruiterReply(reply: string, transcript: TranscriptItem[]) {
   return false;
 }
 
-function buildDeterministicRecruiterReply(body: ReplyRequestBody, answer: string, transcript: TranscriptItem[]) {
-  const decision = buildWorkZoRecruiterReplyV2({
-    answer,
-    currentQuestion: cleanText(body.currentQuestion, 400) || "Tell me about yourself.",
-    transcript,
-    setup: {
-      cvText: cleanText(body.cvText, 6000),
-      jobDescription: cleanText(body.jobDescription, 4000),
-      targetRole: cleanText(body.targetRole, 160),
-      targetMarket: cleanText(body.targetMarket, 120),
-      companyStyle: cleanText(body.companyStyle, 120),
-      recruiterPersonality: cleanText(body.recruiterPersonality, 120),
-      language: cleanText(body.language, 40),
-    },
-    trust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : undefined,
-  });
+function buildSafeFallbackRecruiterReply(body: ReplyRequestBody, answer: string, transcript: TranscriptItem[]) {
+  const role = cleanRoleLabel(body.targetRole);
+  const low = answer.toLowerCase();
+  const recentRecruiter = transcript.filter((turn) => turn.role === "recruiter").map((turn) => normalizeForSimilarity(turn.text)).slice(-4);
 
-  return cleanText(decision.spokenReply || decision.reply || decision.question, 900);
+  const alreadyAskedCustomer = recentRecruiter.some((text) => /difficult customer|customer situation|customer.*handled|personally did/.test(text));
+  const alreadyAskedTransition = recentRecruiter.some((text) => /transition|readiness|ready for|not just interest|different direction/.test(text));
+  const alreadyAskedDepth = recentRecruiter.some((text) => /one level deeper|hardest decision|technical|diagnosed|resolved/.test(text));
+
+  const hasCustomerEvidence = /customer|client|csat|satisfaction|rapport|relationship|trust|b2b|b2c|de[- ]?escalat|frustrated|happy|feedback|5\s*(?:\/|out of)?\s*5|95|96|97|98/i.test(answer);
+  const hasTechnicalEvidence = /api|latency|seconds?|milliseconds?|router|firmware|remote|troubleshoot|debug|diagnos|sql|python|server|network|ticket|incident|integration/i.test(answer);
+  const hasOutcome = /reduced|improved|saved|fixed|resolved|faster|happy|satisfied|from .* to|25 seconds|millisecond|result|impact|agreed|closed/i.test(answer);
+  const hasOwnership = /\bi\b|personally|my|handled|built|fixed|resolved|diagnosed|created|led|improved|reduced/i.test(answer);
+
+  if (hasCustomerEvidence && !alreadyAskedCustomer) {
+    return `That customer-facing experience is relevant for ${role}. Can you walk me through one difficult customer situation — briefly covering the situation, what you personally did, and what changed afterwards?`;
+  }
+
+  if (hasCustomerEvidence && alreadyAskedCustomer) {
+    return `That gives me a clearer example. Let’s move to another part of ${role}: how would you manage an ongoing customer relationship after the first issue is solved — for example adoption, follow-ups, retention, or preventing the same problem from happening again?`;
+  }
+
+  if (hasTechnicalEvidence && hasOutcome && !alreadyAskedDepth) {
+    return `That is a useful technical impact example. Take me one level deeper: what was the hardest decision you personally made in that situation, and why did it improve the result?`;
+  }
+
+  if (/switch|shift|change|transition|move into|interested in|want to/i.test(low) && !alreadyAskedTransition) {
+    return `I understand the transition you are aiming for. What practical experience, project, customer work, or training gives you confidence that you can perform well in ${role}?`;
+  }
+
+  if (!hasOwnership) {
+    return `Let me make your answer easier to assess. What was your personal responsibility in that example, and what was handled by the team or another person?`;
+  }
+
+  if (!hasOutcome) {
+    return `That gives me context. What changed after your work — even qualitatively, such as a calmer customer, a resolved issue, faster response, better handover, or improved trust?`;
+  }
+
+  return `That helps. Let’s move to a new area: what part of ${role} do you feel strongest in today, and what part would need the most ramp-up?`;
 }
 
 export async function POST(request: Request) {
@@ -234,7 +313,7 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => ({}))) as ReplyRequestBody;
 
-  const answer = cleanText(body.answer, 2000);
+  const answer = stripRepeatedSpeech(cleanText(body.answer, 2000));
   if (!answer) {
     return NextResponse.json({ error: "Missing answer." }, { status: 400 });
   }
@@ -273,10 +352,9 @@ export async function POST(request: Request) {
 
   // Advance the Interview Director: ingest this answer, update competencies /
   // concerns / memory, and decide the single NEXT AREA the model must cover.
-  // The brain is computed inside advanceDirector and reused via the constraint.
   const cvText = cleanText(body.cvText, 6000);
   const jobDescription = cleanText(body.jobDescription, 4000);
-  const targetRole = cleanText(body.targetRole, 160);
+  const targetRole = cleanRoleLabel(body.targetRole);
   const companyStyle = cleanText(body.companyStyle, 120);
   const { state: directorState, directive } = advanceDirector({
     prior: priorDirector,
@@ -317,7 +395,7 @@ export async function POST(request: Request) {
     const unifiedReply = decision.spokenReply.trim();
     if (!unifiedReply) throw new Error("Empty reply from unified engine.");
 
-    const deterministicReply = buildDeterministicRecruiterReply(body, answer, transcript);
+    const deterministicReply = buildSafeFallbackRecruiterReply(body, answer, transcript);
     const reply = isBadRecruiterReply(unifiedReply, transcript) && deterministicReply
       ? deterministicReply
       : unifiedReply;
@@ -338,7 +416,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("[interview/reply] Unified engine call failed:", error);
-    const reply = buildDeterministicRecruiterReply(body, answer, transcript);
+    const reply = buildSafeFallbackRecruiterReply(body, answer, transcript);
     if (reply) {
       return NextResponse.json({
         success: true,
