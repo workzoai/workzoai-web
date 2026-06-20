@@ -1762,7 +1762,7 @@ function buildLocalizedGreeting(setup: InterviewSetup) {
     case "ta-IN":
       return `வணக்கம் ${name}. இன்று நேர்காணலில் சேர்ந்ததற்கு நன்றி. எப்படி இருக்கிறீர்கள்?`;
     default:
-      return `Hi${name ? " " + name : " there"}. I’m ${setup.recruiterName || "Sarah"}${setup.recruiterTitle ? ", " + setup.recruiterTitle : ""}. Thanks for joining today. How are you doing?`;
+      return `Hi ${name}. Thank you for joining today. How are you doing?`;
   }
 }
 
@@ -1802,7 +1802,7 @@ function buildLocalizedIntroQuestion(setup: InterviewSetup) {
     case "ta-IN":
       return `சரி. உங்கள் CV மற்றும் ${role} பொறுப்பை பார்த்தேன். ஆரம்பமாக, உங்களைச் சுருக்கமாக அறிமுகப்படுத்தி, உங்கள் அனுபவம் இந்த வாய்ப்புடன் எப்படி தொடர்புடையது என்பதை சொல்ல முடியுமா?`;
     default:
-      return `Great. I’ve had a look at your background, and I can see you’re targeting a ${role} position. Tell me about yourself — what you’ve been doing and what’s driving you toward this direction.`;
+      return `Great. I had a chance to review your resume and the ${role} role. To get started, could you briefly introduce yourself and explain how your experience connects to this opportunity?`;
   }
 }
 
@@ -3902,8 +3902,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
               trust: recruiterSignalRef.current?.trust,
               interest: recruiterSignalRef.current?.interest,
             },
-            // V2 memory from previous turn — enables all P2-P6 intelligence to
-            // persist across the interview instead of resetting to zero each turn.
             recruiterMemoryV2: recruiterMemoryV2Ref.current || undefined,
           }),
         });
@@ -3911,7 +3909,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
         const data = await response.json().catch(() => null);
 
         if (response.ok && data?.success && typeof data.reply === "string" && data.reply.trim()) {
-          // Persist V2 memory for next turn — this closes the memory loop.
           if (data.recruiterMemoryV2) {
             recruiterMemoryV2Ref.current = data.recruiterMemoryV2;
           }
@@ -4029,7 +4026,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
     // continuous=true means the browser keeps listening through natural pauses;
     // we manually stop after sustained silence to submit the full answer.
     let silenceTimer: ReturnType<typeof setTimeout> | null = null;
-    const SILENCE_MS = 2200;
+    // 1400ms silence before submitting — enough for natural pauses in speech
+    // but fast enough to feel responsive. 2200ms (the old value) felt like lag.
+    const SILENCE_MS = 1400;
 
     function resetSilenceTimer() {
       if (silenceTimer) clearTimeout(silenceTimer);
@@ -4154,12 +4153,15 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
       const reply = enforceRuntimeLanguageForReply(setupRef.current, adaptiveFollowUp || baseReply);
 
+      // 150ms is enough for state to settle before speaking.
+      // The natural pause already happened in the silence detection timer.
+      // The old 650ms added perceived lag without adding realism.
       window.setTimeout(() => {
         if (stopRequestedRef.current) return;
         setQuestionIndex((value) => Math.min(value + 1, 12));
         setRecruiterVisualState(interruptDecision.shouldInterrupt ? "interrupting" : "listening");
         speakRecruiter(reply);
-      }, 650);
+      }, 150);
     };
 
     recognitionRef.current = recognition;

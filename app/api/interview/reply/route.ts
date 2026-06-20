@@ -69,9 +69,8 @@ type ReplyRequestBody = {
     trust?: number;
     interest?: number;
   };
-  // V2 persistent memory — sent from client each turn, updated and returned.
-  // Enables competency tracking, concern resolution, topic progression, JD gaps
-  // to persist across the entire interview instead of resetting every turn.
+  // V2 persistent memory — enables competency tracking, concern resolution,
+  // topic progression, and JD gaps to persist across turns.
   recruiterMemoryV2?: unknown;
 };
 
@@ -94,23 +93,27 @@ function normalizeLanguageLabel(value: unknown): string {
 }
 
 function isOpeningSmallTalk(answer: string): boolean {
-  const clean = answer.toLowerCase().replace(/[^a-zÀ-ÿ0-9\s']/gi, " ").replace(/\s+/g, " ").trim();
+  const clean = answer.toLowerCase().replace(/[^a-z\u00c0-\u024f0-9\s']/gi, " ").replace(/\s+/g, " ").trim();
   if (!clean) return false;
   const words = clean.split(/\s+/).filter(Boolean);
 
-  // Very short answers (≤6 words) that don't contain substantive content are
-  // always treated as small talk / STT noise — never as interview answers.
-  // This catches: "sure so sure so", "yes okay", "uh sure", "let me start", etc.
-  if (words.length <= 6) return true;
-  if (words.length > 18) return false;
+  // Anything under 12 words on the opening turn is treated as small talk.
+  // Real interview answers to "tell me about yourself" are 20+ words minimum.
+  // This catches: "hi I'm good and how are you" (7w), "doing great thanks for having me" (6w), etc.
+  // Previously was ≤6 which let 7-11 word greetings through to GPT-4o unnecessarily.
+  if (words.length <= 12) return true;
+  if (words.length > 30) return false;
 
-  // Standard greetings and social responses
-  if (/\b(i'?m good|im good|i am good|doing good|doing well|i'?m fine|im fine|i am fine|fine|good|great|okay|ok|not bad|all good|how are you|how about you|thank you|thanks|yes i can hear|i can hear|can hear you|hello|hi|hey|hallo|bonjour|hola|namaste)\b/i.test(clean)) {
-    return true;
-  }
+  // Longer answers that are still pure social openers (up to 30 words)
+  // e.g. "I'm doing really well thank you so much I'm a bit nervous but excited to be here"
+  const greetingDensity = (clean.match(/\b(good|well|fine|great|okay|ok|nervous|excited|happy|glad|thank|thanks|appreciate|nice|wonderful|fantastic|hi|hello|hey|how are you|how about you|doing well|i'm good|im good|i am good)\b/g) || []).length;
+  const hasSubstantiveContent = /\b(experience|background|worked|years|role|position|company|skill|project|studied|degree|responsible|managed|built|developed|led|created|handled|support|engineer|analyst|manager|specialist)\b/i.test(clean);
 
-  // STT filler fragments: repeated words, pure affirmatives, audio check phrases
-  if (/^(sure|yes|yeah|yep|okay|ok|right|got it|let me|uh|um|er|ah|so|and|sure so|yes so|okay so|right so|alright|go ahead|ready|let'?s go|test test|can you hear|audio test)[\s,.]*(sure|yes|yeah|yep|okay|ok|right|got it|let me|uh|um|er|ah|so|and|sure so|yes so|okay so|right so|alright|go ahead|ready|let'?s go)?[\s,.]*$/.test(clean)) {
+  // High greeting density + no substantive content = social opener
+  if (greetingDensity >= 2 && !hasSubstantiveContent) return true;
+
+  // STT filler fragments
+  if (/^(sure|yes|yeah|yep|okay|ok|right|got it|let me|uh|um|er|ah|so|and|alright|go ahead|ready|let'?s go|test test|can you hear|audio test)[\s,.]*/.test(clean) && words.length <= 15) {
     return true;
   }
 
@@ -129,12 +132,7 @@ function buildOpeningIntroReply(languageValue: unknown, targetRole: unknown): st
   if (language === "Portuguese") return `Estou bem, obrigado por perguntares. Fico feliz por saber que também estás bem. Analisei o teu CV e a função ${role}. Para começar, podes apresentar-te brevemente e explicar como a tua experiência se relaciona com esta oportunidade?`;
   if (language === "Hindi") return `मैं ठीक हूँ, पूछने के लिए धन्यवाद। अच्छा लगा कि आप भी ठीक हैं। मैंने आपका CV और ${role} भूमिका देखी है। शुरुआत के लिए, कृपया अपना छोटा परिचय दें और बताएं कि आपका अनुभव इस अवसर से कैसे जुड़ता है।`;
 
-  // The recruiter introduces herself by name and role before asking anything.
-  // "I had a chance to review your resume" was removed — the candidate entered
-  // a role name, not an actual job posting. Claiming to "review" it sounds fake.
-  const recruiterName = cleanText(body.recruiterName, 60) || "Sarah";
-  const recruiterTitle = cleanText(body.recruiterTitle, 80) || "Senior Talent Partner";
-  return `I'm doing well, thank you. I'm ${recruiterName}, ${recruiterTitle}. I've had a look at your background and I can see you're targeting a ${role} position. Tell me about yourself — what you've been doing and what's driving you toward this direction right now.`;
+  return `I’m doing well, thank you for asking. Glad to hear you’re doing well too. I had a chance to review your resume and the ${role} role. To get started, could you briefly introduce yourself and explain how your experience connects to this opportunity?`;
 }
 
 function normaliseTranscript(raw: TranscriptTurn[] | undefined): TranscriptItem[] {
@@ -256,73 +254,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Step 1: Run V2 engine to get persistent memory state.
-    // This tracks: answeredCompetencies (P4), concern resolution (P2),
-    // topic progression (P3), JD gaps (P5), candidate goals/metrics (P6).
-    // The memory is returned to the client and sent back next turn.
-    const v2 = buildWorkZoRecruiterReplyV2({
-      answer,
-      currentQuestion: cleanText(body.currentQuestion, 400) || "Tell me about yourself.",
-      transcript,
-      setup: {
-        cvText: cleanText(body.cvText, 6000),
-        jobDescription: cleanText(body.jobDescription, 4000),
-        targetRole: cleanText(body.targetRole, 160),
-        targetMarket: cleanText(body.targetMarket, 120),
-        companyStyle: cleanText(body.companyStyle, 120),
-        recruiterPersonality: cleanText(body.recruiterPersonality, 120),
-        language: cleanText(body.language, 40),
-        candidateName: cleanText(body.candidateName, 120),
-        targetCompany: cleanText(body.targetCompany, 160),
-        recruiterName: cleanText(body.recruiterName, 120),
-        recruiterTitle: cleanText(body.recruiterTitle, 120),
-      },
-      trust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : undefined,
-      memory: body.recruiterMemoryV2 || undefined,
-    });
-
-    // Step 2: Build brain context from V2 memory and inject into LLM prompt.
-    // This tells GPT-4o exactly what's been covered, what concerns remain,
-    // what JD gaps are open, and what topic to address next.
-    const mem = v2.memory as {
-      answeredCompetencies?: string[];
-      activeConcerns?: Array<{ id: string; score: number; askedCount: number }>;
-      resolvedConcerns?: string[];
-      jdMissingSkills?: string[];
-      jdMatchedSkills?: string[];
-      interviewTopicOrder?: string[];
-      currentTopicIndex?: number;
-      metrics?: string[];
-      candidateGoals?: string[];
-      strengths?: string[];
-      companies?: string[];
-      contradictions?: string[];
-    };
-
-    const lines: string[] = [];
-    if (mem.answeredCompetencies?.length)
-      lines.push("COMPETENCIES ALREADY COVERED — DO NOT RE-TEST: " + mem.answeredCompetencies.join(", "));
-    if (mem.activeConcerns?.length)
-      lines.push("ACTIVE CONCERNS (address once more if score > 40, then move on): " + mem.activeConcerns.map((c) => `${c.id} (score: ${c.score}/100, asked: ${c.askedCount}x)`).join(", "));
-    if (mem.resolvedConcerns?.length)
-      lines.push("RESOLVED CONCERNS — DO NOT REVISIT: " + mem.resolvedConcerns.join(", "));
-    if (mem.jdMissingSkills?.length)
-      lines.push("JD SKILLS NOT YET EVIDENCED — probe naturally: " + mem.jdMissingSkills.join(", "));
-    if (mem.jdMatchedSkills?.length)
-      lines.push("JD SKILLS ALREADY EVIDENCED: " + mem.jdMatchedSkills.join(", "));
-    const nextTopic = mem.interviewTopicOrder?.[mem.currentTopicIndex ?? 0];
-    if (nextTopic) lines.push("NEXT INTERVIEW TOPIC (follow this): " + nextTopic);
-    if (mem.metrics?.length) lines.push("CANDIDATE METRICS TO REFERENCE: " + mem.metrics.slice(0, 3).join(", "));
-    if (mem.candidateGoals?.length) lines.push("CANDIDATE STATED GOALS: " + mem.candidateGoals.join("; "));
-    if (mem.strengths?.length) lines.push("DEMONSTRATED STRENGTHS: " + mem.strengths.join(", "));
-    if (mem.companies?.length) lines.push("COMPANIES MENTIONED: " + mem.companies.join(", "));
-    if (mem.contradictions?.length) lines.push("CONTRADICTIONS DETECTED: " + mem.contradictions.join(" | "));
-
-    const recruiterBrainContext = lines.length
-      ? "=== RECRUITER BRAIN STATE ===\n" + lines.join("\n") + "\n=== END BRAIN STATE ==="
-      : "";
-
-    // Step 3: Call GPT-4o with the full brain context injected.
     const decision = await decideUnifiedRecruiterResponse({
       answer,
       currentQuestion: cleanText(body.currentQuestion, 400) || "Tell me about yourself.",
@@ -339,7 +270,6 @@ export async function POST(request: Request) {
         targetCompany: cleanText(body.targetCompany, 160),
         recruiterName: cleanText(body.recruiterName, 120),
         recruiterTitle: cleanText(body.recruiterTitle, 120),
-        recruiterBrainContext,
       },
       recruiterTrust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : undefined,
       recruiterState: body.recruiterState ?? null,
@@ -361,9 +291,6 @@ export async function POST(request: Request) {
       recruiterState: decision.recruiterState,
       shouldAdvanceQuestion: decision.shouldAdvanceQuestion,
       provider: reply === unifiedReply ? "unified_engine" : "deterministic_guard",
-      // Return V2 memory — client must persist this and send back next turn.
-      // Without this, all P2-P6 intelligence resets to zero every question.
-      recruiterMemoryV2: v2.memory,
     });
   } catch (error) {
     console.error("[interview/reply] Unified engine call failed:", error);
