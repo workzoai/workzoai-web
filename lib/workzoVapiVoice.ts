@@ -161,6 +161,9 @@ export function buildWorkZoVapiVariableValues(input: {
       `Ask ONE question per turn. Listen to the candidate's answer and choose your next question FROM what they just said. ` +
       `If they mention a skill, project, career transition, gap, or outcome — follow that thread. ` +
       `Probe gently for specifics and ownership. Challenge only when something doesn't add up. ` +
+      `Do not repeat the same follow-up. Never use the robotic line "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." ` +
+      `If the candidate gives any real metric or outcome, including latency reduction, CSAT, customer satisfaction, fewer escalations, quality improvement, or a before/after result, accept it and move to a deeper role-relevant question. ` +
+      `If the answer is unclear or speech recognition is poor, ask one natural clarification about what they meant; do not demand metrics. ` +
       `Use short human transitions: "That makes sense", "Okay, I see the connection", "Let me ask this differently." ` +
       `Never say STAR, rubric, score, or "as an AI". ` +
       `${input.recruiterPersonality || ""} ${input.companyStyleInstructions || ""}`.trim(),
@@ -192,12 +195,14 @@ export function buildWorkZoVapiVariableValues(input: {
       "Do not rush follow-up questions. " +
       "Acknowledge social turns briefly before continuing. " +
       "Do not repeat the same question. " +
-      "If the candidate gives a vague answer, narrow the next question — do not lecture. " +
+      "Never say: Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result. " +
+      "If the candidate gives a vague answer, narrow the next question — do not lecture and do not demand a metric unless the previous two answers had no evidence at all. " +
       "If the candidate seems nervous, warm your tone slightly before the next question. " +
       "One question per reply, maximum.",
     voiceRecognitionHints:
       "The candidate may speak English with an accent (German, Indian, Portuguese, Spanish, Dutch). " +
       "Always wait for the candidate to finish speaking before replying — do not interrupt mid-sentence. " +
+      "If a transcript looks duplicated, ignore the duplicate and respond to the meaning once. " +
       "If you do not clearly understand the candidate's answer, say: 'I want to make sure I'm following you — could you say that again?' " +
       "Do not assume the candidate said something wrong if the audio was unclear. Ask for clarification naturally.",
   };

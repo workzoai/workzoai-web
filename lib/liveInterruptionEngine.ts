@@ -12,46 +12,20 @@ export function shouldInterruptLive({
   transcript: string;
   duration: number;
 }): LiveInterruptionResult {
+  // Launch-safety mode: do not interrupt spoken answers.
+  // Career-institute feedback showed interruptions and robotic challenges break confidence.
+  // We still keep the function for compatibility, but return non-interrupting feedback.
   const text = transcript.toLowerCase();
   const wordCount = transcript.trim().split(/\s+/).filter(Boolean).length;
 
-  if (duration > 60 && !/\d|%|result|impact|outcome|reduced|increased|improved/.test(text)) {
+  if (duration > 90 && wordCount > 180 && !/\b(result|outcome|impact|resolved|improved|reduced|saved|customer|csat|latency|seconds?|milliseconds?)\b/i.test(text)) {
     return {
-      interrupt: true,
-      message: "Stop there. Start with the result first.",
-      severity: "high",
-      reason: "Long answer without result or measurable impact.",
+      interrupt: false,
+      message: "The answer may need structure, but do not interrupt live.",
+      severity: "low",
+      reason: "Long answer detected; coaching should happen after the candidate finishes.",
     };
   }
 
-  if (wordCount > 140 && !/\b(result|outcome|impact|as a result)\b/i.test(transcript)) {
-    return {
-      interrupt: true,
-      message: "Pause there. You are losing the main point.",
-      severity: "medium",
-      reason: "Rambling without clear structure.",
-    };
-  }
-
-  if (/\b(we|team|our team|supported|helped)\b/i.test(transcript) && !/\b(i led|i built|i handled|i owned|i implemented|i drove)\b/i.test(transcript)) {
-    return {
-      interrupt: true,
-      message: "Wait. What exactly was YOUR contribution?",
-      severity: "medium",
-      reason: "Ownership unclear.",
-    };
-  }
-
-  if (/\b(improved|increased|reduced|optimized|saved|delivered)\b/i.test(transcript) && !/(\d+%|\d+\s?(days|hours|users|tickets|customers|€|\$)|kpi|sla|nps|csat)/i.test(transcript)) {
-    return {
-      interrupt: true,
-      message: "How exactly did you measure that improvement?",
-      severity: "medium",
-      reason: "Missing metric after improvement claim.",
-    };
-  }
-
-  return {
-    interrupt: false,
-  };
+  return { interrupt: false };
 }

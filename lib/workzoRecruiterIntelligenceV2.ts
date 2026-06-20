@@ -310,6 +310,17 @@ function looksLikeRoleTitle(value: string): boolean {
   if (line.length < 4 || line.length > 70) return false;
   const words = line.split(/\s+/).filter(Boolean);
   if (words.length > 9) return false;
+
+  // Reject ALL-CAPS blobs that are likely spaced-letter PDF artifacts
+  // e.g. "IT SUPPORT SPECIALIST" from "I T - S u p p o r t - S p e z i a l i s t"
+  // Real job titles in CVs are Title Case or mixed case, not full screaming caps
+  // Exception: genuine well-known abbreviation titles like "CEO", "CTO", "VP"
+  const isAllCaps = line === line.toUpperCase() && /[A-Z]{2,}/.test(line);
+  if (isAllCaps && words.length > 2 && !/^(CEO|CTO|CFO|COO|VP|SVP|EVP|HR|IT|UX|UI|QA|PM)/.test(line)) {
+    // Only accept ALL CAPS if it's a single recognised acronym role
+    return false;
+  }
+
   // Must contain a recognizable job function word
   return /\b(engineer|support|developer|designer|analyst|manager|consultant|administrator|coordinator|specialist|technician|product|sales|marketing|finance|accountant|assistant|intern|lead|head|director|scientist|architect|recruiter|trainer|operator|customer success|success manager|it support|system integration|service desk|helpdesk|application engineer|cad designer|data scientist|business developer|account executive|project manager|program manager)\b/i.test(line);
 }
@@ -528,8 +539,8 @@ function buildTopicQuestion(topic: CompetencyId, setup: RecruiterIntelligenceSet
       return `Tell me about a time you had to manage expectations with multiple stakeholders who had conflicting needs. How did you handle it?`;
 
     case "success_metrics":
-      if (metrics) return `You mentioned ${metrics}. How did you track and measure your own performance in that role — what numbers or outcomes were you accountable for?`;
-      return `How do you measure your own success in a role? What metrics or outcomes would you use to show you are performing well in ${target}?`;
+      if (metrics) return `You mentioned ${metrics}. That is useful evidence. Now help me understand the engineering judgment behind it — what change did you make, why did you choose that approach, and how did you confirm it worked?`;
+      return `Let us talk about impact in a practical way. In ${target}, what outcome would show that your work is successful — customer adoption, quality, delivery speed, reliability, or another result?`;
 
     case "motivation_fit":
       return `What specifically attracted you to ${target}, and what would make this role a step forward for you rather than just a lateral move?`;
@@ -802,11 +813,18 @@ function hasCareerTransitionSignal(answer: string, setup: RecruiterIntelligenceS
 
 function hasCareerTransitionEvidenceProvided(answer: string): boolean {
   const low = lower(answer);
-  // Strong evidence: CSAT, metrics, hands-on work, direct customer outcomes
-  if (/\b(csat|customer satisfaction|95|98|5\s*(?:\/|out of)\s*5|nps|retention|relationship|onboarding|adoption|crm|escalation|hands.on|course|bootcamp|project|self.learning|freelance|certification|built|implemented|managed customer|helped customer|resolved customer)\b/i.test(low)) return true;
-  // Medium evidence: substantive answer with support/customer keywords
-  const words = answer.trim().split(/\s+/).length;
-  if (/\b(support|customer|resolved|ticket|stakeholder|handled|communicated|technically|diagnosed|troubleshot)\b/i.test(low) && words >= 30) return true;
+  const words = answer.trim().split(/\s+/).filter(Boolean).length;
+
+  // Strong evidence: CSAT, metrics, direct customer work, prep activities
+  if (/\b(csat|customer satisfaction|95|96|97|98|99|5\s*(?:\/|out of)\s*5|nps|retention|relationship|onboarding|adoption|crm|escalation|hands.on|course|bootcamp|project|self.learning|freelance|certification|built|implemented|managed customer|helped customer|resolved customer|similar role|similar job|transferable|face.to.face|face the customer|talk to the customer|b2b|b2c|customer.facing)\b/i.test(low)) return true;
+
+  // Medium evidence: any substantive answer (12+ words) with customer/support context
+  // The candidate explained WHY their support background connects to CSM — that counts.
+  if (words >= 12 && /\b(support|customer|client|resolved|ticket|stakeholder|handled|communicated|technically|diagnosed|troubleshot|service|helpdesk|interact|relationship|satisfaction|assist|guide|explain)\b/i.test(low)) return true;
+
+  // Candidate explicitly argues the roles are similar — that IS evidence of their reasoning
+  if (/\b(similar|same|overlap|connect|translate|related|both|also|already|experience with customer|customer experience|deal with customer|work with customer)\b/i.test(low) && words >= 15) return true;
+
   return false;
 }
 
@@ -825,13 +843,25 @@ function isCustomerSuccessTarget(setup: RecruiterIntelligenceSetup) {
 
 function buildPostTransitionProgressionQuestion(answer: string, setup: RecruiterIntelligenceSetup) {
   const target = text(setup.targetRole, "this role");
-  if (isCustomerSuccessTarget(setup) && hasCareerTransitionEvidenceProvided(answer)) {
-    return `That connects well to ${target}. Your support background gives you customer trust, issue ownership, and satisfaction experience. Customer Success also goes beyond fixing problems into long-term adoption and retention — tell me about a time you proactively helped a customer get more value, not just resolved an issue they reported.`;
+  const low = lower(answer);
+
+  // CSM target: acknowledge the support bridge, then probe the KEY difference
+  if (isCustomerSuccessTarget(setup)) {
+    if (/\b(similar|same|both|customer.facing|customer facing|face the customer)\b/i.test(low)) {
+      return `You’re right that customer-facing experience is a strong foundation. The key difference in Customer Success is that you’re not waiting for customers to call you with problems — you’re proactively reaching out to make sure they’re getting value before issues arise. Have you ever done that proactively — reaching out to a customer before they came to you?`;
+    }
+    if (hasCareerTransitionEvidenceProvided(answer)) {
+      return `That support background is a real asset for Customer Success — especially the customer empathy and troubleshooting ownership. The next thing I want to understand is the proactive side: in CS, you’re managing the relationship before problems surface. Tell me about a time you followed up with a customer after closing an issue — what did you do and why?`;
+    }
+    return `I can see the customer-handling experience. For ${target}, the core shift is from reactive to proactive — owning the relationship, not just the ticket. Tell me about one customer relationship you personally owned end-to-end. What did staying on top of it look like?`;
   }
-  if (/\b(remote|troubleshoot|ticket|incident|support|escalat|technical issue|customer issue)\b/i.test(lower(answer))) {
-    return `That helps. It sounds like your strongest bridge is technical troubleshooting with direct customer ownership. For ${target}, tell me about one complex issue you personally diagnosed — what you checked first and how you decided to solve it or escalate.`;
+
+  // Technical roles
+  if (/\b(troubleshoot|ticket|incident|support|escalat|technical|diagnos)\b/i.test(low)) {
+    return `That helps. Tell me about one technically complex issue you personally diagnosed and resolved — what you checked first, how you narrowed it down, and what the outcome was.`;
   }
-  return `That gives me the direction. Now I want one concrete example connected to ${target}: what situation did you handle personally, what action did you take, and what changed after?`;
+
+  return `Good context. Now give me one concrete example from your background that directly connects to ${target}: a situation you personally owned, the action you took, and what changed.`;
 }
 
 function isNearDuplicateReply(reply: string, transcript?: TranscriptItem[]) {
@@ -868,10 +898,10 @@ function buildEvidenceRequest(answer: string, setup: RecruiterIntelligenceSetup,
     return "I want to separate your part from the team's part. What did you personally diagnose, decide, fix, configure, explain, or escalate?";
   }
   if (!hasOutcome(answer) && !hasQualitativeOutcome && !earlyInterview && !askedEvidence) {
-    return "What was the visible outcome after your work — for example customer satisfaction, fewer escalations, faster resolution, better quality, or a clearer handover?";
+    return "What changed after that work — for the customer, the system, the team, or the business? A qualitative result is fine if you do not have an exact number.";
   }
   if (!hasMetric(answer) && !hasQualitativeOutcome && turns >= 4 && !askedEvidence) {
-    return "Do you have any rough scale for that — volume handled, response time, customer rating, tickets, or frequency? A rough number is enough.";
+    return "Can you give me the scale of that work in a natural way — for example how often it happened, how many users or customers were affected, or what improved afterward?";
   }
   return "";
 }
@@ -1120,9 +1150,18 @@ export function decideRecruiterResponseV2(input: {
   // ── Transition evidence: now properly computed (fixes the runtime crash) ───
   const transitionEvidenceProvided = hasCareerTransitionEvidenceProvided(answer);
   const transitionSignal = hasCareerTransitionSignal(answer, setup);
-  const alreadyAskedTransition = transcriptContains(input.transcript, /\b(transition|switch|shift|move into|why .* role|ready for this role|hands-on.*ready|ramp-up|prepared|proves? you are ready)\b/i);
+  // alreadyAskedTransition: detects whether the recruiter has already raised the
+  // career transition challenge in any form. Uses multiple patterns to cover all
+  // the phrasings used by buildTopicQuestion and buildCareerTransitionQuestion.
+  // Previously too narrow — missed "shows you're ready for it", "different direction", etc.
+  const alreadyAskedTransition = transcriptContains(input.transcript, /\b(transition|switch|shift|move into|why .* role|ready for this role|ready for it|shows you.re ready|different direction|hands.on|proves? you are ready|ramp.up|prepared for|background is mainly|what have you done.{0,40}ready|practical|readiness)\b/i);
   const transitionAlreadyResolved = memory.resolvedConcerns.includes("career_switch") || previousMemory.resolvedConcerns.includes("career_switch");
-  const transitionConcernAskedTooMuch = (previousMemory.activeConcerns.find((c) => c.id === "career_switch")?.askedCount ?? 0) >= 2;
+  // transitionConcernAskedTooMuch: move on after asking once and getting any
+  // substantive response (12+ words). Real recruiters don't ask the same
+  // transition question twice — they probe deeper or move to a new topic.
+  const transitionAskCount = previousMemory.activeConcerns.find((c) => c.id === "career_switch")?.askedCount ?? 0;
+  const candidateGaveSubstantiveResponse = wordCount >= 12;
+  const transitionConcernAskedTooMuch = transitionAskCount >= 2 || (transitionAskCount >= 1 && candidateGaveSubstantiveResponse);
 
   let reply = "";
   let concern = "";
@@ -1263,6 +1302,8 @@ export function decideRecruiterResponseV2(input: {
       ...inferAnsweredCompetencies(answer, setup),
     ])] as CompetencyId[];
   }
+
+  reply = reply.replace(/Give me one concrete metric or proof point:\s*time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result\.?/gi, "That gives me some useful context. Let me go one level deeper: what did you personally decide or change, and what happened after that?");
 
   return {
     reply: localize(setup, makeReplyPersonaSpecific(reply, setup)),

@@ -935,6 +935,46 @@ export default function OnboardingPage() {
   const [jobDescription, setJobDescription] = useState(
     setup.jobDescription || "",
   );
+  const [companyUrl, setCompanyUrl] = useState("");
+  const [isScraping, setIsScraping] = useState(false);
+  const [scrapeError, setScrapeError] = useState("");
+  const [scrapeResult, setScrapeResult] = useState<{
+    companyName?: string;
+    companyDescription?: string;
+    jobTitle?: string;
+    jobDescription?: string;
+    requiredSkills?: string[];
+    confidence?: string;
+  } | null>(null);
+
+  async function handleScrapeUrl() {
+    const url = companyUrl.trim();
+    if (!url) return;
+    setIsScraping(true);
+    setScrapeError("");
+    setScrapeResult(null);
+    try {
+      const res = await fetch("/api/company-scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setScrapeError(data.error || "Could not load that page. Try pasting the job description text instead.");
+        return;
+      }
+      setScrapeResult(data);
+      // Auto-fill fields from scraped data
+      if (data.companyName && !companyName) setCompanyName(data.companyName);
+      if (data.jobTitle && !role) setRole(data.jobTitle);
+      if (data.jobDescription) setJobDescription(data.jobDescription);
+    } catch {
+      setScrapeError("Something went wrong. Try pasting the job description text instead.");
+    } finally {
+      setIsScraping(false);
+    }
+  }
   const [market, setMarket] = useState<Market>(
     normalizeMarket(setup.targetMarket || setup.country),
   );
@@ -2007,6 +2047,45 @@ export default function OnboardingPage() {
             </details>
 
             <div className="mt-4">
+              {/* ── Company / Job URL scraper ─────────────────────────────── */}
+              <label className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
+                Company or job posting URL
+              </label>
+              <p className="mt-1 text-xs text-slate-600">
+                Paste a link to the job posting. WorkZo reads it automatically — LinkedIn, Greenhouse, Lever, any job board.
+              </p>
+              <div className="mt-2 flex gap-2">
+                <input
+                  type="url"
+                  value={companyUrl}
+                  onChange={(e) => { setCompanyUrl(e.target.value); setScrapeError(""); setScrapeResult(null); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleScrapeUrl(); } }}
+                  placeholder="https://company.com/jobs/role"
+                  className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:border-blue-400/40 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleScrapeUrl()}
+                  disabled={isScraping || !companyUrl.trim()}
+                  className="flex items-center gap-2 rounded-xl border border-blue-400/30 bg-blue-500/10 px-4 py-2.5 text-sm font-black text-blue-300 transition hover:bg-blue-500/20 disabled:opacity-40"
+                >
+                  {isScraping
+                    ? <><span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-300/30 border-t-blue-300" /> Reading…</>
+                    : "Read URL"}
+                </button>
+              </div>
+              {scrapeError && <p className="mt-1.5 text-xs text-rose-400">{scrapeError}</p>}
+              {scrapeResult && (
+                <div className="mt-2 rounded-xl border border-emerald-400/20 bg-emerald-500/[0.06] p-3 text-xs text-emerald-300 space-y-0.5">
+                  <p className="font-black">✓ Page read — fields filled automatically</p>
+                  {scrapeResult.companyName && <p className="text-emerald-400/70">Company: {scrapeResult.companyName}</p>}
+                  {scrapeResult.jobTitle && <p className="text-emerald-400/70">Role: {scrapeResult.jobTitle}</p>}
+                  {scrapeResult.requiredSkills?.length ? <p className="text-emerald-400/70">Skills: {scrapeResult.requiredSkills.slice(0, 6).join(", ")}</p> : null}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4">
               <label
                 htmlFor="wz-jd-draft"
                 className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500"
@@ -2018,7 +2097,7 @@ export default function OnboardingPage() {
                 value={jdDraft}
                 onChange={(e) => setJdDraft(e.target.value)}
                 rows={5}
-                placeholder="Paste the job description here so the recruiter can ask job-specific follow-ups…"
+                placeholder="Or paste the job description text here…"
                 className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
               />
             </div>

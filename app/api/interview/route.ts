@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getRoleIntelligenceBrief, serializeRoleBriefForPrompt } from "@/lib/workzoRoleIntelligence";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { checkWorkZoRateLimit } from "@/lib/workzoRateLimit";
 import {
@@ -1067,6 +1068,22 @@ export async function POST(request: Request) {
     const recruiterBrainContext = serializeRecruiterBrainForPrompt(recruiterBrain);
     // ───────────────────────────────────────────────────────────────────────
 
+    // Generate role intelligence brief for ANY role — not just hardcoded ones.
+    // This gives the recruiter genuine domain knowledge about the target role,
+    // tailored to the specific JD and company context if provided.
+    let roleBriefContext = "";
+    try {
+      const roleBrief = await getRoleIntelligenceBrief({
+        role: text(body.targetRole || setup.targetRole, 120),
+        jobDescription: companyDecoratedJob.slice(0, 3000),
+        companyContext: text(body.companyDescription || setup.companyDescription || body.targetCompany || setup.companyName, 600),
+        market: text(body.targetMarket || setup.targetMarket, 80),
+      });
+      roleBriefContext = serializeRoleBriefForPrompt(roleBrief);
+    } catch (e) {
+      console.warn("[interview/route] Role brief generation failed:", e);
+    }
+
     const baseDecision = await decideUnifiedRecruiterResponse({
       answer,
       currentQuestion: resolvedCurrentQuestion,
@@ -1086,6 +1103,8 @@ export async function POST(request: Request) {
           : undefined,
         jobMemoryProfile: undefined,
         recruiterBrainContext,
+        // Universal role intelligence — generated for any role, any industry
+        roleBriefContext,
       },
     });
 

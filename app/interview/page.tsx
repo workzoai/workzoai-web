@@ -1762,7 +1762,7 @@ function buildLocalizedGreeting(setup: InterviewSetup) {
     case "ta-IN":
       return `வணக்கம் ${name}. இன்று நேர்காணலில் சேர்ந்ததற்கு நன்றி. எப்படி இருக்கிறீர்கள்?`;
     default:
-      return `Hi ${name}. Thank you for joining today. How are you doing?`;
+      return `Hi${name ? " " + name : " there"}. I’m ${setup.recruiterName || "Sarah"}${setup.recruiterTitle ? ", " + setup.recruiterTitle : ""}. Thanks for joining today. How are you doing?`;
   }
 }
 
@@ -1802,7 +1802,7 @@ function buildLocalizedIntroQuestion(setup: InterviewSetup) {
     case "ta-IN":
       return `சரி. உங்கள் CV மற்றும் ${role} பொறுப்பை பார்த்தேன். ஆரம்பமாக, உங்களைச் சுருக்கமாக அறிமுகப்படுத்தி, உங்கள் அனுபவம் இந்த வாய்ப்புடன் எப்படி தொடர்புடையது என்பதை சொல்ல முடியுமா?`;
     default:
-      return `Great. I had a chance to review your resume and the ${role} role. To get started, could you briefly introduce yourself and explain how your experience connects to this opportunity?`;
+      return `Great. I’ve had a look at your background, and I can see you’re targeting a ${role} position. Tell me about yourself — what you’ve been doing and what’s driving you toward this direction.`;
   }
 }
 
@@ -2788,6 +2788,8 @@ function cleanRecruiterFinalText(text: string, setup: InterviewSetup) {
   return cleanVisibleTranscriptText(text)
     .replace(/\bMichel,?\s*/gi, "")
     .replace(/\bthe first few time,?\s*/gi, "")
+    // Hard-block the old robotic metric prompt if any legacy assistant still emits it.
+    .replace(/Give me one concrete metric or proof point:\s*time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result\.?/gi, "That gives me some useful context. Let me go one level deeper: what did you personally decide or change, and what happened after that?")
     .replace(/\bwe'll be in touch soon.*$/i, `we'll be in touch soon. Have a great day, ${firstName}.`)
     .replace(/\bthanks for your time.*$/i, `Thank you for your time, ${firstName}. We'll be in touch soon. Have a great day.`)
     .trim();
@@ -3065,8 +3067,36 @@ function setupRefSafeFallback(): InterviewSetup {
 }
 
 
+function removeRepeatedSpeechChunks(value: string) {
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+
+  // Vapi/STT sometimes returns the same final utterance twice:
+  // "I'm good how are you I'm good how are you".
+  // Remove exact repeated halves without changing normal answers.
+  const words = cleaned.split(" ").filter(Boolean);
+  if (words.length >= 6 && words.length % 2 === 0) {
+    const half = words.length / 2;
+    const first = words.slice(0, half).join(" ").toLowerCase();
+    const second = words.slice(half).join(" ").toLowerCase();
+    if (first === second) return words.slice(0, half).join(" ");
+  }
+
+  // Remove repeated short phrase at the end, but only when the repeated phrase
+  // is long enough to be accidental duplication, not natural emphasis.
+  for (let size = Math.min(14, Math.floor(words.length / 2)); size >= 4; size -= 1) {
+    const tail = words.slice(-size).join(" ").toLowerCase();
+    const beforeTail = words.slice(-size * 2, -size).join(" ").toLowerCase();
+    if (tail && tail === beforeTail) {
+      return words.slice(0, -size).join(" ").trim();
+    }
+  }
+
+  return cleaned;
+}
+
 function cleanVisibleTranscriptText(text: string) {
-  return text
+  return removeRepeatedSpeechChunks(text)
     .replace(/\s+/g, " ")
     .replace(/\bhigh\s+/i, "Hi ")
     // Founder-specific STT corrections removed — do not add personal names here
@@ -3505,6 +3535,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
   // Stores the currently playing TTS Audio element so the user can interrupt
   // the recruiter mid-speech by tapping the new stop button.
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  // V2 recruiter memory — persists competency tracker, concern resolution,
+  // topic progression, and JD gaps across every turn of the interview.
+  const recruiterMemoryV2Ref = useRef<unknown>(null);
   const vapiConnectedRef = useRef(false);
   const vapiStartingRef = useRef(false);
   const vapiFallbackStartedRef = useRef(false);
@@ -3861,7 +3894,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
               ? { codeSnapshot: codeSnapshotRef.current, codeLanguage: codeLanguageRef.current }
               : {}),
             signals: {
-              contradiction: undefined, // contradiction detection lives in workzoRecruiterIntelligenceV2; kept out here to avoid duplicating that import chain for this first pass
+              contradiction: undefined,
               unsupportedClaim: unsupportedReason || undefined,
               missingMetric: !signalAnalysis.metric,
               missingOwnership: !signalAnalysis.ownership,
@@ -3869,12 +3902,19 @@ const [questionIndex, setQuestionIndex] = useState(0);
               trust: recruiterSignalRef.current?.trust,
               interest: recruiterSignalRef.current?.interest,
             },
+            // V2 memory from previous turn — enables all P2-P6 intelligence to
+            // persist across the interview instead of resetting to zero each turn.
+            recruiterMemoryV2: recruiterMemoryV2Ref.current || undefined,
           }),
         });
 
         const data = await response.json().catch(() => null);
 
         if (response.ok && data?.success && typeof data.reply === "string" && data.reply.trim()) {
+          // Persist V2 memory for next turn — this closes the memory loop.
+          if (data.recruiterMemoryV2) {
+            recruiterMemoryV2Ref.current = data.recruiterMemoryV2;
+          }
           return data.reply.trim();
         }
 
@@ -4624,8 +4664,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
         });
 
         const variableValues = buildWorkZoVapiVariableValues({
-          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildOpeningFlowInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. Do not repeat a follow-up that was already asked. If the CV role and target role are different, explore why the candidate is switching and what proof shows readiness before asking for impact numbers. If the candidate gives a qualitative outcome such as CSAT, customer satisfaction, repeat customers, fewer escalations, or faster resolution, accept it as evidence and move to the next relevant topic. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. If {candidateName} is "there" or not a real first name, do not use a name in the closing; say: 'Thank you for your time. We will be in touch soon. Have a great day.' Otherwise end only with: 'Thank you for your time, {candidateName}. We will be in touch soon. Have a great day.'`,
-          strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. Do not repeat the same follow-up twice.`,
+          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildOpeningFlowInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. ABSOLUTE BAN: never say the sentence "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." Do not ask for metrics immediately after a weak or unclear answer. If the candidate already gave a number, latency improvement, CSAT, customer satisfaction, or before/after outcome, accept that as evidence and move to technical depth, ownership, stakeholder handling, or role-fit. Do not repeat a follow-up that was already asked. If the candidate's last answer was unclear or off-topic, ask a clarification about that answer; do not fall back to the generic metric question. If the CV role and target role are different, explore why the candidate is switching and what proof shows readiness before asking for impact numbers. If the candidate gives a qualitative outcome such as CSAT, customer satisfaction, repeat customers, fewer escalations, or faster resolution, accept it as evidence and move to the next relevant topic. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. If {candidateName} is "there" or not a real first name, do not use a name in the closing; say: 'Thank you for your time. We will be in touch soon. Have a great day.' Otherwise end only with: 'Thank you for your time, {candidateName}. We will be in touch soon. Have a great day.'`,
+          strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. ABSOLUTE BAN: never say the sentence "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." Do not ask for metrics immediately after a weak or unclear answer. If the candidate already gave a number, latency improvement, CSAT, customer satisfaction, or before/after outcome, accept that as evidence and move to technical depth, ownership, stakeholder handling, or role-fit. Do not repeat the same follow-up twice.`,
           recruiterMustChallengeUnsupportedClaims: "true",
           antiHallucinationMode: "strict",
           candidateName: safePromptCandidateName(activeSetup.candidateName),
