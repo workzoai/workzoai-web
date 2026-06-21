@@ -26,7 +26,7 @@ export default function ResourcesPage() {
 
         <section className="mt-10 text-center">
           <p className="text-xs font-black uppercase tracking-[0.28em] text-cyan-200">Resources</p>
-          <h1 className="mt-4 text-4xl font-black tracking-[-0.04em] sm:text-6xl">Everything you need to understand WorkZo AI.</h1>
+          <h1 className="mt-4 text-4xl font-black tracking-[-0.04em] sm:text-4xl">Everything you need to understand WorkZo AI.</h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-300">
             Product information, support, legal pages, updates, and launch resources in one place.
           </p>
@@ -36,8 +36,8 @@ export default function ResourcesPage() {
           {resources.map((item) => {
             const Icon = item.icon;
             return (
-              <Link key={item.href} href={item.href} className="group rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 transition hover:-translate-y-1 hover:border-blue-300/30 hover:bg-white/[0.07]">
-                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-500/10 text-blue-200">
+              <Link key={item.href} href={item.href} className="group rounded-lg border border-white/10 bg-white/[0.04] p-6 transition hover:-translate-y-1 hover:border-blue-300/30 hover:bg-white/[0.07]">
+                <div className="grid h-12 w-12 place-items-center rounded-lg bg-blue-500/10 text-blue-200">
                   <Icon className="h-6 w-6" />
                 </div>
                 <h2 className="mt-5 text-xl font-black">{item.title}</h2>

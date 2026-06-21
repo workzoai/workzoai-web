@@ -248,7 +248,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
         .map(r => r.split("|").slice(1, -1).map(c => c.trim()));
       if (rows.length > 0) {
         nodes.push(
-          <div key={`tbl-${tableKey}`} className="my-3 overflow-x-auto rounded-2xl border border-white/10 text-[12px]">
+          <div key={`tbl-${tableKey}`} className="my-3 overflow-x-auto rounded-lg border border-white/10 text-[12px]">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-white/[0.06]">
@@ -585,7 +585,7 @@ export default function WorkOBotCopilotPage() {
             {isEmpty ? (
               <div className="mx-auto max-w-2xl">
                 <div className="mb-8 text-center">
-                  <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_40px_rgba(34,211,238,0.3)]">
+                  <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_40px_rgba(34,211,238,0.3)]">
                     <Bot className="h-8 w-8" />
                   </div>
                   <h1 className="text-2xl font-black">Ask Work-O-Bot anything</h1>
@@ -597,7 +597,7 @@ export default function WorkOBotCopilotPage() {
                 <div className="grid gap-2 sm:grid-cols-2">
                   {SUGGESTIONS.map(({ label, action }) => (
                     <button key={label} type="button" onClick={() => void send(label, action)}
-                      className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-left text-sm text-slate-300 transition hover:border-cyan-300/25 hover:bg-cyan-400/[0.06] hover:text-white">
+                      className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-left text-sm text-slate-300 transition hover:border-cyan-300/25 hover:bg-cyan-400/[0.06] hover:text-white">
                       {label}
                     </button>
                   ))}
@@ -616,7 +616,7 @@ export default function WorkOBotCopilotPage() {
                     <div className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${msg.role === "user" ? "bg-white/[0.08]" : "bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_16px_rgba(34,211,238,0.25)]"}`}>
                       {msg.role === "user" ? <User className="h-4 w-4 text-slate-300" /> : <Bot className="h-4 w-4 text-white" />}
                     </div>
-                    <div className={`max-w-[85%] rounded-3xl px-4 py-3 ${msg.role === "user" ? "rounded-tr-md bg-cyan-400/15 text-sm leading-6 text-cyan-50 whitespace-pre-line" : "rounded-tl-md border border-white/[0.07] bg-white/[0.04]"}`}>
+                    <div className={`max-w-[85%] rounded-xl px-4 py-3 ${msg.role === "user" ? "rounded-tr-md bg-cyan-400/15 text-sm leading-6 text-cyan-50 whitespace-pre-line" : "rounded-tl-md border border-white/[0.07] bg-white/[0.04]"}`}>
                       {msg.role === "user"
                         ? msg.content
                         : <div className="space-y-0.5">{renderMarkdown(msg.content)}</div>
@@ -629,7 +629,7 @@ export default function WorkOBotCopilotPage() {
                     <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_16px_rgba(34,211,238,0.25)]">
                       <Bot className="h-4 w-4 text-white" />
                     </div>
-                    <div className="flex items-center gap-2 rounded-3xl rounded-tl-md border border-white/[0.07] bg-white/[0.04] px-4 py-3 text-sm text-slate-400">
+                    <div className="flex items-center gap-2 rounded-xl rounded-tl-md border border-white/[0.07] bg-white/[0.04] px-4 py-3 text-sm text-slate-400">
                       <Loader2 className="h-4 w-4 animate-spin text-cyan-300" />Thinking…
                     </div>
                   </div>
@@ -651,12 +651,12 @@ export default function WorkOBotCopilotPage() {
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(input); } }}
                     placeholder="Ask anything about your career, CV, interviews, salary, applications…"
                     rows={1}
-                    className="max-h-36 min-h-[52px] w-full resize-none rounded-2xl border border-white/[0.10] bg-white/[0.05] px-4 py-3.5 pr-10 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/35 focus:bg-white/[0.07]"
+                    className="max-h-36 min-h-[52px] w-full resize-none rounded-lg border border-white/[0.10] bg-white/[0.05] px-4 py-3.5 pr-10 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/35 focus:bg-white/[0.07]"
                   />
                   <Sparkles className="absolute bottom-4 right-3 h-3.5 w-3.5 text-slate-700" />
                 </div>
                 <button type="button" onClick={() => void send(input)} disabled={loading || !input.trim()}
-                  className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 text-white shadow-[0_8px_30px_rgba(14,165,233,0.3)] transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-40">
+                  className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-lg bg-gradient-to-r from-blue-500 to-cyan-400 text-white shadow-[0_8px_30px_rgba(14,165,233,0.3)] transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-40">
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                 </button>
               </div>

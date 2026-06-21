@@ -50,6 +50,21 @@ function clean(value: unknown) {
   return normalizeResumeText(value).replace(/\s+/g, " ").trim();
 }
 
+// Collapse decorative letter-spacing artifacts from stylized PDF fonts.
+// "H A R I T H A" → "HARITHA"  |  "I T - S u p p o r t" → "IT-Support"
+function collapseLetterSpacing(value: string): string {
+  // Pattern: single chars separated by spaces, covering at least 4 chars
+  // Works on both ALL-CAPS and mixed-case spaced names/headlines
+  return value.replace(/\b([A-Za-zÄÖÜäöüß])(?:\s+([A-Za-zÄÖÜäöüß-]))+\b/g, (match) => {
+    // Only collapse if EVERY token in the match is 1-2 chars (single letter or hyphen)
+    const tokens = match.split(/\s+/);
+    if (tokens.every(t => t.length <= 2) && tokens.length >= 4) {
+      return tokens.join("").replace(/-+/g, "-");
+    }
+    return match;
+  });
+}
+
 function asList(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(clean).filter(Boolean);
   if (typeof value === "string") {
@@ -92,6 +107,20 @@ function normalizeForCompare(value: string) {
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// Normalize date strings across languages.
+// "AUG 2022 - HEUTE" → "Aug 2022 - Present"
+// "bis heute" → "Present"  |  "heute" → "Present"
+function normalizeDateString(value: string): string {
+  return value
+    .replace(/\bheute\b/gi, "Present")
+    .replace(/\bbis heute\b/gi, "Present")
+    .replace(/\bactualmente\b/gi, "Present")
+    .replace(/\bheden\b/gi, "Present")
+    .replace(/\bjetzt\b/gi, "Present")
+    .replace(/\baktiv\b/gi, "Present")
+    .replace(/\bpresente\b/gi, "Present");
 }
 
 // ── Deduplicate skills ──────────────────────────────────────────────────────
@@ -356,6 +385,16 @@ export function extractBestCandidateName(rawText: string, fileName = "", modelNa
   return ranked[0]?.score >= 8 ? ranked[0].name : "";
 }
 
+const LOREM_IPSUM_RE = /\blorem\s+ipsum\b/i;
+
+function isLoremIpsum(text: string): boolean {
+  return LOREM_IPSUM_RE.test(text);
+}
+
+function filterLoremBullets(bullets: string[]): string[] {
+  return bullets.filter(b => !isLoremIpsum(b));
+}
+
 function coerceExperience(items: unknown): ResumeExperience[] {
   if (!Array.isArray(items)) return [];
   return items
@@ -364,8 +403,8 @@ function coerceExperience(items: unknown): ResumeExperience[] {
       title: clean(item.title),
       company: clean(item.company),
       location: clean(item.location),
-      dates: clean(item.dates),
-      bullets: unique(asList(item.bullets), 8),
+      dates: normalizeDateString(clean(item.dates)),
+      bullets: filterLoremBullets(unique(asList(item.bullets), 8)),
     }))
     .filter((item) => item.title || item.company || item.bullets.length)
     .slice(0, 10);
@@ -374,14 +413,26 @@ function coerceExperience(items: unknown): ResumeExperience[] {
 // ── Sort education by start year descending ────────────────────────────────
 // Normalises non-deterministic AI ordering; most-recent first is standard CV order.
 function sortEducationByDate(items: ResumeEducation[]): ResumeEducation[] {
-  return [...items].sort((a, b) => {
-    const yearA = String(a.dates || "").match(/\b(19|20)\d{2}\b/)?.[0];
-    const yearB = String(b.dates || "").match(/\b(19|20)\d{2}\b/)?.[0];
-    if (!yearA && !yearB) return 0;
-    if (!yearA) return 1;
-    if (!yearB) return -1;
-    return Number(yearB) - Number(yearA);
-  });
+  const currentYear = new Date().getFullYear();
+  return [...items]
+    .map((item) => {
+      // Flag clearly future end dates — likely template placeholder dates
+      const years = String(item.dates || "").match(/\b(19|20)\d{2}\b/g) || [];
+      const endYear = years.length > 1 ? Number(years[years.length - 1]) : Number(years[0] || 0);
+      if (endYear > currentYear + 1 && endYear < 2100) {
+        // Preserve the data but mark it — AI prompt will also add a warning
+        return { ...item, dates: `${item.dates} [date unverified]` };
+      }
+      return item;
+    })
+    .sort((a, b) => {
+      const yearA = String(a.dates || "").match(/\b(19|20)\d{2}\b/)?.[0];
+      const yearB = String(b.dates || "").match(/\b(19|20)\d{2}\b/)?.[0];
+      if (!yearA && !yearB) return 0;
+      if (!yearA) return 1;
+      if (!yearB) return -1;
+      return Number(yearB) - Number(yearA);
+    });
 }
 
 function coerceEducation(items: unknown): ResumeEducation[] {
@@ -452,7 +503,19 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
   const projects = coerceProjects(ai.projects);
 
   // Deduplicate skills before storing — avoids "Python", "python", "Microsoft Excel", "Excel" duplicates
-  const rawSkills = unique(asList(ai.skills), 40).filter((s) => !SECTION_HEADER_RE.test(s));
+  // Also strip category prefixes like "3D CAD Tools: CREO" → "CREO", "Programming: Python" → "Python"
+  const rawSkills = unique(asList(ai.skills), 40)
+    .filter((s) => !SECTION_HEADER_RE.test(s))
+    .map((s) => {
+      const colonIdx = s.indexOf(":");
+      if (colonIdx > 0 && colonIdx < s.length - 1) {
+        const prefix = s.slice(0, colonIdx).trim();
+        const value = s.slice(colonIdx + 1).trim();
+        // Only strip if prefix looks like a category (short, no numbers) and value is the real skill
+        if (prefix.length <= 30 && value.length >= 2 && !/\d/.test(prefix)) return value;
+      }
+      return s;
+    });
   const skills = deduplicateSkills(rawSkills);
 
   const languages = unique(asList(ai.languages), 12);
@@ -463,7 +526,7 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
     rawText,
     basics: {
       name: clean(basics.name),
-      headline: clean(basics.headline) || experience[0]?.title || fallback.basics?.headline || "Professional",
+      headline: collapseLetterSpacing(clean(basics.headline)) || experience[0]?.title || fallback.basics?.headline || "Professional",
       // Clean email immediately at construction — never let a concatenated email through
       email: cleanEmailField(clean(basics.email) || fallback.basics?.email || extractEmail(rawText)),
       phone: clean(basics.phone) || fallback.basics?.phone || "",
@@ -548,6 +611,28 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "You are a professional CV parser for WorkZo AI.",
             "Return ONLY valid JSON. Do not write markdown.",
             "Extract facts exactly from the CV. Do not invent anything.",
+            "",
+            "HEADLINE: basics.headline MUST be the candidate's job title or professional title (e.g. 'Junior Data Scientist', 'Senior Product Manager', 'IT Support Specialist').",
+            "NEVER put the summary/profile text in basics.headline. The headline is a SHORT title, not a sentence.",
+            "",
+            "SKILLS: Extract ONLY the candidate's own skills from the Skills/Expertise section.",
+            "NEVER include skills from References, Certifications, or template boilerplate sections.",
+            "If skill entries have a category prefix like '3D CAD Tools: CREO' or 'Programming: Python, SQL', extract each tool as a separate skill: ['CREO', 'Python', 'SQL'].",
+            "If the skills section is empty but competencies appear in the header/summary, extract them as skills.",
+            "",
+            "CERTIFICATIONS: Always extract certifications into the certifications[] array (not skills[]).",
+            "Look for certification sections, 'Awards and Certification', 'Qualifications', etc.",
+            "",
+            "LINKEDIN: Extract the FULL LinkedIn URL from the CV. Never truncate it.",
+            "The full URL format is: linkedin.com/in/[full-username] — include the complete username.",
+            "",
+            "DATES: Translate all non-English date words to English.",
+            "Examples: 'HEUTE' → 'Present', 'heute' → 'Present', 'bis heute' → 'Present', 'présent' → 'Present'.",
+            "If experience dates look like future dates (year > current year + 1), include them as-is but add a warning.",
+            "",
+            "TEMPLATE DETECTION: If a CV contains 'Lorem ipsum' placeholder text in bullets, set those bullets to [] and add a warning: 'Template CV: placeholder text detected in experience bullets.'",
+            "",
+            "WARNINGS: Use the warnings[] array to flag: template/Lorem ipsum content, future dates, missing required fields, or data quality concerns.",
             "",
             "CRITICAL — basics.name MUST be a real human person's full name (first + last).",
             "NEVER put any of the following in basics.name:",

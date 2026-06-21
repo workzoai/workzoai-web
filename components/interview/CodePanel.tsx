@@ -25,7 +25,7 @@ export default function CodePanel({ onCodeChange }: CodePanelProps) {
   }
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-[#0d1117] overflow-hidden">
+    <div className="flex h-full flex-col rounded-lg border border-white/10 bg-[#0d1117] overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
         <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">

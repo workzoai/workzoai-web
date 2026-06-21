@@ -105,7 +105,7 @@ export default function DevToolsPage() {
           touches Stripe or the database.
         </p>
 
-        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-sm">
+        <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.04] p-5 text-sm">
           <p className="text-slate-400">
             Signed in as{" "}
             <span className="font-bold text-white">
@@ -134,7 +134,7 @@ export default function DevToolsPage() {
               <button
                 key={plan}
                 onClick={() => applyOverride(plan)}
-                className={`rounded-2xl border px-5 py-4 text-left transition ${
+                className={`rounded-lg border px-5 py-4 text-left transition ${
                   active
                     ? "border-violet-400 bg-violet-500/15"
                     : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
@@ -153,7 +153,7 @@ export default function DevToolsPage() {
 
           <button
             onClick={clearOverride}
-            className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white"
+            className="rounded-lg border border-white/10 px-5 py-3 text-sm font-bold text-slate-300 hover:bg-white/[0.06] hover:text-white"
           >
             Clear override (use real plan)
           </button>
@@ -162,19 +162,19 @@ export default function DevToolsPage() {
         <div className="mt-8 flex gap-3">
           <Link
             href="/dashboard"
-            className="inline-flex items-center justify-center rounded-2xl border border-white/10 px-5 py-3 text-sm font-black text-slate-300 hover:bg-white/[0.06] hover:text-white"
+            className="inline-flex items-center justify-center rounded-lg border border-white/10 px-5 py-3 text-sm font-black text-slate-300 hover:bg-white/[0.06] hover:text-white"
           >
             Go to dashboard
           </Link>
           <Link
             href="/founder-dashboard"
-            className="inline-flex items-center justify-center rounded-2xl border border-white/10 px-5 py-3 text-sm font-black text-slate-300 hover:bg-white/[0.06] hover:text-white"
+            className="inline-flex items-center justify-center rounded-lg border border-white/10 px-5 py-3 text-sm font-black text-slate-300 hover:bg-white/[0.06] hover:text-white"
           >
             Founder dashboard
           </Link>
           <Link
             href="/founder/analytics"
-            className="inline-flex items-center justify-center rounded-2xl border border-white/10 px-5 py-3 text-sm font-black text-slate-300 hover:bg-white/[0.06] hover:text-white"
+            className="inline-flex items-center justify-center rounded-lg border border-white/10 px-5 py-3 text-sm font-black text-slate-300 hover:bg-white/[0.06] hover:text-white"
           >
             Analytics
           </Link>
@@ -206,7 +206,7 @@ export default function DevToolsPage() {
                 key={page.href}
                 href={page.href}
                 target="_blank"
-                className={`rounded-2xl border p-4 transition hover:bg-white/[0.06] ${
+                className={`rounded-lg border p-4 transition hover:bg-white/[0.06] ${
                   allowed
                     ? "border-emerald-400/25 bg-emerald-400/[0.06]"
                     : "border-amber-400/25 bg-amber-400/[0.06]"
@@ -229,7 +229,7 @@ export default function DevToolsPage() {
           })}
         </div>
 
-        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-xs leading-5 text-slate-400">
+        <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-xs leading-5 text-slate-400">
           <p className="font-black text-slate-300">Plan matrix reference</p>
           <p className="mt-2">
             Free → Premium → Premium Pro is the upgrade order. A page&apos;s

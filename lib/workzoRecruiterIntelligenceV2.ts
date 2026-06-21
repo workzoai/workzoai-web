@@ -587,7 +587,7 @@ function buildTopicQuestion(topic: CompetencyId, setup: RecruiterIntelligenceSet
       return `What specifically attracted you to ${target}, and what would make this role a step forward for you rather than just a lateral move?`;
 
     case "closing":
-      return `We're coming toward the end of our time. Is there anything about your background or experience that you feel we haven't covered that would be important for me to know?`;
+      return `We're coming toward the end of our time. Before we wrap up — do you have any questions for me about the role, the team, or what happens next?`;
 
     default:
       return `Let's go deeper. Take me through one specific situation that is most relevant to ${target} — what happened, what you did, and what changed.`;

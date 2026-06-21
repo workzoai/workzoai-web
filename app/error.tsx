@@ -24,7 +24,7 @@ export default function GlobalError({
           Your progress is safe. You can continue the interview or restart safely.
         </p>
 
-        <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-slate-500">
+        <p className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-xs leading-5 text-slate-500">
           {error?.message || "Unexpected app error"}
         </p>
 
@@ -32,14 +32,14 @@ export default function GlobalError({
           <button
             type="button"
             onClick={() => reset()}
-            className="flex-1 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 px-5 py-4 text-sm font-black"
+            className="flex-1 rounded-lg bg-gradient-to-r from-blue-500 to-violet-600 px-5 py-4 text-sm font-black"
           >
             Retry Session
           </button>
 
           <Link
             href="/dashboard"
-            className="flex-1 rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-sm font-black"
+            className="flex-1 rounded-lg border border-white/10 bg-white/[0.05] px-5 py-4 text-sm font-black"
           >
             Return to Dashboard
           </Link>

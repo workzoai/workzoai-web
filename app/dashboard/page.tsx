@@ -93,9 +93,9 @@ const PREMIUM_ACTIONS: DashboardActionCard[] = [
 
 const PRO_ACTIONS: DashboardActionCard[] = [
   { title: "Start Pro interview", detail: "Unlimited · Vapi AI voice · premium recruiter personas", href: "/interview?mode=pro", icon: Mic, cta: "Start interview", accent: "violet" },
-  { title: "Live AI Recruiter", detail: "60 min/month · face-to-face video · Tavus-powered", href: "/onboarding?mode=tavus", icon: Video, cta: "Start video session", accent: "blue" },
+  { title: "Live AI Recruiter", detail: "60 min/month · face-to-face video · Tavus-powered", href: "/onboarding?mode=tavus", icon: Video, cta: "Start video session", accent: "violet" },
   { title: "Improve CV", detail: "ATS keyword gap, scoring, and job-specific targeting", href: "/cv", icon: FileText, cta: "Open CV tools", accent: "emerald" },
-  { title: "Cover Letter", detail: "AI-generated, CV-aware, role-specific in seconds", href: "/cover-letter", icon: Mail, cta: "Generate letter", accent: "violet" },
+  { title: "Cover Letter", detail: "AI-generated, CV-aware, role-specific in seconds", href: "/cover-letter", icon: Mail, cta: "Generate letter", accent: "cyan" },
   { title: "Job Assist", detail: "Fit score, gaps, likely questions — per job listing", href: "/jobs", icon: Briefcase, cta: "Browse jobs", accent: "amber" },
   { title: "Interview history", detail: "Unlimited sessions · cross-session pattern tracking", href: "/history", icon: History, cta: "View history", accent: "slate" },
 ];
@@ -213,7 +213,7 @@ export default function DashboardPage() {
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="fixed left-4 top-4 z-40 grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-[#07111f]/90 lg:hidden"
+        className="fixed left-4 top-4 z-40 grid h-11 w-11 place-items-center rounded-lg border border-white/10 bg-[#07111f]/90 lg:hidden"
         aria-label="Open menu"
       >
         <Menu className="h-5 w-5" />
@@ -252,7 +252,7 @@ export default function DashboardPage() {
           <Link
             href={dashboardMode.ctaHref}
             className={cn(
-              "inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-black transition hover:scale-[1.02]",
+              "inline-flex shrink-0 items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-black transition hover:scale-[1.02]",
               plan === "premium_pro" ? "bg-violet-500 text-white shadow-lg shadow-violet-500/20 hover:bg-violet-400"
               : plan === "premium" ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400"
               : "bg-white text-slate-950 hover:bg-blue-50"
@@ -266,7 +266,7 @@ export default function DashboardPage() {
         {/* ── Usage metrics ── */}
         <section className="mt-6 grid gap-4 sm:grid-cols-3">
           {/* Interviews */}
-          <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.035] p-5">
+          <div className="rounded-xl border border-white/10 bg-white/[0.035] p-5">
             <div className="flex items-start justify-between">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-500/15">
                 <Mic className="h-5 w-5 text-blue-300" />
@@ -291,12 +291,13 @@ export default function DashboardPage() {
           </div>
 
           {/* Live AI Recruiter / Tavus */}
-          <div className={cn("rounded-[1.5rem] border p-5", limits.tavus ? "border-violet-300/20 bg-violet-500/[0.06]" : "border-white/10 bg-white/[0.035]")}>
+          <div className={cn("rounded-xl border p-5", limits.tavus ? "border-violet-300/20 bg-violet-500/[0.06]" : plan === "premium" ? "border-violet-300/15 bg-violet-500/[0.04]" : "border-white/10 bg-white/[0.035]")}>
             <div className="flex items-start justify-between">
-              <div className={cn("grid h-10 w-10 place-items-center rounded-xl", limits.tavus ? "bg-violet-500/15" : "bg-white/[0.05]")}>
-                <Video className={cn("h-5 w-5", limits.tavus ? "text-violet-300" : "text-slate-600")} />
+              <div className={cn("grid h-10 w-10 place-items-center rounded-xl", limits.tavus ? "bg-violet-500/15" : plan === "premium" ? "bg-violet-500/10" : "bg-white/[0.05]")}>
+                <Video className={cn("h-5 w-5", limits.tavus ? "text-violet-300" : plan === "premium" ? "text-violet-400/60" : "text-slate-600")} />
               </div>
-              {!limits.tavus && <Lock className="h-4 w-4 text-slate-600" />}
+              {!limits.tavus && plan === "premium" && <span className="rounded-full border border-violet-300/20 bg-violet-500/10 px-2 py-0.5 text-[10px] font-black text-violet-300">Pro only</span>}
+              {!limits.tavus && plan === "free" && <Lock className="h-4 w-4 text-slate-600" />}
             </div>
             <p className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Live AI Recruiter</p>
             {limits.tavus ? (
@@ -306,6 +307,14 @@ export default function DashboardPage() {
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
                   <div className="h-full rounded-full bg-violet-500 transition-all" style={{ width: `${Math.min(100, (tavusUsed / tavusTotal) * 100)}%` }} />
                 </div>
+              </>
+            ) : plan === "premium" ? (
+              <>
+                <p className="mt-1.5 text-xl font-black text-violet-300/70">Face-to-face AI interviews</p>
+                <p className="mt-1 text-sm text-slate-500">60 min/month with Premium Pro</p>
+                <Link href="/pricing?plan=premium_pro" className="mt-3 inline-flex items-center gap-1 text-xs font-black text-violet-300 hover:text-violet-200">
+                  Upgrade to Pro to unlock <ChevronRight className="h-3 w-3" />
+                </Link>
               </>
             ) : (
               <>
@@ -319,24 +328,43 @@ export default function DashboardPage() {
           </div>
 
           {/* Career support level */}
-          <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.035] p-5">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-500/15">
-              <BrainCircuit className="h-5 w-5 text-emerald-300" />
+          <div className={cn(
+            "rounded-xl border p-5",
+            limits.careerCoach ? "border-violet-300/20 bg-violet-500/[0.06]"
+            : limits.careerBrain ? "border-emerald-300/15 bg-emerald-500/[0.04]"
+            : "border-white/10 bg-white/[0.035]"
+          )}>
+            <div className={cn(
+              "grid h-10 w-10 place-items-center rounded-xl",
+              limits.careerCoach ? "bg-violet-500/15" : limits.careerBrain ? "bg-emerald-500/15" : "bg-white/[0.05]"
+            )}>
+              <BrainCircuit className={cn(
+                "h-5 w-5",
+                limits.careerCoach ? "text-violet-300" : limits.careerBrain ? "text-emerald-300" : "text-slate-600"
+              )} />
             </div>
             <p className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Career support</p>
-            <p className="mt-1.5 text-xl font-black text-white">
+            <p className={cn(
+              "mt-1.5 text-xl font-black",
+              limits.careerCoach ? "text-violet-100" : limits.careerBrain ? "text-emerald-100" : "text-slate-400"
+            )}>
               {limits.careerCoach ? "AI Coach + Roadmaps" : limits.careerBrain ? "Career Brain active" : "Interview trial"}
             </p>
             <p className="mt-1 text-sm text-slate-400">
               {limits.careerCoach ? "Priorities, roadmaps, replay" : limits.careerBrain ? "Cross-session memory" : "Basic report included"}
             </p>
+            {!limits.careerBrain && (
+              <Link href="/pricing?plan=premium" className="mt-3 inline-flex items-center gap-1 text-xs font-black text-blue-300 hover:text-blue-200">
+                Unlock with Premium <ChevronRight className="h-3 w-3" />
+              </Link>
+            )}
           </div>
         </section>
 
         {/* ── Upgrade nudge — only for non-Pro ── */}
         {plan !== "premium_pro" && (
           <section className={cn(
-            "mt-5 rounded-[1.5rem] border p-5",
+            "mt-5 rounded-xl border p-5",
             plan === "free" ? "border-blue-300/20 bg-blue-500/[0.07]" : "border-violet-300/20 bg-violet-500/[0.07]"
           )}>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -355,7 +383,7 @@ export default function DashboardPage() {
                     : ["Unlimited interviews", "60 Live AI Recruiter min", "7 Pro personas", "AI Career Coach", "Career roadmaps"]
                   ).map((item) => (
                     <span key={item} className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-xs font-bold text-slate-300">
-                      <Sparkles className="h-3 w-3 text-blue-300" />{item}
+                      <Sparkles className={cn("h-3 w-3", plan === "free" ? "text-blue-300" : "text-violet-300")} />{item}
                     </span>
                   ))}
                 </div>
@@ -363,7 +391,7 @@ export default function DashboardPage() {
               <Link
                 href={plan === "free" ? "/pricing?plan=premium" : "/pricing?plan=premium_pro"}
                 className={cn(
-                  "inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-black text-white",
+                  "inline-flex shrink-0 items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-black text-white",
                   plan === "free" ? "bg-blue-500 hover:bg-blue-400" : "bg-violet-500 hover:bg-violet-400"
                 )}
               >
@@ -375,18 +403,27 @@ export default function DashboardPage() {
 
         {/* ── Action cards — plan-specific, all clickable ── */}
         <section className="mt-7">
-          <p className="mb-4 text-xs font-black uppercase tracking-[0.22em] text-slate-500">Your tools</p>
+          <div className="mb-4 flex items-center gap-3">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Your tools</p>
+            {plan === "premium_pro" && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-violet-300/25 bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-black text-violet-300">
+                <Star className="h-3 w-3" /> Pro
+              </span>
+            )}
+          </div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {actionCards.map((card) => {
               const Icon = card.icon;
               const isLocked = "locked" in card && card.locked;
               const accentKey = card.accent;
+              // Pro-exclusive cards (first 2 in PRO_ACTIONS)
+              const isProExclusive = plan === "premium_pro" && (card.title === "Start Pro interview" || card.title === "Live AI Recruiter");
 
               return isLocked ? (
                 <Link
                   key={card.title}
                   href={`/pricing?plan=${card.requiredPlan ?? "premium"}`}
-                  className="group rounded-[1.5rem] border border-white/[0.06] bg-white/[0.02] p-5 transition hover:bg-white/[0.04]"
+                  className="group rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 transition hover:bg-white/[0.04]"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="grid h-11 w-11 place-items-center rounded-xl bg-white/[0.04] text-slate-600">
@@ -404,13 +441,26 @@ export default function DashboardPage() {
                 <Link
                   key={card.title}
                   href={card.href}
-                  className={cn("group rounded-[1.5rem] border p-5 transition hover:scale-[1.01]", ACCENT_STYLES[accentKey] || ACCENT_STYLES.slate)}
+                  className={cn(
+                    "group rounded-xl border p-5 transition hover:scale-[1.01]",
+                    isProExclusive
+                      ? "border-violet-400/40 bg-violet-500/[0.08] text-violet-200 shadow-sm shadow-violet-500/10"
+                      : ACCENT_STYLES[accentKey] || ACCENT_STYLES.slate
+                  )}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className={cn("grid h-11 w-11 place-items-center rounded-xl", ICON_ACCENT[accentKey] || ICON_ACCENT.slate)}>
+                    <div className={cn(
+                      "grid h-11 w-11 place-items-center rounded-xl",
+                      isProExclusive ? "bg-violet-500/20 text-violet-200" : ICON_ACCENT[accentKey] || ICON_ACCENT.slate
+                    )}>
                       <Icon className="h-5 w-5" />
                     </div>
-                    <ArrowRight className="h-4 w-4 opacity-40 transition group-hover:opacity-100" />
+                    <div className="flex items-center gap-2">
+                      {isProExclusive && (
+                        <span className="rounded-full border border-violet-300/30 bg-violet-500/15 px-2 py-0.5 text-[10px] font-black text-violet-300">PRO</span>
+                      )}
+                      <ArrowRight className="h-4 w-4 opacity-40 transition group-hover:opacity-100" />
+                    </div>
                   </div>
                   <h3 className="mt-4 text-base font-black text-white">{card.title}</h3>
                   <p className="mt-1.5 text-sm leading-5 text-slate-400">{card.detail}</p>
@@ -425,7 +475,7 @@ export default function DashboardPage() {
 
         {/* ── Plan includes — what you have right now ── */}
         <section className="mt-8 grid gap-5 lg:grid-cols-2">
-          <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.035] p-6">
+          <div className="rounded-xl border border-white/10 bg-white/[0.035] p-6">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">What your plan includes</p>
             <h2 className="mt-2 text-xl font-black">
               {plan === "premium_pro" ? "Premium Pro features" : plan === "premium" ? "Premium features" : "Free plan features"}
@@ -453,7 +503,7 @@ export default function DashboardPage() {
 
           {/* Quick start guide or Pro tools */}
           {plan === "premium_pro" ? (
-            <div className="rounded-[1.5rem] border border-violet-300/20 bg-violet-500/[0.06] p-6">
+            <div className="rounded-xl border border-violet-300/20 bg-violet-500/[0.06] p-6">
               <p className="text-xs font-black uppercase tracking-[0.22em] text-violet-200">Premium Pro tools</p>
               <h2 className="mt-2 text-xl font-black">Career acceleration tools</h2>
               <p className="mt-2 text-sm leading-6 text-slate-400">These tools make Premium Pro a full career growth platform — not just interview practice.</p>
@@ -464,7 +514,7 @@ export default function DashboardPage() {
                   { Icon: TrendingUp, title: "Career Roadmaps", detail: "30/60/90 day plans based on CV, goals, and patterns", href: "/results#roadmap" },
                   { Icon: PlayCircle, title: "Replay Intelligence", detail: "Best answer, weakest answer, trust drops, missed opportunities", href: "/results#replay" },
                 ].map((tool) => (
-                  <Link key={tool.title} href={tool.href} className="flex items-start gap-3 rounded-2xl border border-white/[0.07] bg-black/20 p-3 transition hover:bg-white/[0.06]">
+                  <Link key={tool.title} href={tool.href} className="flex items-start gap-3 rounded-lg border border-white/[0.07] bg-black/20 p-3 transition hover:bg-white/[0.06]">
                     <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/15 text-violet-200">
                       <tool.Icon className="h-4 w-4" />
                     </div>
@@ -478,7 +528,7 @@ export default function DashboardPage() {
               </div>
             </div>
           ) : (
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.035] p-6">
+            <div className="rounded-xl border border-white/10 bg-white/[0.035] p-6">
               <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Quick start</p>
               <h2 className="mt-2 text-xl font-black">How to get the most out of WorkZo</h2>
               <div className="mt-5 space-y-4">
@@ -491,7 +541,7 @@ export default function DashboardPage() {
                     : [{ step: "4", label: "Upgrade for more", detail: "Premium unlocks 50 interviews, CV tools, Cover Letter, and Job Assist.", href: "/pricing?plan=premium", icon: Sparkles }]
                   ),
                 ].map((step) => (
-                  <Link key={step.step} href={step.href} className="flex items-start gap-4 rounded-2xl border border-white/[0.07] bg-black/20 p-3 transition hover:bg-white/[0.06]">
+                  <Link key={step.step} href={step.href} className="flex items-start gap-4 rounded-lg border border-white/[0.07] bg-black/20 p-3 transition hover:bg-white/[0.06]">
                     <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-blue-500/15 text-xs font-black text-blue-200">
                       {step.step}
                     </div>
@@ -520,20 +570,23 @@ export default function DashboardPage() {
 // ── Sidebar ──────────────────────────────────────────────────────────────────
 function Sidebar({ plan, mounted }: { plan: WorkZoPlanType; mounted: boolean }) {
   return (
-    <div className="flex h-full flex-col">
-      <Link href="/" className="flex items-center gap-3">
-        <img src="/workzo_icon.png" alt="WorkZo AI" width={36} height={36} className="rounded-xl" />
+    <div className="flex h-full flex-col overflow-hidden">
+      {/* Logo */}
+      <Link href="/" className="flex shrink-0 items-center gap-3">
+        <img src="/workzo_icon.png" alt="WorkZo AI" width={32} height={32} className="rounded-xl" />
         <div>
-          <p className="text-base font-black">WorkZo AI</p>
+          <p className="text-sm font-black">WorkZo AI</p>
           <p className="text-xs text-slate-500">Career workspace</p>
         </div>
       </Link>
 
-      <div className={cn("mt-5 rounded-2xl border px-3 py-2 text-center text-xs font-black uppercase tracking-[0.16em]", planTone(plan))}>
+      {/* Plan badge */}
+      <div className={cn("mt-4 shrink-0 rounded-xl border px-3 py-1.5 text-center text-xs font-black uppercase tracking-[0.16em]", planTone(plan))}>
         {mounted ? WORKZO_PLAN_LIMITS[plan].label : "Loading…"}
       </div>
 
-      <nav className="mt-5 space-y-1" aria-label="Dashboard navigation">
+      {/* Nav — scrollable if needed */}
+      <nav className="mt-4 min-h-0 flex-1 overflow-y-auto space-y-0.5 pb-2" aria-label="Dashboard navigation">
         {baseNav.map((item) => {
           const Icon = item.icon;
           const allowed = canUseWorkZoFeature(plan, item.feature);
@@ -542,7 +595,7 @@ function Sidebar({ plan, mounted }: { plan: WorkZoPlanType; mounted: boolean }) 
               key={item.label}
               href={allowed ? item.href : `/pricing?intent=${item.feature}`}
               className={cn(
-                "flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition",
+                "flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-bold transition",
                 allowed ? "text-slate-300 hover:bg-white/[0.07] hover:text-white" : "text-slate-600 hover:bg-white/[0.04]"
               )}
             >
@@ -556,32 +609,36 @@ function Sidebar({ plan, mounted }: { plan: WorkZoPlanType; mounted: boolean }) 
         })}
       </nav>
 
-      {/* Plan upgrade CTA in sidebar */}
-      {plan !== "premium_pro" && (
-        <Link
-          href={plan === "free" ? "/pricing?plan=premium" : "/pricing?plan=premium_pro"}
-          className={cn(
-            "mt-4 rounded-xl border px-3 py-3 text-xs font-black transition",
-            plan === "free"
-              ? "border-blue-300/20 bg-blue-500/10 text-blue-200 hover:bg-blue-500/15"
-              : "border-violet-300/20 bg-violet-500/10 text-violet-200 hover:bg-violet-500/15"
-          )}
-        >
-          <p>{plan === "free" ? "Upgrade to Premium" : "Upgrade to Pro"}</p>
-          <p className="mt-0.5 text-[10px] font-bold opacity-70">
-            {plan === "free" ? "€19.99/mo · CV tools + 50 interviews" : "€39.99/mo · AI Coach + Live Recruiter"}
-          </p>
-        </Link>
-      )}
+      {/* Bottom section — always visible, never overlaps */}
+      <div className="mt-2 shrink-0 space-y-2">
+        {/* Plan upgrade CTA */}
+        {plan !== "premium_pro" && (
+          <Link
+            href={plan === "free" ? "/pricing?plan=premium" : "/pricing?plan=premium_pro"}
+            className={cn(
+              "block rounded-xl border px-3 py-2.5 text-xs font-black transition",
+              plan === "free"
+                ? "border-blue-300/20 bg-blue-500/10 text-blue-200 hover:bg-blue-500/15"
+                : "border-violet-300/20 bg-violet-500/10 text-violet-200 hover:bg-violet-500/15"
+            )}
+          >
+            <p>{plan === "free" ? "Upgrade to Premium" : "Upgrade to Pro"}</p>
+            <p className="mt-0.5 text-[10px] font-bold opacity-70">
+              {plan === "free" ? "€19.99/mo · CV tools + 50 interviews" : "€39.99/mo · AI Coach + Live Recruiter"}
+            </p>
+          </Link>
+        )}
 
-      <div className="mt-auto rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-        <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-white/[0.07] text-slate-300">
-            <UserRound className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-black">Account</p>
-            <Link href="/logout" className="text-xs font-bold text-slate-500 hover:text-white">Sign out</Link>
+        {/* Account card */}
+        <div className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5">
+          <div className="flex items-center gap-3">
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.07] text-slate-300">
+              <UserRound className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-black">Account</p>
+              <Link href="/logout" className="text-[11px] font-bold text-slate-500 hover:text-white">Sign out</Link>
+            </div>
           </div>
         </div>
       </div>

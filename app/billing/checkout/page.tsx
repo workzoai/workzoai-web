@@ -107,8 +107,8 @@ function BillingCheckoutContent() {
           Back to pricing
         </Link>
 
-        <section className="mt-16 rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 text-center shadow-2xl shadow-black/20">
-          <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-blue-500/15 text-blue-200">
+        <section className="mt-16 rounded-lg border border-white/10 bg-white/[0.04] p-8 text-center shadow-2xl shadow-black/20">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-xl bg-blue-500/15 text-blue-200">
             {state === "error" ? <LockKeyhole className="h-8 w-8" /> : <ShieldCheck className="h-8 w-8" />}
           </div>
 
@@ -116,7 +116,7 @@ function BillingCheckoutContent() {
           <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-slate-300">{message}</p>
 
           {state === "loading" || state === "redirecting" ? (
-            <div className="mt-8 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-5 py-3 text-sm font-black text-blue-100">
+            <div className="mt-8 inline-flex items-center gap-3 rounded-lg border border-white/10 bg-black/20 px-5 py-3 text-sm font-black text-blue-100">
               <Loader2 className="h-4 w-4 animate-spin" />
               Please wait
             </div>
@@ -124,10 +124,10 @@ function BillingCheckoutContent() {
 
           {state === "error" ? (
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-              <button type="button" onClick={() => window.location.reload()} className="rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white hover:bg-blue-400">
+              <button type="button" onClick={() => window.location.reload()} className="rounded-lg bg-blue-500 px-6 py-3 text-sm font-black text-white hover:bg-blue-400">
                 Try again
               </button>
-              <Link href="/pricing" className="rounded-2xl border border-white/10 px-6 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
+              <Link href="/pricing" className="rounded-lg border border-white/10 px-6 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
                 Return to pricing
               </Link>
             </div>
@@ -145,8 +145,8 @@ export default function BillingCheckoutPage() {
       fallback={
         <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
           <div className="mx-auto max-w-3xl">
-            <section className="mt-16 rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 text-center shadow-2xl shadow-black/20">
-              <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-blue-500/15 text-blue-200">
+            <section className="mt-16 rounded-lg border border-white/10 bg-white/[0.04] p-8 text-center shadow-2xl shadow-black/20">
+              <div className="mx-auto grid h-16 w-16 place-items-center rounded-xl bg-blue-500/15 text-blue-200">
                 <Loader2 className="h-8 w-8 animate-spin" />
               </div>
               <h1 className="mt-6 text-3xl font-black sm:text-4xl">Preparing checkout</h1>

@@ -43,7 +43,7 @@ export default function FeedbackCapture({
 
   if (submitted) {
     return (
-      <div className="rounded-3xl border border-emerald-300/20 bg-emerald-400/10 p-5 text-emerald-50">
+      <div className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-5 text-emerald-50">
         <p className="font-black">Thank you — saved.</p>
         <p className="mt-1 text-sm leading-6 text-emerald-100/85">
           Your feedback helps improve WorkZo before launch.
@@ -53,7 +53,7 @@ export default function FeedbackCapture({
   }
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 text-white backdrop-blur-2xl">
+    <div className="rounded-xl border border-white/10 bg-white/[0.045] p-5 text-white backdrop-blur-2xl">
       <div className="flex items-center gap-3">
         <Sparkles className="h-5 w-5 text-cyan-200" />
         <h2 className="text-xl font-black">Help improve WorkZo</h2>
@@ -67,20 +67,20 @@ export default function FeedbackCapture({
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         placeholder="Email optional"
-        className="mt-4 h-12 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
+        className="mt-4 h-12 w-full rounded-lg border border-white/10 bg-slate-950/60 px-4 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
       />
 
       <textarea
         value={feedback}
         onChange={(event) => setFeedback(event.target.value)}
         placeholder="What felt realistic? What broke? What should improve?"
-        className="mt-3 h-28 w-full resize-none rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
+        className="mt-3 h-28 w-full resize-none rounded-lg border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
       />
 
       <button
         type="button"
         onClick={submitFeedback}
-        className="mt-3 inline-flex h-11 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 px-5 text-sm font-black text-white"
+        className="mt-3 inline-flex h-11 items-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-violet-600 px-5 text-sm font-black text-white"
       >
         <Send className="h-4 w-4" />
         Save feedback

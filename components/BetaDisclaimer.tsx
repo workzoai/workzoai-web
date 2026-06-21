@@ -4,7 +4,7 @@ import { ShieldCheck } from "lucide-react";
 
 export default function BetaDisclaimer() {
   return (
-    <div className="rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] px-4 py-3 text-sm leading-6 text-cyan-50/90">
+    <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/[0.06] px-4 py-3 text-sm leading-6 text-cyan-50/90">
       <div className="flex items-start gap-3">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan-200" />
         <p>

@@ -20,7 +20,7 @@ export default async function BillingSuccessPage() {
       <div className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center py-16">
 
         {/* Icon */}
-        <div className={`grid h-20 w-20 place-items-center rounded-3xl ${isPro ? "bg-violet-400/15 text-violet-200" : "bg-emerald-400/15 text-emerald-200"}`}>
+        <div className={`grid h-20 w-20 place-items-center rounded-xl ${isPro ? "bg-violet-400/15 text-violet-200" : "bg-emerald-400/15 text-emerald-200"}`}>
           {isPro ? <Star className="h-10 w-10" /> : <Crown className="h-10 w-10" />}
         </div>
 
@@ -30,7 +30,7 @@ export default async function BillingSuccessPage() {
           {isPro ? "Premium Pro activated" : "Premium activated"}
         </p>
 
-        <h1 className="mt-6 text-center text-4xl font-black tracking-tight sm:text-5xl">
+        <h1 className="mt-6 text-center text-4xl font-black tracking-tight sm:text-3xl">
           {isPro ? "Your full career platform is ready." : "Your Premium access is active."}
         </h1>
 
@@ -43,7 +43,7 @@ export default async function BillingSuccessPage() {
         </p>
 
         {/* What's unlocked */}
-        <div className="mt-8 w-full rounded-[2rem] border border-white/10 bg-white/[0.04] p-6">
+        <div className="mt-8 w-full rounded-lg border border-white/10 bg-white/[0.04] p-6">
           <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-4">What you now have access to</p>
           <div className="grid gap-2.5 sm:grid-cols-2">
             {(isPro
@@ -62,14 +62,14 @@ export default async function BillingSuccessPage() {
         <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row">
           <Link
             href="/onboarding"
-            className={`flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-black text-white shadow-lg transition ${isPro ? "bg-violet-500 shadow-violet-500/20 hover:bg-violet-400" : "bg-blue-500 shadow-blue-500/20 hover:bg-blue-400"}`}
+            className={`flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-6 py-4 text-sm font-black text-white shadow-lg transition ${isPro ? "bg-violet-500 shadow-violet-500/20 hover:bg-violet-400" : "bg-blue-500 shadow-blue-500/20 hover:bg-blue-400"}`}
           >
             {isPro ? "Start Pro Interview" : "Start Premium Interview"}
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
             href="/dashboard"
-            className="flex-1 inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-4 text-sm font-black text-slate-200 hover:bg-white/[0.08]"
+            className="flex-1 inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] px-6 py-4 text-sm font-black text-slate-200 hover:bg-white/[0.08]"
           >
             Go to Dashboard
           </Link>

@@ -71,7 +71,7 @@ const proRecruiters: { key: RecruiterKey; name: string; role: string; avatar: st
   { key: "faang_hiring_manager", name: "Alex Chen", role: "FAANG Hiring Manager", avatar: "👨🏻‍💻", quote: "Walk me through the exact trade-off you made and how you measured success.", description: "Technical, systematic, and expects structured thinking with data. Probes every assumption." },
   { key: "startup_founder", name: "Zoe Park", role: "Startup Founder", avatar: "👩🏻‍🚀", quote: "What broke, what did you own, and what would you do differently at 10x scale?", description: "Moves fast, hates buzzwords, rewards radical ownership. Expects you to talk about failure honestly." },
   { key: "consulting_partner", name: "James Harrington", role: "Consulting Partner", avatar: "👨🏻‍💼", quote: "Structure your answer. Situation, what was at stake, and your recommendation.", description: "Case-style pressure, frameworks, and structured delivery. Will redirect a rambling answer." },
-  { key: "sales_director", name: "Marcus Webb", role: "Sales Director", avatar: "👨🏾‍💼", quote: "Give me a number. Revenue impact, quota attainment, deal size — be specific.", description: "Numbers-first, commercial mindset. Will push you to quantify everything." },
+  { key: "sales_director", name: "Noah Jones", role: "Sales Director", avatar: "👨🏾‍💼", quote: "Give me a number. Revenue impact, quota attainment, deal size — be specific.", description: "Numbers-first, commercial mindset. Will push you to quantify everything." },
   { key: "product_leader", name: "Aisha Patel", role: "Product Leader", avatar: "👩🏾‍💼", quote: "How did you decide what NOT to build, and what was the user evidence?", description: "User empathy, prioritisation, and cross-functional influence. Expects product sense." },
   { key: "executive_recruiter", name: "Victoria Stern", role: "Executive Recruiter", avatar: "👩🏼‍💼", quote: "What would your last manager say is your biggest development area? Be honest.", description: "Senior-level strategic questioning. Expects board-ready communication and leadership narrative." },
   { key: "enterprise_recruiter", name: "David Kimura", role: "Enterprise Recruiter", avatar: "👨🏻‍💼", quote: "How did you manage stakeholders at different levels? Give me a cross-functional example.", description: "Process, governance, and stakeholder management. Structured answers with clear escalation." },
@@ -120,7 +120,7 @@ function normalizeRecruiterKey(value?: unknown): RecruiterKey {
   if (key === "faang_hiring_manager" || raw.includes("faang")) return "faang_hiring_manager";
   if (key === "startup_founder" || (raw.includes("founder") && !raw.includes("startup_recruiter"))) return "startup_founder";
   if (key === "consulting_partner" || raw.includes("harrington")) return "consulting_partner";
-  if (key === "sales_director" || raw.includes("marcus webb")) return "sales_director";
+  if (key === "sales_director" || raw.includes("marcus webb") || raw.includes("noah jones")) return "sales_director";
   if (key === "product_leader" || raw.includes("aisha")) return "product_leader";
   if (key === "executive_recruiter" || raw.includes("victoria stern")) return "executive_recruiter";
   if (key === "enterprise_recruiter" || raw.includes("kimura")) return "enterprise_recruiter";
@@ -313,7 +313,7 @@ function ProPersonaDropdown({ open, onToggle, isProUser, recruiter, onSelect, nu
   onSelect: (key: RecruiterKey) => void; nudgeKey: number; onLockedClick: () => void;
 }) {
   return (
-    <div className="mt-3 overflow-hidden rounded-2xl border border-violet-300/15 bg-violet-500/[0.05]">
+    <div className="mt-3 overflow-hidden rounded-lg border border-violet-300/15 bg-violet-500/[0.05]">
       <div
         role="button"
         tabIndex={0}
@@ -448,7 +448,7 @@ function ReadinessRail({ readiness, checks, summaryLine, onStart, hideCta }: {
         <button
           type="button"
           onClick={onStart}
-          className="mt-3 flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 text-base font-black text-white shadow-[0_18px_45px_rgba(14,165,233,0.30)] transition hover:scale-[1.01] active:scale-[0.99]"
+          className="mt-3 flex h-14 w-full items-center justify-center gap-2.5 rounded-lg bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 text-base font-black text-white shadow-[0_18px_45px_rgba(14,165,233,0.30)] transition hover:scale-[1.01] active:scale-[0.99]"
         >
           Start Interview
           <ArrowRight className="h-5 w-5" />
@@ -723,7 +723,7 @@ export default function OnboardingPage() {
       </div>
 
       <div className="relative z-10 mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 pt-3 sm:px-5">
-        <header className="flex min-h-[58px] shrink-0 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 shadow-[0_18px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:px-5">
+        <header className="flex min-h-[58px] shrink-0 items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-4 shadow-[0_18px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:px-5">
           <Link href="/" className="flex items-center gap-3 text-slate-200 transition hover:text-white">
             <ArrowLeft className="h-5 w-5" />
             <span className="font-black tracking-tight">Interview Setup</span>
@@ -769,7 +769,7 @@ export default function OnboardingPage() {
               </div>
 
               {showRestoredBanner && (
-                <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-blue-300/20 bg-blue-500/[0.06] p-3.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mt-3 flex flex-col gap-3 rounded-lg border border-blue-300/20 bg-blue-500/[0.06] p-3.5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-3">
                     <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-500/15 text-blue-200"><FileText className="h-4 w-4" /></div>
                     <div>
@@ -806,7 +806,7 @@ export default function OnboardingPage() {
               )}
 
               {uploadError && !contextModalOpen && (
-                <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">{uploadError}</div>
+                <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">{uploadError}</div>
               )}
             </div>
 
@@ -900,7 +900,7 @@ export default function OnboardingPage() {
       {/* mobile launch bar */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[rgba(5,8,22,0.94)] px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 backdrop-blur-xl xl:hidden">
         <button type="button" onClick={startInterview}
-          className="flex h-13 min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 text-base font-black text-white shadow-[0_14px_36px_rgba(14,165,233,0.30)] transition active:scale-[0.99]">
+          className="flex h-13 min-h-[52px] w-full items-center justify-center gap-2.5 rounded-lg bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 text-base font-black text-white shadow-[0_14px_36px_rgba(14,165,233,0.30)] transition active:scale-[0.99]">
           Start Interview <ArrowRight className="h-5 w-5" />
         </button>
       </div>
@@ -921,7 +921,7 @@ export default function OnboardingPage() {
               </button>
             </div>
 
-            <label className={cn("mt-5 flex min-h-[108px] cursor-pointer flex-col items-center justify-center rounded-2xl border-[1.5px] p-4 text-center transition",
+            <label className={cn("mt-5 flex min-h-[108px] cursor-pointer flex-col items-center justify-center rounded-lg border-[1.5px] p-4 text-center transition",
               manualCv && fileName ? "border-emerald-300/40 bg-emerald-400/[0.07]" : "border-dashed border-blue-300/35 bg-blue-500/[0.07] hover:bg-blue-500/[0.12]")}>
               <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleCvUpload} className="hidden" />
               {uploading ? (
@@ -934,18 +934,18 @@ export default function OnboardingPage() {
             </label>
 
             {uploadError && (
-              <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">{uploadError}</div>
+              <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">{uploadError}</div>
             )}
 
             {aiCvStructuringStatus !== "idle" && (
-              <div className="mt-3 rounded-2xl border border-blue-300/15 bg-blue-500/[0.08] px-4 py-3 text-xs font-bold leading-5 text-blue-100">
+              <div className="mt-3 rounded-lg border border-blue-300/15 bg-blue-500/[0.08] px-4 py-3 text-xs font-bold leading-5 text-blue-100">
                 {aiCvStructuringStatus === "structuring" ? "Reading and structuring your CV…"
                   : aiCvStructuringStatus === "ready" ? "CV ready. It will be used to personalise your interview."
                   : "CV parsed using local extraction. It will be used to personalise your interview."}
               </div>
             )}
 
-            <details className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-4">
+            <details className="mt-3 rounded-lg border border-white/10 bg-black/20 p-4">
               <summary className="cursor-pointer text-sm font-black text-slate-200">Paste or edit CV text manually</summary>
               <p className="mt-2 text-xs leading-5 text-slate-500">Use this if the upload missed something important.</p>
               <textarea
@@ -962,7 +962,7 @@ export default function OnboardingPage() {
                   saveCanonicalCvSetup(canonicalSetup, store);
                 }}
                 placeholder="Or paste your CV text here..."
-                className="mt-3 h-[160px] w-full resize-none overflow-y-auto rounded-2xl border border-white/10 bg-[#050b16] p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
+                className="mt-3 h-[160px] w-full resize-none overflow-y-auto rounded-lg border border-white/10 bg-[#050b16] p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50"
               />
             </details>
 
@@ -970,7 +970,7 @@ export default function OnboardingPage() {
               <label htmlFor="wz-jd-draft" className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Job description</label>
               <textarea id="wz-jd-draft" value={jdDraft} onChange={(e) => setJdDraft(e.target.value)} rows={5}
                 placeholder="Paste the job description here so the recruiter can ask job-specific follow-ups…"
-                className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50" />
+                className="mt-2 w-full resize-none rounded-lg border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50" />
             </div>
 
             <div className="mt-4 flex items-center justify-end gap-2.5">

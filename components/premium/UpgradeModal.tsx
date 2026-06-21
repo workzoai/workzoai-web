@@ -58,7 +58,7 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
 
   return (
     <div className="fixed inset-0 z-[999] grid place-items-center bg-black/80 px-4 backdrop-blur-sm">
-      <div className="relative w-full max-w-lg overflow-hidden rounded-[2rem] border border-white/10 bg-[#08111f] shadow-2xl shadow-black/40">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-lg border border-white/10 bg-[#08111f] shadow-2xl shadow-black/40">
         <button
           type="button"
           onClick={onClose}
@@ -100,7 +100,7 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
                   </div>
                 ))}
               </div>
-              <div className="mt-4 flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
+              <div className="mt-4 flex items-center gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-4 py-3">
                 <div className="text-center">
                   <p className="text-xs text-slate-500">Premium</p>
                   <p className="text-base font-black text-slate-300">€19.99<span className="text-xs">/mo</span></p>
@@ -133,7 +133,7 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
                   </div>
                 ))}
               </div>
-              <div className="mt-4 flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
+              <div className="mt-4 flex items-center gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-4 py-3">
                 <div className="text-center">
                   <p className="text-xs text-slate-500">Free</p>
                   <p className="text-base font-black text-slate-300">€0</p>
@@ -151,7 +151,7 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
 
         {/* Error */}
         {checkoutError && (
-          <div className="mx-7 mb-4 flex items-center gap-2 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm font-bold text-rose-200">
+          <div className="mx-7 mb-4 flex items-center gap-2 rounded-lg border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm font-bold text-rose-200">
             <XCircle className="h-4 w-4 shrink-0" />
             {checkoutError}
           </div>
@@ -163,7 +163,7 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
             type="button"
             onClick={handleUpgrade}
             disabled={checkoutLoading}
-            className={`flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${isPro ? "bg-violet-500 hover:bg-violet-400" : "bg-blue-500 hover:bg-blue-400"}`}
+            className={`flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3.5 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${isPro ? "bg-violet-500 hover:bg-violet-400" : "bg-blue-500 hover:bg-blue-400"}`}
           >
             {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : isPro ? <Star className="h-4 w-4" /> : <Crown className="h-4 w-4" />}
             {checkoutLoading ? "Opening checkout…" : copy.cta}
@@ -171,7 +171,7 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
           <button
             type="button"
             onClick={onClose}
-            className="rounded-2xl border border-white/10 px-5 py-3.5 text-sm font-black text-slate-300 transition hover:bg-white/[0.06]"
+            className="rounded-lg border border-white/10 px-5 py-3.5 text-sm font-black text-slate-300 transition hover:bg-white/[0.06]"
           >
             Maybe later
           </button>

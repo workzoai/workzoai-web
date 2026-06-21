@@ -43,19 +43,19 @@ export default function CookiePolicyPage() {
         </Link>
 
         <div className="mt-10 flex items-start gap-5">
-          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-amber-400/10">
+          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-amber-400/10">
             <Cookie className="h-7 w-7 text-amber-300" />
           </div>
           <div>
             <p className="text-xs font-black uppercase tracking-[0.26em] text-cyan-200">Legal</p>
-            <h1 className="mt-2 text-4xl font-black tracking-[-0.04em] sm:text-5xl">Cookie Policy</h1>
+            <h1 className="mt-2 text-4xl font-black tracking-[-0.04em] sm:text-3xl">Cookie Policy</h1>
             <p className="mt-3 text-sm leading-6 text-slate-400">Last updated: June 2026 · We use browser storage, not third-party ad trackers.</p>
           </div>
         </div>
 
         <div className="mt-10 space-y-4">
           {sections.map((s) => (
-            <section key={s.title} className="rounded-[1.5rem] border border-white/[0.07] bg-white/[0.03] p-6">
+            <section key={s.title} className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-6">
               <h2 className="text-base font-black text-white">{s.title}</h2>
               <p className="mt-3 text-sm leading-7 text-slate-300">{s.body}</p>
             </section>

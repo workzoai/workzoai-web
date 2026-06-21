@@ -79,7 +79,7 @@ function LoginContent() {
   if (status === "sent") {
     return (
       <div className="text-center">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-emerald-400/15 text-emerald-200">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-xl bg-emerald-400/15 text-emerald-200">
           <Mail className="h-8 w-8" />
         </div>
         <h2 className="mt-6 text-3xl font-black">Check your inbox</h2>
@@ -97,14 +97,14 @@ function LoginContent() {
   return (
     <>
       {isPremiumCheckout && (
-        <div className="mb-6 rounded-2xl border border-blue-300/20 bg-blue-500/10 p-4 text-center">
+        <div className="mb-6 rounded-lg border border-blue-300/20 bg-blue-500/10 p-4 text-center">
           <p className="text-sm font-black text-blue-200">Sign in to continue to Premium checkout</p>
           <p className="mt-1 text-xs text-slate-400">You'll be redirected back after login</p>
         </div>
       )}
 
       <div className="text-center">
-        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-blue-500/15 text-blue-200">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-lg bg-blue-500/15 text-blue-200">
           <LockKeyhole className="h-7 w-7" />
         </div>
         <h1 className="mt-5 text-3xl font-black sm:text-4xl">Sign in to WorkZo AI</h1>
@@ -122,7 +122,7 @@ function LoginContent() {
         type="button"
         onClick={signInWithGoogle}
         disabled={status === "loading"}
-        className="mt-7 flex w-full items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3.5 text-sm font-black text-white transition hover:bg-white/[0.1] disabled:opacity-60"
+        className="mt-7 flex w-full items-center justify-center gap-3 rounded-lg border border-white/10 bg-white/[0.06] px-5 py-3.5 text-sm font-black text-white transition hover:bg-white/[0.1] disabled:opacity-60"
       >
         {status === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : (
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
@@ -151,13 +151,13 @@ function LoginContent() {
             onChange={(e) => setEmail(e.target.value)}
             required
             placeholder="you@example.com"
-            className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3.5 text-sm text-white placeholder-slate-500 outline-none transition focus:border-blue-400/60 focus:bg-white/[0.08]"
+            className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-5 py-3.5 text-sm text-white placeholder-slate-500 outline-none transition focus:border-blue-400/60 focus:bg-white/[0.08]"
           />
         </label>
         <button
           type="submit"
           disabled={status === "loading" || !email.trim()}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400 disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400 disabled:opacity-60"
         >
           {status === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Send magic link <ArrowRight className="h-4 w-4" />
@@ -186,7 +186,7 @@ export default function LoginPage() {
           <span className="text-xl font-black">WorkZo <span className="text-blue-400">AI</span></span>
         </Link>
 
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-7 shadow-2xl shadow-black/20">
+        <div className="rounded-lg border border-white/10 bg-white/[0.04] p-7 shadow-2xl shadow-black/20">
           <Suspense fallback={
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-blue-400" />

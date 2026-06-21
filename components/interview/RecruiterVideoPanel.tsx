@@ -8,7 +8,7 @@ type Props = { setup: InterviewSetupViewModel; statusLabel: string; statusTone?:
 
 export default function RecruiterVideoPanel({ setup, statusLabel, statusTone = "LIVE", isMuted = false, onToggleMute, onOpenSettings, onEnd }: Props) {
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#08111f] shadow-2xl">
+    <section className="relative overflow-hidden rounded-xl border border-white/10 bg-[#08111f] shadow-2xl">
       <div className="relative min-h-[480px] w-full overflow-hidden sm:min-h-[540px] lg:min-h-[600px]">
         <Image src={setup.recruiterImage} alt={`${setup.recruiterName} recruiter portrait`} fill priority className="object-cover object-top" sizes="(max-width: 768px) 100vw, 70vw" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />

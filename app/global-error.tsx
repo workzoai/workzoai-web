@@ -27,7 +27,7 @@ export default function GlobalError({
     <html lang="en">
       <body>
         <main className="grid min-h-screen place-items-center bg-[#050b14] px-5 text-white">
-          <section className="w-full max-w-xl rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
+          <section className="w-full max-w-xl rounded-xl border border-white/10 bg-white/[0.04] p-8 text-center">
             <p className="text-sm font-black uppercase tracking-[0.18em] text-red-200">
               WorkZo AI
             </p>
@@ -40,13 +40,13 @@ export default function GlobalError({
               <button
                 type="button"
                 onClick={reset}
-                className="rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white"
+                className="rounded-lg bg-blue-500 px-5 py-3 text-sm font-black text-white"
               >
                 Try again
               </button>
               <Link
                 href="/dashboard"
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-white"
+                className="rounded-lg border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-white"
               >
                 Go to dashboard
               </Link>

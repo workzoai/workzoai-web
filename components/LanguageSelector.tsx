@@ -62,7 +62,7 @@ export default function LanguageSelector({ value, onChange, compact = false, cla
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-2xl border border-white/10 bg-[#071120]/95 py-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl">
+        <div className="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-lg border border-white/10 bg-[#071120]/95 py-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl">
           {APP_LANGUAGES.map((lang) => (
             <button
               key={lang.code}

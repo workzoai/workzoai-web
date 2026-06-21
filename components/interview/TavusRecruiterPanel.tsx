@@ -210,21 +210,21 @@ export default function TavusRecruiterPanel({
           title={`${recruiterName} live video recruiter`}
         />
 
-        <div className="pointer-events-none absolute left-4 top-4 z-[80] rounded-2xl border border-white/10 bg-slate-950/72 px-3 py-2 text-xs font-black text-white backdrop-blur-xl">
+        <div className="pointer-events-none absolute left-4 top-4 z-[80] rounded-lg border border-white/10 bg-slate-950/72 px-3 py-2 text-xs font-black text-white backdrop-blur-xl">
           Live video · {formatTime(elapsedSeconds)} / {formatTime(MAX_SESSION_SECONDS)}
         </div>
 
         <button
           type="button"
           onClick={() => void endVideoInterview("manual_end")}
-          className="absolute right-4 top-4 z-[90] inline-flex items-center gap-2 rounded-2xl bg-red-500/90 px-4 py-2 text-xs font-black text-white shadow-[0_16px_38px_rgba(244,63,94,.24)] transition hover:bg-red-500"
+          className="absolute right-4 top-4 z-[90] inline-flex items-center gap-2 rounded-lg bg-red-500/90 px-4 py-2 text-xs font-black text-white shadow-[0_16px_38px_rgba(244,63,94,.24)] transition hover:bg-red-500"
         >
           <PhoneOff className="h-4 w-4" />
           End Live Video
         </button>
 
         {warning && (
-          <div className="absolute inset-x-4 bottom-20 z-[90] mx-auto max-w-lg rounded-2xl border border-amber-300/20 bg-amber-500/14 p-3 text-center text-xs font-bold leading-5 text-amber-100 backdrop-blur-xl">
+          <div className="absolute inset-x-4 bottom-20 z-[90] mx-auto max-w-lg rounded-lg border border-amber-300/20 bg-amber-500/14 p-3 text-center text-xs font-bold leading-5 text-amber-100 backdrop-blur-xl">
             {warning}
           </div>
         )}
@@ -235,7 +235,7 @@ export default function TavusRecruiterPanel({
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950">
       <div className="pointer-events-auto mx-4 w-full max-w-md rounded-[28px] border border-white/10 bg-white/[0.06] p-5 text-center shadow-[0_24px_100px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-400/12 text-cyan-100">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg bg-cyan-400/12 text-cyan-100">
           <Video className="h-6 w-6" />
         </div>
 
@@ -253,7 +253,7 @@ export default function TavusRecruiterPanel({
             : "This starts the live video recruiter call. You can switch to Standard anytime."}
         </p>
 
-        <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs leading-5 text-slate-300">
+        <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-xs leading-5 text-slate-300">
           <div className="flex items-center justify-center gap-2 font-black text-cyan-100">
             <Clock3 className="h-4 w-4" />
             Auto-end after {Math.round(MAX_SESSION_SECONDS / 60)} minutes
@@ -264,7 +264,7 @@ export default function TavusRecruiterPanel({
         </div>
 
         {message && (
-          <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-3 text-xs leading-5 text-amber-100">
+          <div className="mt-4 rounded-lg border border-amber-300/20 bg-amber-500/10 p-3 text-xs leading-5 text-amber-100">
             <div className="mb-1 flex items-center justify-center gap-2 font-black">
               <AlertTriangle className="h-4 w-4" />
               Notice
@@ -277,7 +277,7 @@ export default function TavusRecruiterPanel({
           type="button"
           onClick={startVideoInterview}
           disabled={status === "starting" || status === "ending"}
-          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-3 text-sm font-black text-white shadow-[0_0_30px_rgba(34,211,238,0.25)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-3 text-sm font-black text-white shadow-[0_0_30px_rgba(34,211,238,0.25)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status === "starting" ? (
             <>

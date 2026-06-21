@@ -13,7 +13,7 @@ import type { InterviewLayoutProps } from "./types";
 const CodePanel = dynamic(() => import("@/components/interview/CodePanel"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-[300px] items-center justify-center rounded-2xl border border-white/10 bg-[#0d1117]">
+    <div className="flex h-[300px] items-center justify-center rounded-lg border border-white/10 bg-[#0d1117]">
       <span className="text-xs text-slate-600 font-black uppercase tracking-widest">Loading editor…</span>
     </div>
   ),
@@ -31,7 +31,7 @@ export default function InterviewMobileLayout({ setup, signal, transcript, ui, a
           <button
             type="button"
             onClick={actions.onBack}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/5"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5"
             aria-label="Back to dashboard"
           >
             <ArrowLeft className="h-5 w-5" />
@@ -46,7 +46,7 @@ export default function InterviewMobileLayout({ setup, signal, transcript, ui, a
           <button
             type="button"
             onClick={actions.onToggleSettings}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/5"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5"
           >
             <Settings className="h-5 w-5" />
           </button>

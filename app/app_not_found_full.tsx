@@ -19,14 +19,14 @@ export default function NotFound() {
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link
             href="/dashboard"
-            className="flex-1 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 px-5 py-4 text-sm font-black"
+            className="flex-1 rounded-lg bg-gradient-to-r from-blue-500 to-violet-600 px-5 py-4 text-sm font-black"
           >
             Dashboard
           </Link>
 
           <Link
             href="/"
-            className="flex-1 rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-sm font-black"
+            className="flex-1 rounded-lg border border-white/10 bg-white/[0.05] px-5 py-4 text-sm font-black"
           >
             Home
           </Link>

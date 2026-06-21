@@ -76,7 +76,7 @@ export default function AuthNavButton() {
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-full z-50 mt-3 w-72 overflow-hidden rounded-2xl border border-white/10 bg-[#071120]/95 p-2 shadow-2xl shadow-black/30 backdrop-blur-xl">
+        <div className="absolute right-0 top-full z-50 mt-3 w-72 overflow-hidden rounded-lg border border-white/10 bg-[#071120]/95 p-2 shadow-2xl shadow-black/30 backdrop-blur-xl">
           <div className="border-b border-white/10 px-3 py-3">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Signed in</p>
             <p className="mt-1 truncate text-sm font-bold text-white">{shortEmail}</p>

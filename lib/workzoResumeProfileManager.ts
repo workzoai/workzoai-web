@@ -81,7 +81,7 @@ function prepareLines(rawText: string) {
 
 const STRONG_SECTION_RE = /^(about\s+me|awards?|awards?\s+received|berufliches\s+profil|berufserfahrung|bildung|bildungsweg|contacts?|core\s+competencies|education|education\s+and\s+training|erfolge\s+beim\s+kunden|experience|expertise|fähigkeiten|fahigkeiten|kontakt|languages?|overview|professional\s+experience|professional\s+summary|profile|profile\s+overview|profile\s+summary|profil(?:\s*übersicht|\s*ubersicht)?|projects?|references?|skills?|summary|summary\s+of\s+skills|work\s+experience|certifications?|zertifikate)$/i;
 
-const BAD_NAME_WORD_RE = /\b(candidate|professional|unknown|resume|cv|curriculum|profile|profilesummary|summary|experience|workexperience|education|skills?|projects?|languages?|contact|email|phone|linkedin|github|headline|english|german|deutsch|dutch|french|spanish|italian|portuguese|fluent|native|conversational|support|engineer|analyst|manager|specialist|developer|consultant|technical|data|customer|success|sales|marketing|product|project|program|software|frontend|backend|fullstack|itil|itsm|api|sql|python|tableau|power\s*bi|gcp|aws|rag|nlp|machine\s+learning|matplotlib|seaborn|tensorflow|sklearn|langchain|programming|bash|powershell|security|cloud|ticketing|roadmapping|agile|scrum|stakeholder|competencies|initiative|platform|dashboard|teacher|preschool|accountant|designer|coordinator|assistant|intern|school|university|college|industries|solutions|community|financial|senior|junior|principal|chief|jede|stadt|straße|strasse)\b/i;
+const BAD_NAME_WORD_RE = /\b(candidate|professional|unknown|resume|cv|curriculum|profile|profilesummary|summary|experience|workexperience|education|skills?|projects?|languages?|contact|email|phone|linkedin|github|headline|english|german|deutsch|dutch|french|spanish|italian|portuguese|fluent|native|conversational|support|engineer|analyst|manager|specialist|developer|consultant|technical|data|customer|success|sales|marketing|product|project|program|software|frontend|backend|fullstack|itil|itsm|api|sql|python|tableau|power\s*bi|gcp|aws|rag|nlp|machine\s+learning|matplotlib|seaborn|tensorflow|sklearn|langchain|programming|bash|powershell|security|cloud|ticketing|roadmapping|agile|scrum|stakeholder|competencies|initiative|platform|dashboard|teacher|preschool|accountant|designer|coordinator|assistant|intern|school|university|college|industries|solutions|community|financial|senior|junior|principal|chief|jede|stadt|straße|strasse|service|services|startup|e-scooter|scooter|gans|startup|bootcamp|institute|corporation|corp|gmbh|inc|ltd|llc|group|holding|digital|technologies|technology|systems|agency|studio|labs|ventures|consulting|innovations?|coaching)\b/i;
 
 const ROLE_TITLE_RE = /\b(graphic\s+designer|financial\s+accountant|senior\s+accountant|professional\s+accountant|product\s+manager|project\s+manager|product\s+design\s+engineer|technical\s+support|support\s+engineer|customer\s+success|data\s+analyst|software\s+engineer|cybersecurity\s+engineer|cybersecurity\s+analyst|ux\s+designer|ui\s+designer|account\s+manager|sales\s+manager|business\s+analyst|it\s+support|it\s+project\s+manager|preschool\s+teacher|freelance\s+tutor|volunteer\s+preschool\s+assistant|communications\s+coordinator|pr\s+manager|pr\s+specialist|cloud\s+security|threat\s+detection|application\s+engineer)\b/i;
 
@@ -300,6 +300,13 @@ export function extractCanonicalCandidateName(
   return best && best.score >= 40 ? best.name : "";
 }
 
+function nameAppearsAsProjectTitle(profile: Partial<ResumeProfile> | ResumeProfile | null | undefined, name: string): boolean {
+  if (!profile || !name) return false;
+  const key = norm(name);
+  const p = profile as ResumeProfile;
+  return (Array.isArray(p.projects) ? p.projects : []).some((proj) => norm(proj?.name || "") === key);
+}
+
 function chooseSaferName(
   current: string,
   canonical: string,
@@ -308,8 +315,14 @@ function chooseSaferName(
   const currentValid = validateCandidateName(current);
   const canonicalValid = validateCandidateName(canonical);
 
-  if (canonicalValid && !nameAppearsInStructuredContent(profile, canonicalValid)) return canonicalValid;
-  if (currentValid && !nameAppearsInStructuredContent(profile, currentValid)) return currentValid;
+  // Critical guard: never use a project title as the candidate name
+  const canonicalIsProject = canonicalValid && nameAppearsAsProjectTitle(profile, canonicalValid);
+  const currentIsProject = currentValid && nameAppearsAsProjectTitle(profile, currentValid);
+
+  if (canonicalValid && !canonicalIsProject && !nameAppearsInStructuredContent(profile, canonicalValid)) return canonicalValid;
+  if (currentValid && !currentIsProject && !nameAppearsInStructuredContent(profile, currentValid)) return currentValid;
+  if (canonicalValid && !canonicalIsProject) return canonicalValid;
+  if (currentValid && !currentIsProject) return currentValid;
   if (canonicalValid) return canonicalValid;
   if (currentValid) return currentValid;
   return "";

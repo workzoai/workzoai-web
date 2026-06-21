@@ -45,8 +45,8 @@ export default function DeleteDataPage() {
             <ArrowLeft className="h-4 w-4" /> Back home
           </Link>
 
-          <section className="mt-10 rounded-[2rem] border border-white/10 bg-white/[0.04] p-8">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-red-400/10 text-red-200">
+          <section className="mt-10 rounded-lg border border-white/10 bg-white/[0.04] p-8">
+            <div className="grid h-14 w-14 place-items-center rounded-lg bg-red-400/10 text-red-200">
               <Trash2 className="h-7 w-7" />
             </div>
 

@@ -159,7 +159,7 @@ function TrustTimeline() {
   }, []);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/[0.10] bg-black/30 backdrop-blur-sm">
+    <div className="overflow-hidden rounded-lg border border-white/[0.10] bg-black/30 backdrop-blur-sm">
       <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
         <p className="text-sm font-black">Trust Timeline</p>
         <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black transition-all duration-500 ${stage.badge}`}>
@@ -208,7 +208,7 @@ function PlatformBento() {
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
 
         {/* ── Card 1: Interview Room — large, 2 cols × 2 rows ── */}
-        <div className="overflow-hidden rounded-2xl border border-blue-400/[0.22] bg-black/30 shadow-[0_0_40px_rgba(59,130,246,0.07)] backdrop-blur-sm md:col-span-2 md:row-span-2">
+        <div className="overflow-hidden rounded-lg border border-blue-400/[0.22] bg-black/30 shadow-[0_0_40px_rgba(59,130,246,0.07)] backdrop-blur-sm md:col-span-2 md:row-span-2">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
             <div className="flex items-center gap-2.5">
@@ -271,7 +271,7 @@ function PlatformBento() {
         </div>
 
         {/* ── Card 2: Live Transcript ── */}
-        <div className="overflow-hidden rounded-2xl border border-white/[0.10] bg-black/30 backdrop-blur-sm">
+        <div className="overflow-hidden rounded-lg border border-white/[0.10] bg-black/30 backdrop-blur-sm">
           <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
             <p className="text-sm font-black">Live Transcript</p>
             <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
@@ -294,7 +294,7 @@ function PlatformBento() {
         <TrustTimeline />
 
         {/* ── Card 4: Progress Dashboard ── */}
-        <div className="overflow-hidden rounded-2xl border border-white/[0.10] bg-black/30 backdrop-blur-sm">
+        <div className="overflow-hidden rounded-lg border border-white/[0.10] bg-black/30 backdrop-blur-sm">
           <div className="border-b border-white/[0.08] px-4 py-3">
             <p className="text-sm font-black">Your Progress</p>
           </div>
@@ -309,7 +309,7 @@ function PlatformBento() {
         </div>
 
         {/* ── Card 5: Interview Report — 2 cols ── */}
-        <div className="overflow-hidden rounded-2xl border border-white/[0.10] bg-black/30 backdrop-blur-sm md:col-span-2">
+        <div className="overflow-hidden rounded-lg border border-white/[0.10] bg-black/30 backdrop-blur-sm md:col-span-2">
           <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
             <p className="text-sm font-black">Interview Report</p>
             <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-0.5 text-[11px] font-black text-emerald-200">Engaged</span>
@@ -351,7 +351,7 @@ function DemoSection() {
       <div className="mx-auto max-w-5xl">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>How it works</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
             Watch a live session
           </h2>
           <p className="mt-4 text-lg leading-8 text-white/60">
@@ -360,7 +360,7 @@ function DemoSection() {
         </div>
 
         {/* Video container */}
-        <div className="relative mt-10 overflow-hidden rounded-3xl border border-white/[0.10] bg-black/40 backdrop-blur-sm">
+        <div className="relative mt-10 overflow-hidden rounded-xl border border-white/[0.10] bg-black/40 backdrop-blur-sm">
           {/* Aspect ratio wrapper 16:9 */}
           <div className="relative aspect-video w-full">
 
@@ -396,7 +396,7 @@ function DemoSection() {
                     </div>
                   </div>
                   <div className="w-full max-w-[260px] space-y-2">
-                    <div className="rounded-2xl rounded-tl-sm bg-white/[0.06] px-4 py-3">
+                    <div className="rounded-lg rounded-tl-sm bg-white/[0.06] px-4 py-3">
                       <p className="text-[11px] leading-5 text-slate-300">
                         That gives me the story. Now I need a measurable result — time saved, fewer issues, or a customer outcome. What changed after your work?
                       </p>
@@ -412,13 +412,13 @@ function DemoSection() {
                 {/* Candidate + copilot side */}
                 <div className="flex w-1/2 flex-col justify-between p-4">
                   {/* Live copilot */}
-                  <div className="rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.07] p-3">
+                  <div className="rounded-lg border border-emerald-300/15 bg-emerald-400/[0.07] p-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">Live copilot</p>
                     <p className="mt-1 text-[11px] leading-4 text-slate-200">Add one metric. E.g. &ldquo;reduced response time by 40%&rdquo; or &ldquo;resolved 95% of tickets first contact.&rdquo;</p>
                   </div>
 
                   {/* Trust timeline mini */}
-                  <div className="mt-3 flex-1 rounded-2xl border border-white/[0.07] bg-black/20 p-3">
+                  <div className="mt-3 flex-1 rounded-lg border border-white/[0.07] bg-black/20 p-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/40">Trust timeline</p>
                     <div className="mt-2 flex items-end gap-1 h-10">
                       {[55,60,58,72,68,76,74,78].map((v,i) => (
@@ -480,7 +480,7 @@ function TestimonialsSection() {
       <div className="mx-auto max-w-7xl">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>What candidates say</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
             What changes after the first session
           </h2>
           <p className="mt-4 text-lg leading-8 text-white/60">
@@ -492,7 +492,7 @@ function TestimonialsSection() {
           {TESTIMONIALS.map((t) => (
             <div
               key={t.name}
-              className="flex flex-col rounded-3xl border border-white/[0.10] bg-black/20 p-6 backdrop-blur-sm"
+              className="flex flex-col rounded-xl border border-white/[0.10] bg-black/20 p-6 backdrop-blur-sm"
             >
               {/* Stars */}
               <div className="flex gap-0.5">
@@ -545,7 +545,7 @@ function RecruiterPersonasSection() {
       <div className="mx-auto max-w-7xl">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>Meet your interviewers</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
             4 AI recruiters. Each one harder than the last.
           </h2>
           <p className="mt-4 text-lg leading-8 text-white/60">
@@ -558,7 +558,7 @@ function RecruiterPersonasSection() {
           {RECRUITER_PERSONAS.map((p) => (
             <div
               key={p.name}
-              className={`relative flex flex-col rounded-3xl border ${p.borderStyle} ${p.bgStyle} p-6 backdrop-blur-sm`}
+              className={`relative flex flex-col rounded-xl border ${p.borderStyle} ${p.bgStyle} p-6 backdrop-blur-sm`}
             >
               {/* Plan badge */}
               <span className={`absolute right-4 top-4 rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${p.tagStyle}`}>
@@ -613,7 +613,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function FaqItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/[0.10] bg-black/20 backdrop-blur-sm">
+    <div className="overflow-hidden rounded-lg border border-white/[0.10] bg-black/20 backdrop-blur-sm">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -681,7 +681,7 @@ export default function LandingPage() {
                 <ChevronDown className="h-4 w-4" />
               </button>
 
-              <div className="invisible absolute left-0 top-full z-50 mt-4 w-72 translate-y-2 rounded-2xl border border-white/10 bg-[#071120]/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+              <div className="invisible absolute left-0 top-full z-50 mt-4 w-72 translate-y-2 rounded-lg border border-white/10 bg-[#071120]/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
                 {[
                   ["How it works", "/features/interview-practice", "See how the recruiter reads the CV and where offers are lost."],
                   ["Improve CV", "/features/improve-cv", "View CV optimization details before upgrading."],
@@ -713,7 +713,7 @@ export default function LandingPage() {
                 <ChevronDown className="h-4 w-4" />
               </button>
 
-              <div className="invisible absolute left-0 top-full z-50 mt-4 w-72 translate-y-2 rounded-2xl border border-white/10 bg-[#071120]/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+              <div className="invisible absolute left-0 top-full z-50 mt-4 w-72 translate-y-2 rounded-lg border border-white/10 bg-[#071120]/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
                 {[
                   ["Resources", "/resources", "Interview, CV, and job-search guides."],
                   ["About", "/about", "Meet Haritha and the WorkZo AI story."],
@@ -741,7 +741,7 @@ export default function LandingPage() {
 
         <div className="mx-auto max-w-7xl px-4 pb-20 pt-14 sm:px-6 lg:px-8 lg:pb-24 lg:pt-20">
           <div className="flex flex-col items-center text-center">
-            <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.02] tracking-tight sm:text-6xl lg:text-[68px]">
+            <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.02] tracking-tight sm:text-4xl lg:text-[68px]">
               Find out why the offer went to someone else.<br className="hidden sm:block" /> Before a real recruiter shows you.
             </h1>
 
@@ -750,11 +750,11 @@ export default function LandingPage() {
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/onboarding" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-7 py-4 text-base font-black text-slate-900 shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-blue-50">
+              <Link href="/onboarding" className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-7 py-4 text-base font-black text-slate-900 shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-blue-50">
                 See Where Offers Are Lost
                 <ArrowRight className="h-5 w-5" />
               </Link>
-              <Link href="/demo" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-7 py-4 text-base font-black text-white backdrop-blur transition hover:bg-white/20">
+              <Link href="/demo" className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-7 py-4 text-base font-black text-white backdrop-blur transition hover:bg-white/20">
                 <PlayCircle className="h-5 w-5 text-white/70" />
                 Try Demo
               </Link>
@@ -786,7 +786,7 @@ export default function LandingPage() {
               ["10+", "Countries"],
               ["4", "recruiter personas"],
             ].map(([number, label]) => (
-              <div key={label} className="rounded-2xl border border-white/[0.10] bg-black/20 p-6 text-center backdrop-blur-sm">
+              <div key={label} className="rounded-lg border border-white/[0.10] bg-black/20 p-6 text-center backdrop-blur-sm">
                 <p className="text-4xl font-black text-white">{number}</p>
                 <p className="mt-1 text-sm text-white/50">{label}</p>
               </div>
@@ -803,7 +803,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-2xl">
           <div className="text-center">
             <SectionLabel>How it works</SectionLabel>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
               How the flight simulator works
             </h2>
             <p className="mt-4 text-lg leading-8 text-white/60">
@@ -821,7 +821,7 @@ export default function LandingPage() {
                 <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500 ring-4 ring-blue-500/20">
                   <span className="text-[9px] font-black text-white">01</span>
                 </div>
-                <div className="flex-1 rounded-2xl border border-blue-400/30 bg-blue-500/[0.07] px-4 py-3 backdrop-blur-sm">
+                <div className="flex-1 rounded-lg border border-blue-400/30 bg-blue-500/[0.07] px-4 py-3 backdrop-blur-sm">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">Recruiter Question</p>
                   <p className="mt-1.5 text-sm leading-6 text-white/80">
                     Tell me about a difficult customer situation you handled.
@@ -834,7 +834,7 @@ export default function LandingPage() {
                 <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/20 ring-4 ring-white/[0.08]">
                   <span className="text-[9px] font-black text-white/80">02</span>
                 </div>
-                <div className="flex-1 rounded-2xl border border-white/[0.10] bg-black/20 px-4 py-3 backdrop-blur-sm">
+                <div className="flex-1 rounded-lg border border-white/[0.10] bg-black/20 px-4 py-3 backdrop-blur-sm">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/50">Candidate Answer</p>
                   <p className="mt-1.5 text-sm leading-6 text-white/60 italic">
                     &ldquo;I handled many difficult customers and always tried to resolve issues quickly.&rdquo;
@@ -847,7 +847,7 @@ export default function LandingPage() {
                 <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-400 ring-4 ring-emerald-400/20">
                   <span className="text-[9px] font-black text-white">03</span>
                 </div>
-                <div className="flex-1 overflow-hidden rounded-2xl border border-emerald-400/30 bg-emerald-500/[0.07] backdrop-blur-sm">
+                <div className="flex-1 overflow-hidden rounded-lg border border-emerald-400/30 bg-emerald-500/[0.07] backdrop-blur-sm">
                   <div className="flex items-center justify-between gap-3 px-4 py-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">WorkZo Analysis</p>
                     <span className="shrink-0 rounded-full border border-red-400/30 bg-red-500/15 px-2.5 py-0.5 text-[11px] font-black text-red-300">
@@ -875,7 +875,7 @@ export default function LandingPage() {
       <section className="px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>The problem</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
             Why strong candidates still get rejected
           </h2>
           <p className="mt-4 text-lg leading-8 text-white/60">
@@ -906,7 +906,7 @@ export default function LandingPage() {
               recruiter: "Recruiter loses confidence.",
             },
           ].map((card) => (
-            <div key={card.title} className="rounded-3xl border border-white/[0.10] bg-black/20 p-6 backdrop-blur-sm">
+            <div key={card.title} className="rounded-xl border border-white/[0.10] bg-black/20 p-6 backdrop-blur-sm">
               <p className="mb-4 text-sm font-black uppercase tracking-[0.18em] text-white/40">{card.title}</p>
               <div className="space-y-3">
                 <div className="rounded-xl bg-white/[0.05] p-3">
@@ -931,7 +931,7 @@ export default function LandingPage() {
       <section className="px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>Your report</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
             What your report shows after every interview
           </h2>
           <p className="mt-4 text-lg leading-8 text-white/60">
@@ -940,7 +940,7 @@ export default function LandingPage() {
         </div>
 
         <div className="mx-auto mt-8 max-w-7xl">
-          <div className="overflow-hidden rounded-3xl border border-blue-400/[0.22] bg-black/30 shadow-[0_0_60px_rgba(59,130,246,0.08)] backdrop-blur-sm">
+          <div className="overflow-hidden rounded-xl border border-blue-400/[0.22] bg-black/30 shadow-[0_0_60px_rgba(59,130,246,0.08)] backdrop-blur-sm">
             {/* Card header */}
             <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-3.5">
               <p className="text-sm font-black">Interview Report</p>
@@ -963,7 +963,7 @@ export default function LandingPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
+                <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] p-4">
                   <p className="mb-3 text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
                     Trust Timeline
                   </p>
@@ -992,7 +992,7 @@ export default function LandingPage() {
 
               {/* Right — Weakest Answer, Recruiter Thoughts, Improvement Plan */}
               <div className="space-y-4">
-                <div className="rounded-2xl border border-amber-300/20 bg-amber-400/[0.07] p-4">
+                <div className="rounded-lg border border-amber-300/20 bg-amber-400/[0.07] p-4">
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">
                     Weakest Answer
                   </p>
@@ -1001,7 +1001,7 @@ export default function LandingPage() {
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4">
+                <div className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-4">
                   <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/40">
                     Recruiter Thoughts
                   </p>
@@ -1009,7 +1009,7 @@ export default function LandingPage() {
                   <p className="mt-1 text-sm text-white/50">Evidence is missing.</p>
                 </div>
 
-                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] p-4">
+                <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/[0.07] p-4">
                   <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">
                     Improvement Plan
                   </p>
@@ -1029,7 +1029,7 @@ export default function LandingPage() {
           <div className="mt-8 text-center">
             <Link
               href="/onboarding"
-              className="inline-flex items-center gap-2 rounded-2xl bg-white px-7 py-4 text-base font-black text-slate-900 shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-blue-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-white px-7 py-4 text-base font-black text-slate-900 shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-blue-50"
             >
               Start Your Interview
               <ArrowRight className="h-5 w-5" />
@@ -1042,7 +1042,7 @@ export default function LandingPage() {
       <section id="features" className="px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>Why WorkZo</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">More than interview questions.</h2>
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">More than interview questions.</h2>
           <p className="mt-4 text-lg leading-8 text-white/60">
             WorkZo focuses on recruiter realism: follow-ups, proof, ownership, metrics, and confidence under pressure.
           </p>
@@ -1052,8 +1052,8 @@ export default function LandingPage() {
           {quickFeatures.map((card) => {
             const Icon = card.icon;
             return (
-              <div key={card.title} className="rounded-3xl border border-white/[0.10] bg-black/20 p-6 backdrop-blur-sm transition hover:-translate-y-1 hover:bg-black/30">
-                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 text-white ring-1 ring-white/20">
+              <div key={card.title} className="rounded-xl border border-white/[0.10] bg-black/20 p-6 backdrop-blur-sm transition hover:-translate-y-1 hover:bg-black/30">
+                <div className="grid h-12 w-12 place-items-center rounded-lg bg-white/10 text-white ring-1 ring-white/20">
                   <Icon className="h-6 w-6" />
                 </div>
                 <h3 className="mt-5 text-lg font-black">{card.title}</h3>
@@ -1068,12 +1068,12 @@ export default function LandingPage() {
       <section className="px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>The difference</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
             Built for real interviews
           </h2>
         </div>
 
-        <div className="mx-auto mt-8 max-w-4xl overflow-hidden rounded-3xl border border-white/[0.10] bg-black/20 backdrop-blur-sm">
+        <div className="mx-auto mt-8 max-w-4xl overflow-hidden rounded-xl border border-white/[0.10] bg-black/20 backdrop-blur-sm">
           {/* Table header */}
           <div className="grid grid-cols-[1fr_1fr_1fr] border-b border-white/[0.08] bg-white/[0.04] px-5 py-3.5">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/40">Feature</p>
@@ -1113,7 +1113,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl">
           <div className="mx-auto max-w-3xl text-center">
             <SectionLabel>Pricing</SectionLabel>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
               Know what the offer costs. Then close the gap.
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-300">
@@ -1124,7 +1124,7 @@ export default function LandingPage() {
           <div className="mt-10 grid items-stretch gap-4 lg:grid-cols-3">
 
             {/* Free */}
-            <div className="flex flex-col rounded-3xl border border-white/[0.08] bg-white/[0.03] p-6">
+            <div className="flex flex-col rounded-xl border border-white/[0.08] bg-white/[0.03] p-6">
               <div className="mb-5 h-6">
                 <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/40">
                   Free forever
@@ -1132,7 +1132,7 @@ export default function LandingPage() {
               </div>
               <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">Free</p>
               <h3 className="mt-1.5 text-lg font-black leading-snug text-white">Start here</h3>
-              <p className="mt-4 text-4xl font-black text-white sm:text-5xl">{localizedPlans.free.amount}</p>
+              <p className="mt-4 text-4xl font-black text-white sm:text-3xl">{localizedPlans.free.amount}</p>
               <p className="mt-3 text-sm leading-6 text-slate-400">
                 Two sessions. Enough to find the question that would have cost the offer.
               </p>
@@ -1161,14 +1161,14 @@ export default function LandingPage() {
               </div>
               <Link
                 href="/onboarding"
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-6 py-3 text-sm font-black text-white transition hover:bg-white/20"
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 text-sm font-black text-white transition hover:bg-white/20"
               >
                 Start Free <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
 
             {/* Premium */}
-            <div className="flex flex-col rounded-3xl border-2 border-blue-400/50 bg-[#080f1c] p-6">
+            <div className="flex flex-col rounded-xl border-2 border-blue-400/50 bg-[#080f1c] p-6">
               <div className="mb-5 h-6">
                 <span className="inline-flex items-center rounded-full bg-blue-500/20 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-blue-300">
                   Most popular
@@ -1178,7 +1178,7 @@ export default function LandingPage() {
               <h3 className="mt-1.5 text-lg font-black leading-snug text-white">Full readiness system</h3>
               <div className="mt-4 flex flex-wrap items-baseline gap-2">
                 <span className="text-sm font-black text-white/35 line-through decoration-2">{localizedPlans.premium.regular}</span>
-                <span className="text-4xl font-black text-white sm:text-5xl">{localizedPlans.premium.amount}</span>
+                <span className="text-4xl font-black text-white sm:text-3xl">{localizedPlans.premium.amount}</span>
                 <span className="text-base text-white/45">/month</span>
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-400">
@@ -1206,14 +1206,14 @@ export default function LandingPage() {
               </div>
               <Link
                 href="/pricing?plan=premium"
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white transition hover:bg-blue-400"
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 px-6 py-3 text-sm font-black text-white transition hover:bg-blue-400"
               >
                 Choose Premium <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
 
             {/* Premium Pro */}
-            <div className="flex flex-col rounded-3xl border border-violet-400/30 bg-white/[0.03] p-6">
+            <div className="flex flex-col rounded-xl border border-violet-400/30 bg-white/[0.03] p-6">
               <div className="mb-5 h-6">
                 <span className="inline-flex items-center rounded-full bg-violet-500/15 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-violet-300">
                   Full system
@@ -1223,7 +1223,7 @@ export default function LandingPage() {
               <h3 className="mt-1.5 text-lg font-black leading-snug text-white">Long-term career system</h3>
               <div className="mt-4 flex flex-wrap items-baseline gap-2">
                 <span className="text-sm font-black text-white/35 line-through decoration-2">{localizedPlans.premiumPro.regular}</span>
-                <span className="text-4xl font-black text-white sm:text-5xl">{localizedPlans.premiumPro.amount}</span>
+                <span className="text-4xl font-black text-white sm:text-3xl">{localizedPlans.premiumPro.amount}</span>
                 <span className="text-base text-white/45">/month</span>
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-400">
@@ -1251,7 +1251,7 @@ export default function LandingPage() {
               </div>
               <Link
                 href="/pricing?plan=premium_pro"
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-violet-500 px-6 py-3 text-sm font-black text-white transition hover:bg-violet-400"
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-6 py-3 text-sm font-black text-white transition hover:bg-violet-400"
               >
                 Choose Premium Pro <ArrowRight className="h-4 w-4" />
               </Link>
@@ -1266,7 +1266,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-3xl">
           <div className="mb-10 text-center">
             <SectionLabel>FAQ</SectionLabel>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
               Common questions
             </h2>
           </div>

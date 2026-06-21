@@ -115,7 +115,7 @@ function SmallTrend({ label, values }: { label: string; values: number[] }) {
   const safeValues = values.length ? values : [0, 0, 0];
   const latest = safeValues[safeValues.length - 1] || 0;
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+    <div className="rounded-lg border border-white/10 bg-black/20 p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</p>
         <p className="text-lg font-black text-white">{latest || "—"}</p>
@@ -135,9 +135,9 @@ function SmallTrend({ label, values }: { label: string; values: number[] }) {
 
 function LockedPanel() {
   return (
-    <section className="rounded-[2rem] border border-violet-300/20 bg-violet-500/[0.08] p-6">
+    <section className="rounded-lg border border-violet-300/20 bg-violet-500/[0.08] p-6">
       <div className="flex items-start gap-4">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-400/15 text-violet-200">
+        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-violet-400/15 text-violet-200">
           <Lock className="h-6 w-6" />
         </div>
         <div>
@@ -146,7 +146,7 @@ function LockedPanel() {
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
             Premium Pro adds a long-term AI Career Coach, 30/60/90 day career roadmaps, progress trends, interview replay intelligence, premium recruiter challenges, and Live AI Recruiter minutes.
           </p>
-          <Link href="/pricing?plan=premium_pro&intent=career_coach" className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-violet-500 px-5 py-3 text-sm font-black text-white hover:bg-violet-400">
+          <Link href="/pricing?plan=premium_pro&intent=career_coach" className="mt-5 inline-flex items-center gap-2 rounded-lg bg-violet-500 px-5 py-3 text-sm font-black text-white hover:bg-violet-400">
             Upgrade to Premium Pro
             <Sparkles className="h-4 w-4" />
           </Link>
@@ -164,7 +164,7 @@ export default function WorkZoPremiumProSuitePanel({ source = "dashboard", repor
   if (!allowed) return <LockedPanel />;
 
   return (
-    <section className={cn("rounded-[2rem] border border-violet-300/20 bg-violet-500/[0.075] p-6 shadow-2xl shadow-violet-950/10", compact && "p-5")}>
+    <section className={cn("rounded-lg border border-violet-300/20 bg-violet-500/[0.075] p-6 shadow-2xl shadow-violet-950/10", compact && "p-5")}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.24em] text-violet-200">Premium Pro career layer</p>
@@ -173,7 +173,7 @@ export default function WorkZoPremiumProSuitePanel({ source = "dashboard", repor
           </h2>
           <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300">{suite.coachSummary}</p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-center">
+        <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-center">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Hiring readiness</p>
           <p className="mt-2 text-4xl font-black text-white">{suite.hiringReadiness.current}%</p>
           <p className="mt-1 text-xs font-black uppercase text-violet-200">{suite.hiringReadiness.label}</p>
@@ -182,7 +182,7 @@ export default function WorkZoPremiumProSuitePanel({ source = "dashboard", repor
 
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         {suite.weeklyPriorities.map((item) => (
-          <div key={item.title} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <div key={item.title} className="rounded-lg border border-white/10 bg-black/20 p-4">
             <p className="text-sm font-black text-white">{item.title}</p>
             <p className="mt-2 text-sm leading-6 text-slate-300">{item.action}</p>
             <p className="mt-3 text-xs leading-5 text-slate-500">{item.reason}</p>
@@ -191,7 +191,7 @@ export default function WorkZoPremiumProSuitePanel({ source = "dashboard", repor
       </div>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_0.9fr]">
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+        <div className="rounded-lg border border-white/10 bg-black/20 p-5">
           <h3 className="flex items-center gap-2 text-lg font-black text-white"><Route className="h-5 w-5 text-cyan-200" />30 / 60 / 90 day roadmap</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             {([
@@ -199,7 +199,7 @@ export default function WorkZoPremiumProSuitePanel({ source = "dashboard", repor
               ["60 days", suite.roadmap.days60],
               ["90 days", suite.roadmap.days90],
             ] as const).map(([label, items]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+              <div key={label} className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">{label}</p>
                 <div className="mt-3 space-y-3">
                   {items.slice(0, 3).map((item) => (
@@ -214,7 +214,7 @@ export default function WorkZoPremiumProSuitePanel({ source = "dashboard", repor
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+        <div className="rounded-lg border border-white/10 bg-black/20 p-5">
           <h3 className="flex items-center gap-2 text-lg font-black text-white"><TrendingUp className="h-5 w-5 text-emerald-200" />Progress tracking</h3>
           <p className="mt-2 text-sm leading-6 text-slate-400">{suite.progressTracking.trendSummary}</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -227,11 +227,11 @@ export default function WorkZoPremiumProSuitePanel({ source = "dashboard", repor
       </div>
 
       <div className="mt-6 grid gap-5 lg:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+        <div className="rounded-lg border border-white/10 bg-black/20 p-5">
           <h3 className="flex items-center gap-2 text-lg font-black text-white"><PlayCircle className="h-5 w-5 text-blue-200" />Replay intelligence</h3>
           <div className="mt-4 space-y-3">
             {suite.replayIntelligence.slice(0, source === "dashboard" ? 3 : 6).map((moment) => (
-              <div key={moment.id} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+              <div key={moment.id} className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-black text-white">{moment.label}</p>
                   <span className={cn("rounded-full px-2.5 py-1 text-xs font-black", moment.trustImpact < 0 ? "bg-rose-400/10 text-rose-200" : "bg-emerald-400/10 text-emerald-200")}>{moment.trustImpact > 0 ? "+" : ""}{moment.trustImpact}</span>
@@ -244,14 +244,14 @@ export default function WorkZoPremiumProSuitePanel({ source = "dashboard", repor
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+        <div className="rounded-lg border border-white/10 bg-black/20 p-5">
           <h3 className="flex items-center gap-2 text-lg font-black text-white"><Target className="h-5 w-5 text-amber-200" />Next recruiter challenges</h3>
           <div className="mt-4 space-y-3">
             {suite.recruiterChallenges.map((challenge) => (
-              <p key={challenge} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-sm leading-6 text-slate-200">“{challenge}”</p>
+              <p key={challenge} className="rounded-lg border border-white/10 bg-white/[0.035] p-4 text-sm leading-6 text-slate-200">“{challenge}”</p>
             ))}
           </div>
-          <div className="mt-5 rounded-2xl border border-emerald-300/15 bg-emerald-400/10 p-4">
+          <div className="mt-5 rounded-lg border border-emerald-300/15 bg-emerald-400/10 p-4">
             <p className="flex items-center gap-2 text-sm font-black text-emerald-100"><CheckCircle2 className="h-4 w-4" />Full career support active</p>
             <p className="mt-2 text-xs leading-5 text-emerald-50/70">This connects interviews, CV improvement, cover letters, Job Assist, progress tracking, and recruiter memory into one Premium Pro coaching loop.</p>
           </div>

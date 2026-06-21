@@ -144,7 +144,7 @@ export default function SaveInterviewSessionCard({ result }: Props) {
 
   if (state === "checking" || state === "saving") {
     return (
-      <div className="mt-5 rounded-2xl border border-blue-300/15 bg-blue-400/[0.06] p-4 text-sm text-blue-100">
+      <div className="mt-5 rounded-lg border border-blue-300/15 bg-blue-400/[0.06] p-4 text-sm text-blue-100">
         <div className="flex items-center gap-2 font-black">
           <Loader2 className="h-4 w-4 animate-spin" />
           {state === "checking" ? "Checking account…" : "Saving this interview…"}
@@ -155,7 +155,7 @@ export default function SaveInterviewSessionCard({ result }: Props) {
 
   if (state === "saved") {
     return (
-      <div className="mt-5 rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.07] p-4 text-sm text-emerald-100">
+      <div className="mt-5 rounded-lg border border-emerald-300/15 bg-emerald-400/[0.07] p-4 text-sm text-emerald-100">
         <div className="flex items-center gap-2 font-black">
           <CheckCircle2 className="h-4 w-4" />
           Saved to your interview history.
@@ -169,7 +169,7 @@ export default function SaveInterviewSessionCard({ result }: Props) {
 
   if (state === "signed-out") {
     return (
-      <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
+      <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
         <div className="flex items-center gap-2 font-black text-white">
           <LockKeyhole className="h-4 w-4 text-blue-200" />
           Sign in to save this interview.
@@ -183,7 +183,7 @@ export default function SaveInterviewSessionCard({ result }: Props) {
   }
 
   return (
-    <div className="mt-5 rounded-2xl border border-amber-300/15 bg-amber-400/[0.07] p-4 text-sm text-amber-100">
+    <div className="mt-5 rounded-lg border border-amber-300/15 bg-amber-400/[0.07] p-4 text-sm text-amber-100">
       <div className="flex items-center gap-2 font-black">
         <Cloud className="h-4 w-4" />
         Interview result was not saved.

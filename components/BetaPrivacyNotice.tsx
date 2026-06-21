@@ -11,10 +11,10 @@ export default function PrivacyNotice({
 }: PrivacyNoticeProps) {
   return (
     <div
-      className={`rounded-2xl border border-cyan-300/20 bg-cyan-400/8 p-4 text-cyan-50 ${className}`}
+      className={`rounded-lg border border-cyan-300/20 bg-cyan-400/8 p-4 text-cyan-50 ${className}`}
     >
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-cyan-400/12">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-400/12">
           {compact ? <ShieldCheck className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
         </div>
         <div>

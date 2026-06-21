@@ -59,7 +59,7 @@ const RECRUITER_DISPLAY_NAMES: Record<RecruiterKey, string> = {
   alex: "Alex Chen",
   zoe: "Zoe Park",
   james: "James Harrington",
-  marcus: "Marcus Webb",
+  marcus: "Noah Jones",
   aisha: "Aisha Patel",
   victoria: "Victoria Stern",
   david: "David Kimura",
@@ -109,7 +109,7 @@ function normalizeRecruiterKey(input?: string): RecruiterKey {
   if (raw.includes("faang_hiring_manager") || raw.includes("faang") || raw.includes("alex")) return "alex";
   if (raw.includes("startup_founder") || raw.includes("zoe") || raw.includes("park")) return "zoe";
   if (raw.includes("consulting_partner") || raw.includes("james") || raw.includes("harrington") || raw.includes("consulting")) return "james";
-  if (raw.includes("sales_director") || raw.includes("marcus") || raw.includes("webb") || raw.includes("sales")) return "marcus";
+  if (raw.includes("sales_director") || raw.includes("marcus") || raw.includes("webb") || raw.includes("noah") || raw.includes("sales")) return "marcus";
   if (raw.includes("product_leader") || raw.includes("aisha") || raw.includes("patel") || raw.includes("product")) return "aisha";
   if (raw.includes("executive_recruiter") || raw.includes("victoria") || raw.includes("stern") || raw.includes("executive")) return "victoria";
   if (raw.includes("enterprise_recruiter") || raw.includes("david") || raw.includes("kimura") || raw.includes("enterprise")) return "david";

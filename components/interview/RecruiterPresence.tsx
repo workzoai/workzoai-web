@@ -287,7 +287,7 @@ export default function RecruiterPresence({
           )}
 
           {visualState === "typing_notes" && (
-            <div className="pointer-events-none absolute bottom-24 left-8 right-8 overflow-hidden rounded-2xl border border-white/10 bg-black/38 p-3 backdrop-blur-xl">
+            <div className="pointer-events-none absolute bottom-24 left-8 right-8 overflow-hidden rounded-lg border border-white/10 bg-black/38 p-3 backdrop-blur-xl">
               <div className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200/80">Typing notes</div>
               <div className="relative mt-2 h-1 overflow-hidden rounded-full bg-white/10">
                 <span className="wz-note-line absolute inset-y-0 w-1/3 rounded-full bg-cyan-300/70" />
@@ -309,7 +309,7 @@ export default function RecruiterPresence({
               <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Recruiter presence</p>
               <h3 className="mt-2 text-2xl font-black tracking-[-0.03em] text-white">{stateCopy}</h3>
             </div>
-            <div className={cn("grid h-11 w-11 place-items-center rounded-2xl border", styles.chip)}>
+            <div className={cn("grid h-11 w-11 place-items-center rounded-lg border", styles.chip)}>
               {visualState === "thinking" || visualState === "typing_notes" ? (
                 <Brain className="h-5 w-5" />
               ) : visualState === "interrupting" ? (
@@ -343,7 +343,7 @@ export default function RecruiterPresence({
           </div>
 
           <div className="mt-auto pt-5">
-            <div className="rounded-2xl border border-white/[0.07] bg-black/20 px-4 py-3">
+            <div className="rounded-lg border border-white/[0.07] bg-black/20 px-4 py-3">
               <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-slate-400">
                 <Pause className="h-3.5 w-3.5" />
                 Live behavior

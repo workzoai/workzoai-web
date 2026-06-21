@@ -18,5 +18,5 @@ export default function BillingPortalButton() {
       setLoading(false);
     }
   }
-  return <div><button type="button" onClick={openPortal} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400 disabled:opacity-60">{loading && <Loader2 className="h-4 w-4 animate-spin" />} Manage in Stripe</button>{error && <p className="mt-2 text-sm text-red-300">{error}</p>}</div>;
+  return <div><button type="button" onClick={openPortal} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400 disabled:opacity-60">{loading && <Loader2 className="h-4 w-4 animate-spin" />} Manage in Stripe</button>{error && <p className="mt-2 text-sm text-red-300">{error}</p>}</div>;
 }

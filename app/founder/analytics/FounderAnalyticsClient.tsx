@@ -169,7 +169,7 @@ function SortList({
       <div className="mt-4 space-y-2">
         {data.length ? (
           data.map(([label, count]) => (
-            <div key={label} className="flex justify-between gap-3 rounded-2xl bg-white/[0.04] p-3 text-sm">
+            <div key={label} className="flex justify-between gap-3 rounded-lg bg-white/[0.04] p-3 text-sm">
               <span className="truncate text-slate-200">{label}</span>
               <b>{count}</b>
             </div>
@@ -247,12 +247,12 @@ export default function FounderAnalyticsPage() {
   return (
     <main className="min-h-screen bg-[#020712] px-4 py-5 text-white sm:px-6">
       <div className="mx-auto max-w-7xl">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.045] p-4 backdrop-blur-2xl">
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.045] p-4 backdrop-blur-2xl">
           <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-black text-slate-200">
             <ArrowLeft className="h-4 w-4" />
             Dashboard
           </Link>
-          <button onClick={() => void load()} className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2 text-sm font-black">
+          <button onClick={() => void load()} className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-black">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </button>
@@ -261,12 +261,12 @@ export default function FounderAnalyticsPage() {
         <section className="mt-5 rounded-[32px] border border-white/10 bg-gradient-to-br from-blue-600/18 via-white/[0.045] to-cyan-400/10 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.42)] sm:p-8">
           <div className="flex items-center gap-3">
             <BarChart3 className="h-7 w-7 text-cyan-200" />
-            <h1 className="text-3xl font-black tracking-tight sm:text-5xl">Founder analytics</h1>
+            <h1 className="text-3xl font-black tracking-tight sm:text-3xl">Founder analytics</h1>
           </div>
           <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300">
             Tracks launch readiness, funnel drop-off, voice stability, recruiter usage, weak answer patterns, and traffic sources.
           </p>
-          <div className="mt-5 rounded-3xl border border-cyan-200/10 bg-cyan-300/[0.045] p-4">
+          <div className="mt-5 rounded-xl border border-cyan-200/10 bg-cyan-300/[0.045] p-4">
             <div className="flex items-start gap-3">
               <Brain className="mt-0.5 h-5 w-5 shrink-0 text-cyan-200" />
               <div>

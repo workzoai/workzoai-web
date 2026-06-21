@@ -335,7 +335,7 @@ export default function FeatureWorkspace({ featureKey }: { featureKey: FeatureKe
             <ArrowLeft className="h-5 w-5" /> Back to dashboard
           </Link>
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/workzo_icon.png" alt="WorkZo AI" width={42} height={42} className="rounded-2xl" priority />
+            <Image src="/workzo_icon.png" alt="WorkZo AI" width={42} height={42} className="rounded-lg" priority />
             <span className="text-2xl font-black">
               WorkZo <span className="text-blue-400">AI</span>
             </span>
@@ -347,7 +347,7 @@ export default function FeatureWorkspace({ featureKey }: { featureKey: FeatureKe
             <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/[0.07] px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-cyan-100">
               <Icon className="h-4 w-4" /> {feature.badge}
             </span>
-            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">{feature.title}</h1>
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-3xl">{feature.title}</h1>
             <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-300">{feature.subtitle}</p>
 
             <div className="mt-5 rounded-[22px] border border-emerald-300/12 bg-emerald-400/[0.055] p-4 text-sm leading-6 text-emerald-100">
@@ -374,7 +374,7 @@ export default function FeatureWorkspace({ featureKey }: { featureKey: FeatureKe
                         setOutput(buildCvPreview(inputOne, inputTwo, setupRole(setup), key));
                       }}
                       className={cn(
-                        "rounded-2xl border p-4 text-left transition",
+                        "rounded-lg border p-4 text-left transition",
                         template === key ? "border-cyan-300/35 bg-cyan-400/[0.09]" : "border-white/[0.08] bg-white/[0.035] hover:bg-white/[0.06]",
                       )}
                     >
@@ -397,7 +397,7 @@ export default function FeatureWorkspace({ featureKey }: { featureKey: FeatureKe
                 <textarea value={inputTwo} onChange={(e) => setInputTwo(e.target.value)} placeholder={feature.inputTwoPlaceholder} className="mt-3 h-40 w-full resize-none rounded-[24px] border border-white/[0.08] bg-[#050b18] p-5 text-sm leading-7 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/30" />
               </label>
 
-              <button onClick={handleGenerate} disabled={!canRun || loading} className={cn("flex h-14 w-full items-center justify-center rounded-2xl text-sm font-black transition", canRun ? "bg-gradient-to-r from-blue-500 to-violet-600 hover:scale-[1.01]" : "cursor-not-allowed bg-white/[0.06] text-slate-500")}>
+              <button onClick={handleGenerate} disabled={!canRun || loading} className={cn("flex h-14 w-full items-center justify-center rounded-lg text-sm font-black transition", canRun ? "bg-gradient-to-r from-blue-500 to-violet-600 hover:scale-[1.01]" : "cursor-not-allowed bg-white/[0.06] text-slate-500")}>
                 {loading ? "Working..." : feature.primary}<ArrowRight className="ml-2 h-5 w-5" />
               </button>
             </div>
@@ -411,8 +411,8 @@ export default function FeatureWorkspace({ featureKey }: { featureKey: FeatureKe
                   <h2 className="mt-2 text-3xl font-black">{feature.outputTitle}</h2>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => navigator.clipboard?.writeText(output)} className="inline-flex h-11 items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.05] px-4 text-sm font-black text-slate-200 hover:text-white"><Copy className="h-4 w-4" /> Copy</button>
-                  <button onClick={() => downloadText(filename, output)} className="inline-flex h-11 items-center gap-2 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.08] px-4 text-sm font-black text-cyan-100 hover:bg-cyan-400/[0.12]"><Download className="h-4 w-4" /> Download</button>
+                  <button onClick={() => navigator.clipboard?.writeText(output)} className="inline-flex h-11 items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.05] px-4 text-sm font-black text-slate-200 hover:text-white"><Copy className="h-4 w-4" /> Copy</button>
+                  <button onClick={() => downloadText(filename, output)} className="inline-flex h-11 items-center gap-2 rounded-lg border border-cyan-300/15 bg-cyan-400/[0.08] px-4 text-sm font-black text-cyan-100 hover:bg-cyan-400/[0.12]"><Download className="h-4 w-4" /> Download</button>
                 </div>
               </div>
 
@@ -424,7 +424,7 @@ export default function FeatureWorkspace({ featureKey }: { featureKey: FeatureKe
                 <div className="flex items-center gap-3"><Briefcase className="h-5 w-5 text-cyan-200" /><h3 className="text-2xl font-black">Open live job searches</h3></div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {jobLinks.map((link) => (
-                    <a key={link.label} href={link.href} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-2xl border border-white/[0.08] bg-white/[0.045] px-4 py-4 text-sm font-black text-slate-200 hover:bg-white/[0.08] hover:text-white">
+                    <a key={link.label} href={link.href} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.045] px-4 py-4 text-sm font-black text-slate-200 hover:bg-white/[0.08] hover:text-white">
                       {link.label}<ExternalLink className="h-4 w-4 text-cyan-200" />
                     </a>
                   ))}
@@ -434,11 +434,11 @@ export default function FeatureWorkspace({ featureKey }: { featureKey: FeatureKe
 
             <section className="rounded-[30px] border border-cyan-300/14 bg-cyan-400/[0.055] p-6">
               <div className="flex items-start gap-4">
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600"><Bot className="h-5 w-5" /></span>
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-600"><Bot className="h-5 w-5" /></span>
                 <div>
                   <h3 className="text-2xl font-black">Need broader career help?</h3>
                   <p className="mt-2 text-slate-300">Use this dedicated workspace for focused output, or open Work-O-Bot for broader career strategy.</p>
-                  <Link href="/copilot" className="mt-4 inline-flex h-12 items-center rounded-2xl bg-white/[0.08] px-5 text-sm font-black hover:bg-white/[0.12]">
+                  <Link href="/copilot" className="mt-4 inline-flex h-12 items-center rounded-lg bg-white/[0.08] px-5 text-sm font-black hover:bg-white/[0.12]">
                     Open Work-O-Bot <Wand2 className="ml-2 h-4 w-4" />
                   </Link>
                 </div>

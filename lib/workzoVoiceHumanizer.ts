@@ -49,7 +49,7 @@ function normalizeRecruiter(recruiterId?: WorkZoVoiceRecruiterId) {
   if (raw.includes("faang") || raw.includes("alex")) return "daniel";
   if (raw.includes("startup_founder") || raw.includes("zoe")) return "priya";
   if (raw.includes("consulting") || raw.includes("james")) return "daniel";
-  if (raw.includes("sales_director") || raw.includes("marcus")) return "markus";
+  if (raw.includes("sales_director") || raw.includes("marcus") || raw.includes("noah")) return "markus";
   if (raw.includes("product_leader") || raw.includes("aisha")) return "sarah";
   if (raw.includes("executive_recruiter") || raw.includes("victoria")) return "sarah";
   if (raw.includes("enterprise_recruiter") || raw.includes("david")) return "markus";

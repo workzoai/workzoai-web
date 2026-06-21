@@ -256,7 +256,7 @@ export default function MobileInterviewRoom({
                   {question}
                 </h1>
               </div>
-              <div className="hidden shrink-0 rounded-2xl border border-white/[0.07] bg-white/[0.045] px-3 py-2 text-right md:block">
+              <div className="hidden shrink-0 rounded-lg border border-white/[0.07] bg-white/[0.045] px-3 py-2 text-right md:block">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Trust</p>
                 <p className="mt-1 text-xl font-black text-white">{recruiterTrust}</p>
               </div>
@@ -289,15 +289,15 @@ export default function MobileInterviewRoom({
 
           <div className="hidden rounded-[24px] border border-white/[0.055] bg-white/[0.03] p-4 shadow-[0_14px_45px_rgba(0,0,0,0.20)] backdrop-blur-xl md:block">
             <div className="grid grid-cols-3 gap-3 text-sm">
-              <div className="rounded-2xl bg-white/[0.04] p-3">
+              <div className="rounded-lg bg-white/[0.04] p-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Mode</p>
                 <p className="mt-1 font-black text-white">{selectedMode === "video" ? "Live" : "Standard"}</p>
               </div>
-              <div className="rounded-2xl bg-white/[0.04] p-3">
+              <div className="rounded-lg bg-white/[0.04] p-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">State</p>
                 <p className="mt-1 font-black text-white">{isSpeaking ? "Speaking" : isListening ? "Listening" : "Ready"}</p>
               </div>
-              <div className="rounded-2xl bg-white/[0.04] p-3">
+              <div className="rounded-lg bg-white/[0.04] p-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Signal</p>
                 <p className="mt-1 font-black text-white">{recruiterTrust >= 68 ? "Good" : recruiterTrust < 45 ? "Pressure" : "Testing"}</p>
               </div>

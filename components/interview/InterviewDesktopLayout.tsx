@@ -14,7 +14,7 @@ import type { InterviewLayoutProps } from "./types";
 const CodePanel = dynamic(() => import("@/components/interview/CodePanel"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full items-center justify-center rounded-2xl border border-white/10 bg-[#0d1117]">
+    <div className="flex h-full items-center justify-center rounded-lg border border-white/10 bg-[#0d1117]">
       <span className="text-xs text-slate-600 font-black uppercase tracking-widest">Loading editor…</span>
     </div>
   ),
@@ -31,13 +31,13 @@ export default function InterviewDesktopLayout({ setup, signal, transcript, ui, 
             <button
               type="button"
               onClick={actions.onBack}
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10"
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 hover:bg-white/10"
               aria-label="Back to dashboard"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
             <Link href="/dashboard" className="flex shrink-0 items-center gap-3">
-              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-500 text-xl font-black">W</div>
+              <div className="grid h-12 w-12 place-items-center rounded-lg bg-cyan-500 text-xl font-black">W</div>
               <span className="hidden text-2xl font-black lg:block">
                 WorkZo <span className="text-blue-400">AI</span>
               </span>
@@ -59,7 +59,7 @@ export default function InterviewDesktopLayout({ setup, signal, transcript, ui, 
             <button
               type="button"
               onClick={actions.onEnd}
-              className="rounded-2xl border border-red-400/30 px-5 py-3 font-black text-red-200 hover:bg-red-500/10"
+              className="rounded-lg border border-red-400/30 px-5 py-3 font-black text-red-200 hover:bg-red-500/10"
             >
               End Interview
             </button>

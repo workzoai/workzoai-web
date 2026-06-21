@@ -139,10 +139,16 @@ export default async function HistoryPage() {
           </Link>
         </div>
 
-        <section className="mt-6 rounded-3xl border border-white/10 bg-gradient-to-br from-blue-500/15 via-violet-500/10 to-white/[0.03] p-5 sm:p-7">
+        <section className={`mt-6 rounded-xl border p-5 sm:p-7 ${
+          isProPlan ? "border-violet-300/20 bg-gradient-to-br from-violet-500/15 via-violet-500/8 to-white/[0.03]"
+          : isPaidPlan ? "border-blue-300/15 bg-gradient-to-br from-blue-500/12 via-violet-500/8 to-white/[0.03]"
+          : "border-white/10 bg-gradient-to-br from-blue-500/10 via-violet-500/6 to-white/[0.03]"
+        }`}>
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm font-bold uppercase tracking-[0.18em] text-blue-200">Saved Practice</p>
+              <p className={`text-xs font-bold uppercase tracking-[0.18em] ${isProPlan ? "text-violet-300" : "text-blue-200"}`}>
+                {isProPlan ? "Premium Pro · Unlimited history" : isPaidPlan ? "Premium · Full history" : "Free plan · 3 sessions"}
+              </p>
               <h1 className="mt-2 text-3xl font-black sm:text-4xl">Interview History</h1>
               <p className="mt-2 max-w-2xl text-slate-300">
                 Review your past interview reports, scores, recruiter signals, and weakest moments.

@@ -27,7 +27,7 @@ export default function BillingPortalButton({ disabled = false }: { disabled?: b
         type="button"
         onClick={openPortal}
         disabled={disabled || loading}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
         {loading ? "Opening billing…" : "Manage or cancel in Stripe"}

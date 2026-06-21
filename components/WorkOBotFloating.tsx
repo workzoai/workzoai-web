@@ -288,7 +288,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
         .map(r => r.split("|").slice(1, -1).map(c => c.trim()));
       if (rows.length > 0) {
         nodes.push(
-          <div key={`tbl-${tableKey}`} className="my-3 overflow-x-auto rounded-2xl border border-white/10 text-[12px]">
+          <div key={`tbl-${tableKey}`} className="my-3 overflow-x-auto rounded-lg border border-white/10 text-[12px]">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-white/[0.06]">
@@ -537,7 +537,7 @@ export default function WorkOBotFloating({
     >
       <header className="flex items-center justify-between border-b border-white/[0.07] bg-white/[0.035] px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_28px_rgba(34,211,238,0.30)]">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_28px_rgba(34,211,238,0.30)]">
             <Bot className="h-6 w-6" />
           </div>
           <div className="min-w-0">
@@ -617,7 +617,7 @@ export default function WorkOBotFloating({
           {/* Chat thread */}
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? (
-              <div className="rounded-3xl border border-cyan-300/14 bg-cyan-400/[0.055] p-4">
+              <div className="rounded-xl border border-cyan-300/14 bg-cyan-400/[0.055] p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-black">{activeMode.label} mode</p>
@@ -636,7 +636,7 @@ export default function WorkOBotFloating({
                 <button
                   type="button"
                   onClick={() => sendMessage(starterPrompt(mode, targetRole))}
-                  className="mt-3 w-full rounded-2xl border border-white/[0.07] bg-white/[0.045] px-3 py-2 text-left text-xs font-semibold text-slate-200 hover:bg-white/[0.075]"
+                  className="mt-3 w-full rounded-lg border border-white/[0.07] bg-white/[0.045] px-3 py-2 text-left text-xs font-semibold text-slate-200 hover:bg-white/[0.075]"
                 >
                   Try: {starterPrompt(mode, targetRole)}
                 </button>
@@ -662,7 +662,7 @@ export default function WorkOBotFloating({
                   </div>
                   <div
                     className={cn(
-                      "max-w-[82%] rounded-3xl px-4 py-2.5",
+                      "max-w-[82%] rounded-xl px-4 py-2.5",
                       item.role === "user"
                         ? "rounded-tr-md bg-cyan-400/15 text-sm leading-6 text-cyan-50 whitespace-pre-line"
                         : "rounded-tl-md border border-white/[0.07] bg-black/24",
@@ -682,7 +682,7 @@ export default function WorkOBotFloating({
                 <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(34,211,238,0.30)]">
                   <Bot className="h-3.5 w-3.5" />
                 </div>
-                <div className="flex items-center gap-2 rounded-3xl rounded-tl-md border border-white/[0.07] bg-black/24 px-4 py-2.5 text-sm text-slate-400">
+                <div className="flex items-center gap-2 rounded-xl rounded-tl-md border border-white/[0.07] bg-black/24 px-4 py-2.5 text-sm text-slate-400">
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-200" />
                   Thinking…
                 </div>
@@ -704,13 +704,13 @@ export default function WorkOBotFloating({
                 }}
                 placeholder={placeholderForMode(mode)}
                 rows={1}
-                className="max-h-28 min-h-[44px] flex-1 resize-none rounded-2xl border border-white/[0.08] bg-slate-950/70 p-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/35"
+                className="max-h-28 min-h-[44px] flex-1 resize-none rounded-lg border border-white/[0.08] bg-slate-950/70 p-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/35"
               />
               <button
                 type="button"
                 onClick={() => void sendMessage()}
                 disabled={loading || !message.trim()}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 text-white shadow-[0_16px_42px_rgba(14,165,233,0.26)] transition hover:scale-[1.04] disabled:cursor-not-allowed disabled:opacity-50"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-gradient-to-r from-blue-500 to-cyan-400 text-white shadow-[0_16px_42px_rgba(14,165,233,0.26)] transition hover:scale-[1.04] disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Send"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

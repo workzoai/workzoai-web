@@ -1,6 +1,6 @@
 import { getOpenAiTtsInstructions } from "@/lib/workzoVoiceHumanizer";
-import { resolveRecruiterVoiceKey, RECRUITER_VOICE_TABLE } from "@/lib/recruiterVoiceConfig";
-import { selectRoleKnowledgeBlock } from "@/lib/unifiedRecruiterIntelligence";
+import { resolveRecruiterVoiceKey, recruiterVoiceProfiles } from "@/lib/recruiterVoiceConfig";
+import { selectRoleKnowledgeBlock } from "@/lib/workzoRoleKnowledge";
 
 export type WorkZoVapiTranscriptMessage = {
   role: "assistant" | "user" | "system" | string;
@@ -65,8 +65,19 @@ export function getWorkZoVapiRecruiterKey(recruiterId?: WorkZoRecruiterId, recru
 
 export function getWorkZoVapiAssistantId(recruiterId?: WorkZoRecruiterId, recruiterName?: string) {
   const key = resolveRecruiterVoiceKey(recruiterId, recruiterName);
-  const envVar = RECRUITER_VOICE_TABLE[key].vapiEnv;
-  const assistantId = (process.env[envVar] || "").trim();
+  // BUG FIXED: this used to do `RECRUITER_VOICE_TABLE[key].vapiEnv` (a string
+  // like "NEXT_PUBLIC_VAPI_SARAH_ASSISTANT_ID") and then
+  // `process.env[envVar]` — dynamic bracket access using a runtime variable.
+  // Next.js only inlines NEXT_PUBLIC_* env vars when it sees the literal,
+  // static `process.env.NEXT_PUBLIC_XXX` text in source at build time;
+  // dynamic access like this is invisible to that step and always resolves
+  // to undefined client-side, regardless of what's actually configured in
+  // the hosting environment. Confirmed from live testing — the assistant ID
+  // never resolved no matter what was set or how many times it was
+  // rebuilt. recruiterVoiceProfiles already does this correctly with a
+  // literal `process.env.NEXT_PUBLIC_VAPI_SARAH_ASSISTANT_ID` per entry —
+  // reusing that instead of the broken dynamic lookup.
+  const assistantId = (recruiterVoiceProfiles[key]?.assistantId || "").trim();
   return { key, assistantId };
 }
 
@@ -143,7 +154,19 @@ export function buildWorkZoVapiVariableValues(input: {
   strictGroundingRules?: string;
   recruiterMustChallengeUnsupportedClaims?: string;
   antiHallucinationMode?: string;
+  // BUG FIXED: language was never a real, dedicated instruction here. It
+  // only ever reached Vapi as a prefix buried inside cvText/jobDescription —
+  // fields the model is told to treat as DATA (the candidate's resume, the
+  // job posting), not as behavioral directives. A model is far more likely
+  // to actually comply with "speak German" when it's stated plainly as an
+  // instruction, not smuggled into the start of what it thinks is a CV.
+  // Confirmed from live testing: opening line and most replies stayed in
+  // English regardless of the selected language.
+  language?: string;
+  languageLabel?: string;
 }) {
+  const languageLabel = input.languageLabel || "English";
+  const isEnglish = languageLabel.toLowerCase() === "english";
   return {
     candidateName: input.candidateName || "Candidate",
     recruiterName: input.recruiterName || "Recruiter",
@@ -154,9 +177,27 @@ export function buildWorkZoVapiVariableValues(input: {
     companyName: input.companyName || "the company",
     recruiterPersonality: input.recruiterPersonality || "",
     companyStyleInstructions: input.companyStyleInstructions || "",
+    // Exposed as its own variable too, in case the Vapi assistant's
+    // dashboard-configured prompt template ever adds a {{language}}
+    // placeholder of its own.
+    language: languageLabel,
     cvSummary: (input.cvText || "").replace(/\s+/g, " ").slice(0, 2400),
     jobDescription: (input.jobDescription || "").replace(/\s+/g, " ").slice(0, 2400),
     interviewStyle:
+      (isEnglish
+        ? ""
+        : // Stated first, plainly, repeated in different phrasing — this is
+          // the one instruction in this whole prompt most likely to get
+          // silently dropped if it's not impossible to miss.
+          `CRITICAL — LANGUAGE: conduct this entire interview in ${languageLabel}, not English. Every question, follow-up, clarification, and closing remark must be in ${languageLabel}. This includes your very first greeting — do not open in English and switch later. Only use English if the candidate explicitly asks you to switch to English. `) +
+      // BUG FIXED: candidateName falls back to the word "there" (intended
+      // only for a natural opening greeting, like "Hi there") whenever a
+      // real first name can't be safely extracted. That fallback value was
+      // then getting reused as a literal name substitute throughout the
+      // ENTIRE conversation, not just the opening — producing sentences
+      // like "Thank you for sharing that, there." on nearly every turn.
+      // Confirmed from live testing. This instruction overrides that.
+      `If no real candidate name is available (the name value is "there", empty, or clearly not a real first name), do NOT address the candidate by name anywhere in the conversation except possibly a natural opening like "Hi there" — never insert "there" or any other filler as a name substitute mid-sentence (e.g. never say "Thank you for sharing that, there."). Just phrase the sentence naturally without a name. ` +
       `You are a natural, warm human recruiter — not a scoring robot, not a question machine. ` +
       `Start with brief rapport. Answer small social questions naturally before continuing. ` +
       `Ask ONE question per turn. Listen to the candidate's answer and choose your next question FROM what they just said. ` +
@@ -173,7 +214,12 @@ export function buildWorkZoVapiVariableValues(input: {
       // same baseline questions every real interview includes.
       `Early in the interview, naturally ask what the candidate currently does (or most recently did) and why they're interested in this specific role — not generically, but tied to what this role actually involves. ` +
       `At least once, pick a specific requirement stated in the job description below that you don't see clearly evidenced in the CV, and ask about it directly — e.g. "This role needs X, I'm not seeing that in your background, do you have experience with that?" Don't rely only on generic competency questions; ground at least one question in the actual job description text. ` +
-      `${selectRoleKnowledgeBlock(input.targetRole || "", input.jobDescription || "")} ` +
+      `Near the end of the interview, invite the candidate's own questions — ask something like "do you have any questions for me about the role or what happens next?" If they ask something, actually answer it using what you know about the role — don't redirect them back into the interview. ` +
+      // Capped at 700 chars — kept as a precaution from when this was first
+      // added, even though the actual regression turned out to be a missing
+      // Vapi assistant ID env var, not this content. No downside to keeping
+      // the cap regardless.
+      `${selectRoleKnowledgeBlock(input.targetRole || "", input.jobDescription || "").slice(0, 700)} ` +
       `${input.recruiterPersonality || ""} ${input.companyStyleInstructions || ""}`.trim(),
     voiceDirection:
       `${getOpenAiTtsInstructions({

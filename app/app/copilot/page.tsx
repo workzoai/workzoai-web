@@ -537,7 +537,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
         .map(r => r.split("|").slice(1, -1).map(c => c.trim()));
       if (rows.length > 0) {
         nodes.push(
-          <div key={`tbl-${tableKey}`} className="my-3 overflow-x-auto rounded-2xl border border-white/10 text-[12px]">
+          <div key={`tbl-${tableKey}`} className="my-3 overflow-x-auto rounded-lg border border-white/10 text-[12px]">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-white/[0.06]">
@@ -811,7 +811,7 @@ export default function WorkOBotCopilotPage() {
           </Link>
 
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/16 text-blue-200">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-500/16 text-blue-200">
               <Wand2 className="h-5 w-5" />
             </div>
             <div>
@@ -832,18 +832,18 @@ export default function WorkOBotCopilotPage() {
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               {cvSummary.bullets.map((item) => (
-                <div key={item} className="rounded-2xl border border-white/10 bg-black/18 p-3 text-sm leading-6 text-slate-300">
+                <div key={item} className="rounded-lg border border-white/10 bg-black/18 p-3 text-sm leading-6 text-slate-300">
                   {item}
                 </div>
               ))}
             </div>
 
-            <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-400/8 p-4">
+            <div className="mt-5 rounded-lg border border-cyan-300/20 bg-cyan-400/8 p-4">
               <p className="text-sm font-black text-cyan-100">{recruiter.name} · {recruiter.role}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">Focus: {recruiter.focus.join(", ")}.</p>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-400/8 p-4 text-sm leading-6 text-amber-100">
+            <div className="mt-4 rounded-lg border border-amber-300/20 bg-amber-400/8 p-4 text-sm leading-6 text-amber-100">
               Work-O-Bot Career Guide Guide now helps with CV, jobs, cover letters, messages, and interview recovery — not only answer rewriting — it can guide CV positioning, applications, interviews, recruiter messages, and next career steps.
             </div>
           </aside>
@@ -851,7 +851,7 @@ export default function WorkOBotCopilotPage() {
           <section className="rounded-[26px] border border-white/10 bg-white/[0.045] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.24)] backdrop-blur-2xl lg:p-5">
             <div className="flex flex-col gap-3">
 
-              <div className="rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] p-4">
+              <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/[0.06] p-4">
                 <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-200">Smart career prompts</p>
                 <div className="mt-3 grid gap-2">
                   {getCareerGuidancePrompts(setup).slice(0, 4).map((prompt) => (
@@ -872,7 +872,7 @@ export default function WorkOBotCopilotPage() {
 
 
               <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-200">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-200">
                   <ModeIcon className="h-5 w-5" />
                 </div>
                 <div>
@@ -893,7 +893,7 @@ export default function WorkOBotCopilotPage() {
                         setMessage(modeStarter(item.id, targetRole));
                       }}
                       className={cn(
-                        "flex h-11 items-center justify-center gap-2 rounded-2xl border px-3 text-xs font-black transition",
+                        "flex h-11 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-black transition",
                         mode === item.id
                           ? "border-cyan-300/35 bg-cyan-400/12 text-cyan-100"
                           : "border-white/10 bg-white/[0.035] text-slate-300 hover:bg-white/[0.07]",
@@ -914,11 +914,11 @@ export default function WorkOBotCopilotPage() {
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
                   placeholder="Ask about your CV, a job, cover letter, recruiter reply, interview answer, or career plan..."
-                  className="mt-2 h-24 w-full resize-none rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
+                  className="mt-2 h-24 w-full resize-none rounded-xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
                 />
               </div>
 
-              <div className={`rounded-3xl border px-4 py-3 ${mood.className}`}>
+              <div className={`rounded-xl border px-4 py-3 ${mood.className}`}>
                 <div className="flex items-center gap-2">
                   <MoodIcon className="h-5 w-5" />
                   <p className="text-sm font-black">{mood.label}</p>
@@ -933,7 +933,7 @@ export default function WorkOBotCopilotPage() {
                 <textarea
                   value={question}
                   onChange={(event) => setQuestion(event.target.value)}
-                  className="mt-2 h-24 w-full resize-none rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none focus:border-cyan-300/40"
+                  className="mt-2 h-24 w-full resize-none rounded-xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none focus:border-cyan-300/40"
                 />
               </div>
 
@@ -946,13 +946,13 @@ export default function WorkOBotCopilotPage() {
                     setComparison(null);
                   }}
                   placeholder="Paste an interview answer, CV bullet, cover letter draft, or recruiter message..."
-                  className="mt-2 h-24 w-full resize-none rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
+                  className="mt-2 h-24 w-full resize-none rounded-xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
                 />
               </div>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <div className="rounded-3xl border border-white/10 bg-black/18 p-4">
+              <div className="rounded-xl border border-white/10 bg-black/18 p-4">
                 <div className="flex items-center gap-2">
                   <ShieldAlert className="h-5 w-5 text-amber-200" />
                   <h2 className="font-black">Weakness radar</h2>
@@ -960,7 +960,7 @@ export default function WorkOBotCopilotPage() {
 
                 <div className="mt-3 space-y-2">
                   {weaknessRadar.map((item) => (
-                    <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+                    <div key={item.label} className="rounded-lg border border-white/10 bg-white/[0.035] p-3">
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-sm font-black">{item.label}</p>
                         <span className={item.ok ? "rounded-full bg-emerald-400/12 px-2 py-1 text-xs font-black text-emerald-200" : "rounded-full bg-red-400/12 px-2 py-1 text-xs font-black text-red-200"}>
@@ -973,7 +973,7 @@ export default function WorkOBotCopilotPage() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-black/18 p-4">
+              <div className="rounded-xl border border-white/10 bg-black/18 p-4">
                 <div className="flex items-center gap-2">
                   <Lightbulb className="h-5 w-5 text-cyan-200" />
                   <h2 className="font-black">Likely recruiter follow-ups</h2>
@@ -981,7 +981,7 @@ export default function WorkOBotCopilotPage() {
 
                 <div className="mt-3 space-y-2">
                   {followUps.map((item) => (
-                    <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-slate-300">
+                    <div key={item} className="rounded-lg border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-slate-300">
                       “{item}”
                     </div>
                   ))}
@@ -998,7 +998,7 @@ export default function WorkOBotCopilotPage() {
                     type="button"
                     onClick={() => runAction(action.id)}
                     className={cn(
-                      "rounded-2xl border p-4 text-left transition hover:scale-[1.01]",
+                      "rounded-lg border p-4 text-left transition hover:scale-[1.01]",
                       action.priority === "high"
                         ? "border-cyan-300/30 bg-cyan-400/8"
                         : "border-white/10 bg-white/[0.045] hover:border-cyan-300/25 hover:bg-white/[0.07]",
@@ -1018,7 +1018,7 @@ export default function WorkOBotCopilotPage() {
               type="button"
               onClick={() => runAction(mode)}
               disabled={loading}
-              className="mt-4 flex h-13 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 px-5 py-4 text-sm font-black text-white shadow-[0_14px_34px_rgba(59,130,246,0.25)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-4 flex h-13 w-full items-center justify-center gap-3 rounded-lg bg-gradient-to-r from-blue-500 to-violet-600 px-5 py-4 text-sm font-black text-white shadow-[0_14px_34px_rgba(59,130,246,0.25)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Send className="h-5 w-5" />
               {loading ? "Work-O-Bot Career Guide Guide is thinking..." : "Ask Work-O-Bot Career Guide Guide"}
@@ -1048,7 +1048,7 @@ export default function WorkOBotCopilotPage() {
               </div>
             </div>
 
-            <div className="mt-4 min-h-[360px] max-h-[560px] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950/60 p-5">
+            <div className="mt-4 min-h-[360px] max-h-[560px] overflow-y-auto rounded-xl border border-white/10 bg-slate-950/60 p-5">
               {loading ? (
                 <div className="flex h-[260px] items-center justify-center">
                   <div className="text-center">
@@ -1064,22 +1064,22 @@ export default function WorkOBotCopilotPage() {
             </div>
 
             {comparison && (
-              <div className="mt-4 rounded-3xl border border-emerald-300/20 bg-emerald-400/8 p-4">
+              <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-400/8 p-4">
                 <div className="flex items-center gap-3">
                   <Zap className="h-5 w-5 text-emerald-200" />
                   <p className="font-black">Before vs after</p>
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-3">
-                  <div className="rounded-2xl bg-black/18 p-3">
+                  <div className="rounded-lg bg-black/18 p-3">
                     <p className="text-xs text-slate-500">Original</p>
                     <p className="text-2xl font-black">{comparison.oldScore}</p>
                   </div>
-                  <div className="rounded-2xl bg-black/18 p-3">
+                  <div className="rounded-lg bg-black/18 p-3">
                     <p className="text-xs text-slate-500">Improved</p>
                     <p className="text-2xl font-black">{comparison.newScore}</p>
                   </div>
-                  <div className="rounded-2xl bg-black/18 p-3">
+                  <div className="rounded-lg bg-black/18 p-3">
                     <p className="text-xs text-slate-500">Trust</p>
                     <p className="text-2xl font-black">{comparison.trustDelta > 0 ? "+" : ""}{comparison.trustDelta}</p>
                   </div>
@@ -1097,7 +1097,7 @@ export default function WorkOBotCopilotPage() {
                   setOutput("Saved as your new draft. Run another action to improve it further.");
                   setComparison(null);
                 }}
-                className="mt-4 h-12 w-full rounded-2xl bg-gradient-to-r from-blue-500 to-violet-600 text-sm font-black text-white shadow-[0_14px_34px_rgba(59,130,246,0.25)]"
+                className="mt-4 h-12 w-full rounded-lg bg-gradient-to-r from-blue-500 to-violet-600 text-sm font-black text-white shadow-[0_14px_34px_rgba(59,130,246,0.25)]"
               >
                 Use improved draft
               </button>

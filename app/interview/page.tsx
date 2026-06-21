@@ -73,7 +73,7 @@ import dynamic from "next/dynamic";
 const CodePanel = dynamic(() => import("@/components/interview/CodePanel"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full min-h-[300px] items-center justify-center rounded-2xl border border-white/10 bg-[#0d1117]">
+    <div className="flex h-full min-h-[300px] items-center justify-center rounded-lg border border-white/10 bg-[#0d1117]">
       <span className="text-xs text-slate-600 font-black uppercase tracking-widest animate-pulse">Loading editor…</span>
     </div>
   ),
@@ -340,7 +340,7 @@ const recruiterProfiles: Record<
     pressureStyle: "Redirects rambling answers into structured reasoning",
   },
   sales_director: {
-    name: "Marcus Webb",
+    name: "Noah Jones",
     title: "Sales Director",
     image: "/recruiters/marcus.png",
     voiceHint: "male",
@@ -349,7 +349,7 @@ const recruiterProfiles: Record<
     pressureStyle: "Numbers-first and pushes for quantified impact",
   },
   marcus: {
-    name: "Marcus Webb",
+    name: "Noah Jones",
     title: "Sales Director",
     image: "/recruiters/marcus.png",
     voiceHint: "male",
@@ -513,7 +513,7 @@ function normalizeRecruiterId(value: unknown) {
     return "consulting_partner";
   }
 
-  if (key === "sales_director" || raw.includes("marcus webb") || raw.includes("sales_director")) {
+  if (key === "sales_director" || raw.includes("marcus webb") || raw.includes("noah jones") || raw.includes("sales_director")) {
     return "sales_director";
   }
 
@@ -959,7 +959,7 @@ function recruiterObjectPosition(recruiterId: string, recruiterName: string) {
   if (value.includes("alex") || value.includes("faang")) return "50% 27%";
   if (value.includes("zoe") || value.includes("startup_founder")) return "50% 26%";
   if (value.includes("james") || value.includes("consulting")) return "50% 28%";
-  if (value.includes("marcus") || value.includes("sales")) return "50% 28%";
+  if (value.includes("marcus") || value.includes("noah") || value.includes("sales")) return "50% 28%";
   if (value.includes("aisha") || value.includes("product")) return "50% 26%";
   if (value.includes("victoria") || value.includes("executive")) return "50% 27%";
   if (value.includes("david") || value.includes("enterprise")) return "50% 28%";
@@ -1400,6 +1400,7 @@ function recruiterLooksMale(setup: InterviewSetup) {
     value.includes("alex") ||
     value.includes("james") ||
     value.includes("marcus") ||
+    value.includes("noah") ||
     value.includes("david") ||
     value.includes("faang") ||
     value.includes("consulting") ||
@@ -2263,8 +2264,8 @@ function recruiterPersonalityInstructions(setup: InterviewSetup) {
     return "Act like James Harrington: a consulting partner. Force structure, situation, stakes, options, recommendation, stakeholder impact, and concise executive communication.";
   }
 
-  if (key.includes("marcus") || key.includes("sales_director")) {
-    return "Act like Marcus Webb: a sales director. Push for revenue impact, quota, deal size, conversion, pipeline, customer impact, and exact commercial numbers.";
+  if (key.includes("marcus") || key.includes("noah") || key.includes("sales_director")) {
+    return "Act like Noah Jones: a sales director. Push for revenue impact, quota, deal size, conversion, pipeline, customer impact, and exact commercial numbers.";
   }
 
   if (key.includes("aisha") || key.includes("product_leader")) {
@@ -3184,22 +3185,30 @@ function isTinyVisibleSpeechFragment(text: string) {
 function shouldMergeVisibleTranscript(
   previous: TranscriptItem | undefined,
   next: Omit<TranscriptItem, "id" | "time">,
+  msSincePreviousRecruiterMessage?: number,
 ) {
   if (!previous) return false;
   if (previous.role !== next.role) return false;
   if (previous.speaker !== next.speaker) return false;
   if (next.role === "system") return false;
-  // BUG FIXED: this used to merge ANY two consecutive same-speaker entries
-  // with no check for whether they were actually the same utterance. If two
-  // separate recruiter replies ever landed back-to-back (race condition,
-  // double-fire, anything), they got silently concatenated into one bubble
-  // with no separator — confirmed from live testing, producing a garbled
-  // message that read as two unrelated sentences glued together. Only
-  // candidate turns should merge (catching a single answer split across
-  // multiple speech-recognition segments) — a recruiter turn is always one
-  // complete reply and should never be merged with another one.
-  if (next.role !== "candidate") return false;
-  return true;
+  if (next.role === "candidate") return true;
+
+  // Recruiter-to-recruiter: only merge if this is almost certainly a
+  // continuation of the same reply (arrived within a few seconds, no
+  // candidate turn in between — that condition is already guaranteed by
+  // `previous` being a recruiter entry here). A genuinely separate reply
+  // generated moments later should NOT merge — that's the scenario the
+  // no-merge fix was protecting against.
+  const RAPID_FRAGMENT_WINDOW_MS = 4000;
+  if (
+    next.role === "recruiter" &&
+    typeof msSincePreviousRecruiterMessage === "number" &&
+    msSincePreviousRecruiterMessage <= RAPID_FRAGMENT_WINDOW_MS
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function safeFirstName(name: string) {
@@ -3602,6 +3611,21 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const lastInterimTextRef = useRef("");
   const lastInterimUpdateAtRef = useRef(0);
   const lastAssistantTranscriptRef = useRef('');
+  // Tracks when the last RECRUITER transcript entry was added (raw ms, not
+  // the formatted display string). Used to merge same-speaker fragments
+  // that arrive in quick succession with no candidate turn between them —
+  // a real, observed pattern from live Vapi voice testing where one logical
+  // reply gets split into several separate transcript events by Vapi's
+  // streaming (e.g. "Could you clarify... One... Two... Three...", six
+  // separate bubbles in under 30 seconds). This is NOT the same as the
+  // earlier bug where two genuinely DIFFERENT, unrelated replies got glued
+  // together with no separator — that fix (only merging candidate turns)
+  // stays in place. This adds back a narrow, time-boxed exception:
+  // recruiter-to-recruiter merging is now allowed, but ONLY within a few
+  // seconds of the previous recruiter line, which is what actually
+  // distinguishes "Vapi splitting one reply into chunks" from "two
+  // unrelated replies that happened to land back to back."
+  const lastRecruiterMessageAtRef = useRef(0);
   const lastUserTranscriptRef = useRef('');
 
   const hasStartedInterview = transcript.some((item) => item.role === "recruiter");
@@ -3767,27 +3791,39 @@ const [questionIndex, setQuestionIndex] = useState(0);
     if (autoScrollTranscript) transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [transcript, interimText, autoScrollTranscript]);
 
-  const persistInterviewSessionToDb = useCallback((statusValue: "active" | "completed" | "paused" = "active") => {
+  const persistInterviewSessionToDb = useCallback(async (statusValue: "active" | "completed" | "paused" = "active") => {
     const sessionId = interviewSessionIdRef.current;
-    fetch("/api/db/interview-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        sessionId,
-        setup: setupRef.current,
-        status: statusValue === "completed" ? "completed" : "active",
-        mode: serverPlan === "premium_pro" ? "pro" : "standard",
-        questionIndex: questionIndexRef.current,
-        elapsedSeconds: elapsedRef.current,
-        trustScore: recruiterSignalRef.current.trust,
-        interestScore: recruiterSignalRef.current.interest,
-        recruiterMemory: recruiterMemoryRef.current,
-        recoverySnapshot: recoverySnapshotRef.current || {},
-        completedAt: statusValue === "completed" ? new Date().toISOString() : null,
-      }),
-    }).catch(() => undefined);
-    return sessionId;
+    try {
+      const response = await fetch("/api/db/interview-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          sessionId,
+          setup: setupRef.current,
+          status: statusValue === "completed" ? "completed" : "active",
+          mode: serverPlan === "premium_pro" ? "pro" : "standard",
+          questionIndex: questionIndexRef.current,
+          elapsedSeconds: elapsedRef.current,
+          trustScore: recruiterSignalRef.current.trust,
+          interestScore: recruiterSignalRef.current.interest,
+          recruiterMemory: recruiterMemoryRef.current,
+          recoverySnapshot: recoverySnapshotRef.current || {},
+          completedAt: statusValue === "completed" ? new Date().toISOString() : null,
+        }),
+      });
+      if (response.status === 403) {
+        const data = await response.json().catch(() => null);
+        if (data?.error === "interview_limit_reached") {
+          return { sessionId, blocked: true as const, used: data.used, limit: data.limit, plan: data.plan };
+        }
+      }
+    } catch {
+      // Network failure shouldn't block the interview — the server-side
+      // limit is a backstop, not the only line of defense (client-side
+      // check still runs first). Fail open here, not closed.
+    }
+    return { sessionId, blocked: false as const };
   }, [serverPlan]);
 
   const persistInterviewMessageToDb = useCallback((item: Omit<TranscriptItem, "id" | "time">, messageIndex: number) => {
@@ -3845,8 +3881,17 @@ const [questionIndex, setQuestionIndex] = useState(0);
     persistInterviewMessageToDb(cleanedItem, transcript.length);
     setTranscript((current) => {
       const previous = current[current.length - 1];
+      const now = Date.now();
+      const msSincePreviousRecruiterMessage =
+        cleanedItem.role === "recruiter" && previous?.role === "recruiter"
+          ? now - lastRecruiterMessageAtRef.current
+          : undefined;
 
-      if (shouldMergeVisibleTranscript(previous, cleanedItem)) {
+      if (cleanedItem.role === "recruiter") {
+        lastRecruiterMessageAtRef.current = now;
+      }
+
+      if (shouldMergeVisibleTranscript(previous, cleanedItem, msSincePreviousRecruiterMessage)) {
         return current.map((entry, index) =>
           index === current.length - 1
             ? {
@@ -4768,6 +4813,21 @@ const [questionIndex, setQuestionIndex] = useState(0);
         vapiStartingRef.current = false;
         setPremiumVoiceStatus("not_configured");
         setPremiumVoiceError("");
+        // BUG FIXED: this used to fail completely silently — no transcript
+        // message, nothing visible, only a console.info easy to miss. That's
+        // exactly why "fallback instead of Vapi" was confusing: there was no
+        // way to tell WHY without opening devtools. Now it says specifically
+        // which piece is missing.
+        const missingPieces = [
+          !config.publicKey ? "NEXT_PUBLIC_VAPI_PUBLIC_KEY" : null,
+          !config.assistantId ? `the Vapi assistant ID for this recruiter (${config.recruiterKey})` : null,
+        ].filter(Boolean);
+        console.warn(`[interview] Vapi not configured — using fallback voice. Missing: ${missingPieces.join(", ") || "unknown (check NEXT_PUBLIC_WORKZO_VOICE_PROVIDER)"}`);
+        addTranscript({
+          role: "system",
+          speaker: "System",
+          text: "Live AI voice isn't available right now — continuing with standard voice.",
+        });
         return false;
       }
 
@@ -4812,29 +4872,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
         });
 
         client.on?.("call-end", () => {
-          const wasMidInterview = vapiConnectedRef.current && !stopRequestedRef.current;
           vapiConnectedRef.current = false;
           vapiStartingRef.current = false;
-          if (wasMidInterview) {
-            // BUG FIXED: this used to leave status at "idle" after an
-            // unexpected disconnect, which is ambiguous — not explicitly
-            // "fallback", so different parts of speakRecruiter's tier
-            // selection disagreed turn to turn about whether Vapi was still
-            // in play, producing a different voice (or engine) on
-            // consecutive turns. Confirmed from user reports of the voice
-            // changing every turn. An unexpected mid-interview disconnect
-            // now commits to fallback explicitly and for the rest of the
-            // session, instead of leaving it to flicker.
-            console.warn("[interview] Vapi call-end fired unexpectedly mid-interview — committing to fallback voice for the rest of the session.");
-            trackWorkZoErrorEvent("vapi_unexpected_disconnect", "call-end fired mid-interview", {
-              role: setupRef.current.targetRole,
-              recruiter: setupRef.current.recruiterName,
-            }, "medium");
-            setPremiumVoiceStatus("fallback");
-            setPremiumVoiceError("Voice connection dropped. Switching to browser voice.");
-          } else {
-            setPremiumVoiceStatus((current) => (current === "connected" ? "idle" : current));
-          }
+          setPremiumVoiceStatus((current) => (current === "connected" ? "idle" : current));
           if (!stopRequestedRef.current) setStatus("idle");
         });
 
@@ -4930,6 +4970,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
         });
 
         const variableValues = buildWorkZoVapiVariableValues({
+          language: normalizeInterviewLanguage(activeSetup.language).code,
+          languageLabel: normalizeInterviewLanguage(activeSetup.language).label,
           workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildOpeningFlowInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. ABSOLUTE BAN: never say the sentence "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." Do not ask for metrics immediately after a weak or unclear answer. If the candidate already gave a number, latency improvement, CSAT, customer satisfaction, or before/after outcome, accept that as evidence and move to technical depth, ownership, stakeholder handling, or role-fit. Do not repeat a follow-up that was already asked. If the candidate's last answer was unclear or off-topic, ask a clarification about that answer; do not fall back to the generic metric question. If the CV role and target role are different, explore why the candidate is switching and what proof shows readiness before asking for impact numbers. If the candidate gives a qualitative outcome such as CSAT, customer satisfaction, repeat customers, fewer escalations, or faster resolution, accept it as evidence and move to the next relevant topic. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. If {candidateName} is "there" or not a real first name, do not use a name in the closing; say: 'Thank you for your time. We will be in touch soon. Have a great day.' Otherwise end only with: 'Thank you for your time, {candidateName}. We will be in touch soon. Have a great day.'`,
           strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. ABSOLUTE BAN: never say the sentence "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." Do not ask for metrics immediately after a weak or unclear answer. If the candidate already gave a number, latency improvement, CSAT, customer satisfaction, or before/after outcome, accept that as evidence and move to technical depth, ownership, stakeholder handling, or role-fit. Do not repeat the same follow-up twice.`,
           recruiterMustChallengeUnsupportedClaims: "true",
@@ -5178,7 +5220,26 @@ const [questionIndex, setQuestionIndex] = useState(0);
     setRecoverySnapshot(null);
     setRecoveryNoticeDismissed(false);
 
-    persistInterviewSessionToDb("active");
+    const sessionPersistResult = await persistInterviewSessionToDb("active");
+    if (sessionPersistResult.blocked) {
+      // Server-side limit reached — the client-side localStorage check at
+      // the top of this function can be bypassed (clearing site data,
+      // private window), but this cannot, since it's tied to the
+      // authenticated user and DB-resolved plan. Stop the interview from
+      // actually starting.
+      const blockedPlan = sessionPersistResult.plan || serverPlan;
+      const gateFeature = blockedPlan === "premium" ? "premium_pro_interview" : "interview_limit";
+      openUpgradeModal(gateFeature);
+      addTranscript({
+        role: "system",
+        speaker: "System",
+        text: blockedPlan === "premium"
+          ? `You've used all ${sessionPersistResult.limit} interviews this month. Upgrade to Premium Pro for unlimited voice interviews.`
+          : `You've used all ${sessionPersistResult.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
+      });
+      setStatus("idle");
+      return;
+    }
 
     trackWorkZoInterviewEvent("interview_started", {
       role: freshSetup.targetRole,
@@ -5395,6 +5456,92 @@ const [questionIndex, setQuestionIndex] = useState(0);
     });
   }, [addTranscript, saveInterviewResult, stopListening, stopPremiumVoice]);
 
+  // ── Graceful, engine-agnostic interview completion ──────────────────────
+  // BUG FIXED: there was no automatic completion logic anywhere. The
+  // question counter visually caps at "12 of 12" (Math.min(value + 1, 12)),
+  // but nothing was ever wired to actually END the interview when reached —
+  // confirmed from live testing where the interview kept running
+  // indefinitely past 12/12 until the candidate manually clicked "Exit
+  // Interview." This watches the transcript content itself rather than
+  // hooking into any one engine's reply path, so it works identically
+  // whether the recruiter is the GPT-4o text engine, the browser-STT
+  // fallback, OR live Vapi voice — all three write into the same
+  // `transcript` state via addTranscript.
+  //
+  // Trigger: once the recruiter has asked the closing "do you have any
+  // questions for me" invitation AND the candidate has given their next
+  // response to it, the interview wraps up with a warm closing line and
+  // then ends — not abruptly mid-question, and not by silently looping
+  // forever. This deliberately waits for that full exchange (rather than
+  // cutting off the instant question 12 is reached) specifically so an
+  // in-progress answer is never cut off unfinished.
+  const closingInvitationSeenRef = useRef(false);
+  const closingHandledRef = useRef(false);
+  // Backstop: the closing invitation is the preferred trigger, but a
+  // conversation can get stuck (e.g. an extended CV-verification loop that
+  // never naturally progresses to closing — confirmed from live testing).
+  // Counts candidate turns that happen once the question count is already
+  // capped at 12, without a closing invitation showing up. After a
+  // generous number of extra turns, force the same graceful wrap-up rather
+  // than risk running forever.
+  const turnsPastCapRef = useRef(0);
+  const TURNS_PAST_CAP_BEFORE_FORCED_CLOSE = 6;
+
+  useEffect(() => {
+    if (closingHandledRef.current) return;
+    if (status === "idle" || status === "ended") return;
+    if (transcript.length === 0) return;
+
+    const last = transcript[transcript.length - 1];
+
+    if (
+      last.role === "recruiter" &&
+      /do you have any questions|any questions for me|questions about the role|questions for me before we wrap/i.test(last.text)
+    ) {
+      closingInvitationSeenRef.current = true;
+      return;
+    }
+
+    const candidateExchangeAfterInvitation = closingInvitationSeenRef.current && last.role === "candidate";
+    const forcedCloseDueToStuckLoop =
+      !closingInvitationSeenRef.current &&
+      last.role === "candidate" &&
+      questionIndexRef.current >= 12 &&
+      (turnsPastCapRef.current += 1) >= TURNS_PAST_CAP_BEFORE_FORCED_CLOSE;
+
+    if (candidateExchangeAfterInvitation || forcedCloseDueToStuckLoop) {
+      closingHandledRef.current = true;
+      closingInvitationSeenRef.current = false;
+
+      // Stop the normal listen/reply loop from continuing — this must come
+      // before speaking the closing line, since speakRecruiter's TTS-
+      // completion callbacks check this flag before re-arming the mic.
+      stopRequestedRef.current = true;
+      stopListening();
+
+      const closingLine =
+        "That covers everything from my side — thank you so much for your time today. We'll follow up with next steps soon. Take care!";
+
+      if (audioEnabledRef.current && status !== "recruiter-speaking") {
+        speakRecruiter(closingLine);
+      } else {
+        addTranscript({
+          role: "recruiter",
+          speaker: `${setupRef.current.recruiterName} · ${setupRef.current.recruiterTitle}`,
+          text: closingLine,
+        });
+      }
+
+      // Generous fixed delay so the closing line has time to actually be
+      // read/heard before navigating away — imprecise (no clean "TTS truly
+      // finished" signal at this call site) but errs toward not cutting the
+      // candidate's experience short.
+      window.setTimeout(() => {
+        endInterview();
+      }, 6000);
+    }
+  }, [transcript, status, speakRecruiter, addTranscript, endInterview, stopListening]);
+
   const toggleMic = useCallback(() => {
     if (status === "listening" && listeningRef.current) {
       stopListening();
@@ -5484,9 +5631,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
     return (
     <main className="min-h-screen overflow-x-hidden bg-[#050b14] text-white">
         <div className="grid min-h-screen place-items-center px-5">
-          <section className="w-full max-w-md rounded-[2rem] border border-white/10 bg-white/[0.03] p-6 shadow-2xl">
+          <section className="w-full max-w-md rounded-lg border border-white/10 bg-white/[0.03] p-6 shadow-2xl">
             <div className="flex items-center gap-4">
-              <div className="grid h-16 w-16 place-items-center rounded-2xl border border-blue-300/20 bg-blue-400/10">
+              <div className="grid h-16 w-16 place-items-center rounded-lg border border-blue-300/20 bg-blue-400/10">
                 <Mic className="h-7 w-7 text-blue-200" />
               </div>
               <div className="min-w-0">
@@ -5498,7 +5645,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
             <div className="mt-6 space-y-3">
               <div className="h-3 w-3/4 animate-pulse rounded-full bg-white/10" />
               <div className="h-3 w-1/2 animate-pulse rounded-full bg-white/10" />
-              <div className="min-h-[220px] animate-pulse rounded-2xl border border-white/10 bg-black/20" />
+              <div className="min-h-[220px] animate-pulse rounded-lg border border-white/10 bg-black/20" />
             </div>
 
             <p className="mt-5 text-base leading-6 text-white leading-7 font-medium">
@@ -5612,7 +5759,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 </button>
 
                 {settingsOpen ? (
-                  <div className="absolute right-0 top-12 z-50 max-h-[min(620px,calc(100vh-108px))] w-[320px] overflow-y-auto rounded-2xl workzo-hide-scrollbar border border-white/10 bg-[#091323]/95 p-4 shadow-2xl backdrop-blur-xl">
+                  <div className="absolute right-0 top-12 z-50 max-h-[min(620px,calc(100vh-108px))] w-[320px] overflow-y-auto rounded-lg workzo-hide-scrollbar border border-white/10 bg-[#091323]/95 p-4 shadow-2xl backdrop-blur-xl">
                     <div className="mb-3">
                       <p className="text-sm font-black text-white">Interview Settings</p>
                       <p className="mt-1 text-xs text-slate-400">Adjust only this interview room.</p>
@@ -5799,7 +5946,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
                       <section
               style={{ display: showCopilot ? undefined : "none" }}
-              className="rounded-2xl border border-white/10 bg-[#0b1527] p-3.5 overflow-visible"
+              className="rounded-lg border border-white/10 bg-[#0b1527] p-3.5 overflow-visible"
             >
               <div className="flex items-center justify-between">
 <h2 className="text-base font-black text-blue-300">Live Copilot</h2>
@@ -5897,7 +6044,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 </button>
 
                 {moreOpen ? (
-                  <div className="absolute right-0 top-12 z-50 w-52 rounded-2xl border border-white/10 bg-[#091323]/95 p-2 shadow-2xl backdrop-blur-xl">
+                  <div className="absolute right-0 top-12 z-50 w-52 rounded-lg border border-white/10 bg-[#091323]/95 p-2 shadow-2xl backdrop-blur-xl">
                     {["Take Notes", "Report Issue", "Help Center", "Exit Interview"].map((item) => (
                       <button
                         key={item}
@@ -5917,7 +6064,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
         </header>
 
         {shareableMoment && status !== "idle" ? (
-          <div className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-2xl border border-violet-300/20 bg-violet-500/[0.08] px-4 py-2.5 lg:mx-4">
+          <div className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-lg border border-violet-300/20 bg-violet-500/[0.08] px-4 py-2.5 lg:mx-4">
             <div className="min-w-0">
               <p className="text-xs font-black text-violet-200">{shareableMoment.title}</p>
               <p className="mt-0.5 truncate text-xs text-slate-400">{shareableMoment.text}</p>
@@ -5942,7 +6089,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
         ) : null}
 
         {recoverySnapshot && !recoveryNoticeDismissed && status === "idle" ? (
-          <section className="mx-3 mt-3 rounded-2xl border border-amber-300/25 bg-amber-400/10 p-4 text-amber-50 lg:mx-4">
+          <section className="mx-3 mt-3 rounded-lg border border-amber-300/25 bg-amber-400/10 p-4 text-amber-50 lg:mx-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-black">Resume previous interview?</p>
@@ -5975,7 +6122,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
         {/* First-time user hint — shown once, dismissed permanently */}
         {showFirstTimeHint && (
-          <div className="mx-4 mt-3 flex items-start gap-3 rounded-2xl border border-blue-400/20 bg-blue-400/[0.06] px-4 py-3">
+          <div className="mx-4 mt-3 flex items-start gap-3 rounded-lg border border-blue-400/20 bg-blue-400/[0.06] px-4 py-3">
             <span className="mt-0.5 shrink-0 text-base text-blue-300">💡</span>
             <p className="flex-1 text-xs leading-5 text-blue-200">
               The recruiter will ask questions — respond as you would in a real interview. Speak naturally, then pause. WorkZo listens automatically.
@@ -6019,7 +6166,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
               {waitingRoomActive ? (
                 <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050b14]/80 p-4 backdrop-blur-md">
-                  <div className="w-full max-w-xl rounded-[1.5rem] border border-white/10 bg-[#0b1527]/95 p-5 shadow-2xl">
+                  <div className="w-full max-w-xl rounded-xl border border-white/10 bg-[#0b1527]/95 p-5 shadow-2xl">
                     <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-200">Interview waiting room</p>
                     <h2 className="mt-2 text-xl font-black text-white">{simulationPersona.name} is preparing your interview</h2>
                     <p className="mt-2 text-sm leading-6 text-slate-300">{simulationPersona.openingFrame}</p>
@@ -6028,7 +6175,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
                         const active = index === waitingRoomStep;
                         const done = index < waitingRoomStep;
                         return (
-                          <div key={step.label} className={`rounded-2xl border p-3 transition ${active ? "border-blue-300/35 bg-blue-500/10" : done ? "border-emerald-300/25 bg-emerald-500/10" : "border-white/10 bg-white/[0.03]"}`}>
+                          <div key={step.label} className={`rounded-lg border p-3 transition ${active ? "border-blue-300/35 bg-blue-500/10" : done ? "border-emerald-300/25 bg-emerald-500/10" : "border-white/10 bg-white/[0.03]"}`}>
                             <div className="flex items-center gap-3">
                               <span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-black ${done ? "bg-emerald-400 text-slate-950" : active ? "bg-blue-400 text-slate-950 animate-pulse" : "bg-white/10 text-slate-400"}`}>{done ? "✓" : index + 1}</span>
                               <div>
@@ -6088,7 +6235,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
               )}
               {/* Recruiter reaction bubble */}
               {scoreReady && liveReactionText && recruiterVisualState !== "waiting" && recruiterVisualState !== "listening" && (
-                <div className={`absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-2xl border px-4 py-2 text-xs font-black shadow-2xl backdrop-blur-md z-10 transition-all duration-300 ${
+                <div className={`absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-lg border px-4 py-2 text-xs font-black shadow-2xl backdrop-blur-md z-10 transition-all duration-300 ${
                   recruiterVisualState === "interested" ? "border-emerald-300/25 bg-emerald-950/80 text-emerald-200" :
                   recruiterVisualState === "interrupting" ? "border-red-300/25 bg-red-950/85 text-red-200" :
                   recruiterVisualState === "skeptical" ? "border-amber-300/25 bg-amber-950/80 text-amber-200" :
@@ -6388,7 +6535,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
         </div>
 
         {showCopilot && status !== "idle" ? (
-          <div className="fixed bottom-20 left-3 right-3 z-40 rounded-2xl border border-blue-300/20 bg-[#07111f]/95 px-4 py-3 shadow-2xl backdrop-blur-xl lg:hidden">
+          <div className="fixed bottom-20 left-3 right-3 z-40 rounded-lg border border-blue-300/20 bg-[#07111f]/95 px-4 py-3 shadow-2xl backdrop-blur-xl lg:hidden">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">Live Copilot</p>
@@ -6422,18 +6569,18 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 <h2 className="mt-1 text-xl font-black">Mobile controls</h2>
                 <p className="mt-1 text-sm leading-6 text-slate-400">Adjust the most important interview controls without opening the desktop side panel.</p>
               </div>
-              <button type="button" onClick={() => setSettingsOpen(false)} className="rounded-2xl border border-white/10 px-3 py-2 text-sm font-black text-slate-300">Close</button>
+              <button type="button" onClick={() => setSettingsOpen(false)} className="rounded-lg border border-white/10 px-3 py-2 text-sm font-black text-slate-300">Close</button>
             </div>
             <div className="mt-5 grid gap-3">
-              <button type="button" onClick={() => setAudioEnabled((value) => !value)} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
+              <button type="button" onClick={() => setAudioEnabled((value) => !value)} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
                 <span><span className="block text-sm font-black">Recruiter voice</span><span className="block text-xs text-slate-400">Use spoken recruiter prompts</span></span>
                 <span className={`rounded-full px-3 py-1 text-xs font-black ${audioEnabled ? "bg-emerald-400/15 text-emerald-200" : "bg-white/10 text-slate-400"}`}>{audioEnabled ? "On" : "Off"}</span>
               </button>
-              <button type="button" onClick={() => setShowTranscript((value) => !value)} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
+              <button type="button" onClick={() => setShowTranscript((value) => !value)} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
                 <span><span className="block text-sm font-black">Transcript</span><span className="block text-xs text-slate-400">Show or collapse live transcript</span></span>
                 <span className="rounded-full bg-blue-400/15 px-3 py-1 text-xs font-black text-blue-200">{showTranscript ? "Shown" : "Hidden"}</span>
               </button>
-              <Link href="/dashboard" className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-slate-300">Back to dashboard</Link>
+              <Link href="/dashboard" className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-slate-300">Back to dashboard</Link>
             </div>
           </section>
         </div>

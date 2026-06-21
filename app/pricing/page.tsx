@@ -173,7 +173,7 @@ function PriceLine({ plan, billingCycle }: { plan: WorkZoPlanType; billingCycle:
           </span>
         </div>
       ) : null}
-      <p className="text-4xl font-black tracking-[-0.04em] text-white sm:text-5xl">
+      <p className="text-4xl font-black tracking-[-0.04em] text-white sm:text-3xl">
         {price.amount}<span className="text-base font-bold text-white/45">{suffix}</span>
       </p>
       {plan !== "free" && billingCycle === "yearly" ? (
@@ -279,14 +279,14 @@ export default function PricingPage() {
             <Sparkles className="h-3.5 w-3.5" />
             Monthly and yearly plans
           </div>
-          <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-tight sm:text-6xl">
+          <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-tight sm:text-4xl">
             Know what the offer costs. Then close the gap.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-300">
             Free shows where the gap is. Premium closes it. Premium Pro builds on every session until the offer lands.
           </p>
 
-          <div className="mx-auto mt-8 inline-flex rounded-2xl border border-white/10 bg-black/30 p-1">
+          <div className="mx-auto mt-8 inline-flex rounded-lg border border-white/10 bg-black/30 p-1">
             {(["monthly", "yearly"] as WorkZoBillingCycle[]).map((cycle) => (
               <button
                 key={cycle}
@@ -303,9 +303,9 @@ export default function PricingPage() {
           </div>
         </section>
 
-        <section className="mx-auto mt-8 max-w-3xl rounded-[2rem] border border-white/10 bg-black/20 p-5 backdrop-blur-sm">
+        <section className="mx-auto mt-8 max-w-3xl rounded-lg border border-white/10 bg-black/20 p-5 backdrop-blur-sm">
           <div className="flex items-start gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-cyan-400/10 text-cyan-200">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-cyan-400/10 text-cyan-200">
               <Tag className="h-5 w-5" />
             </div>
             <div className="flex-1">
@@ -317,9 +317,9 @@ export default function PricingPage() {
                   onChange={(event) => setPromoInput(event.target.value)}
                   onKeyDown={(event) => event.key === "Enter" && applyPromo()}
                   placeholder="Enter promo code"
-                  className="min-h-12 flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-cyan-300/50"
+                  className="min-h-12 flex-1 rounded-lg border border-white/10 bg-black/30 px-4 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-cyan-300/50"
                 />
-                <button type="button" onClick={applyPromo} className="rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-300">
+                <button type="button" onClick={applyPromo} className="rounded-lg bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-300">
                   Apply code
                 </button>
               </div>
@@ -338,7 +338,7 @@ export default function PricingPage() {
               <div
                 key={card.id}
                 className={cn(
-                  "flex flex-col rounded-3xl border p-6",
+                  "flex flex-col rounded-xl border p-6",
                   isPremium ? "border-blue-400/50 bg-[#080f1c]" : "border-white/[0.08] bg-white/[0.03]",
                 )}
               >
@@ -414,7 +414,7 @@ export default function PricingPage() {
                   onClick={() => choosePlan(card.id)}
                   disabled={Boolean(checkoutLoading)}
                   className={cn(
-                    "mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60",
+                    "mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60",
                     card.buttonClass,
                   )}
                 >
@@ -427,7 +427,7 @@ export default function PricingPage() {
         </section>
 
         {checkoutError ? (
-          <p className="mx-auto mt-6 max-w-3xl rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-center text-sm font-bold text-rose-100">
+          <p className="mx-auto mt-6 max-w-3xl rounded-lg border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-center text-sm font-bold text-rose-100">
             {checkoutError}
           </p>
         ) : null}
@@ -447,7 +447,7 @@ export default function PricingPage() {
           </span>
         </section>
 
-        <section className="mt-14 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.03]">
+        <section className="mt-14 overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]">
           <div className="border-b border-white/10 p-6">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">Plan breakdown</p>
             <h2 className="mt-2 text-2xl font-black sm:text-3xl">What each plan actually includes</h2>
@@ -497,13 +497,13 @@ export default function PricingPage() {
             },
           ].map((item) => (
             <div key={item.title} className={cn(
-              "rounded-3xl border p-6",
+              "rounded-xl border p-6",
               item.accent === "blue" ? "border-blue-300/20 bg-blue-500/[0.05]" :
               item.accent === "violet" ? "border-violet-300/20 bg-violet-500/[0.05]" :
               "border-white/10 bg-white/[0.03]"
             )}>
               <div className={cn(
-                "grid h-11 w-11 place-items-center rounded-2xl",
+                "grid h-11 w-11 place-items-center rounded-lg",
                 item.accent === "blue" ? "bg-blue-400/15 text-blue-200" :
                 item.accent === "violet" ? "bg-violet-400/15 text-violet-200" :
                 "bg-emerald-400/15 text-emerald-200"

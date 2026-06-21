@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import {
-  createWorkZoSupabaseServiceClient,
-  getWorkZoUserIdFromRequest,
-} from "@/lib/workzoSupabaseService";
+import { createWorkZoSupabaseServiceClient } from "@/lib/workzoSupabaseService";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { assertNoFounderPersonalDetails, scrubFounderPersonalDetails } from "@/lib/workzoPrivacyCleanup";
 
 export const runtime = "nodejs";
@@ -10,8 +8,13 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    const userId = await getWorkZoUserIdFromRequest(request);
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Same auth fix as interview-session: getWorkZoUserIdFromRequest only
+    // checks for a Bearer token the client never sends — always 401'd.
+    const resolved = await resolveWorkZoServerPlan();
+    if (!resolved.authenticated || !resolved.userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = resolved.userId;
 
     const supabase = createWorkZoSupabaseServiceClient();
     const { data, error } = await supabase
@@ -32,8 +35,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const userId = await getWorkZoUserIdFromRequest(request);
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const resolved = await resolveWorkZoServerPlan();
+    if (!resolved.authenticated || !resolved.userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = resolved.userId;
 
     const body = scrubFounderPersonalDetails(await request.json());
     assertNoFounderPersonalDetails(body, "interview result");

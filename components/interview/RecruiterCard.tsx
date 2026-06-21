@@ -73,7 +73,7 @@ export default function RecruiterCard({
     <div className="rounded-[32px] border border-white/10 bg-[#0b1220] p-6">
       {isInterrupting && (
         <div
-          className={`mb-5 rounded-3xl border px-5 py-4 ${getSeverityStyle(
+          className={`mb-5 rounded-xl border px-5 py-4 ${getSeverityStyle(
             interruption?.severity
           )}`}
         >
@@ -137,7 +137,7 @@ export default function RecruiterCard({
             )}
           </div>
 
-          <div className="mt-5 max-w-2xl rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-center text-lg leading-8 text-slate-200">
+          <div className="mt-5 max-w-2xl rounded-xl border border-white/10 bg-white/5 px-5 py-4 text-center text-lg leading-8 text-slate-200">
             {isInterrupting
               ? interruption?.interruptionMessage
               : currentQuestion ||

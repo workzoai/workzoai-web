@@ -54,10 +54,10 @@ export default function CookieConsentBanner() {
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-[1000] px-4 pb-4 text-white sm:px-6">
-      <div className="mx-auto max-w-5xl overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#07111f]/95 shadow-2xl shadow-black/40 backdrop-blur-xl">
+      <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-white/10 bg-[#07111f]/95 shadow-2xl shadow-black/40 backdrop-blur-xl">
         <div className="grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-start">
           <div className="flex gap-4">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-cyan-400/10 text-cyan-100">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-cyan-400/10 text-cyan-100">
               <Cookie className="h-5 w-5" />
             </div>
             <div>
@@ -86,7 +86,7 @@ export default function CookieConsentBanner() {
 
               {manage ? (
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-4">
                     <input type="checkbox" checked disabled className="mt-1" />
                     <span>
                       <span className="block text-sm font-black text-white">Necessary</span>
@@ -94,7 +94,7 @@ export default function CookieConsentBanner() {
                     </span>
                   </label>
 
-                  <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-4">
                     <input type="checkbox" checked={analytics} onChange={(event) => setAnalytics(event.target.checked)} className="mt-1" />
                     <span>
                       <span className="block text-sm font-black text-white">Analytics</span>
@@ -102,7 +102,7 @@ export default function CookieConsentBanner() {
                     </span>
                   </label>
 
-                  <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:col-span-2">
+                  <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-4 sm:col-span-2">
                     <input type="checkbox" checked={marketing} onChange={(event) => setMarketing(event.target.checked)} className="mt-1" />
                     <span>
                       <span className="block text-sm font-black text-white">Marketing</span>
@@ -118,7 +118,7 @@ export default function CookieConsentBanner() {
             <button
               type="button"
               onClick={acceptAll}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-400"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-400"
             >
               <ShieldCheck className="h-4 w-4" />
               Accept all
@@ -127,7 +127,7 @@ export default function CookieConsentBanner() {
               <button
                 type="button"
                 onClick={saveCustom}
-                className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-black text-slate-200 transition hover:bg-white/10"
+                className="rounded-lg border border-white/10 px-5 py-3 text-sm font-black text-slate-200 transition hover:bg-white/10"
               >
                 Save choices
               </button>
@@ -135,7 +135,7 @@ export default function CookieConsentBanner() {
               <button
                 type="button"
                 onClick={() => setManage(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 px-5 py-3 text-sm font-black text-slate-200 transition hover:bg-white/10"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 px-5 py-3 text-sm font-black text-slate-200 transition hover:bg-white/10"
               >
                 <Settings className="h-4 w-4" />
                 Manage
@@ -144,7 +144,7 @@ export default function CookieConsentBanner() {
             <button
               type="button"
               onClick={rejectNonEssential}
-              className="rounded-2xl px-5 py-3 text-sm font-black text-slate-400 transition hover:bg-white/5 hover:text-white"
+              className="rounded-lg px-5 py-3 text-sm font-black text-slate-400 transition hover:bg-white/5 hover:text-white"
             >
               Essential only
             </button>

@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronRight,
   Crown,
+  Star,
   Eye,
   Flag,
   Gauge,
@@ -791,31 +792,31 @@ function RiskTone({ risk }: { risk: "low" | "medium" | "high" }) {
 
 function HiringCommitteeMemoCard({ memo }: { memo: WorkZoHiringCommitteeMemo }) {
   return (
-    <section className="mt-6 rounded-[2rem] border border-amber-300/20 bg-amber-400/[0.075] p-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <section className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-400/[0.075] p-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-amber-200">Confidential hiring committee memo</p>
-          <h2 className="mt-3 text-3xl font-black text-white">{memo.headline}</h2>
-          <p className="mt-3 max-w-4xl text-sm leading-7 text-amber-50/90">{memo.recruiterSummary}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-amber-200">Confidential hiring committee memo</p>
+          <h2 className="mt-2 text-xl font-black text-white">{memo.headline}</h2>
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-amber-50/90">{memo.recruiterSummary}</p>
         </div>
-        <div className="rounded-2xl border border-amber-300/20 bg-black/25 p-4 text-center">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-200">Panel confidence</p>
-          <p className="mt-2 text-4xl font-black text-white">{memo.confidence}%</p>
+        <div className="rounded-xl border border-amber-300/20 bg-black/25 p-3 text-center shrink-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">Panel confidence</p>
+          <p className="mt-1 text-3xl font-black text-white">{memo.confidence}%</p>
         </div>
       </div>
-      <div className="mt-5 grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <p className="font-black text-emerald-100">Evidence for hire</p>
-          <div className="mt-3 space-y-2">{memo.evidenceForHire.map((item) => <p key={item} className="text-sm leading-6 text-slate-200">• {item}</p>)}</div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-xs font-black text-emerald-100">Evidence for hire</p>
+          <div className="mt-2 space-y-1">{memo.evidenceForHire.map((item) => <p key={item} className="text-xs leading-5 text-slate-200">• {item}</p>)}</div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <p className="font-black text-rose-100">Panel concerns</p>
-          <div className="mt-3 space-y-2">{memo.evidenceAgainstHire.map((item) => <p key={item} className="text-sm leading-6 text-slate-200">• {item}</p>)}</div>
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-xs font-black text-rose-100">Panel concerns</p>
+          <div className="mt-2 space-y-1">{memo.evidenceAgainstHire.map((item) => <p key={item} className="text-xs leading-5 text-slate-200">• {item}</p>)}</div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <p className="font-black text-blue-100">Recommendation</p>
-          <p className="mt-3 text-sm leading-6 text-slate-200">{memo.finalRecommendation}</p>
-          <div className="mt-3 space-y-2">{memo.nextRoundFocus.map((item) => <p key={item} className="rounded-xl bg-blue-400/10 p-3 text-xs leading-5 text-blue-50">{item}</p>)}</div>
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-xs font-black text-blue-100">Recommendation</p>
+          <p className="mt-2 text-xs leading-5 text-slate-200">{memo.finalRecommendation}</p>
+          <div className="mt-2 space-y-1">{memo.nextRoundFocus.map((item) => <p key={item} className="rounded-lg bg-blue-400/10 px-2.5 py-1.5 text-xs leading-5 text-blue-50">{item}</p>)}</div>
         </div>
       </div>
     </section>
@@ -824,18 +825,18 @@ function HiringCommitteeMemoCard({ memo }: { memo: WorkZoHiringCommitteeMemo }) 
 
 function ShadowScoreSection({ scores }: { scores: WorkZoShadowScore[] }) {
   return (
-    <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-      <p className="text-xs font-black uppercase tracking-[0.28em] text-slate-400">Shadow score</p>
-      <h2 className="mt-2 text-2xl font-black text-white">What an internal recruiter would quietly score</h2>
-      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-400">Shadow score</p>
+      <h2 className="mt-1 text-lg font-black text-white">What an internal recruiter would quietly score</h2>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {scores.map((item) => (
-          <div key={item.label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <p className="font-black text-white">{item.label}</p>
+          <div key={item.label} className="rounded-xl border border-white/10 bg-black/20 p-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-black text-white">{item.label}</p>
               <RiskTone risk={item.risk} />
             </div>
-            <p className="mt-4 text-4xl font-black text-white">{item.score}%</p>
-            <p className="mt-3 text-sm leading-6 text-slate-400">{item.internalMeaning}</p>
+            <p className="mt-3 text-3xl font-black text-white">{item.score}%</p>
+            <p className="mt-2 text-xs leading-5 text-slate-400">{item.internalMeaning}</p>
           </div>
         ))}
       </div>
@@ -845,21 +846,21 @@ function ShadowScoreSection({ scores }: { scores: WorkZoShadowScore[] }) {
 
 function WhatTheyHeardSection({ items }: { items: WorkZoWhatTheyHeard[] }) {
   return (
-    <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-      <p className="text-xs font-black uppercase tracking-[0.28em] text-cyan-200">What they heard</p>
-      <h2 className="mt-2 text-2xl font-black text-white">Your words vs. the interviewer’s interpretation</h2>
-      <div className="mt-5 space-y-4">
+    <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-200">What they heard</p>
+      <h2 className="mt-1 text-lg font-black text-white">Your words vs. the interviewer’s interpretation</h2>
+      <div className="mt-4 space-y-3">
         {items.map((item) => (
-          <div key={item.id} className="grid gap-4 rounded-3xl border border-white/10 bg-black/20 p-4 lg:grid-cols-2">
-            <div className="rounded-2xl bg-white/[0.04] p-4">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">You said</p>
-              <p className="mt-3 text-sm leading-7 text-slate-200">“{item.youSaid}”</p>
+          <div key={item.id} className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 lg:grid-cols-2">
+            <div className="rounded-xl bg-white/[0.04] p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">You said</p>
+              <p className="mt-2 text-xs leading-5 text-slate-200">“{item.youSaid}”</p>
             </div>
-            <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">They inferred</p>
-              <p className="mt-3 text-sm leading-7 text-cyan-50">{item.theyHeard}</p>
-              <p className="mt-3 text-xs leading-5 text-amber-100">Risk: {item.risk}</p>
-              <p className="mt-2 text-xs leading-5 text-emerald-100">Stronger signal: {item.strongerSignal}</p>
+            <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">They inferred</p>
+              <p className="mt-2 text-xs leading-5 text-cyan-50">{item.theyHeard}</p>
+              <p className="mt-2 text-[10px] leading-4 text-amber-100">Risk: {item.risk}</p>
+              <p className="mt-1 text-[10px] leading-4 text-emerald-100">Stronger signal: {item.strongerSignal}</p>
             </div>
           </div>
         ))}
@@ -870,23 +871,23 @@ function WhatTheyHeardSection({ items }: { items: WorkZoWhatTheyHeard[] }) {
 
 function TargetedDrillsSection({ drills }: { drills: WorkZoSkillDrill[] }) {
   return (
-    <section className="mt-6 rounded-[2rem] border border-violet-300/20 bg-violet-500/[0.06] p-6">
-      <p className="text-xs font-black uppercase tracking-[0.28em] text-violet-200">Targeted skill drills</p>
-      <h2 className="mt-2 text-2xl font-black text-white">Do not repeat the whole interview — train the weak signal</h2>
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+    <section className="mt-4 rounded-2xl border border-violet-300/20 bg-violet-500/[0.06] p-5">
+      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-violet-200">Targeted skill drills</p>
+      <h2 className="mt-1 text-lg font-black text-white">Train the weak signal, not the whole interview</h2>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
         {drills.map((drill) => (
-          <Link key={drill.id} href={drill.href} className="group rounded-3xl border border-white/10 bg-black/20 p-5 transition hover:bg-white/[0.06]">
-            <div className="flex items-start justify-between gap-3">
+          <Link key={drill.id} href={drill.href} className="group rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:bg-white/[0.06]">
+            <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-200">{drill.duration} · {drill.pressureLevel} pressure</p>
-                <h3 className="mt-2 text-xl font-black text-white">{drill.title}</h3>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-200">{drill.duration} · {drill.pressureLevel} pressure</p>
+                <h3 className="mt-1 text-base font-black text-white">{drill.title}</h3>
               </div>
-              <ChevronRight className="h-5 w-5 text-slate-500 transition group-hover:text-white" />
+              <ChevronRight className="h-4 w-4 text-slate-500 transition group-hover:text-white shrink-0" />
             </div>
-            <p className="mt-3 text-sm leading-6 text-slate-300">{drill.prompt}</p>
-            <p className="mt-3 rounded-2xl bg-amber-400/10 p-3 text-sm leading-6 text-amber-50">Recruiter pushback: “{drill.recruiterPushback}”</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {drill.successCriteria.map((item) => <span key={item} className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-bold text-slate-300">{item}</span>)}
+            <p className="mt-2 text-xs leading-5 text-slate-300">{drill.prompt}</p>
+            <p className="mt-2 rounded-xl bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-50">Recruiter pushback: “{drill.recruiterPushback}”</p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {drill.successCriteria.map((item) => <span key={item} className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold text-slate-300">{item}</span>)}
             </div>
           </Link>
         ))}
@@ -899,13 +900,13 @@ function ScoreRing({ score, grade }: { score: number; grade: string }) {
   const angle = clamp(score) * 3.6;
   return (
     <div
-      className="grid h-36 w-36 shrink-0 place-items-center rounded-full"
+      className="grid h-28 w-28 shrink-0 place-items-center rounded-full"
       style={{ background: `conic-gradient(#3b82f6 ${angle}deg, rgba(255,255,255,0.14) 0deg)` }}
     >
-      <div className="grid h-28 w-28 place-items-center rounded-full bg-[#120b3d] text-center">
+      <div className="grid h-[5.25rem] w-[5.25rem] place-items-center rounded-full bg-[#120b3d] text-center">
         <div>
-          <p className="text-4xl font-black text-white">{score}</p>
-          <p className="text-sm font-black text-blue-100">{grade} · /100</p>
+          <p className="text-3xl font-black text-white">{score}</p>
+          <p className="text-[11px] font-black text-blue-100">{grade} · /100</p>
         </div>
       </div>
     </div>
@@ -914,11 +915,13 @@ function ScoreRing({ score, grade }: { score: number; grade: string }) {
 
 function MetricCard({ icon: Icon, label, value, note }: { icon: typeof Gauge; label: string; value: number; note: string }) {
   return (
-    <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.035] p-5">
-      <Icon className="h-6 w-6 text-blue-300" />
-      <p className="mt-6 text-xs font-black uppercase tracking-[0.28em] text-slate-500">{label}</p>
-      <p className="mt-3 text-4xl font-black text-white">{value}%</p>
-      <p className="mt-3 text-sm leading-6 text-slate-400">{note}</p>
+    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4 text-blue-300" />
+        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{label}</p>
+      </div>
+      <p className="mt-3 text-3xl font-black text-white">{value}%</p>
+      <p className="mt-2 text-xs leading-5 text-slate-400">{note}</p>
     </div>
   );
 }
@@ -927,13 +930,13 @@ function Bar({ value, target, label, note }: { value: number; target?: number; l
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <p className="font-black text-white">{label}</p>
-        <p className="font-black text-blue-100">{value}%{typeof target === "number" ? ` / ${target}%` : ""}</p>
+        <p className="text-sm font-black text-white">{label}</p>
+        <p className="text-sm font-black text-blue-100">{value}%{typeof target === "number" ? ` / ${target}%` : ""}</p>
       </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
         <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-300" style={{ width: `${clamp(value)}%` }} />
       </div>
-      {note ? <p className="mt-2 text-sm leading-6 text-slate-400">{note}</p> : null}
+      {note ? <p className="mt-1.5 text-xs leading-5 text-slate-400">{note}</p> : null}
     </div>
   );
 }
@@ -966,33 +969,33 @@ function TranscriptCard({ item, index }: { item: AnswerInsight; index: number })
   const [open, setOpen] = useState(index === 0);
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/20">
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center justify-between gap-4 p-5 text-left"
+        className="flex w-full items-center justify-between gap-4 p-4 text-left"
       >
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-200">Question {index + 1}</p>
-          <h3 className="mt-2 text-xl font-black text-white">{item.question}</h3>
-          <p className="mt-2 text-sm text-slate-400">Evidence {item.evidenceScore}% · Trust impact {item.trustImpact}% · {item.weakness}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-200">Question {index + 1}</p>
+          <h3 className="mt-1 text-base font-black text-white">{item.question}</h3>
+          <p className="mt-1 text-xs text-slate-400">Evidence {item.evidenceScore}% · Trust impact {item.trustImpact}% · {item.weakness}</p>
         </div>
-        <ChevronDown className={cn("h-5 w-5 shrink-0 text-slate-300 transition", open && "rotate-180")} />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-300 transition", open && "rotate-180")} />
       </button>
 
       {open ? (
-        <div className="grid gap-4 border-t border-white/10 p-5 xl:grid-cols-3">
-          <div className="rounded-2xl bg-white/[0.04] p-4">
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-500">Your answer</p>
-            <p className="mt-3 text-sm leading-7 text-slate-200">{item.answer}</p>
+        <div className="grid gap-3 border-t border-white/10 p-4 xl:grid-cols-3">
+          <div className="rounded-xl bg-white/[0.04] p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Your answer</p>
+            <p className="mt-2 text-xs leading-5 text-slate-200">{item.answer}</p>
           </div>
-          <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-amber-200">What the recruiter heard</p>
-            <p className="mt-3 text-sm leading-7 text-amber-50">{item.recruiterHeard}</p>
+          <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-200">What the recruiter heard</p>
+            <p className="mt-2 text-xs leading-5 text-amber-50">{item.recruiterHeard}</p>
           </div>
-          <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-200">Top 10% rewrite</p>
-            <p className="mt-3 text-sm leading-7 text-emerald-50">{item.rewrite}</p>
+          <div className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-200">Top 10% rewrite</p>
+            <p className="mt-2 text-xs leading-5 text-emerald-50">{item.rewrite}</p>
           </div>
         </div>
       ) : null}
@@ -1009,23 +1012,23 @@ function CareerBrainSection({ brain }: { brain: PhaseCCareerBrain }) {
   ];
 
   return (
-    <section className="mt-6 rounded-[2rem] border border-emerald-300/15 bg-emerald-500/[0.045] p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className="mt-4 rounded-2xl border border-emerald-300/15 bg-emerald-500/[0.045] p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-emerald-200">Phase C unified career brain</p>
-          <h2 className="mt-2 text-2xl font-black">One learning loop across CV, jobs, interviews, and results</h2>
-          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">{brain.progress.latestSummary}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-200">Phase C unified career brain</p>
+          <h2 className="mt-1 text-lg font-black">One learning loop across CV, jobs, interviews, and results</h2>
+          <p className="mt-1 max-w-4xl text-xs leading-5 text-slate-300">{brain.progress.latestSummary}</p>
         </div>
-        <div className="grid h-16 w-16 place-items-center rounded-2xl border border-emerald-300/20 bg-black/25 text-center">
-          <p className="text-2xl font-black text-emerald-100">{brain.probability.current}%</p>
-          <p className="-mt-2 text-[10px] font-black text-slate-500">PROB.</p>
+        <div className="grid h-14 w-14 place-items-center rounded-xl border border-emerald-300/20 bg-black/25 text-center">
+          <p className="text-xl font-black text-emerald-100">{brain.probability.current}%</p>
+          <p className="-mt-1 text-[9px] font-black text-slate-500">PROB.</p>
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <p className="text-sm font-black text-emerald-100">Interview probability engine</p>
-          <div className="mt-4 space-y-4">
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-xs font-black text-emerald-100">Interview probability engine</p>
+          <div className="mt-3 space-y-3">
             {probabilityBars.map((item) => (
               <div key={item.label}>
                 <div className="flex items-center justify-between text-sm">
@@ -1038,55 +1041,55 @@ function CareerBrainSection({ brain }: { brain: PhaseCCareerBrain }) {
               </div>
             ))}
           </div>
-          <div className="mt-4 space-y-2">
-            {brain.probability.reasons.map((item) => <p key={item} className="text-xs leading-5 text-slate-400">• {item}</p>)}
+          <div className="mt-3 space-y-1.5">
+            {brain.probability.reasons.map((item) => <p key={item} className="text-[11px] leading-4 text-slate-400">• {item}</p>)}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <p className="text-sm font-black text-amber-100">Persistent weakness tracking</p>
-          <div className="mt-3 space-y-3">
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-xs font-black text-amber-100">Persistent weakness tracking</p>
+          <div className="mt-2 space-y-2">
             {brain.persistentWeaknesses.length ? brain.persistentWeaknesses.map((item) => (
-              <div key={item.label} className="rounded-2xl bg-amber-400/10 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-black text-white">{item.label}</p>
-                  <span className="rounded-full bg-black/25 px-2 py-1 text-[11px] font-black text-amber-100">seen {item.count}x</span>
+              <div key={item.label} className="rounded-xl bg-amber-400/10 p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-black text-white">{item.label}</p>
+                  <span className="rounded-full bg-black/25 px-2 py-0.5 text-[10px] font-black text-amber-100">seen {item.count}x</span>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-amber-50/85">{item.coachLine}</p>
+                <p className="mt-1 text-[10px] leading-4 text-amber-50/85">{item.coachLine}</p>
               </div>
-            )) : <p className="text-sm leading-6 text-slate-400">No recurring weakness yet. WorkZo will learn after more sessions.</p>}
+            )) : <p className="text-xs leading-5 text-slate-400">No recurring weakness yet. WorkZo will learn after more sessions.</p>}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <p className="text-sm font-black text-blue-100">Cross-feature actions</p>
-          <div className="mt-3 space-y-3">
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-xs font-black text-blue-100">Cross-feature actions</p>
+          <div className="mt-2 space-y-2">
             {brain.crossFeatureActions.map((item) => (
-              <div key={`${item.feature}-${item.action}`} className="rounded-2xl bg-blue-400/10 p-3">
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200">{item.feature}</p>
-                <p className="mt-2 text-sm leading-6 text-blue-50/90">{item.action}</p>
+              <div key={`${item.feature}-${item.action}`} className="rounded-xl bg-blue-400/10 p-2.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-200">{item.feature}</p>
+                <p className="mt-1 text-xs leading-5 text-blue-50/90">{item.action}</p>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <p className="text-sm font-black text-violet-100">Future recruiter memory challenges</p>
-          <div className="mt-3 space-y-2">
-            {brain.futureRecruiterChallenges.map((item) => <p key={item} className="rounded-2xl bg-violet-400/10 p-3 text-sm leading-6 text-violet-50">“{item}”</p>)}
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-xs font-black text-violet-100">Future recruiter memory challenges</p>
+          <div className="mt-2 space-y-1.5">
+            {brain.futureRecruiterChallenges.map((item) => <p key={item} className="rounded-xl bg-violet-400/10 px-2.5 py-2 text-xs leading-5 text-violet-50">"{item}"</p>)}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <p className="text-sm font-black text-cyan-100">Persistent career roadmap</p>
-          <div className="mt-3 space-y-3">
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-xs font-black text-cyan-100">Persistent career roadmap</p>
+          <div className="mt-2 space-y-2">
             {brain.roadmap.slice(0, 4).map((item) => (
-              <div key={item.id} className="rounded-2xl bg-cyan-400/10 p-3">
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">{item.priority} · {item.estimatedGain}</p>
-                <p className="mt-1 font-black text-white">{item.title}</p>
-                <p className="mt-1 text-sm leading-6 text-cyan-50/85">{item.action}</p>
+              <div key={item.id} className="rounded-xl bg-cyan-400/10 p-2.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">{item.priority} · {item.estimatedGain}</p>
+                <p className="mt-0.5 text-xs font-black text-white">{item.title}</p>
+                <p className="mt-0.5 text-xs leading-5 text-cyan-50/85">{item.action}</p>
               </div>
             ))}
           </div>
@@ -1339,35 +1342,40 @@ function UrgencyBanner({ remaining, roleLabel, targetMarket, overallScore }: {
 // ─── Upgrade strip with "remembers" copy ──────────────────────────────────────
 function UpgradeStrip({ roleLabel }: { roleLabel: string }) {
   return (
-    <div className="mt-6 overflow-hidden rounded-[2rem] border border-blue-400/30 bg-gradient-to-br from-blue-500/[0.14] via-violet-500/[0.10] to-cyan-500/[0.08] p-7">
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+    <div className="mt-5 overflow-hidden rounded-2xl border border-blue-400/30 bg-gradient-to-br from-blue-500/[0.14] via-violet-500/[0.10] to-cyan-500/[0.08] p-5">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-2xl">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-300">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-300">
             Premium · from €19 / month
           </p>
-          <h3 className="mt-3 text-2xl font-black text-white sm:text-3xl">
-            The recruiter remembers. Next session picks up where this one left off.
+          <h3 className="mt-2 text-xl font-black text-white">
+            The recruiter remembers. Next session picks up exactly where this one left off.
           </h3>
-          <p className="mt-3 text-sm leading-7 text-slate-300">
-            Premium keeps your full session history and coaches you on the exact weakness this
-            session identified{roleLabel ? ` for ${roleLabel}` : ""}. The recruiter adapts to
-            your pattern — not a generic script.
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            Premium tracks your weaknesses across every session and coaches you on the exact gap this interview revealed{roleLabel ? ` for ${roleLabel}` : ""}. The recruiter adapts to your pattern — not a generic script.
           </p>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            {[["Full session history", "Recruiter remembers your gaps"], ["Answer rewrites", "Top 10% version of your answers"], ["Targeted drills", "Train the weak signal, not everything"]].map(([title, desc]) => (
+              <div key={title} className="rounded-xl border border-white/10 bg-black/20 p-2.5">
+                <p className="text-xs font-black text-white">{title}</p>
+                <p className="mt-1 text-[10px] leading-4 text-slate-400">{desc}</p>
+              </div>
+            ))}
+          </div>
           {/* Social proof quote */}
-          <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 px-5 py-4">
-            <p className="text-sm leading-7 text-slate-200 italic">
-              "My trust score was 61 in session 1. After 4 sessions it was 84 and I got an offer
-              the following week."
+          <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+            <p className="text-xs leading-5 text-slate-200 italic">
+              "My trust score was 61 in session 1. After 4 sessions it was 84 and I got an offer the following week."
             </p>
-            <p className="mt-2 text-xs font-black text-slate-500">
+            <p className="mt-1.5 text-[10px] font-black text-slate-500">
               Premium user · Customer Success Manager · Berlin
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 flex-col items-start gap-3 lg:items-end">
+        <div className="flex shrink-0 flex-col items-start gap-2 lg:items-end">
           <a
             href="/pricing?intent=upgrade-strip"
-            className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-6 py-4 text-sm font-black text-white shadow-lg shadow-blue-500/25 hover:bg-blue-400 transition"
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/25 hover:bg-blue-400 transition"
             onClick={() => {
               try { (window as any).__workzo_recordUpgrade?.(); } catch {}
             }}
@@ -1430,7 +1438,7 @@ function RealBlurredInsights({ insights, contradictions, redFlags }: {
   while (signals.length < 5) signals.push(fallbacks[signals.length - (5 - fallbacks.length)] || fallbacks[0]);
 
   return (
-    <div className="relative mt-6 overflow-hidden rounded-[2rem] border border-violet-400/20 bg-violet-500/[0.06]">
+    <div className="relative mt-5 overflow-hidden rounded-2xl border border-violet-400/20 bg-violet-500/[0.06]">
       {/* Partially visible top */}
       <div className="p-6 pb-0">
         <p className="text-xs font-black uppercase tracking-[0.28em] text-violet-200">
@@ -1719,35 +1727,74 @@ export default function ResultsPage() {
           />
         )}
 
-        <section className="mt-8 rounded-[2rem] border border-white/10 bg-gradient-to-br from-violet-500/15 via-blue-500/10 to-cyan-500/10 p-7 md:p-10">
-          <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/25 bg-amber-300/10 px-4 py-2 text-sm font-black text-amber-100">
-                {isPremium ? <Crown className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-                {isPremium ? "Premium Interview Debrief" : "Free Interview Snapshot"}
+        <section className={cn(
+          "mt-6 rounded-2xl border p-6",
+          isProPlan
+            ? "border-violet-400/30 bg-gradient-to-br from-violet-500/20 via-violet-500/10 to-blue-500/10"
+            : isPremium
+              ? "border-white/10 bg-gradient-to-br from-violet-500/15 via-blue-500/10 to-cyan-500/10"
+              : "border-white/10 bg-gradient-to-br from-slate-500/10 via-blue-500/8 to-cyan-500/8"
+        )}>
+          <div className="flex flex-wrap items-center justify-between gap-6">
+            <div className="flex-1 min-w-0">
+              <div className={cn(
+                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-black",
+                isProPlan ? "border-violet-300/25 bg-violet-300/10 text-violet-100"
+                : isPremium ? "border-amber-300/25 bg-amber-300/10 text-amber-100"
+                : "border-white/15 bg-white/[0.06] text-slate-300"
+              )}>
+                {isProPlan ? <Star className="h-3.5 w-3.5" /> : isPremium ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {isProPlan ? "Premium Pro Interview Debrief" : isPremium ? "Premium Interview Debrief" : "Free Interview Snapshot"}
               </div>
 
-              <h1 className="mt-6 max-w-5xl text-4xl font-black tracking-[-0.05em] sm:text-6xl">
+              <h1 className="mt-4 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
                 {isPremium ? "Recruiter decision simulation" : "Your recruiter-style feedback report"}
               </h1>
 
-              <p className="mt-5 max-w-4xl text-lg leading-8 text-blue-100">
+              <p className="mt-3 text-base leading-7 text-blue-100">
                 Current hiring confidence: <span className="font-black text-white">{report.decision}</span>. Biggest blocker: <span className="font-black text-white">{report.biggestBlocker}</span>.
               </p>
 
-              <p className="mt-4 max-w-4xl text-base leading-8 text-slate-300">
-                {report.verdict}
-              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{report.verdict}</p>
+
+              {report.answersCount < 3 && (
+                <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-2.5">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
+                  <p className="text-xs leading-5 text-amber-100">
+                    <span className="font-black">Short session detected.</span> Only {report.answersCount} answer{report.answersCount === 1 ? "" : "s"} were captured — scores are indicative only. Complete a full session for an accurate debrief.
+                  </p>
+                </div>
+              )}
             </div>
 
             <ScoreRing score={report.overallScore} grade={report.grade} />
           </div>
         </section>
 
+        {!isPremium && (
+          <div className="mt-4 rounded-2xl border border-violet-300/20 bg-gradient-to-r from-violet-500/10 to-blue-500/10 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-400/15">
+                  <Lock className="h-4 w-4 text-violet-200" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-white">Premium unlocks the full debrief</p>
+                  <p className="mt-0.5 text-xs text-slate-400">Hiring committee memo · shadow scores · answer rewrites · targeted drills · full session history</p>
+                </div>
+              </div>
+              <a href="/pricing?intent=top-teaser" className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-black text-white hover:bg-violet-400 transition">
+                <Crown className="h-3.5 w-3.5" />
+                See Premium — €19/mo
+              </a>
+            </div>
+          </div>
+        )}
+
         <HiringCommitteeMemoCard memo={report.hiringCommittee} />
         <ShadowScoreSection scores={report.shadowScores} />
 
-        <section className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <section className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard icon={MessageSquareText} label="Communication" value={report.communicationScore} note="Clarity, answer length, and structure." />
           <MetricCard icon={Gauge} label="Confidence" value={report.confidenceScore} note="Pace, ownership, certainty, and delivery signals." />
           <MetricCard icon={Target} label="Role Competency" value={report.roleCompetencyScore} note="How relevant your evidence sounded for the role." />
@@ -1755,22 +1802,22 @@ export default function ResultsPage() {
         </section>
 
 
-        <section className="mt-6 rounded-[2rem] border border-blue-300/15 bg-blue-500/[0.045] p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+        <section className="mt-4 rounded-2xl border border-blue-300/15 bg-blue-500/[0.045] p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-200">Deep analysis</p>
-              <h2 className="mt-2 text-2xl font-black">{phaseB.companyDNA.label}</h2>
-              <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">{phaseB.companyDNA.description}</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-200">Deep analysis</p>
+              <h2 className="mt-1 text-lg font-black">{phaseB.companyDNA.label}</h2>
+              <p className="mt-1 max-w-4xl text-xs leading-5 text-slate-300">{phaseB.companyDNA.description}</p>
             </div>
-            <div className="grid h-16 w-16 place-items-center rounded-2xl border border-blue-300/20 bg-black/25 text-center">
-              <p className="text-2xl font-black text-blue-100">{phaseB.trustAudit.overall}</p>
-              <p className="-mt-2 text-[10px] font-black text-slate-500">TRUST</p>
+            <div className="grid h-14 w-14 place-items-center rounded-xl border border-blue-300/20 bg-black/25 text-center">
+              <p className="text-xl font-black text-blue-100">{phaseB.trustAudit.overall}</p>
+              <p className="-mt-1 text-[9px] font-black text-slate-500">TRUST</p>
             </div>
           </div>
 
-          <div className="mt-5 grid gap-4 lg:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-sm font-black text-blue-100">Company DNA alignment</p>
+          <div className="mt-4 grid gap-3 lg:grid-cols-3">
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <p className="text-xs font-black text-blue-100">Company DNA alignment</p>
               <div className="mt-3 space-y-3">
                 {phaseB.companyDNA.dimensions.map((item) => (
                   <Bar key={item.label} label={item.label} value={item.score} target={item.target} note={item.note} />
@@ -1778,23 +1825,23 @@ export default function ResultsPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-sm font-black text-emerald-200">Trust audit deductions</p>
-              <div className="mt-3 space-y-2">
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <p className="text-xs font-black text-emerald-200">Trust audit deductions</p>
+              <div className="mt-2 space-y-1.5">
                 {phaseB.trustAudit.deductions.map((item) => (
-                  <p key={item.label} className="text-sm leading-6 text-slate-300">
+                  <p key={item.label} className="text-xs leading-5 text-slate-300">
                     <span className="font-black text-white">{item.delta >= 0 ? "+" : ""}{item.delta}</span> {item.label}: {item.reason}
                   </p>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-sm font-black text-amber-200">Cross-feature consistency</p>
-              <p className="mt-2 text-lg font-black text-white">{phaseB.consistency.status}</p>
-              <div className="mt-3 space-y-2">
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <p className="text-xs font-black text-amber-200">Cross-feature consistency</p>
+              <p className="mt-1 text-base font-black text-white">{phaseB.consistency.status}</p>
+              <div className="mt-2 space-y-1">
                 {phaseB.consistency.notes.map((item) => (
-                  <p key={item} className="text-sm leading-6 text-slate-300">• {item}</p>
+                  <p key={item} className="text-xs leading-5 text-slate-300">• {item}</p>
                 ))}
               </div>
             </div>
@@ -1805,23 +1852,23 @@ export default function ResultsPage() {
 
         {!isPremium ? (
           <>
-            <section className="mt-6 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><ShieldCheck className="h-6 w-6 text-emerald-300" />Sentiment snapshot</h2>
-                <p className="mt-4 text-base leading-8 text-slate-200">You showed useful role fit, but the recruiter still needs sharper metrics, ownership, or structure.</p>
-                <div className="mt-6 grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Speaking pace</p><p className="mt-2 text-2xl font-black">{report.averageWpm || "—"} <span className="text-base text-slate-400">WPM</span></p><p className="mt-1 text-xs text-slate-500">{report.averageWpm ? (report.averageWpm >= 110 && report.averageWpm <= 170 ? "Good pace" : report.averageWpm < 110 ? "Too slow" : "Too fast") : "Not measured"}</p></div>
+            <section className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><ShieldCheck className="h-4 w-4 text-emerald-300" />Sentiment snapshot</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-200">You showed useful role fit, but the recruiter still needs sharper metrics, ownership, or structure.</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                  <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-slate-400">Speaking pace</p><p className="mt-1.5 text-xl font-black">{report.averageWpm || "—"} <span className="text-sm text-slate-400">WPM</span></p><p className="mt-0.5 text-[10px] text-slate-500">{report.averageWpm ? (report.averageWpm >= 110 && report.averageWpm <= 170 ? "Good pace" : report.averageWpm < 110 ? "Too slow" : "Too fast") : "Not measured"}</p></div>
                   {(result.fillerWordCount ?? 0) >= 0 && (
-                    <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Filler words</p><p className="mt-2 text-2xl font-black">{result.fillerWordCount ?? 0}</p><p className="mt-1 text-xs text-slate-500">{(result.fillerWordCount ?? 0) === 0 ? "None detected" : (result.fillerWordCount ?? 0) <= 3 ? "Low — good" : (result.fillerWordCount ?? 0) <= 8 ? "Moderate" : "High — work on this"}</p></div>
+                    <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-slate-400">Filler words</p><p className="mt-1.5 text-xl font-black">{result.fillerWordCount ?? 0}</p><p className="mt-0.5 text-[10px] text-slate-500">{(result.fillerWordCount ?? 0) === 0 ? "None detected" : (result.fillerWordCount ?? 0) <= 3 ? "Low — good" : (result.fillerWordCount ?? 0) <= 8 ? "Moderate" : "High — work on this"}</p></div>
                   )}
-                  <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Duration</p><p className="mt-2 text-2xl font-black">{report.durationLabel}</p></div>
-                  <div className="rounded-2xl bg-black/20 p-4"><p className="text-sm text-slate-400">Answers</p><p className="mt-2 text-2xl font-black">{report.answersCount}</p></div>
+                  <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-slate-400">Duration</p><p className="mt-1.5 text-xl font-black">{report.durationLabel}</p></div>
+                  <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-slate-400">Answers</p><p className="mt-1.5 text-xl font-black">{report.answersCount}</p></div>
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-emerald-300/20 bg-emerald-400/10 p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><Lightbulb className="h-6 w-6 text-emerald-200" />One quick win</h2>
-                <p className="mt-4 text-base leading-8 text-emerald-50">{report.quickWin}</p>
+              <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><Lightbulb className="h-4 w-4 text-emerald-200" />One quick win</h2>
+                <p className="mt-3 text-sm leading-6 text-emerald-50">{report.quickWin}</p>
               </div>
             </section>
 
@@ -1829,14 +1876,14 @@ export default function ResultsPage() {
 
             <UpgradeStrip roleLabel={report.roleLabel} />
 
-            <section className="mt-6 grid gap-5 lg:grid-cols-2">
-              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><CheckCircle2 className="h-5 w-5 text-emerald-300" />What landed</h2>
-                <div className="mt-5 space-y-3">{report.strengths.map((item) => <p key={item} className="rounded-2xl bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-50">{item}</p>)}</div>
+            <section className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><CheckCircle2 className="h-4 w-4 text-emerald-300" />What landed</h2>
+                <div className="mt-3 space-y-2">{report.strengths.map((item) => <p key={item} className="rounded-xl bg-emerald-400/10 px-3 py-2 text-xs leading-5 text-emerald-50">{item}</p>)}</div>
               </div>
-              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><Target className="h-5 w-5 text-blue-300" />What needs work</h2>
-                <div className="mt-5 space-y-3">{report.improvements.map((item) => <p key={item} className="rounded-2xl bg-blue-400/10 p-4 text-sm leading-6 text-blue-50">{item}</p>)}</div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><Target className="h-4 w-4 text-blue-300" />What needs work</h2>
+                <div className="mt-3 space-y-2">{report.improvements.map((item) => <p key={item} className="rounded-xl bg-blue-400/10 px-3 py-2 text-xs leading-5 text-blue-50">{item}</p>)}</div>
               </div>
             </section>
 
@@ -1850,24 +1897,24 @@ export default function ResultsPage() {
           </>
         ) : (
           <>
-            <section className="mt-6 grid gap-5 lg:grid-cols-2">
-              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><BarChart3 className="h-6 w-6 text-cyan-300" />Benchmarking and company DNA</h2>
-                <p className="mt-4 text-base leading-8 text-slate-300">{report.companyDNA.description}</p>
-                <div className="mt-5 rounded-2xl bg-blue-400/10 p-4 text-sm font-black text-blue-100">{report.companyDNA.label}</div>
-                <div className="mt-6 space-y-5">{report.companyDNA.dimensions.map((item) => <Bar key={item.label} label={item.label} value={item.score} target={item.target} note={item.note} />)}</div>
+            <section className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><BarChart3 className="h-4 w-4 text-cyan-300" />Benchmarking and company DNA</h2>
+                <p className="mt-2 text-xs leading-5 text-slate-300">{report.companyDNA.description}</p>
+                <div className="mt-3 rounded-xl bg-blue-400/10 px-3 py-2 text-xs font-black text-blue-100">{report.companyDNA.label}</div>
+                <div className="mt-4 space-y-3">{report.companyDNA.dimensions.map((item) => <Bar key={item.label} label={item.label} value={item.score} target={item.target} note={item.note} />)}</div>
               </div>
 
-              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><ShieldCheck className="h-6 w-6 text-amber-200" />Trust and integrity audit</h2>
-                <div className="mt-6 space-y-5">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><ShieldCheck className="h-4 w-4 text-amber-200" />Trust and integrity audit</h2>
+                <div className="mt-4 space-y-3">
                   <Bar label="Credibility" value={report.trustScore} note="Evidence, consistency, and recruiter confidence." />
                   <Bar label="Evidence Quality" value={report.evidenceQuality} note="Metrics, ownership, and result clarity." />
                   <Bar label="Contradiction Safety" value={report.contradictions.length ? clamp(100 - report.contradictions[0].trustDrop * 4) : 92} note="Higher means fewer consistency concerns." />
                 </div>
-                <div className="mt-6 space-y-3">
+                <div className="mt-4 space-y-2">
                   {report.trustDeductions.map((item) => (
-                    <div key={item.label} className={cn("flex items-center justify-between rounded-2xl p-4 text-sm font-bold", item.tone === "negative" ? "bg-rose-400/10 text-rose-100" : "bg-emerald-400/10 text-emerald-100")}>
+                    <div key={item.label} className={cn("flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold", item.tone === "negative" ? "bg-rose-400/10 text-rose-100" : "bg-emerald-400/10 text-emerald-100")}>
                       <span>{item.label}</span>
                       <span>{item.value > 0 ? `+${item.value}` : item.value} pts</span>
                     </div>
@@ -1876,61 +1923,61 @@ export default function ResultsPage() {
               </div>
             </section>
 
-            <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-              <h2 className="flex items-center gap-3 text-2xl font-black"><TrendingUp className="h-6 w-6 text-blue-300" />Top 10% candidate overlay</h2>
-              <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+              <h2 className="flex items-center gap-2 text-base font-black"><TrendingUp className="h-4 w-4 text-blue-300" />Top 10% candidate overlay</h2>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 {report.benchmark.map((item) => (
-                  <div key={item.label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <p className="font-black text-white">{item.label}</p>
-                    <div className="mt-4 space-y-3">
+                  <div key={item.label} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                    <p className="text-sm font-black text-white">{item.label}</p>
+                    <div className="mt-3 space-y-2">
                       <Bar label="You" value={item.user} />
                       <Bar label="Top 10%" value={item.top} />
                     </div>
-                    <p className="mt-4 text-sm leading-6 text-slate-400">{item.note}</p>
+                    <p className="mt-3 text-xs leading-5 text-slate-400">{item.note}</p>
                   </div>
                 ))}
               </div>
             </section>
 
-            <section className="mt-6 grid gap-5 lg:grid-cols-2">
-              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><Flag className="h-6 w-6 text-rose-300" />Red flags and evidence requests</h2>
-                <div className="mt-6 space-y-3">
-                  {report.redFlags.length ? report.redFlags.map((item) => <p key={item} className="rounded-2xl bg-rose-400/10 p-4 text-sm leading-6 text-rose-50">{item}</p>) : (
-                    <div className="space-y-3">
-                      <p className="rounded-2xl bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-50">No critical red flag detected in captured answers.</p>
-                      {["No blame-shifting language detected", "No toxic communication pattern detected", "No major contradiction detected", "Professional communication tone maintained"].map((item) => <p key={item} className="flex items-center gap-2 text-sm text-slate-300"><CheckCircle2 className="h-4 w-4 text-emerald-300" />{item}</p>)}
+            <section className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><Flag className="h-4 w-4 text-rose-300" />Red flags and evidence requests</h2>
+                <div className="mt-4 space-y-2">
+                  {report.redFlags.length ? report.redFlags.map((item) => <p key={item} className="rounded-xl bg-rose-400/10 px-3 py-2 text-xs leading-5 text-rose-50">{item}</p>) : (
+                    <div className="space-y-2">
+                      <p className="rounded-xl bg-emerald-400/10 px-3 py-2 text-xs leading-5 text-emerald-50">No critical red flag detected in captured answers.</p>
+                      {["No blame-shifting language detected", "No toxic communication pattern detected", "No major contradiction detected", "Professional communication tone maintained"].map((item) => <p key={item} className="flex items-center gap-2 text-xs text-slate-300"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />{item}</p>)}
                     </div>
                   )}
                 </div>
-                <div className="mt-6 space-y-3">
-                  {report.evidenceRequests.map((item) => <p key={item} className="rounded-2xl bg-amber-400/10 p-4 text-sm leading-6 text-amber-50">Recruiter would ask: {item}</p>)}
+                <div className="mt-3 space-y-2">
+                  {report.evidenceRequests.map((item) => <p key={item} className="rounded-xl bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-50">Recruiter would ask: {item}</p>)}
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-                <h2 className="flex items-center gap-3 text-2xl font-black"><Wand2 className="h-6 w-6 text-violet-300" />Improvement roadmap</h2>
-                <div className="mt-6 space-y-4">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><Wand2 className="h-4 w-4 text-violet-300" />Improvement roadmap</h2>
+                <div className="mt-4 space-y-3">
                   {report.improvementPlan.map((item) => (
-                    <div key={item.priority} className="rounded-2xl bg-violet-400/10 p-4">
-                      <p className="text-xs font-black uppercase tracking-[0.25em] text-violet-200">{item.priority} · {item.gain}</p>
-                      <h3 className="mt-2 font-black text-white">{item.title}</h3>
-                      <p className="mt-2 text-sm leading-6 text-slate-300">{item.action}</p>
+                    <div key={item.priority} className="rounded-xl bg-violet-400/10 p-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-200">{item.priority} · {item.gain}</p>
+                      <h3 className="mt-1 text-sm font-black text-white">{item.title}</h3>
+                      <p className="mt-1 text-xs leading-5 text-slate-300">{item.action}</p>
                     </div>
                   ))}
                 </div>
               </div>
             </section>
 
-            <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-              <h2 className="flex items-center gap-3 text-2xl font-black"><Eye className="h-6 w-6 text-blue-300" />Delivery signals</h2>
-              <p className="mt-2 text-sm leading-7 text-slate-400">Estimated from transcript length, word count, and filler word detection.</p>
-              <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+              <h2 className="flex items-center gap-2 text-base font-black"><Eye className="h-4 w-4 text-blue-300" />Delivery signals</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-400">Estimated from transcript length, word count, and filler word detection.</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
                 {report.audioSignals.map((item) => (
-                  <div key={item.label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
-                    <p className="mt-2 text-3xl font-black text-white">{item.value}</p>
-                    <p className={cn("mt-2 text-xs font-black uppercase tracking-[0.14em]", item.risk === "high" ? "text-rose-300" : item.risk === "medium" ? "text-amber-300" : "text-emerald-300")}>{item.risk} risk</p>
+                  <div key={item.label} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
+                    <p className="mt-1.5 text-2xl font-black text-white">{item.value}</p>
+                    <p className={cn("mt-1 text-[10px] font-black uppercase tracking-[0.14em]", item.risk === "high" ? "text-rose-300" : item.risk === "medium" ? "text-amber-300" : "text-emerald-300")}>{item.risk} risk</p>
                   </div>
                 ))}
               </div>
@@ -1939,9 +1986,9 @@ export default function ResultsPage() {
             <WhatTheyHeardSection items={report.whatTheyHeard} />
             <TargetedDrillsSection drills={report.targetedDrills} />
 
-            <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
-              <h2 className="flex items-center gap-3 text-2xl font-black"><MessageSquareText className="h-6 w-6 text-cyan-300" />Answer-by-answer coaching debrief</h2>
-              <div className="mt-6 space-y-4">
+            <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+              <h2 className="flex items-center gap-2 text-base font-black"><MessageSquareText className="h-4 w-4 text-cyan-300" />Answer-by-answer coaching debrief</h2>
+              <div className="mt-4 space-y-3">
                 {report.answerInsights.map((item, index) => <TranscriptCard key={item.id} item={item} index={index} />)}
               </div>
             </section>
@@ -1952,11 +1999,11 @@ export default function ResultsPage() {
           <WorkZoPremiumProSuitePanel source="results" report={report as unknown as Record<string, unknown>} />
         </section>
 
-        <section className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+        <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-black text-white">What to do next</p>
-              <p className="mt-2 text-sm leading-6 text-slate-400">Retry the interview using the improvement roadmap and compare your next score.</p>
+              <p className="mt-1.5 text-sm leading-5 text-slate-400">Retry the interview using the improvement roadmap and compare your next score.</p>
 
               {/* Shareable moment card — viral mechanic */}
               {mounted && (() => {

@@ -151,23 +151,29 @@ function isOpeningSmallTalk(answer: string): boolean {
   if (!clean) return false;
   const words = clean.split(/\s+/).filter(Boolean);
 
+  const hasSubstantiveContent = /\b(experience|background|worked|years?|role|position|company|skill|project|studied|degree|responsible|managed|built|developed|led|created|handled|support|engineer|analyst|manager|specialist|supervisor|design|technical)\b/i.test(clean);
+
+  // BUG FIXED: this used to return true for ANY answer ≤12 words on the
+  // opening turn regardless of content — a genuine, substantive answer like
+  // "I have 12 years of experience as a product design engineer" (exactly
+  // 12 words) was misclassified as small talk and got the canned opening
+  // line repeated verbatim instead of being treated as a real answer.
   // Anything under 12 words on the opening turn is treated as small talk.
   // Real interview answers to "tell me about yourself" are 20+ words minimum.
   // This catches: "hi I'm good and how are you" (7w), "doing great thanks for having me" (6w), etc.
   // Previously was ≤6 which let 7-11 word greetings through to GPT-4o unnecessarily.
-  if (words.length <= 12) return true;
+  if (words.length <= 12 && !hasSubstantiveContent) return true;
   if (words.length > 30) return false;
 
   // Longer answers that are still pure social openers (up to 30 words)
   // e.g. "I'm doing really well thank you so much I'm a bit nervous but excited to be here"
   const greetingDensity = (clean.match(/\b(good|well|fine|great|okay|ok|nervous|excited|happy|glad|thank|thanks|appreciate|nice|wonderful|fantastic|hi|hello|hey|how are you|how about you|doing well|i'm good|im good|i am good)\b/g) || []).length;
-  const hasSubstantiveContent = /\b(experience|background|worked|years|role|position|company|skill|project|studied|degree|responsible|managed|built|developed|led|created|handled|support|engineer|analyst|manager|specialist)\b/i.test(clean);
 
   // High greeting density + no substantive content = social opener
   if (greetingDensity >= 2 && !hasSubstantiveContent) return true;
 
   // STT filler fragments
-  if (/^(sure|yes|yeah|yep|okay|ok|right|got it|let me|uh|um|er|ah|so|and|alright|go ahead|ready|let'?s go|test test|can you hear|audio test)[\s,.]*/.test(clean) && words.length <= 15) {
+  if (/^(sure|yes|yeah|yep|okay|ok|right|got it|let me|uh|um|er|ah|so|and|alright|go ahead|ready|let'?s go|test test|can you hear|audio test)[\s,.]*/.test(clean) && words.length <= 15 && !hasSubstantiveContent) {
     return true;
   }
 
@@ -412,7 +418,18 @@ export async function POST(request: Request) {
 
   const transcript = normaliseTranscript(body.transcript);
   const candidateTurnCount = transcript.filter((turn) => turn.role === "candidate").length;
-  const isOpeningTurn = (typeof body.questionIndex === "number" && body.questionIndex <= 1) || candidateTurnCount <= 1;
+  // BUG FIXED: this used to also trigger on body.questionIndex <= 1, but the
+  // client sends questionIndex BEFORE incrementing it for the current turn
+  // (increment happens only after the reply comes back) — so the second
+  // real candidate answer was still sent with questionIndex=1, incorrectly
+  // extending the opening-turn guard to it. Confirmed from live testing: a
+  // genuine 12-word self-introduction ("I have 12 years of experience as a
+  // product design engineer...") got treated as opening small talk and the
+  // exact same intro question was asked again verbatim. candidateTurnCount
+  // is computed fresh from the actual transcript at request time and isn't
+  // subject to that lag — the transcript sent already includes the current
+  // turn, so candidateTurnCount === 1 only for the literal first turn.
+  const isOpeningTurn = candidateTurnCount <= 1;
 
   // Critical first-turn guard: short rapport answers must never get swallowed by
   // the LLM/state engine. This guarantees the interview moves from greeting to

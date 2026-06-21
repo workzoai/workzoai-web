@@ -67,8 +67,8 @@ export default function AboutPage() {
 
           <div className="mt-12 grid items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
             {/* Photo */}
-            <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-blue-950/30 lg:mx-0">
-              <div className="relative aspect-[4/5] overflow-hidden rounded-[1.5rem] bg-slate-900">
+            <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-blue-950/30 lg:mx-0">
+              <div className="relative aspect-[4/5] overflow-hidden rounded-xl bg-slate-900">
                 <Image
                   src="/about-haritha.jpg"
                   alt="Haritha Vijayakumar, Founder of WorkZo AI"
@@ -87,14 +87,14 @@ export default function AboutPage() {
                 The founder
               </div>
 
-              <h1 className="mt-6 text-4xl font-black tracking-[-0.05em] sm:text-6xl">
+              <h1 className="mt-6 text-4xl font-black tracking-[-0.05em] sm:text-4xl">
                 Haritha<br />Vijayakumar
               </h1>
               <p className="mt-3 text-xl font-black text-blue-100">
                 Founder & Builder, WorkZo AI
               </p>
 
-              <blockquote className="mt-7 rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 text-lg leading-9 text-slate-200 shadow-2xl shadow-black/20">
+              <blockquote className="mt-7 rounded-lg border border-white/10 bg-white/[0.04] p-6 text-lg leading-9 text-slate-200 shadow-2xl shadow-black/20">
                 &ldquo;After years helping customers solve technical problems and navigating my own job search, I realised every prep tool missed the same thing: they gave you questions but never explained why a recruiter&apos;s trust dropped. That&apos;s the gap WorkZo fills.&rdquo;
               </blockquote>
 
@@ -102,7 +102,7 @@ export default function AboutPage() {
                 {badges.map((badge) => {
                   const Icon = badge.icon;
                   return (
-                    <div key={badge.label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <div key={badge.label} className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
                       <Icon className="h-5 w-5 text-cyan-200" />
                       <p className="mt-3 text-sm font-black leading-5 text-white">{badge.label}</p>
                     </div>
@@ -113,14 +113,14 @@ export default function AboutPage() {
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/pricing?intent=interview"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-6 py-4 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-6 py-4 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400"
                 >
                   Start practicing
                   <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   href="/contact"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-4 text-sm font-black text-slate-200 transition hover:bg-white/10"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-6 py-4 text-sm font-black text-slate-200 transition hover:bg-white/10"
                 >
                   Get in touch
                 </Link>
@@ -147,8 +147,8 @@ export default function AboutPage() {
             {principles.map((p) => {
               const Icon = p.icon;
               return (
-                <div key={p.title} className="rounded-3xl border border-white/10 bg-white/[0.035] p-6">
-                  <div className="grid h-10 w-10 place-items-center rounded-2xl border border-blue-400/20 bg-blue-500/10">
+                <div key={p.title} className="rounded-xl border border-white/10 bg-white/[0.035] p-6">
+                  <div className="grid h-10 w-10 place-items-center rounded-lg border border-blue-400/20 bg-blue-500/10">
                     <Icon className="h-5 w-5 text-blue-300" />
                   </div>
                   <p className="mt-4 text-sm font-black text-white">{p.title}</p>
@@ -162,7 +162,7 @@ export default function AboutPage() {
 
       {/* ── Journey ── */}
       <section className="px-5 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl rounded-[2rem] border border-white/10 bg-white/[0.025] p-8 sm:p-10">
+        <div className="mx-auto max-w-6xl rounded-lg border border-white/10 bg-white/[0.025] p-8 sm:p-10">
           <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">The journey</p>
           <h2 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">From idea to product</h2>
 
@@ -190,7 +190,7 @@ export default function AboutPage() {
 
       {/* ── Values ── */}
       <section className="px-5 pb-8 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl rounded-[2rem] border border-white/10 bg-white/[0.035] p-8 sm:p-10">
+        <div className="mx-auto max-w-6xl rounded-lg border border-white/10 bg-white/[0.035] p-8 sm:p-10">
           <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">What we stand for</p>
           <h2 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">Built on a few simple beliefs</h2>
 
@@ -200,7 +200,7 @@ export default function AboutPage() {
               "Every candidate deserves to know why they failed, not just that they did.",
               "The best prep tool is one that gets smarter the more you use it.",
             ].map((item) => (
-              <div key={item} className="rounded-2xl border border-white/10 bg-black/20 p-5">
+              <div key={item} className="rounded-lg border border-white/10 bg-black/20 p-5">
                 <CheckCircle2 className="h-5 w-5 text-emerald-300" />
                 <p className="mt-4 text-sm font-bold leading-6 text-slate-200">{item}</p>
               </div>
@@ -210,14 +210,14 @@ export default function AboutPage() {
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
             <Link
               href="/pricing?intent=interview"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-6 py-4 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-6 py-4 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400"
             >
               Try WorkZo AI free
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href="/roadmap"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-4 text-sm font-black text-slate-200 transition hover:bg-white/10"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-6 py-4 text-sm font-black text-slate-200 transition hover:bg-white/10"
             >
               See the roadmap
             </Link>

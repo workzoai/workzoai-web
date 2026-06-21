@@ -21,7 +21,7 @@ function TranscriptMessageRow({ item }: { item: TranscriptItem }) {
 export default function LiveTranscriptPanel({ transcript, collapsed, onToggle, onClear, showToggle = true }: Props) {
   const visibleTranscript = transcript.filter((item) => item.text.trim() && !(item.role === "system" && item.id === "initial-ready"));
   return (
-    <section className="overflow-hidden rounded-3xl border border-white/10 bg-[#0b1424]">
+    <section className="overflow-hidden rounded-xl border border-white/10 bg-[#0b1424]">
       <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
         <div className="flex items-center gap-3"><h2 className="text-xl font-black text-white">Live Transcript</h2><span className="h-2.5 w-2.5 rounded-full bg-red-400" /><span className="text-sm text-slate-300">{visibleTranscript.length} {visibleTranscript.length === 1 ? "message" : "messages"}</span></div>
         {showToggle ? <button type="button" onClick={onToggle} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-blue-100 transition hover:bg-white/10">{collapsed ? "Expand" : "Collapse"}</button> : null}

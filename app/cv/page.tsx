@@ -81,7 +81,7 @@ function CollapsibleSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.03]">
+    <div className="rounded-xl border border-white/10 bg-white/[0.03]">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -606,7 +606,7 @@ export default function CvWorkspacePage() {
       <main className="min-h-screen bg-[#020817] px-4 py-6 text-white sm:px-5">
         {(profileRecovering || profileNeedsReupload) && (
           <div className={cn(
-            "mx-auto mb-5 flex max-w-5xl items-start gap-3 rounded-2xl border px-4 py-3 text-sm",
+            "mx-auto mb-5 flex max-w-5xl items-start gap-3 rounded-lg border px-4 py-3 text-sm",
             profileNeedsReupload ? "border-amber-500/30 bg-amber-500/10 text-amber-200" : "border-cyan-500/20 bg-cyan-500/[0.06] text-cyan-300",
           )}>
             {profileRecovering ? (
@@ -628,7 +628,7 @@ export default function CvWorkspacePage() {
             <ArrowLeft className="h-4 w-4" /> Back
           </Link>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-500/20 text-blue-200">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/20 text-blue-200">
               <FileText className="h-5 w-5" />
             </div>
             <div className="text-right">
@@ -639,9 +639,9 @@ export default function CvWorkspacePage() {
         </header>
 
         {/* ── Step 1: target this job ───────────────────────────────────── */}
-        <section className="mx-auto max-w-6xl rounded-[2rem] border border-white/10 bg-white/[0.035] p-5 shadow-2xl shadow-black/20 sm:p-6">
+        <section className="mx-auto max-w-6xl rounded-lg border border-white/10 bg-white/[0.035] p-5 shadow-2xl shadow-black/20 sm:p-6">
           <div className="flex items-start gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-500/20 text-blue-200">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-blue-500/20 text-blue-200">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
@@ -658,7 +658,7 @@ export default function CvWorkspacePage() {
               <textarea
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
-                className="min-h-[140px] w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm leading-6 outline-none transition focus:border-blue-400"
+                className="min-h-[140px] w-full rounded-lg border border-white/10 bg-black/25 px-4 py-3 text-sm leading-6 outline-none transition focus:border-blue-400"
                 placeholder="Paste the job description here — this is what the rewrite targets."
               />
             </label>
@@ -670,7 +670,7 @@ export default function CvWorkspacePage() {
                   <input
                     value={targetRole}
                     onChange={(e) => setTargetRole(e.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm outline-none transition focus:border-blue-400"
+                    className="w-full rounded-lg border border-white/10 bg-black/25 px-4 py-3 text-sm outline-none transition focus:border-blue-400"
                     placeholder="e.g. Data Analyst"
                   />
                 </label>
@@ -679,7 +679,7 @@ export default function CvWorkspacePage() {
                   <select
                     value={outputLanguage}
                     onChange={(e) => setOutputLanguage(e.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm font-bold outline-none transition focus:border-blue-400"
+                    className="w-full rounded-lg border border-white/10 bg-black/25 px-4 py-3 text-sm font-bold outline-none transition focus:border-blue-400"
                   >
                     {OUTPUT_LANGUAGES.map((l) => (
                       <option key={l.value} value={l.value}>{l.label}</option>
@@ -691,7 +691,7 @@ export default function CvWorkspacePage() {
               <button
                 type="button"
                 onClick={() => setCvTextExpanded((v) => !v)}
-                className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-left text-sm font-bold text-slate-300 transition hover:bg-black/30"
+                className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-left text-sm font-bold text-slate-300 transition hover:bg-black/30"
               >
                 <span className="flex items-center gap-2">
                   <CheckCircle2 className={cn("h-4 w-4", cvReady ? "text-emerald-400" : "text-slate-600")} />
@@ -707,7 +707,7 @@ export default function CvWorkspacePage() {
                     setCvText(e.target.value);
                     setSavedResumeProfile(undefined);
                   }}
-                  className="min-h-[140px] w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm leading-6 outline-none transition focus:border-blue-400"
+                  className="min-h-[140px] w-full rounded-lg border border-white/10 bg-black/25 px-4 py-3 text-sm leading-6 outline-none transition focus:border-blue-400"
                   placeholder="Upload a CV during onboarding or paste CV text here."
                 />
               )}
@@ -717,7 +717,7 @@ export default function CvWorkspacePage() {
                 onClick={() => void handleAiRewrite()}
                 disabled={aiRewriteLoading || !jdReady || !cvReady}
                 title={!jdReady ? "Paste a job description first" : !cvReady ? "Add your CV text first" : undefined}
-                className="mt-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-1 inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-400 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {aiRewriteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {aiRewriteLoading ? "Rewriting your CV…" : aiRewriteApplied ? "Rewrite again" : "Rewrite for this job"}
@@ -737,9 +737,9 @@ export default function CvWorkspacePage() {
         </section>
 
         {/* ── Step 2: your result ───────────────────────────────────────── */}
-        <section className="mx-auto mt-6 max-w-6xl rounded-[2rem] border border-white/10 bg-white/[0.03] p-5 shadow-2xl shadow-black/20 sm:p-6">
+        <section className="mx-auto mt-6 max-w-6xl rounded-lg border border-white/10 bg-white/[0.03] p-5 shadow-2xl shadow-black/20 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="inline-flex rounded-2xl border border-white/10 bg-black/20 p-1">
+            <div className="inline-flex rounded-lg border border-white/10 bg-black/20 p-1">
               <button
                 type="button"
                 onClick={() => setViewMode("text")}
@@ -778,7 +778,7 @@ export default function CvWorkspacePage() {
             <textarea
               value={atsText}
               onChange={(event) => setAtsText(event.target.value)}
-              className="mt-4 min-h-[480px] w-full resize-y overflow-auto whitespace-pre-wrap rounded-[1.5rem] border border-white/10 bg-black/25 p-5 font-sans text-sm leading-7 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:bg-black/35"
+              className="mt-4 min-h-[480px] w-full resize-y overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/25 p-5 font-sans text-sm leading-7 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:bg-black/35"
               placeholder="Upload or paste a CV to generate an improved version. You can edit this text before copying or downloading."
               spellCheck={true}
             />
@@ -800,7 +800,7 @@ export default function CvWorkspacePage() {
                   </button>
                 ))}
               </div>
-              <div className="max-h-[75vh] overflow-auto rounded-[1.5rem] border border-white/10 bg-white">
+              <div className="max-h-[75vh] overflow-auto rounded-xl border border-white/10 bg-white">
                 <iframe title="CV template preview" srcDoc={htmlPreview} className="h-[1120px] w-full bg-white" />
               </div>
             </div>
@@ -818,20 +818,20 @@ export default function CvWorkspacePage() {
           <CollapsibleSection eyebrow="Recruiter scan" title={phaseA.recruiterScan.decision} defaultOpen={false}>
             <div className="flex items-start justify-between gap-4">
               <p className="text-sm leading-6 text-slate-300">{phaseA.recruiterScan.firstImpression}</p>
-              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-cyan-300/20 bg-black/25 text-center">
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-cyan-300/20 bg-black/25 text-center">
                 <p className="text-xl font-black text-cyan-100">{phaseA.readinessScore}</p>
                 <p className="-mt-1 text-[9px] font-black text-slate-500">READY</p>
               </div>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <div className="rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.06] p-4">
+              <div className="rounded-lg border border-emerald-300/15 bg-emerald-400/[0.06] p-4">
                 <div className="mb-3 flex items-center gap-2 text-sm font-black text-emerald-200"><CheckCircle2 className="h-4 w-4" /> What works</div>
                 <div className="space-y-2">
                   {phaseA.recruiterScan.strengths.map((item) => <p key={item} className="text-sm leading-6 text-slate-300">• {item}</p>)}
                 </div>
               </div>
-              <div className="rounded-2xl border border-amber-300/15 bg-amber-400/[0.06] p-4">
+              <div className="rounded-lg border border-amber-300/15 bg-amber-400/[0.06] p-4">
                 <div className="mb-3 flex items-center gap-2 text-sm font-black text-amber-200"><AlertTriangle className="h-4 w-4" /> Recruiter concerns</div>
                 <div className="space-y-2">
                   {phaseA.recruiterScan.concerns.map((item) => <p key={item} className="text-sm leading-6 text-slate-300">• {item}</p>)}
@@ -840,17 +840,17 @@ export default function CvWorkspacePage() {
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="rounded-lg border border-white/10 bg-black/20 p-4">
                 <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400"><Gauge className="h-4 w-4" /> Current</div>
                 <p className="mt-2 text-2xl font-black">{phaseA.interviewProbability.current}%</p>
                 <p className="mt-1 text-xs text-slate-500">Interview probability estimate</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="rounded-lg border border-white/10 bg-black/20 p-4">
                 <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400"><Target className="h-4 w-4" /> After CV fix</div>
                 <p className="mt-2 text-2xl font-black text-blue-100">{phaseA.interviewProbability.afterCvFix}%</p>
                 <p className="mt-1 text-xs text-slate-500">If missing proof is added</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="rounded-lg border border-white/10 bg-black/20 p-4">
                 <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400"><Sparkles className="h-4 w-4" /> After prep</div>
                 <p className="mt-2 text-2xl font-black text-emerald-200">{phaseA.interviewProbability.afterInterviewPrep}%</p>
                 <p className="mt-1 text-xs text-slate-500">With interview stories ready</p>
@@ -876,21 +876,21 @@ export default function CvWorkspacePage() {
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.06] p-4">
+                <div className="rounded-lg border border-emerald-300/15 bg-emerald-400/[0.06] p-4">
                   <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-emerald-200">Matched ({atsKeywords.matched.length})</p>
                   <div className="flex flex-wrap gap-1.5">
                     {atsKeywords.matched.map((kw) => <span key={kw} className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-0.5 text-[11px] font-black text-emerald-200">{kw}</span>)}
                     {atsKeywords.matched.length === 0 && <p className="text-xs text-slate-500">None yet</p>}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-amber-300/15 bg-amber-400/[0.06] p-4">
+                <div className="rounded-lg border border-amber-300/15 bg-amber-400/[0.06] p-4">
                   <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-amber-200">Partial ({atsKeywords.partial.length})</p>
                   <div className="flex flex-wrap gap-1.5">
                     {atsKeywords.partial.map((kw) => <span key={kw} className="rounded-lg border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[11px] font-black text-amber-200">{kw}</span>)}
                     {atsKeywords.partial.length === 0 && <p className="text-xs text-slate-500">None</p>}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-red-300/15 bg-red-400/[0.06] p-4">
+                <div className="rounded-lg border border-red-300/15 bg-red-400/[0.06] p-4">
                   <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-red-200">Missing ({atsKeywords.missing.length})</p>
                   <div className="flex flex-wrap gap-1.5">
                     {atsKeywords.missing.map((kw) => <span key={kw} className="rounded-lg border border-red-300/20 bg-red-400/10 px-2 py-0.5 text-[11px] font-black text-red-200">{kw}</span>)}
@@ -913,14 +913,14 @@ export default function CvWorkspacePage() {
           <CollapsibleSection eyebrow="Deeper analysis" title={phaseB.companyDNA.label} defaultOpen={false}>
             <div className="flex items-start justify-between gap-4">
               <p className="text-sm leading-6 text-slate-300">{phaseB.companyDNA.description}</p>
-              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-blue-300/20 bg-black/25 text-center">
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-blue-300/20 bg-black/25 text-center">
                 <p className="text-xl font-black text-blue-100">{phaseB.trustAudit.overall}</p>
                 <p className="-mt-1 text-[9px] font-black text-slate-500">TRUST</p>
               </div>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="rounded-lg border border-white/10 bg-black/20 p-4">
                 <p className="text-sm font-black text-blue-100">Company DNA rules</p>
                 <div className="mt-3 space-y-3">
                   {phaseB.companyDNA.dimensions.map((item) => (
@@ -938,7 +938,7 @@ export default function CvWorkspacePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="rounded-lg border border-white/10 bg-black/20 p-4">
                 <p className="text-sm font-black text-emerald-200">Trust audit</p>
                 <div className="mt-3 space-y-2">
                   {phaseB.trustAudit.dimensions.map((item) => (
@@ -950,7 +950,7 @@ export default function CvWorkspacePage() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+            <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-4">
               <p className="text-sm font-black text-white">Evidence engine</p>
               <p className="mt-2 text-sm leading-6 text-slate-400">{phaseB.evidenceEngine.summary}</p>
               <div className="mt-4 space-y-3">
@@ -969,7 +969,7 @@ export default function CvWorkspacePage() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.06] p-4">
+            <div className="mt-4 rounded-lg border border-emerald-300/15 bg-emerald-400/[0.06] p-4">
               <p className="text-sm font-black text-emerald-200">Top 10% rewrite target</p>
               <p className="mt-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Current weak line</p>
               <p className="mt-1 text-sm leading-6 text-slate-300">{phaseB.top10Rewrite.weakestLine}</p>

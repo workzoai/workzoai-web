@@ -89,7 +89,7 @@ export default function DemoPage() {
             </div>
             <span className="text-xl font-black">WorkZo <span className="text-blue-400">AI</span></span>
           </Link>
-          <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-4 py-2 text-sm font-black text-white hover:bg-blue-400">
+          <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-black text-white hover:bg-blue-400">
             Start with your CV <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -98,7 +98,7 @@ export default function DemoPage() {
           <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
             <Sparkles className="h-3.5 w-3.5" /> Interactive demo
           </div>
-          <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-6xl">
+          <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-4xl">
             Try a recruiter question
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-400">
@@ -110,7 +110,7 @@ export default function DemoPage() {
         <div className="mt-12 grid gap-6 lg:grid-cols-[340px_1fr]">
           {/* Config panel */}
           <div className="space-y-5">
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5">
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] p-5">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Target role</p>
               <div className="grid gap-2">
                 {demoRoles.map((r) => (
@@ -130,7 +130,7 @@ export default function DemoPage() {
               </div>
             </div>
 
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5">
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] p-5">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Recruiter</p>
               <div className="grid grid-cols-2 gap-2">
                 {recruiters.map((r) => (
@@ -154,7 +154,7 @@ export default function DemoPage() {
 
             <Link
               href="/onboarding"
-              className="block w-full rounded-2xl bg-white px-5 py-4 text-center text-sm font-black text-slate-950 hover:bg-blue-50"
+              className="block w-full rounded-lg bg-white px-5 py-4 text-center text-sm font-black text-slate-950 hover:bg-blue-50"
             >
               Start real interview with my CV
               <ArrowRight className="ml-2 inline h-4 w-4" />
@@ -164,8 +164,8 @@ export default function DemoPage() {
           {/* Question panel */}
           <div className="flex flex-col gap-5">
             {/* Recruiter header */}
-            <div className="flex items-center gap-4 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5">
-              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl">
+            <div className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.04] p-5">
+              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg">
                 <Image src={activeRecruiter.image} alt={activeRecruiter.name} fill className="object-cover" />
               </div>
               <div>
@@ -179,7 +179,7 @@ export default function DemoPage() {
             </div>
 
             {/* Question */}
-            <div className="flex-1 rounded-[1.5rem] border border-white/10 bg-[#08111f] p-7">
+            <div className="flex-1 rounded-xl border border-white/10 bg-[#08111f] p-7">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200 mb-5">Question {questionIndex + 1} of {questions.length}</p>
               <p className="text-2xl font-black leading-snug text-white sm:text-3xl">
                 {activeQuestion}
@@ -190,7 +190,7 @@ export default function DemoPage() {
                   type="button"
                   onClick={speakQuestion}
                   disabled={speaking}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-blue-500 px-5 py-4 text-sm font-black text-white hover:bg-blue-400 disabled:opacity-60"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-500 px-5 py-4 text-sm font-black text-white hover:bg-blue-400 disabled:opacity-60"
                 >
                   {speaking ? <Volume2 className="h-4 w-4 animate-pulse" /> : <Play className="h-4 w-4" />}
                   {speaking ? "Speaking…" : "Hear the question"}
@@ -198,7 +198,7 @@ export default function DemoPage() {
                 <button
                   type="button"
                   onClick={nextQuestion}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-sm font-black text-slate-200 hover:bg-white/10"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.05] px-5 py-4 text-sm font-black text-slate-200 hover:bg-white/10"
                 >
                   Next question
                   <ArrowRight className="h-4 w-4" />
@@ -215,7 +215,7 @@ export default function DemoPage() {
               ].map((item) => {
                 const Icon = item.icon;
                 return (
-                  <div key={item.text} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <div key={item.text} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
                     <Icon className="h-4 w-4 text-blue-300 mb-2" />
                     <p className="text-sm font-black text-white leading-4">{item.text}</p>
                     <p className="mt-1 text-[11px] text-slate-500">{item.sub}</p>
@@ -227,14 +227,14 @@ export default function DemoPage() {
         </div>
 
         {/* CTA */}
-        <div className="mt-14 rounded-[2rem] border border-blue-300/20 bg-blue-500/[0.07] p-8 text-center">
+        <div className="mt-14 rounded-lg border border-blue-300/20 bg-blue-500/[0.07] p-8 text-center">
           <h2 className="text-3xl font-black tracking-tight">The real interview reads your CV.</h2>
           <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-slate-300">
             The demo shows sample questions. The real interview uses your actual CV and job description — so every follow-up is specific to your experience.
           </p>
           <Link
             href="/onboarding"
-            className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-7 py-4 text-sm font-black text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400"
+            className="mt-7 inline-flex items-center gap-2 rounded-lg bg-blue-500 px-7 py-4 text-sm font-black text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400"
           >
             Start with my CV <ArrowRight className="h-4 w-4" />
           </Link>

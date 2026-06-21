@@ -53,7 +53,7 @@ export const RECRUITER_VOICE_TABLE: Record<NormalizedRecruiterPersonality, Voice
   faang_hiring_manager:      { gender: "male",   vapiEnv: "NEXT_PUBLIC_VAPI_ALEX_ASSISTANT_ID",     elevenEnv: "ELEVENLABS_VOICE_ALEX",     openAiVoice: "fable"   },
   startup_founder:           { gender: "female", vapiEnv: "NEXT_PUBLIC_VAPI_ZOE_ASSISTANT_ID",      elevenEnv: "ELEVENLABS_VOICE_ZOE",      openAiVoice: "shimmer" },
   consulting_partner:        { gender: "male",   vapiEnv: "NEXT_PUBLIC_VAPI_JAMES_ASSISTANT_ID",    elevenEnv: "ELEVENLABS_VOICE_JAMES",    openAiVoice: "onyx"    },
-  sales_director:            { gender: "male",   vapiEnv: "NEXT_PUBLIC_VAPI_MARCUS_ASSISTANT_ID",   elevenEnv: "ELEVENLABS_VOICE_MARCUS",   openAiVoice: "echo"    },
+  sales_director:            { gender: "male",   vapiEnv: "NEXT_PUBLIC_VAPI_NOAH_ASSISTANT_ID",   elevenEnv: "ELEVENLABS_VOICE_NOAH",   openAiVoice: "echo"    },
   product_leader:            { gender: "female", vapiEnv: "NEXT_PUBLIC_VAPI_AISHA_ASSISTANT_ID",    elevenEnv: "ELEVENLABS_VOICE_AISHA",    openAiVoice: "nova"    },
   executive_recruiter:       { gender: "female", vapiEnv: "NEXT_PUBLIC_VAPI_VICTORIA_ASSISTANT_ID", elevenEnv: "ELEVENLABS_VOICE_VICTORIA", openAiVoice: "shimmer" },
   enterprise_recruiter:      { gender: "male",   vapiEnv: "NEXT_PUBLIC_VAPI_DAVID_ASSISTANT_ID",    elevenEnv: "ELEVENLABS_VOICE_DAVID",    openAiVoice: "alloy"   },
@@ -84,7 +84,7 @@ export function resolveRecruiterVoiceKey(
   if (id.includes("faang") || name.includes("alex")) return "faang_hiring_manager";
   if (id.includes("startup_founder") || name.includes("zoe")) return "startup_founder";
   if (id.includes("consulting") || id.includes("partner") || name.includes("james")) return "consulting_partner";
-  if (id.includes("sales_director") || name.includes("marcus")) return "sales_director";
+  if (id.includes("sales_director") || name.includes("marcus") || name.includes("noah")) return "sales_director";
   if (id.includes("product_leader") || name.includes("aisha")) return "product_leader";
   if (id.includes("executive_recruiter") || name.includes("victoria")) return "executive_recruiter";
   if (id.includes("enterprise_recruiter") || name.includes("david")) return "enterprise_recruiter";
@@ -192,15 +192,15 @@ export const recruiterVoiceProfiles: Record<NormalizedRecruiterPersonality, Recr
   },
   sales_director: {
     key: "sales_director",
-    name: "Marcus Williams",
+    name: "Noah Jones",
     role: "Sales Director",
     voiceGender: "male",
-    assistantId: cleanEnv(process.env.NEXT_PUBLIC_VAPI_MARCUS_ASSISTANT_ID),
+    assistantId: cleanEnv(process.env.NEXT_PUBLIC_VAPI_NOAH_ASSISTANT_ID),
     pacing: "fast",
     interruptionStyle:
       "Interrupt when numbers are vague, the pipeline isn't described, or the candidate avoids accountability.",
     behaviorPrompt:
-      "You are Marcus Williams, a sales director who drives revenue. You want quota attainment, deal size, pipeline discipline, and objection handling. Ask about real numbers and push back when answers are generic.",
+      "You are Noah Jones, a sales director who drives revenue. You want quota attainment, deal size, pipeline discipline, and objection handling. Ask about real numbers and push back when answers are generic.",
   },
   product_leader: {
     key: "product_leader",
@@ -262,7 +262,7 @@ export function normalizeRecruiterPersonality(value?: string): NormalizedRecruit
   }
   if (key === "faang_hiring_manager" || key.includes("faang") || key.includes("alex")) return "faang_hiring_manager";
   if (key === "consulting_partner" || key.includes("consulting") || key.includes("james")) return "consulting_partner";
-  if (key === "sales_director" || key.includes("sales_director") || key.includes("marcus")) return "sales_director";
+  if (key === "sales_director" || key.includes("sales_director") || key.includes("marcus") || key.includes("noah")) return "sales_director";
   if (key === "product_leader" || key.includes("product_leader") || key.includes("aisha")) return "product_leader";
   if (key === "executive_recruiter" || key.includes("victoria")) return "executive_recruiter";
   if (key === "enterprise_recruiter" || key.includes("enterprise") || key.includes("david")) return "enterprise_recruiter";

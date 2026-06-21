@@ -48,7 +48,7 @@ export default function ProductHuntAssetsPage() {
   return (
     <main className="min-h-screen bg-[#020712] px-4 py-5 text-white sm:px-6">
       <div className="mx-auto max-w-6xl">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.045] p-4 backdrop-blur-2xl">
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.045] p-4 backdrop-blur-2xl">
           <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-black text-slate-200">
             <ArrowLeft className="h-4 w-4" />
             Dashboard
@@ -61,7 +61,7 @@ export default function ProductHuntAssetsPage() {
         <section className="mt-5 rounded-[32px] border border-white/10 bg-gradient-to-br from-orange-500/16 via-white/[0.045] to-blue-600/14 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.42)] sm:p-8">
           <div className="flex items-center gap-3">
             <Rocket className="h-7 w-7 text-orange-200" />
-            <h1 className="text-3xl font-black tracking-tight sm:text-5xl">Product Hunt launch assets</h1>
+            <h1 className="text-3xl font-black tracking-tight sm:text-3xl">Product Hunt launch assets</h1>
           </div>
           <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300">
             Prepare screenshots, tagline, first comment, and demo video structure.
@@ -74,8 +74,8 @@ export default function ProductHuntAssetsPage() {
               <Sparkles className="h-5 w-5 text-cyan-200" />
               <h2 className="text-xl font-black">Tagline</h2>
             </div>
-            <p className="rounded-2xl bg-black/24 p-4 text-lg font-black leading-7">{tagline}</p>
-            <button onClick={() => copy(tagline)} className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2 text-sm font-black">
+            <p className="rounded-lg bg-black/24 p-4 text-lg font-black leading-7">{tagline}</p>
+            <button onClick={() => copy(tagline)} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-black">
               <Copy className="h-4 w-4" />
               Copy tagline
             </button>
@@ -112,8 +112,8 @@ export default function ProductHuntAssetsPage() {
               <MessageSquareText className="h-5 w-5 text-cyan-200" />
               <h2 className="text-xl font-black">First comment</h2>
             </div>
-            <textarea readOnly value={firstComment} className="min-h-[360px] w-full rounded-2xl border border-white/10 bg-black/24 p-4 text-sm leading-6 text-slate-200 outline-none" />
-            <button onClick={() => copy(firstComment)} className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2 text-sm font-black">
+            <textarea readOnly value={firstComment} className="min-h-[360px] w-full rounded-lg border border-white/10 bg-black/24 p-4 text-sm leading-6 text-slate-200 outline-none" />
+            <button onClick={() => copy(firstComment)} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-black">
               <Copy className="h-4 w-4" />
               Copy first comment
             </button>

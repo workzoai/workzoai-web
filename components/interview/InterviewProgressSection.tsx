@@ -4,7 +4,7 @@ type Props = { questionIndex: number; progress: number; };
 
 export default function InterviewProgressSection({ questionIndex, progress }: Props) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-[#0b1424] p-5">
+    <section className="rounded-xl border border-white/10 bg-[#0b1424] p-5">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-black">Interview Progress</h2>
         <span className="text-sm text-slate-300">Question {questionIndex} of 12</span>
