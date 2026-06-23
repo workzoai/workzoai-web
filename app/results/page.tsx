@@ -304,7 +304,7 @@ async function fetchLatestDbInterviewResult(): Promise<StoredResult | null> {
     // 6-second timeout — if the DB call hangs (e.g. due to a flood of other API calls),
     // fall through to local storage immediately rather than showing the spinner forever.
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
     let response: Response;
     try {

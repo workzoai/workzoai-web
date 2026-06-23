@@ -31,8 +31,41 @@ import {
 } from "@/lib/unifiedRecruiterIntelligence";
 import { buildWorkZoRecruiterReplyV2 } from "@/lib/workzoRecruiterIntelligenceV2";
 
+import OpenAI from "openai";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// ── Post-generation translation ──────────────────────────────────────────────
+// The interview engine always generates in English (where GPT-4o is reliable
+// and natural). For non-English interviews, a dedicated fast translation call
+// converts the output. This is better than instructing the engine to generate
+// in another language directly, which produces unreliable results — the model
+// knows English interview patterns deeply, non-English is hit-or-miss.
+async function translateReply(text: string, targetLanguage: string): Promise<string> {
+  if (!text || !targetLanguage || /^en/i.test(targetLanguage) || /^english$/i.test(targetLanguage)) {
+    return text;
+  }
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini", // Fast, cheap translation — no need for full 4o
+      temperature: 0,
+      max_tokens: 300,
+      messages: [
+        {
+          role: "system",
+          content: `You are a professional interpreter for a job interview app. If the text is already in ${targetLanguage}, return it unchanged. Otherwise translate it into natural, professional ${targetLanguage}. Output ONLY the final candidate-facing recruiter reply — no explanations, no quotes, no preamble. Preserve the recruiter tone and meaning.`,
+        },
+        { role: "user", content: text },
+      ],
+    });
+    const translated = response.choices[0]?.message?.content?.trim();
+    return translated || text; // Fall back to English on any failure
+  } catch {
+    return text; // Non-fatal — return English if translation fails
+  }
+}
 
 type TranscriptTurn = {
   role: "recruiter" | "candidate" | string;
@@ -283,6 +316,13 @@ function normalizeForSimilarity(value: string) {
 function getBadRecruiterReplyReason(reply: string, transcript: TranscriptItem[]): string | null {
   const clean = normalizeForSimilarity(reply);
   if (!clean) return "empty_reply";
+  const repeatedShortPhrase = clean.match(/^(.{4,80})\s+\1$/i);
+  if (repeatedShortPhrase) return "repeated_short_phrase";
+  const wordsForRepeat = clean.split(/\s+/).filter(Boolean);
+  if (wordsForRepeat.length >= 2 && wordsForRepeat.length <= 8) {
+    const half = Math.floor(wordsForRepeat.length / 2);
+    if (half > 0 && wordsForRepeat.slice(0, half).join(" ") === wordsForRepeat.slice(half, half * 2).join(" ")) return "repeated_short_phrase";
+  }
 
   // Never let CV layout artifacts leak into the spoken interview.
   if (/\b(professional experience contact|experience contact|skills contact|education contact|profile summary|core competencies|tools ticketing|gans e scooter|candidate\b|public\b)\b/i.test(reply)) {
@@ -583,10 +623,16 @@ export async function POST(request: Request) {
     (v2.memory as Record<string, unknown>).trustScore =
       Math.max(0, Math.min(100, ((v2.memory as Record<string, unknown>).trustScore as number ?? 70) + (decision.trustDelta || 0)));
 
+    // ── Translate to target language if non-English ─────────────────────
+    const targetLanguage = normalizeLanguageLabel(body.language);
+    const finalReply = targetLanguage !== "English"
+      ? await translateReply(reply, targetLanguage)
+      : reply;
+
     return NextResponse.json({
       success: true,
-      reply,
-      displayQuestion: reply,
+      reply: finalReply,
+      displayQuestion: finalReply,
       trustDelta: decision.trustDelta,
       recruiterState: decision.recruiterState,
       shouldAdvanceQuestion: decision.shouldAdvanceQuestion,
@@ -605,11 +651,13 @@ export async function POST(request: Request) {
     );
     const reply = buildSafeFallbackRecruiterReply(body, answer, transcript);
     if (reply) {
+      const targetLanguage = normalizeLanguageLabel(body.language);
+      const finalReply = targetLanguage !== "English" ? await translateReply(reply, targetLanguage) : reply;
       logReplyOutcome({ userId: resolved.userId, outcome: "deterministic_fallback", durationMs, reason: message, questionIndex: body.questionIndex });
       return NextResponse.json({
         success: true,
-        reply,
-        displayQuestion: reply,
+        reply: finalReply,
+        displayQuestion: finalReply,
         trustDelta: 0,
         recruiterState: "engaged",
         shouldAdvanceQuestion: true,

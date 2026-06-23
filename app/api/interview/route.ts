@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import OpenAI from "openai";
 import { getRoleIntelligenceBrief, serializeRoleBriefForPrompt } from "@/lib/workzoRoleIntelligence";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { checkWorkZoRateLimit } from "@/lib/workzoRateLimit";
@@ -16,6 +17,10 @@ import {
   buildRecruiterBrain,
   serializeRecruiterBrainForPrompt,
 } from "@/lib/recruiterBrainEngine";
+import {
+  buildWorkZoInterviewEvidencePlan,
+  serializeWorkZoInterviewEvidencePlan,
+} from "@/lib/workzoInterviewEvidencePlanner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,6 +118,31 @@ function compactInterviewContext(value: unknown, maxChars = 900) {
 
 
 type NormalizedInterviewLanguage = { code: string; label: string };
+
+async function translateRecruiterTextIfNeeded(value: string, languageValue?: string): Promise<string> {
+  const clean = text(value, 1200);
+  const language = normalizeInterviewLanguage(languageValue);
+  if (!clean || language.label === "English") return clean;
+  if (!process.env.OPENAI_API_KEY) return clean;
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0,
+      max_tokens: 360,
+      messages: [
+        {
+          role: "system",
+          content: `Translate this recruiter interview reply into natural, professional ${language.label}. If it is already in ${language.label}, return it unchanged. Output only the candidate-facing text.`,
+        },
+        { role: "user", content: clean },
+      ],
+    });
+    return response.choices[0]?.message?.content?.trim() || clean;
+  } catch {
+    return clean;
+  }
+}
 
 function normalizeInterviewLanguage(value?: string): NormalizedInterviewLanguage {
   const raw = text(value || "English", 80).toLowerCase();
@@ -1069,7 +1099,14 @@ export async function POST(request: Request) {
       recruiterState: body.recruiterState || "neutral",
       lastAnswerScore: null, // updated by scoring engine each turn
     });
-    const recruiterBrainContext = serializeRecruiterBrainForPrompt(recruiterBrain);
+    const evidencePlan = buildWorkZoInterviewEvidencePlan({
+      cvText: cvGroundingEvidence || compactCv,
+      jobDescription: companyDecoratedJob,
+      targetRole: text(body.targetRole || setup.targetRole, 120),
+      transcript: body.transcript || [],
+    });
+    const evidencePlanContext = serializeWorkZoInterviewEvidencePlan(evidencePlan);
+    const recruiterBrainContext = `${serializeRecruiterBrainForPrompt(recruiterBrain)}\n\n${evidencePlanContext}`;
     // ───────────────────────────────────────────────────────────────────────
 
     // Generate role intelligence brief for ANY role — not just hardcoded ones.
@@ -1131,10 +1168,12 @@ export async function POST(request: Request) {
     });
 
     const decision = applyInterviewIntelligence95ToDecision(enhancedDecision, intelligence95);
+    const finalQuestion = await translateRecruiterTextIfNeeded(decision.spokenReply, setup.language);
+    const finalDisplayQuestion = await translateRecruiterTextIfNeeded(decision.displayQuestion || decision.spokenReply, setup.language);
 
     return NextResponse.json({
-      question: decision.spokenReply,
-      displayQuestion: decision.displayQuestion,
+      question: finalQuestion,
+      displayQuestion: finalDisplayQuestion,
       feedback: decision.feedback,
       intent: decision.intent,
       shouldAdvanceQuestion: decision.shouldAdvanceQuestion,

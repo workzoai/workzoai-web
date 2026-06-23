@@ -28,6 +28,9 @@ import {
   saveLatestInterviewSetup,
   clearLatestInterviewSetup,
   readLatestInterviewSetup,
+  type WorkZoInterviewSetup,
+  type RecruiterMemoryProfile,
+  type JobMemoryProfile,
 } from "@/lib/workzoInterviewSetup";
 
 import PrivacyNotice from "@/components/BetaPrivacyNotice";
@@ -44,13 +47,13 @@ type RecruiterKey =
   | "product_leader" | "executive_recruiter" | "enterprise_recruiter";
 type InterviewLanguage = "English" | "German" | "Dutch" | "French" | "Spanish" | "Italian" | "Portuguese";
 
-type SetupState = {
-  [key: string]: unknown;
-  cvText?: string; targetRole?: string; jobDescription?: string;
-  targetMarket?: string; country?: string; companyStyle?: string;
-  recruiterStyle?: string; recruiterPersonality?: string; language?: string;
-  recruiterMemoryProfile?: unknown; jobMemoryProfile?: unknown;
-  setupVersion?: number; setupId?: string; updatedAt?: string; source?: string;
+type SetupState = WorkZoInterviewSetup & {
+  // Keep onboarding's extra CV fields, but stay compatible with WorkZoInterviewSetup.
+  rawCvText?: string;
+  cvContextText?: string;
+  resumeProfile?: ResumeProfile;
+  recruiterMemoryProfile?: RecruiterMemoryProfile | null;
+  jobMemoryProfile?: JobMemoryProfile | null;
 };
 
 const markets: { label: Market; flag: string }[] = [
@@ -220,11 +223,15 @@ function buildCanonicalCvSetup(input: {
   });
   return {
     ...input.setup,
-    cvText: buildInterviewCvContext(profile, input.rawCvText),
+    // Keep raw CV fields raw. Do NOT save buildInterviewCvContext() into cvText/resumeText/candidateCv.
+    // That derived summary is only for prompts/display; when it is sent back to /api/cv,
+    // it creates the parsing degradation loop seen in production logs.
+    cvText: input.rawCvText,
     uploadedCvText: input.rawCvText,
-    resumeText: buildInterviewCvContext(profile, input.rawCvText),
-    candidateCv: buildInterviewCvContext(profile, input.rawCvText),
+    resumeText: input.rawCvText,
+    candidateCv: input.rawCvText,
     rawCvText: input.rawCvText,
+    cvContextText: buildInterviewCvContext(profile, input.rawCvText),
     previewText: profile.previewText,
     jobDescription: input.jobDescription,
     jdText: input.jobDescription,
@@ -569,9 +576,12 @@ export default function OnboardingPage() {
     });
     const canonicalSetup = {
       ...draft,
-      cvText: buildInterviewCvContext(profile, rawCvText),
-      uploadedCvText: rawCvText, resumeText: buildInterviewCvContext(profile, rawCvText),
-      candidateCv: buildInterviewCvContext(profile, rawCvText), rawCvText,
+      cvText: rawCvText,
+      uploadedCvText: rawCvText,
+      resumeText: rawCvText,
+      candidateCv: rawCvText,
+      rawCvText,
+      cvContextText: buildInterviewCvContext(profile, rawCvText),
       previewText: profile.previewText, jobDescription: jobDescription.trim(),
       jdText: jobDescription.trim(),
       targetRole: role || profile.basics.headline || "General Role",
@@ -623,7 +633,18 @@ export default function OnboardingPage() {
       : ({ ...setup, cvText: "", jobDescription: jdText, jdText, targetRole: role || "General Role", targetMarket: market, country: market, companyStyle, recruiterStyle: companyStyle, recruiterPersonality: normalizeRecruiterKey(recruiter), updatedAt: new Date().toISOString() } as SetupState);
     let nextSetup: SetupState;
     if (cvText.length > 0 || jdText.length > 0) {
-      const memorySetup = (await buildAndSaveInterviewSetup({ cvText, jobDescription: jdText, targetRole: role || "General Role", targetMarket: market, companyStyle, recruiterPersonality: normalizeRecruiterKey(recruiter) })) as SetupState;
+      const memorySetup = (await buildAndSaveInterviewSetup({
+        cvText: rawCvText || cvText,
+        jobDescription: jdText,
+        targetRole: role || "General Role",
+        targetMarket: market,
+        companyStyle,
+        recruiterPersonality: normalizeRecruiterKey(recruiter),
+        candidateName: canonicalSetup.candidateName || "",
+        language: interviewLanguage,
+        resumeProfile: canonicalSetup.resumeProfile,
+        baseSetup: canonicalSetup,
+      })) as SetupState;
       nextSetup = { ...memorySetup, ...canonicalSetup, recruiterMemoryProfile: memorySetup.recruiterMemoryProfile || canonicalSetup.recruiterMemoryProfile, jobMemoryProfile: memorySetup.jobMemoryProfile || canonicalSetup.jobMemoryProfile } as SetupState;
     } else {
       nextSetup = canonicalSetup;
@@ -667,18 +688,47 @@ export default function OnboardingPage() {
       const rawCvText = normalizeResumeText(String(extracted));
       debugCvText("onboarding.upload.cleaned_text", rawCvText, { fileName: file.name });
       const apiProfile = data?.resumeProfile || data?.profile;
-      const localProfile = apiProfile && typeof apiProfile === "object" && "basics" in apiProfile ? (apiProfile as ResumeProfile) : extractResumeProfileComplex(rawCvText);
-      setAiCvStructuringStatus("structuring");
-      const profile = await structureCvWithAi(rawCvText, file.name);
-      debugCvProfile("onboarding.upload.profile_selected", profile, { source: profile === localProfile ? "local_profile" : "ai_structured_profile", fileName: file.name });
+      const apiProfileIsUsable = apiProfile && typeof apiProfile === "object" && "basics" in apiProfile;
+      const profile = apiProfileIsUsable
+        ? (apiProfile as ResumeProfile)
+        : await structureCvWithAi(rawCvText, file.name);
+      setAiResumeProfile(profile);
+      setAiCvStructuringStatus(apiProfileIsUsable ? "ready" : "fallback");
+      debugCvProfile("onboarding.upload.profile_selected", profile, { source: apiProfileIsUsable ? data?.source || "api_cv_profile" : "structure_fallback_profile", fileName: file.name });
       setManualCv(rawCvText);
       const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || profile.basics.headline || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
       saveCanonicalCvSetup(canonicalSetup, store);
       debugCvProfile("onboarding.upload.canonical_saved", canonicalSetup.resumeProfile, { setupId: canonicalSetup.setupId });
-      void buildAndSaveInterviewSetup({ cvText: rawCvText, jobDescription: jobDescription.trim(), targetRole: role || profile.basics.headline || "General Role", targetMarket: market, companyStyle, recruiterPersonality: normalizeRecruiterKey(recruiter) })
+      void buildAndSaveInterviewSetup({
+        cvText: rawCvText,
+        jobDescription: jobDescription.trim(),
+        targetRole: role || profile.basics.headline || "General Role",
+        targetMarket: market,
+        companyStyle,
+        recruiterPersonality: normalizeRecruiterKey(recruiter),
+        fileName: file.name,
+        candidateName: profile.basics?.name || "",
+        language: interviewLanguage,
+        resumeProfile: profile,
+        baseSetup: canonicalSetup,
+      })
         .then((nextSetup) => {
-          const enrichedSetup = { ...(nextSetup as SetupState), ...canonicalSetup, cvText: buildInterviewCvContext(profile, rawCvText), uploadedCvText: rawCvText, resumeText: buildInterviewCvContext(profile, rawCvText), candidateCv: buildInterviewCvContext(profile, rawCvText), rawCvText, previewText: profile.previewText, resumeProfile: profile, updatedAt: new Date().toISOString() } as SetupState;
-          debugCvProfile("onboarding.upload.enriched_before_save", enrichedSetup.resumeProfile, { note: "This should still match canonical parser profile." });
+          const enrichedSetup = {
+            ...(nextSetup as SetupState),
+            ...canonicalSetup,
+            cvText: rawCvText,
+            uploadedCvText: rawCvText,
+            resumeText: rawCvText,
+            candidateCv: rawCvText,
+            rawCvText,
+            cvContextText: buildInterviewCvContext(profile, rawCvText),
+            previewText: profile.previewText,
+            resumeProfile: profile,
+            candidateName: profile.basics?.name || canonicalSetup.candidateName || "",
+            language: interviewLanguage,
+            updatedAt: new Date().toISOString(),
+          } as SetupState;
+          debugCvProfile("onboarding.upload.enriched_before_save", enrichedSetup.resumeProfile, { note: "Raw CV fields preserved; resumeProfile remains canonical." });
           saveCanonicalCvSetup(enrichedSetup, store);
         })
         .catch(() => { /* keep canonical */ });

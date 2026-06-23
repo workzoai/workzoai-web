@@ -209,8 +209,33 @@ const SKILL_DICTIONARY = [
   "Google Cloud Platform",
   "Cloud Functions",
   "AWS",
+  "Azure",
+  "Google Cloud",
   "ITIL",
   "ITSM",
+  // Cybersecurity tools
+  "Splunk",
+  "Wireshark",
+  "Nessus",
+  "CrowdStrike",
+  "SIEM",
+  "SOC Operations",
+  "Threat Hunting",
+  "IAM",
+  "Penetration Testing",
+  "Vulnerability Management",
+  "Incident Response",
+  // Dev tools
+  "GitHub",
+  "GitLab",
+  "Docker",
+  "Kubernetes",
+  "Terraform",
+  "PowerShell",
+  "Bash",
+  "JavaScript",
+  "TypeScript",
+  "DevOps",
   "Technical Support",
   "Troubleshooting",
   "Networking",
@@ -288,6 +313,30 @@ export function normalizeResumeText(value = "") {
     .replace(/Ã©/g, "é")
     .replace(/Ã¨/g, "è")
     .replace(/Ã±/g, "ñ")
+    // ── Protect known compound tech brand names BEFORE camelCase splitting ────
+    // The camelCase split below would break these: CrowdStrike→Crowd Strike,
+    // PowerShell→Power Shell, SecureNet→Secure Net, GitHub→Git Hub, etc.
+    // We normalise them to their canonical form first so the split can't harm them.
+    .replace(/\bCrowdStrike\b/g, "CrowdStrike")
+    .replace(/\bPowerShell\b/gi, "PowerShell")
+    .replace(/\bGitHub\b/gi, "GitHub")
+    .replace(/\bGitLab\b/gi, "GitLab")
+    .replace(/\bBitBucket\b/gi, "BitBucket")
+    .replace(/\bLinkedIn\b/gi, "LinkedIn")
+    .replace(/\bJavaScript\b/gi, "JavaScript")
+    .replace(/\bTypeScript\b/gi, "TypeScript")
+    .replace(/\bOpenAI\b/gi, "OpenAI")
+    .replace(/\bDevOps\b/gi, "DevOps")
+    .replace(/\bDataFrame\b/gi, "DataFrame")
+    .replace(/\bSecureNet\b/gi, "SecureNet")
+    .replace(/\bCyberFort\b/gi, "CyberFort")
+    // ── Rejoin split LinkedIn / URLs across lines ──────────────────────────────
+    // PDFs sometimes break a URL across lines: "linkedin.com/in/harithavijay\nakumar30/"
+    // Only rejoin when the continuation line looks like a URL tail: starts with a
+    // lowercase letter or digit, contains no spaces, and is short (< 30 chars).
+    // This prevents eating legitimate content lines that follow a LinkedIn URL.
+    .replace(/(linkedin\.com\/in\/[A-Za-z0-9._-]+)\n([a-z0-9._/-]{1,30})\n/gi, "$1$2\n")
+    .replace(/(linkedin\.com\/in\/[A-Za-z0-9._-]+)\n([a-z0-9._/-]{1,30})$/gi, "$1$2")
     // ── Generic word-split repair (camelCase from PDF text-run merges) ─────────
     // When a PDF renders two separate text runs with no space between them,
     // extraction often produces "wordsRunTogetherLikeThis". This generically
@@ -296,6 +345,20 @@ export function normalizeResumeText(value = "") {
     // e.g. "DetailorientedIT" -> "Detailoriented IT"
     .replace(/([a-z])([A-Z]{2,})\b/g, "$1 $2")
     .replace(/([a-z]{3,})([A-Z][a-z])/g, "$1 $2")
+    // ── Tech brand name repairs after camelCase split ────────────────────────
+    // The camelCase split above may have broken names not yet protected above.
+    // Re-join common compound names that got split.
+    .replace(/\bCrowd\s+Strike\b/gi, "CrowdStrike")
+    .replace(/\bPower\s+Shell\b/gi, "PowerShell")
+    .replace(/\bGit\s+Hub\b/gi, "GitHub")
+    .replace(/\bGit\s+Lab\b/gi, "GitLab")
+    .replace(/\bLinked\s+In\b/gi, "LinkedIn")
+    .replace(/\bJava\s+Script\b/gi, "JavaScript")
+    .replace(/\bType\s+Script\b/gi, "TypeScript")
+    .replace(/\bDev\s+Ops\b/gi, "DevOps")
+    .replace(/\bOpen\s+AI\b/gi, "OpenAI")
+    .replace(/\bSecure\s+Net\b/gi, "SecureNet")
+    .replace(/\bCyber\s+Fort\b/gi, "CyberFort")
     // ── Common OCR/typo corrections — generic English words that any CV
     // could contain (not tied to a specific employer or person) ────────────
     .replace(/\bEnginner\b/gi, "Engineer")
@@ -346,9 +409,17 @@ function titleCase(value = "") {
     .replace(/\bCss\b/g, "CSS")
     .replace(/\bNlp\b/g, "NLP")
     .replace(/\bRag\b/g, "RAG")
+    .replace(/\bCrowdstrike\b/g, "CrowdStrike")
+    .replace(/\bPowershell\b/g, "PowerShell")
+    .replace(/\bGithub\b/g, "GitHub")
+    .replace(/\bGitlab\b/g, "GitLab")
+    .replace(/\bLinkedin\b/g, "LinkedIn")
+    .replace(/\bJavascript\b/g, "JavaScript")
+    .replace(/\bTypescript\b/g, "TypeScript")
+    .replace(/\bDevops\b/g, "DevOps")
+    .replace(/\bOpenai\b/g, "OpenAI")
+    .replace(/\bAzure\b/g, "Azure")
     .replace(/\bYoutube\b/g, "YouTube")
-    .replace(/\bWbs\b/g, "WBS")
-    .replace(/\bSrm\b/g, "SRM")
     .replace(/\bCreo\b/g, "CREO")
     .replace(/\bCad\b/g, "CAD")
     .replace(/\bCnc\b/g, "CNC")
@@ -457,6 +528,7 @@ function decompactRoleSuffix(compact: string): string {
     hrmanager: "HR Manager",
     hrspecialist: "HR Specialist",
     marketingmanager: "Marketing Manager",
+    marketingmanagerin: "Marketing Managerin",
     operationsmanager: "Operations Manager",
     generalmanager: "General Manager",
     officemanager: "Office Manager",
@@ -464,6 +536,15 @@ function decompactRoleSuffix(compact: string): string {
     teamleader: "Team Leader",
     projectlead: "Project Lead",
     techlead: "Tech Lead",
+    // German gendered forms (feminine suffix -in)
+    managerin: "Managerin",
+    leiterin: "Leiterin",
+    ingenieurin: "Ingenieurin",
+    entwicklerin: "Entwicklerin",
+    designerin: "Designerin",
+    assistentin: "Assistentin",
+    koordinatorin: "Koordinatorin",
+    spezialistin: "Spezialistin",
   };
   if (knownMap[lower]) return knownMap[lower];
   return titleCase(compact);
@@ -483,7 +564,7 @@ function decompactKnownPhrases(value = "", wasSpacedCaps = false) {
   // Any of these appearing at the START of a long compact string is a strong
   // signal this is a concatenated header, regardless of what language the
   // REST of the CV is in.
-  if (key.length > 18) {
+  if (key.length >= 15) {
     if (/^(profile|profil|kurzprofil|profilübersicht|profiluebersicht|beruflichesprofil)/.test(key)) return "PROFILE SUMMARY";
     if (/^summary/.test(key)) return "SUMMARY";
     if (/^(workexp|professional.*exp|berufserfahrung|arbeitserfahrung)/.test(key)) return "WORK EXPERIENCE";
@@ -509,10 +590,14 @@ function decompactKnownPhrases(value = "", wasSpacedCaps = false) {
   // silently eating real content. Normal prose is never written in spaced
   // caps, so this gate makes the fallback safe while still being fully
   // generic across languages.
-  if (wasSpacedCaps && key.length > 18 && /^[a-zäöüßàâéèêëïîôûùç]+$/.test(key)) {
+  if (wasSpacedCaps && key.length >= 15 && /^[a-zäöüßàâéèêëïîôûùç]+$/.test(key)) {
     return "UNKNOWN SECTION HEADER";
   }
 
+  // Only canonical section-header remappings belong here.
+  // Role titles are handled generically via ROLE_RE + titleCase — no
+  // specific role title lookups that would tie this parser to any
+  // particular candidate's CV template.
   const known: Record<string, string> = {
     profilesummary: "PROFILE SUMMARY",
     professionalprofile: "Professional Profile",
@@ -527,19 +612,6 @@ function decompactKnownPhrases(value = "", wasSpacedCaps = false) {
     schulbildung: "EDUCATION",
     akademischerwerdegang: "EDUCATION",
     werdegang: "EDUCATION",
-    itsupportspecialistdataanalyst: "IT Support Specialist / Data Analyst",
-    itsupportspecialist: "IT Support Specialist",
-    productdesignengineer: "Product Design Engineer",
-    productdesigntechnician: "Product Design Technician",
-    technicalsupportengineer: "Technical Support Engineer",
-    applicationengineer: "Application Engineer",
-    dataanalyst: "Data Analyst",
-    dataengineer: "Data Engineer",
-    datascientist: "Data Scientist",
-    softwareengineer: "Software Engineer",
-    businessanalyst: "Business Analyst",
-    projectmanager: "Project Manager",
-    productmanager: "Product Manager",
   };
   return known[key] || clean;
 }
@@ -675,15 +747,20 @@ function removeDate(line: string) {
 }
 
 function isContactLine(line: string) {
-  return /@|linkedin|github|xing|portfolio|\+\d|phone|email|contact|address|straße|strasse|road|street|weg|germany|india|sweden|netherlands|\b\d{4,6}\b/i.test(cleanLine(line));
+  return /@|linkedin|github|xing|portfolio|\+\d|phone|email|contact|address|straße|strasse|road|street|weg|rue|via|calle|\b\d{4,6}\b/i.test(cleanLine(line));
 }
 
 function isLocationLine(line: string) {
-  // Generic location detection: postal codes, country names, major cities
-  // Does not hardcode specific individual addresses
-  if (/\b\d{4,6}\b/.test(cleanLine(line))) return true; // postal code
-  return /\b(germany|deutschland|united kingdom|uk|usa|united states|france|netherlands|spain|italy|portugal|india|china|japan|australia|canada|switzerland|austria|belgium|poland|sweden|norway|denmark|finland|ireland|brazil|mexico|singapore|dubai|uae|remote)\b/i.test(cleanLine(line)) ||
-    /\b(berlin|hamburg|munich|münchen|frankfurt|cologne|köln|düsseldorf|stuttgart|dortmund|essen|bremen|hannover|nuremberg|nürnberg|leipzig|amsterdam|rotterdam|paris|london|madrid|barcelona|rome|milan|zurich|vienna|wien|brussels|warsaw|stockholm|oslo|copenhagen|helsinki|dublin|toronto|sydney|new york|san francisco|london|chicago|boston|seattle)\b/i.test(cleanLine(line));
+  // GLOBAL FIX: structural location detection — postal codes and address-type
+  // words work for any city or country worldwide, without enumerating them.
+  // Previous versions had lists of ~50 cities/countries — those lists will
+  // always miss most of the world (Tokyo, Lagos, São Paulo, Jakarta, Cairo...).
+  const c = cleanLine(line);
+  if (/\b\d{4,6}\b/.test(c)) return true; // postal code anywhere in line
+  if (/\b(street|straße|strasse|road|avenue|weg|platz|gasse|allee|ring|drive|lane|rue|via|calle|rua|steig|damm|pfad|ufer)\b/i.test(c)) return true; // street-type word
+  // "Capitalized, Capitalized" pattern: covers "City, Country", "City, State", "District, City"
+  if (/\b\p{Lu}[\p{Ll}À-ÿ]{2,},\s*\p{Lu}[\p{Ll}À-ÿ]{2,}\b/u.test(c) && c.length < 60) return true;
+  return false;
 }
 
 function isSkillCategory(line: string) {
@@ -938,6 +1015,14 @@ function normalizeSkillToken(value = "") {
     .replace(/\bSk Learn\b/gi, "Sklearn")
     .replace(/\bWeb Scrapping\b/gi, "Web Scraping")
     .replace(/\bYou Tube API\b/gi, "YouTube API")
+    .replace(/\bCrowd Strike\b/gi, "CrowdStrike")
+    .replace(/\bPower Shell\b/gi, "PowerShell")
+    .replace(/\bGit Hub\b/gi, "GitHub")
+    .replace(/\bGit Lab\b/gi, "GitLab")
+    .replace(/\bDev Ops\b/gi, "DevOps")
+    .replace(/\bOpen AI\b/gi, "OpenAI")
+    .replace(/\bJava Script\b/gi, "JavaScript")
+    .replace(/\bType Script\b/gi, "TypeScript")
     .replace(/^and\s+/i, "")
     .replace(/[.:]+$/g, "")
     .trim();
@@ -966,7 +1051,9 @@ function isPollutedSkill(value = "") {
   if (!clean || clean.length > 60) return true;
   if (/\d/.test(clean) && !/^(3D CAD|3D Printing|Catia V5|FFF)$/i.test(clean)) return true;
   if (/^(and|or|in|with|using|education|languages|contact|profile|summary|work experience|experience|projects|berufserfahrung|bildung|kontakt|sprachen)$/i.test(clean)) return true;
-  if (/@|linkedin|outlook|gmail|\+\d|\b\d{4}\b|würzburg|wurzburg|germany|india|sweden/i.test(clean)) return true;
+  if (/@|linkedin|outlook|gmail|\+\d|\b\d{4}\b/i.test(clean)) return true;
+  // Reject lines that look like addresses or locations — use the generic location detector
+  if (isLocationLine(clean)) return true;
   if (/experience|responsible|supported|collaborated|delivered|developed|designed|analyzed|proven|track record|background|fluent in|bachelor|master|degree|university|college|satellite|docking|retrieval|generation|implementation|configuration|performance optimization$/i.test(clean)) return true;
   // Reject language proficiency entries that sneak into skills section
   // e.g. "English: Fluent", "German: Conversational", "English - FLUENT"
@@ -1690,7 +1777,7 @@ export function extractResumeProfile(rawText: string): ResumeProfile {
 // - Keep education out of experience and dates attached to correct section.
 // =========================================================
 
-const WORKZO_BAD_NAME_WORDS = /\b(product|stability|tier|support|engineer|developer|analyst|manager|specialist|consultant|supervisor|professional|experience|education|skills|summary|profile|contact|email|phone|linkedin|location|service|delivery|requirements|analysis|python|sql|excel|tableau|microsoft|word|germany|w[üu]rzburg|street|road|weg|public\s+relations|project\s+management|communication|leadership|teamwork|time\s+management|critical\s+thinking|english|german|french|dutch|spanish|italian|portuguese|fluent|conversational|native|programming|machine\s+learning|visualization|visualisation|engineering|generative|bootcamp|school|college|bachelor|master|candidate|retrieval|augmented|generation|pipeline|scraping|automation|integration|f[äa]higkeiten|kontakt|kenntnisse|profil|profil[üu]bersicht|ausbildung|bildung|bildungsweg|sprachen|berufserfahrung|berufliches|erfahrung|werdegang|qualifikationen|zertifikate|projekte|referenzen|interessen|sonstiges|kompetenzen|f[äa]higkeit|tools?|systeme|netzwerke|programmierung|expertise|references|qualifications|certifications|projects|interests|languages|tools|systems|networks)\b/i;
+const WORKZO_BAD_NAME_WORDS = /\b(product|stability|tier|support|engineer|developer|analyst|manager|specialist|consultant|supervisor|professional|experience|education|skills|summary|profile|contact|email|phone|linkedin|location|service|delivery|requirements|analysis|python|sql|excel|tableau|microsoft|word|street|road|weg|public\s+relations|project\s+management|communication|leadership|teamwork|time\s+management|critical\s+thinking|english|german|french|dutch|spanish|italian|portuguese|fluent|conversational|native|programming|machine\s+learning|visualization|visualisation|engineering|generative|bootcamp|school|college|bachelor|master|candidate|retrieval|augmented|generation|pipeline|scraping|automation|integration|f[äa]higkeiten|kontakt|kenntnisse|profil|profil[üu]bersicht|ausbildung|bildung|bildungsweg|sprachen|berufserfahrung|berufliches|erfahrung|werdegang|qualifikationen|zertifikate|projekte|referenzen|interessen|sonstiges|kompetenzen|f[äa]higkeit|tools?|systeme|netzwerke|programmierung|expertise|references|qualifications|certifications|projects|interests|languages|tools|systems|networks)\b/i;
 
 
 // Role-title words (with spaces removed) that commonly appear concatenated
@@ -1701,18 +1788,21 @@ const COMPACT_ROLE_SUFFIXES = [
   "projectmanager", "productmanager", "accountmanager", "salesmanager",
   "businessanalyst", "dataanalyst", "softwareengineer", "dataengineer",
   "datascientist", "prmanager", "prspecialist", "hrmanager", "hrspecialist",
-  "marketingmanager", "operationsmanager", "generalmanager", "officemanager",
+  "marketingmanager", "marketingmanagerin", "operationsmanager", "generalmanager", "officemanager",
   "teamlead", "teamleader", "projectlead", "techlead",
   "engineer", "developer", "designer", "analyst", "scientist", "manager",
   "specialist", "consultant", "coordinator", "supervisor", "technician",
   "administrator", "assistant", "executive", "officer", "recruiter",
   "director", "partner", "associate", "intern",
+  // German gendered suffixes (feminine -in forms)
+  "managerin", "leiterin", "ingenieurin", "entwicklerin", "designerin",
+  "assistentin", "koordinatorin", "spezialistin",
 ];
 function wzBetterClean(value = "") {
+  // Generic normalisation only — no hardcoded candidate-specific phrases.
+  // normalizeResumeText already handles encoding artefacts, OCR typos, and
+  // word-split repairs for any CV.
   return normalizeResumeText(value)
-    .replace(/\bProduct Stability\.?\b/gi, "")
-    .replace(/\bEx-Technical Support Engineer And Product Specialist Transitioning\b/gi, "Ex-Technical Support Engineer and Product Specialist Transitioning")
-    .replace(/\bGained knowlegde\b/gi, "Gained knowledge")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -1867,9 +1957,13 @@ function wzExtractBetterName(text = "") {
 
 export function sanitizeResumeProfileIdentity(profile: ResumeProfile, source: { rawText?: string; fileName?: string } = {}): ResumeProfile {
   const text = source.rawText || profile.rawText || "";
-  const betterName = wzExtractBetterName(text) || wzNameFromFileName(source.fileName || "");
   const currentName = wzLooksLikePersonName(profile.basics.name) ? profile.basics.name : "";
-  const name = betterName || currentName || "Candidate";
+
+  // Only run the expensive text extraction if the current name is absent or invalid.
+  // If we already have a valid name from the AI parser, trust it — don't override it
+  // with a text-scan that may pick up address fragments from sidebar-first PDFs.
+  const betterName = currentName ? "" : (wzExtractBetterName(text) || wzNameFromFileName(source.fileName || ""));
+  const name = currentName || betterName || "Candidate";
 
   return {
     ...profile,
@@ -1935,10 +2029,16 @@ function wzExtractContactBasics(text = "") {
   const email = clean.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
   const phone = clean.match(/(?:\+\d{1,3}[\s-]?)?(?:\(?\d+\)?[\s-]?){7,}/)?.[0]?.trim() || "";
   const linkedin = clean.match(/linkedin\.com\/[^\s|•,]+/i)?.[0] || "";
-  const location =
-    clean.match(/\b(?:Würzburg|Wurzburg|Wuerzburg|Berlin|Munich|München|Hamburg|Chennai|Bangalore|Hyderabad|Netherlands|Germany|India|United Kingdom|France|Spain|Italy|Portugal)\b(?:[^•|\n]{0,45})?/i)?.[0]?.trim() || "";
 
-  return { email, phone, linkedin, location };
+  // Generic location extraction: find the first line that looks like a location
+  // (postal code, country name, major city) without hardcoding specific cities.
+  // This works for any candidate from any country.
+  const locationLine = clean
+    .split(/\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0 && line.length < 80 && isLocationLine(line) && !/@|linkedin|github/i.test(line));
+
+  return { email, phone, linkedin, location: locationLine || "" };
 }
 
 function wzExtractBetterSkills(text = "") {
@@ -1987,8 +2087,8 @@ function wzExtractBetterEducation(text = ""): ResumeEducation[] {
   const source = normalizeResumeText(text);
   const educationWindow = wzSectionWindow(
     source,
-    [/\beducation\b/i, /\bacademic background\b/i, /\bqualifications\b/i],
-    [/\bexperience\b/i, /\bwork experience\b/i, /\bprojects\b/i, /\bskills\b/i, /\blanguages\b/i, /\bcertifications\b/i],
+    [/\beducation\b/i, /\bacademic\s+(?:background|history)\b/i, /\bqualifications\b/i, /\bildung\b/i, /\bausbildung\b/i],
+    [/\bexperience\b/i, /\bwork experience\b/i, /\bprojects\b/i, /\bskills\b/i, /\blanguages\b/i, /\bcertifications?\b/i, /\bberufserfahrung\b/i],
   );
 
   const hay = educationWindow || source;
@@ -1999,33 +2099,59 @@ function wzExtractBetterEducation(text = ""): ResumeEducation[] {
     const line = lines[i];
     if (!DEGREE_RE.test(line) && !EDUCATION_ORG_RE.test(line)) continue;
 
-    const combined = [line, lines[i + 1] || ""].join(" • ");
+    // Peek at next line to combine degree + institution that are on separate lines
+    const nextLine = lines[i + 1] || "";
+    const combined = nextLine && (DEGREE_RE.test(nextLine) || EDUCATION_ORG_RE.test(nextLine))
+      ? `${line} • ${nextLine}`
+      : line;
+
     const dates = normalizeDate(extractDate(combined));
     const parts = combined.split(/\s*[•|]\s*/).map(cleanLine).filter(Boolean);
 
-    const degree = parts.find((part) => DEGREE_RE.test(part)) || line;
-    const institution = parts.find((part) => EDUCATION_ORG_RE.test(part) && part !== degree) || "";
-    const location = parts.find((part) => isLocationLine(part) && part !== institution) || "";
+    // Find degree (DEGREE_RE match) and institution (EDUCATION_ORG_RE) separately
+    // to avoid swapping them when they appear in the wrong order.
+    let degree = parts.find((part) => DEGREE_RE.test(part) && !EDUCATION_ORG_RE.test(part)) || "";
+    let institution = parts.find((part) => EDUCATION_ORG_RE.test(part) && part !== degree) || "";
 
-    if (degree || institution) {
+    // If degree looks like "Institution, Location" or "Institution (dates)", extract only degree
+    // E.g. "SRM Arts And Science College, Chennai" is an institution, not a degree
+    if (degree && EDUCATION_ORG_RE.test(degree) && !institution) {
+      institution = degree;
+      degree = "";
+    }
+
+    // Remove location/date contamination from institution name
+    const cleanInstitution = titleCase(removeDate(institution)).replace(/,\s*[A-Z][a-z]+(?:,\s*[A-Z][a-z]+)*\s*$/, "").trim();
+
+    if (degree || cleanInstitution) {
       out.push({
         degree: titleCase(removeDate(degree)),
-        institution: titleCase(removeDate(institution)),
-        location: titleCase(removeDate(location)),
+        institution: cleanInstitution,
+        location: "",
         dates,
       });
+      // Skip next line if we already consumed it
+      if (nextLine && combined.includes(nextLine)) i += 1;
     }
   }
 
-  return unique(out, (item) => `${item.degree}-${item.institution}-${item.dates}`).slice(0, 6);
+  return unique(out, (item) => `${item.degree}-${item.institution}-${item.dates}`)
+    .filter((item) => {
+      // Reject entries where degree === institution (parser artifact)
+      if (item.degree && item.institution && item.degree === item.institution) return false;
+      // Reject entries where degree is just a university name
+      if (!item.degree && !item.institution) return false;
+      return true;
+    })
+    .slice(0, 6);
 }
 
 function wzExtractBetterExperience(text = ""): ResumeExperience[] {
   const source = normalizeResumeText(text);
   const experienceWindow = wzSectionWindow(
     source,
-    [/\bprofessional experiences?\b/i, /\bwork experiences?\b/i, /\bemployment history\b/i, /\bexperiences?\b/i],
-    [/\beducation\b/i, /\bprojects?\b/i, /\bskills?\b/i, /\blanguages?\b/i, /\bcertifications?\b/i],
+    [/\bprofessional experiences?\b/i, /\bwork experiences?\b/i, /\bemployment history\b/i, /\bberufserfahrung\b/i, /\bexperiences?\b/i],
+    [/\beducation\b/i, /\bbildung\b/i, /\bausbildung\b/i, /\bprojects?\b/i, /\bskills?\b/i, /\bfähigkeiten\b/i, /\blanguages?\b/i, /\bcertifications?\b/i],
   );
 
   const hay = experienceWindow || source;
@@ -2035,58 +2161,77 @@ function wzExtractBetterExperience(text = ""): ResumeExperience[] {
 
   function flush() {
     if (!current) return;
-    if (current.title || current.company || current.bullets.length) {
-      jobs.push({
-        ...current,
-        title: titleCase(current.title),
-        company: titleCase(current.company),
-        location: titleCase(current.location),
-        dates: normalizeDate(current.dates),
-        bullets: unique(current.bullets.map(cleanLine)).slice(0, 7),
-      });
-    }
+    // Reject entries where title looks like a section header, location, or is identical to company
+    const t = current.title.trim();
+    const c = current.company.trim();
+    if (!t && !c && !current.bullets.length) { current = null; return; }
+    if (findSectionKind(t) !== null) { current = null; return; }
+    if (isLocationLine(t) && !ROLE_RE.test(t)) { current = null; return; }
+    if (extractDate(t) && t.length < 20) { current = null; return; }
+    jobs.push({
+      ...current,
+      title: titleCase(current.title),
+      company: titleCase(current.company),
+      location: titleCase(current.location),
+      dates: normalizeDate(current.dates),
+      bullets: unique(current.bullets.map(cleanLine)).slice(0, 7),
+    });
     current = null;
   }
 
   for (const raw of lines) {
     const line = cleanLine(raw);
     if (!line) continue;
+    if (findSectionKind(line) !== null) { flush(); continue; }
     if (EDUCATION_ORG_RE.test(line) || DEGREE_RE.test(line)) continue;
 
     const hasDate = Boolean(extractDate(line));
     const looksHeader = hasDate || ROLE_RE.test(line) || COMPANY_WORD_RE.test(line);
-    const looksBullet = ACTION_RE.test(line) || /^[-•*]/.test(raw) || line.length > 65;
+    // A line >80 chars or starting with a bullet char is almost certainly a bullet, not a header
+    const looksBullet = ACTION_RE.test(line) || /^[-•*]/.test(raw) || line.length > 80;
 
     if (looksHeader && !looksBullet) {
       flush();
       const date = normalizeDate(extractDate(line));
       const noDate = removeDate(line);
-      const parts = noDate.split(/\s*[•|]\s*/).map(cleanLine).filter(Boolean);
+      const parts = noDate.split(/\s*[•|,]\s*/).map(cleanLine).filter(Boolean);
 
-      const title = parts.find((part) => ROLE_RE.test(part)) || "";
-      const company = parts.find((part) => COMPANY_WORD_RE.test(part) && part !== title) || parts.find((part) => part !== title) || "";
+      let title = parts.find((part) => ROLE_RE.test(part)) || "";
+      let company = parts.find((part) => COMPANY_WORD_RE.test(part) && part !== title) || "";
 
-      current = {
-        title: title || noDate,
-        company,
-        location: "",
-        dates: date,
-        bullets: [],
-      };
+      // If we couldn't split title from company, use the full noDate as title
+      if (!title && !company) title = noDate;
+      // Never use the same string for both title and company
+      if (title && company && title === company) company = "";
+
+      current = { title: title || noDate, company, location: "", dates: date, bullets: [] };
       continue;
     }
 
     if (looksBullet) {
-      if (!current) {
-        current = { title: "Professional Experience", company: "", location: "", dates: "", bullets: [] };
+      // Don't create a fake "Professional Experience" container for stray bullets —
+      // attach them to the most recent real job if there is one, otherwise discard.
+      if (current) {
+        current.bullets.push(line.replace(/^[-•*]\s*/, ""));
       }
-      current.bullets.push(line.replace(/^[-•*]\s*/, ""));
+      // If no current job, skip the bullet rather than inventing a fake container
     }
   }
 
   flush();
 
   return unique(jobs, (job) => `${job.title}-${job.company}-${job.dates}`)
+    .filter((job) => {
+      // Reject jobs where title is clearly a location, section header, or date
+      if (findSectionKind(job.title) !== null) return false;
+      if (!job.title && !job.company && !job.bullets.length) return false;
+      // Reject if title + company both look like a city name (e.g. "Chennai ()")
+      if (/^[A-Z][a-z]+\s*\(\s*\)$/.test(job.title) && !job.bullets.length) return false;
+      // Reject if title is a word like "Technologies." or "Scientist" with no company/bullets
+      if (job.title.length < 6 && !job.company && !job.bullets.length) return false;
+      if (/^\w+\.$/.test(job.title) && !job.company && !job.bullets.length) return false;
+      return true;
+    })
     .filter((job) => !DEGREE_RE.test(`${job.title} ${job.company}`))
     .slice(0, 8);
 }
@@ -2129,10 +2274,12 @@ export function extractResumeProfileComplex(rawText = ""): ResumeProfile {
 
   const experience = betterExperience.length && !betterLooksFragmented ? betterExperience : base.experience.length ? base.experience : betterExperience;
 
+  // Don't fall back to a garbage experience title for the headline
+  const firstGoodTitle = experience.find((e) => e.title && findSectionKind(e.title) === null && !WORKZO_BAD_NAME_WORDS.test(e.title))?.title;
   const headline =
     base.basics.headline && !WORKZO_BAD_NAME_WORDS.test(base.basics.headline)
       ? base.basics.headline
-      : experience[0]?.title || "Professional";
+      : firstGoodTitle || "Professional";
 
   const education = betterEducation.length ? betterEducation : base.education;
   const skills = betterSkills.length ? betterSkills : base.skills;

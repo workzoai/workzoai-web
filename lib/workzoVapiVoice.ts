@@ -164,9 +164,13 @@ export function buildWorkZoVapiVariableValues(input: {
   // English regardless of the selected language.
   language?: string;
   languageLabel?: string;
+  openingGreeting?: string;
+  openingIntroQuestion?: string;
 }) {
   const languageLabel = input.languageLabel || "English";
   const isEnglish = languageLabel.toLowerCase() === "english";
+  const openingGreeting = (input.openingGreeting || "").trim();
+  const openingIntroQuestion = (input.openingIntroQuestion || "").trim();
   return {
     candidateName: input.candidateName || "Candidate",
     recruiterName: input.recruiterName || "Recruiter",
@@ -190,6 +194,8 @@ export function buildWorkZoVapiVariableValues(input: {
           // the one instruction in this whole prompt most likely to get
           // silently dropped if it's not impossible to miss.
           `CRITICAL — LANGUAGE: conduct this entire interview in ${languageLabel}, not English. Every question, follow-up, clarification, and closing remark must be in ${languageLabel}. This includes your very first greeting — do not open in English and switch later. Only use English if the candidate explicitly asks you to switch to English. `) +
+      (openingGreeting ? `FIRST MESSAGE EXACTLY: ${openingGreeting} ` : "") +
+      (openingIntroQuestion ? `AFTER THE CANDIDATE ANSWERS THE GREETING, ASK THIS INTRO QUESTION EXACTLY: ${openingIntroQuestion} ` : "") +
       // BUG FIXED: candidateName falls back to the word "there" (intended
       // only for a natural opening greeting, like "Hi there") whenever a
       // real first name can't be safely extracted. That fallback value was
@@ -205,7 +211,7 @@ export function buildWorkZoVapiVariableValues(input: {
       `Probe gently for specifics and ownership. Challenge only when something doesn't add up. ` +
       `Do not repeat the same follow-up. Never use the robotic line "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." ` +
       `If the candidate gives any real metric or outcome, including latency reduction, CSAT, customer satisfaction, fewer escalations, quality improvement, or a before/after result, accept it and move to a deeper role-relevant question. ` +
-      `If the answer is unclear or speech recognition is poor, ask one natural clarification about what they meant; do not demand metrics. ` +
+      `If the answer is unclear or speech recognition is poor, ask one natural clarification in ${languageLabel}; do not invent the candidate's words, do not translate random sounds into fake English, and do not demand metrics. ` +
       `Use short human transitions: "That makes sense", "Okay, I see the connection", "Let me ask this differently." ` +
       `Never say STAR, rubric, score, or "as an AI". ` +
       // A real interviewer always covers these — they were missing from this
@@ -254,10 +260,10 @@ export function buildWorkZoVapiVariableValues(input: {
       "If the candidate seems nervous, warm your tone slightly before the next question. " +
       "One question per reply, maximum.",
     voiceRecognitionHints:
-      "The candidate may speak English with an accent (German, Indian, Portuguese, Spanish, Dutch). " +
+      `The selected interview language is ${languageLabel}. The candidate may speak ${languageLabel} with an accent or may code-switch briefly. ` +
       "Always wait for the candidate to finish speaking before replying — do not interrupt mid-sentence. " +
       "If a transcript looks duplicated, ignore the duplicate and respond to the meaning once. " +
-      "If you do not clearly understand the candidate's answer, say: 'I want to make sure I'm following you — could you say that again?' " +
+      `If you do not clearly understand the candidate's answer, ask a short clarification in ${languageLabel}; do not invent words or translate unclear audio. ` +
       "Do not assume the candidate said something wrong if the audio was unclear. Ask for clarification naturally.",
   };
 }

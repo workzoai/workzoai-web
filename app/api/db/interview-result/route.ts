@@ -6,25 +6,20 @@ import { assertNoFounderPersonalDetails, scrubFounderPersonalDetails } from "@/l
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    // Same auth fix as interview-session: getWorkZoUserIdFromRequest only
-    // checks for a Bearer token the client never sends — always 401'd.
     const resolved = await resolveWorkZoServerPlan();
     if (!resolved.authenticated || !resolved.userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userId = resolved.userId;
-
     const supabase = createWorkZoSupabaseServiceClient();
     const { data, error } = await supabase
       .from("interview_results")
       .select("*")
-      .eq("user_id", userId)
+      .eq("user_id", resolved.userId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-
     if (error) throw error;
     return NextResponse.json({ ok: true, result: data || null });
   } catch (error) {
@@ -46,10 +41,24 @@ export async function POST(request: Request) {
 
     const supabase = createWorkZoSupabaseServiceClient();
 
+    // The client sends "workzo-session-{timestamp}" as sessionId — not a UUID.
+    // Resolve it to the real DB UUID via local_id, or leave session_id null.
+    // NEVER pass the raw string to a UUID column — that's the invalid input error.
+    let realSessionId: string | null = null;
+    if (body.sessionId) {
+      const { data: sessionRow } = await supabase
+        .from("interview_sessions")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("local_id", body.sessionId)
+        .maybeSingle();
+      realSessionId = sessionRow?.id || null;
+    }
+
     const { data, error } = await supabase
       .from("interview_results")
       .insert({
-        session_id: body.sessionId || null,
+        session_id: realSessionId, // null if no matching session found — safe for nullable UUID column
         user_id: userId,
         overall_score: body.overallScore || null,
         trust_score: body.trustScore || null,

@@ -9,10 +9,22 @@ const client = new OpenAI({
 });
 
 function normalizeLanguage(value: FormDataEntryValue | null) {
-  const raw = typeof value === "string" ? value.toLowerCase() : "";
-  if (raw.includes("german") || raw.startsWith("de")) return "de";
+  const raw = typeof value === "string" ? value.toLowerCase().trim() : "";
+  if (raw.includes("german") || raw.includes("deutsch") || raw === "de" || raw === "de-de") return "de";
+  if (raw.includes("dutch") || raw.includes("nederlands") || raw === "nl" || raw === "nl-nl") return "nl";
+  if (raw.includes("french") || raw.includes("français") || raw.includes("francais") || raw === "fr" || raw === "fr-fr") return "fr";
+  if (raw.includes("spanish") || raw.includes("español") || raw.includes("espanol") || raw === "es" || raw === "es-es") return "es";
+  if (raw.includes("italian") || raw.includes("italiano") || raw === "it" || raw === "it-it") return "it";
+  if (raw.includes("portuguese") || raw.includes("portugu") || raw === "pt" || raw === "pt-pt" || raw === "pt-br") return "pt";
+  if (raw.includes("hindi") || raw === "hi" || raw === "hi-in") return "hi";
+  if (raw.includes("tamil") || raw === "ta" || raw === "ta-in") return "ta";
   if (raw.includes("english") || raw.startsWith("en")) return "en";
   return undefined;
+}
+
+function transcriptionPrompt(language?: string) {
+  const languageName = language === "de" ? "German" : language === "nl" ? "Dutch" : language === "fr" ? "French" : language === "es" ? "Spanish" : language === "it" ? "Italian" : language === "pt" ? "Portuguese" : language === "hi" ? "Hindi" : language === "ta" ? "Tamil" : "the selected interview language";
+  return `This is a candidate answer in a job interview. The selected interview language is ${languageName}. Transcribe exactly what the candidate said in ${languageName}. Do not translate to English. Do not guess missing words. If a word is unclear, omit it instead of inventing it. Preserve code-switching and proper nouns. Return only the spoken answer as plain text.`;
 }
 
 export async function OPTIONS() { return new Response(null, { status: 204 }); }
@@ -52,13 +64,12 @@ export async function POST(request: Request) {
       file: audio,
       model: process.env.OPENAI_TRANSCRIBE_MODEL || "gpt-4o-mini-transcribe",
       ...(language ? { language } : {}),
-      prompt:
-        "This is a job interview answer. Preserve the candidate's meaning. Return only the spoken answer as plain text.",
+      prompt: transcriptionPrompt(language),
     });
 
     const text = (transcription.text || "").replace(/\s+/g, " ").trim();
-
-    return Response.json({ text });
+    const tooShortOrNoise = text.length < 2 || /^(um+|uh+|hmm+|noise|silence|inaudible)$/i.test(text);
+    return Response.json({ text: tooShortOrNoise ? "" : text });
   } catch (error) {
     console.error("WorkZo transcription route failed", error);
     return Response.json({ error: "Transcription failed" }, { status: 500 });

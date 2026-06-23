@@ -54,6 +54,8 @@ export async function buildRecruiterMemoryFromCv(input: {
       },
       body: JSON.stringify({
         cvText,
+        rawCvText: cvText,
+        uploadedCvText: cvText,
         jobDescription,
         targetRole: input.targetRole || "General Role",
         targetMarket: input.targetMarket || "Global",

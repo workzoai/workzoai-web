@@ -336,10 +336,24 @@ export async function POST(request: Request) {
   }
 }
 
+function isFounderAuthorized(request: Request): boolean {
+  // Allow localhost (dev)
+  if (isLocalRequestFromHeaders(request.headers)) return true;
+  // Allow requests that present the FOUNDER_ANALYTICS_SECRET header
+  const secret = request.headers.get("x-founder-secret");
+  const envSecret = process.env.FOUNDER_ANALYTICS_SECRET;
+  if (envSecret && secret === envSecret) return true;
+  // Allow requests with ?secret=xxx query param (for bookmarklet use)
+  const url = new URL(request.url);
+  const querySecret = url.searchParams.get("secret");
+  if (envSecret && querySecret === envSecret) return true;
+  return false;
+}
+
 export async function GET(request: Request) {
   try {
-    if (!isLocalRequestFromHeaders(request.headers)) {
-      return NextResponse.json({ ok: false, reason: "local_only" }, { status: 404 });
+    if (!isFounderAuthorized(request)) {
+      return NextResponse.json({ ok: false, reason: "unauthorized" }, { status: 404 });
     }
     const supabase = getSupabaseAdmin();
     if (!supabase) return NextResponse.json({ ok: true, configured: false, summary: buildAnalyticsResponse([]).summary, metrics: buildAnalyticsResponse([]).metrics, events: [], reason: "supabase_not_configured" });

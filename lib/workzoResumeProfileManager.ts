@@ -79,15 +79,28 @@ function prepareLines(rawText: string) {
     .slice(0, 180);
 }
 
-const STRONG_SECTION_RE = /^(about\s+me|awards?|awards?\s+received|berufliches\s+profil|berufserfahrung|bildung|bildungsweg|contacts?|core\s+competencies|education|education\s+and\s+training|erfolge\s+beim\s+kunden|experience|expertise|fähigkeiten|fahigkeiten|kontakt|languages?|overview|professional\s+experience|professional\s+summary|profile|profile\s+overview|profile\s+summary|profil(?:\s*übersicht|\s*ubersicht)?|projects?|references?|skills?|summary|summary\s+of\s+skills|work\s+experience|certifications?|zertifikate)$/i;
+const STRONG_SECTION_RE = /^(key\s+projects|selected\s+projects|security\s+projects|relevant\s+experience|technical\s+skills|professional\s+skills|about\s+me|awards?|awards?\s+received|berufliches\s+profil|berufserfahrung|bildung|bildungsweg|contacts?|core\s+competencies|education|education\s+and\s+training|erfolge\s+beim\s+kunden|experience|expertise|fähigkeiten|fahigkeiten|kontakt|languages?|overview|professional\s+experience|professional\s+summary|profile|profile\s+overview|profile\s+summary|profil(?:\s*übersicht|\s*ubersicht)?|projects?|references?|skills?|summary|summary\s+of\s+skills|work\s+experience|certifications?|zertifikate)$/i;
 
-const BAD_NAME_WORD_RE = /\b(candidate|professional|unknown|resume|cv|curriculum|profile|profilesummary|summary|experience|workexperience|education|skills?|projects?|languages?|contact|email|phone|linkedin|github|headline|english|german|deutsch|dutch|french|spanish|italian|portuguese|fluent|native|conversational|support|engineer|analyst|manager|specialist|developer|consultant|technical|data|customer|success|sales|marketing|product|project|program|software|frontend|backend|fullstack|itil|itsm|api|sql|python|tableau|power\s*bi|gcp|aws|rag|nlp|machine\s+learning|matplotlib|seaborn|tensorflow|sklearn|langchain|programming|bash|powershell|security|cloud|ticketing|roadmapping|agile|scrum|stakeholder|competencies|initiative|platform|dashboard|teacher|preschool|accountant|designer|coordinator|assistant|intern|school|university|college|industries|solutions|community|financial|senior|junior|principal|chief|jede|stadt|straße|strasse|service|services|startup|e-scooter|scooter|gans|startup|bootcamp|institute|corporation|corp|gmbh|inc|ltd|llc|group|holding|digital|technologies|technology|systems|agency|studio|labs|ventures|consulting|innovations?|coaching)\b/i;
+// Soft-skill and professional phrases that appear as CV section content but look
+// superficially like 2-word names. Any of these must never be returned as a name.
+// This is a phrase-level check (whole string match), complementing BAD_NAME_WORD_RE
+// which works at the individual-word level.
+const SOFT_SKILL_PHRASE_RE = /^(critical thinking|effective communication|public relations|time management|project management|stakeholder management|problem solving|decision making|data analysis|data visualization|machine learning|generative ai|cloud security|threat detection|threat hunting|soc operations|incident response|penetration testing|vulnerability management|client acquisition|market analysis|market research|brand management|crisis communication|event planning|content creation|social media|digital marketing|agile methodology|process improvement|personal training|team training|product strategy|product design|product lifecycle|user research|growth optimization|cross.functional|analytical thinking|design thinking|lesson planning|classroom management|web design|front end|back end|full stack|database administration|network security|system administration|active directory|windows server|requirements analysis|service delivery|requirements management)$/i;
 
-const ROLE_TITLE_RE = /\b(graphic\s+designer|financial\s+accountant|senior\s+accountant|professional\s+accountant|product\s+manager|project\s+manager|product\s+design\s+engineer|technical\s+support|support\s+engineer|customer\s+success|data\s+analyst|software\s+engineer|cybersecurity\s+engineer|cybersecurity\s+analyst|ux\s+designer|ui\s+designer|account\s+manager|sales\s+manager|business\s+analyst|it\s+support|it\s+project\s+manager|preschool\s+teacher|freelance\s+tutor|volunteer\s+preschool\s+assistant|communications\s+coordinator|pr\s+manager|pr\s+specialist|cloud\s+security|threat\s+detection|application\s+engineer)\b/i;
+const BAD_NAME_WORD_RE = /\b(candidate|professional|unknown|resume|cv|curriculum|profile|profilesummary|summary|experience|workexperience|education|skills?|projects?|languages?|contact|email|phone|linkedin|github|headline|english|german|deutsch|dutch|french|spanish|italian|portuguese|fluent|native|conversational|support|engineer|analyst|manager|specialist|developer|consultant|technical|data|customer|success|sales|marketing|product|project|program|software|frontend|backend|fullstack|itil|itsm|api|sql|python|tableau|power\s*bi|gcp|aws|rag|nlp|machine\s+learning|matplotlib|seaborn|tensorflow|sklearn|langchain|programming|bash|powershell|security|cloud|ticketing|roadmapping|agile|scrum|stakeholder|competencies|initiative|platform|dashboard|teacher|preschool|accountant|designer|coordinator|assistant|intern|executive|director|officer|lead|head|chief|owner|founder|recruiter|architect|scientist|researcher|writer|editor|planner|technician|school|university|college|industries|solutions|community|financial|senior|junior|principal|jede|stadt|straße|strasse|service|services|startup|bootcamp|institute|corporation|corp|gmbh|inc|ltd|llc|group|holding|digital|technologies|technology|systems|agency|studio|labs|ventures|consulting|innovations?|coaching|thinking|leadership|communication|planning|analysis|management|visualization|engineering|integration|scraping|generation|retrieval|augmented|certification|freelance|volunteer|degree|bachelor|master|associate|diploma|certificate|science|arts|computer|software|development)\b/i;
+
+// Detects phrases that are clearly job titles (adjective + role word, or role word + company).
+// Generic: any 2-3 word phrase where at least half the words are role/job words.
+// This replaces a hardcoded list of specific titles.
+const ROLE_TITLE_RE = /\b(senior|junior|lead|head|chief|principal|associate|assistant|staff|vp|vice|president)\s+(manager|engineer|developer|designer|analyst|specialist|consultant|coordinator|director|officer|executive|accountant|architect|scientist|researcher|recruiter|technician)\b|\b(manager|engineer|developer|designer|analyst|specialist|consultant|coordinator|director|officer|executive|accountant|architect)\s+(manager|engineer|developer|designer|analyst|specialist|consultant|coordinator|director|officer|executive|accountant|architect)\b/i;
 
 const ORG_WORD_RE = /\b(gmbh|ug|ag|kg|ltd|limited|llc|inc|corp|corporation|company|co\.?|group|holding|services|solutions|systems|technologies|technology|software|digital|media|industries|university|college|school|schule|hochschule|institute|academy|akademie|foundation|department|bootcamp|preschool|kindergarten)\b/i;
 
-const CONTACT_LOCATION_RE = /@|www\.|https?:|linkedin|github|\+?\d[\d\s()./-]{5,}|\b(street|strasse|straße|road|avenue|weg|platz|city|town|germany|deutschland|india|canada|usa|uk|munich|münchen|w[üu]rzburg|berlin|chennai|london|address|adresse)\b/i;
+// GLOBAL FIX: structural contact/location detection instead of enumerated countries.
+// Works for any user anywhere in the world — not just Germany, India, Canada, UK, USA.
+const CONTACT_WORD_RE = /@|www\.|https?:|linkedin|github|\+?\d[\d\s()./-]{5,}|\b(street|strasse|straße|road|avenue|weg|platz|city|town|address|adresse|rue|via|calle|rua|steig|damm|pfad|ufer)\b/i;
+const CONTACT_STRUCTURE_RE = /\b\d{4,6}\b[,.\s]{1,4}\p{Lu}[\p{Ll}À-ÿ]+|\b\p{Lu}[\p{Ll}À-ÿ]+[,.\s]{1,4}\d{4,6}\b|\b\p{Lu}[\p{Ll}À-ÿ]{2,},\s*\p{Lu}[\p{Ll}À-ÿ]{2,}\b/u;
+const CONTACT_LOCATION_RE = { test(value: string) { return CONTACT_WORD_RE.test(value) || CONTACT_STRUCTURE_RE.test(value); } };
 
 const DATE_RE = /\b(?:19|20)\d{2}\b|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|present|current|heute)\b/i;
 
@@ -99,6 +112,7 @@ export function isDefinitelyNotHumanName(value: unknown): boolean {
   const raw = cleanText(value, 160);
   if (!raw) return true;
   if (STRONG_SECTION_RE.test(raw)) return true;
+  if (SOFT_SKILL_PHRASE_RE.test(raw)) return true;
   if (BAD_NAME_WORD_RE.test(raw)) return true;
   if (ROLE_TITLE_RE.test(raw)) return true;
   if (ORG_WORD_RE.test(raw)) return true;
@@ -116,6 +130,9 @@ export function validateCandidateName(value: unknown): string {
 
   if (!raw || raw.length < 3 || raw.length > 70) return "";
   if (isDefinitelyNotHumanName(raw)) return "";
+  // Global guard: education/qualification phrases can look like names in title case
+  // (e.g. "Associate's Degree In Computer Science"). They are never candidate names.
+  if (/\b(associate'?s?\s+degree|bachelor'?s?\s+degree|master'?s?\s+degree|bachelor\s+of|master\s+of|b\.?sc|m\.?sc|b\.?a|m\.?a|ph\.?d|diploma|certificate|certification|university|college|school|hochschule|informatik|computer\s+science|software\s+development)\b/i.test(raw)) return "";
 
   const parts = raw.split(/\s+/).filter(Boolean);
   if (parts.length < 2 || parts.length > 5) return "";
@@ -297,7 +314,7 @@ export function extractCanonicalCandidateName(
   }
 
   const best = [...bestByName.values()].sort((a, b) => b.score - a.score)[0];
-  return best && best.score >= 40 ? best.name : "";
+  return best && best.score >= 20 ? best.name : "";
 }
 
 function nameAppearsAsProjectTitle(profile: Partial<ResumeProfile> | ResumeProfile | null | undefined, name: string): boolean {
@@ -315,16 +332,21 @@ function chooseSaferName(
   const currentValid = validateCandidateName(current);
   const canonicalValid = validateCandidateName(canonical);
 
-  // Critical guard: never use a project title as the candidate name
-  const canonicalIsProject = canonicalValid && nameAppearsAsProjectTitle(profile, canonicalValid);
-  const currentIsProject = currentValid && nameAppearsAsProjectTitle(profile, currentValid);
-
-  if (canonicalValid && !canonicalIsProject && !nameAppearsInStructuredContent(profile, canonicalValid)) return canonicalValid;
-  if (currentValid && !currentIsProject && !nameAppearsInStructuredContent(profile, currentValid)) return currentValid;
-  if (canonicalValid && !canonicalIsProject) return canonicalValid;
-  if (currentValid && !currentIsProject) return currentValid;
-  if (canonicalValid) return canonicalValid;
+  // GLOBAL FIX v10:
+  // The AI structured parser often reads the whole CV better than deterministic
+  // line scanning, especially for two-column and sidebar-first PDFs. Previous
+  // versions allowed a later text-scan "canonical" candidate to override a valid
+  // AI name. That corrupted correct names into skills, section headers, or project
+  // titles such as "Python Sql", "Key Projects", or soft-skill phrases.
+  //
+  // New rule: NEVER override a valid current parser name. Only use deterministic
+  // recovery when the parser name is missing or invalid.
   if (currentValid) return currentValid;
+
+  const canonicalIsProject = canonicalValid && nameAppearsAsProjectTitle(profile, canonicalValid);
+  const canonicalInStructuredContent = canonicalValid && nameAppearsInStructuredContent(profile, canonicalValid);
+
+  if (canonicalValid && !canonicalIsProject && !canonicalInStructuredContent) return canonicalValid;
   return "";
 }
 
@@ -338,17 +360,28 @@ export function enforceCanonicalCandidateName<T extends Partial<ResumeProfile> |
   next.basics = { ...(next.basics || {}) } as ResumeProfile["basics"];
 
   const current = next.basics?.name || "";
+  const currentValid = validateCandidateName(current);
+
+  // GLOBAL IDENTITY SAFETY RULE:
+  // If the structured parser already returned a valid human name, NEVER run raw-text
+  // repair/override. PDF text order is unstable, especially in two-column layouts, and
+  // raw scanning can accidentally select section headings such as "Key Projects",
+  // skill phrases, role titles, or similar non-name lines.
+  if (currentValid) {
+    next.basics.name = currentValid;
+    (next as T & { name?: string }).name = currentValid;
+    return next as T;
+  }
+
   const canonical = extractCanonicalCandidateName(
     rawText || (next as ResumeProfile).rawText || "",
     fileName,
-    current,
+    "",
     knownName,
   );
 
-  const resolvedName = chooseSaferName(current, canonical, next);
+  const resolvedName = chooseSaferName("", canonical, next);
   next.basics.name = resolvedName;
-  // Some older WorkZo client code and debug tools read profile.name directly.
-  // Keep it synchronized with basics.name so a bad AI-generated name cannot leak downstream.
   (next as T & { name?: string }).name = resolvedName;
   return next as T;
 }
@@ -361,6 +394,33 @@ export function cleanHumanName(value: unknown): string {
   return validateCandidateName(value);
 }
 
+
+function cleanHeadlineField(value: unknown): string {
+  const raw = cleanText(value, 200);
+  if (!raw) return "";
+  // Strip " - CompanyName" suffix from headline (e.g. "Lead Product Manager - Nexora AI")
+  // when it was the deterministic parser using job header lines as the headline
+  let h = raw.replace(/\s*[-–]\s*[A-Z][A-Za-z\s&]+\s*\d{4}\s*.*$/, "").trim();
+  // Strip trailing date ranges
+  h = h.replace(/\s*\d{4}\s*[-–]\s*(present|current|heute|\d{4})\s*$/i, "").trim();
+  // Strip trailing company-separator patterns like "— Company Name"
+  h = h.replace(/\s*[—–]\s*[A-Z][A-Za-z\s&.]+$/, "").trim();
+  return h;
+}
+
+function cleanLocation(value: unknown): string {
+  const raw = cleanText(value, 200);
+  if (!raw) return "";
+  // Reject if value contains a month+year pattern — it's a date, not a location
+  if (/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{4}/i.test(raw)) return "";
+  if (/^\d{4}\s*[-–]/.test(raw)) return "";
+  // Reject if value looks like a course/certification title with a trailing year:
+  // "Artificial Intelligence in Marketing, 2022" — contains comma + 4-digit year
+  if (/,\s*(?:19|20)\d{2}\s*$/.test(raw)) return "";
+  // Reject if implausibly long — real locations are short
+  if (raw.length > 80) return "";
+  return raw;
+}
 
 export function completeResumeProfile(profile: Partial<ResumeProfile> | null | undefined, rawText = ""): ResumeProfile {
   const p = (profile || {}) as Partial<ResumeProfile>;
@@ -377,10 +437,10 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
     rawText: cleanText(p.rawText || rawText, 50000),
     basics: {
       name: resolvedName,
-      headline: cleanText(basics.headline, 200) || "Professional",
+      headline: cleanText(cleanHeadlineField(basics.headline), 200) || "Professional",
       email: cleanEmail(basics.email) || cleanText(basics.email, 200),
       phone: cleanText(basics.phone, 80),
-      location: cleanText(basics.location, 200),
+      location: cleanText(cleanLocation(basics.location), 200),
       linkedin: cleanText(basics.linkedin, 300),
     },
     summary: cleanText(p.summary, 1800),
@@ -402,6 +462,14 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
       if (/^(technologies|software|solutions|systems|services|platforms?)\.?$/i.test(t.trim())) return false;
       // Reject entries where title is a single generic word with no company
       if (!c && t.length < 5) return false;
+      // Reject entries where title is a section header word
+      if (STRONG_SECTION_RE.test(t)) return false;
+      // Reject entries where title is clearly a city+parentheses ("Chennai ()") with no bullets
+      if (/^[A-Z][a-z]+\s*\(\s*\)$/.test(t) && !(e.bullets?.length)) return false;
+      // Reject entries where title and company are identical (parser artifact)
+      if (t && c && t.toLowerCase() === c.toLowerCase()) return false;
+      // Reject entries where title looks like a date range
+      if (/^\d{4}\s*[-–]\s*\d{4}$/.test(t)) return false;
       return true;
     }).map((e) => ({
       title: cleanText(e.title, 180),
@@ -428,13 +496,28 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
       if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4}/i.test(d.trim())) return false;
       // Reject if degree looks like a location ("University Of X, Country")
       if (/^(university|universit|college|school|institut|academ)/i.test(d) && !i) return false;
+      // Reject if degree is a job title (e.g. "Senior Accountant" appearing in
+      // an education section due to PDF layout confusion).
+      if (ROLE_TITLE_RE.test(d) && !/bachelor|master|mba|msc|phd|degree|diploma|certificate|science|arts|engineering|management|technology|administration|education/i.test(d)) return false;
       return true;
-    }).map((e) => ({
-      degree: cleanText(e.degree, 180),
-      institution: cleanText(e.institution, 180),
-      location: cleanText(e.location, 180),
-      dates: cleanText(e.dates, 80),
-    })),
+    }).map((e) => {
+      const d = cleanText(e.degree, 180);
+      const i = cleanText(e.institution, 180);
+      // When degree and institution are identical, the parser put the institution name
+      // in both fields. Keep the institution, clear the degree.
+      const resolvedDegree = (d && i && norm(d) === norm(i)) ? "" : d;
+      // When degree looks like a university/school name (e.g. "Borcelle University"),
+      // move it to institution if institution is empty, then clear degree.
+      const looksLikeInstitution = /\b(university|universit|college|school|institute|academ|hochschule|universität)\b/i.test(d);
+      const finalDegree = looksLikeInstitution && !i ? "" : resolvedDegree;
+      const finalInstitution = looksLikeInstitution && !i ? d : i;
+      return {
+        degree: finalDegree,
+        institution: finalInstitution,
+        location: cleanText(e.location, 180),
+        dates: cleanText(e.dates, 80),
+      };
+    }),
     skills: unique(
       (Array.isArray(p.skills) ? p.skills.map((s) => cleanText(s, 90)).filter(Boolean) : [])
         .filter((s) => {
@@ -508,7 +591,25 @@ export function keepBetterProfile(candidate: ResumeProfile | Partial<ResumeProfi
   if (!c && !e) return undefined;
   if (!c) return e && !isLowQualityResumeProfile(e) ? e : undefined;
   if (!e) return !isLowQualityResumeProfile(c) ? c : undefined;
-  return profileScore(c) >= profileScore(e) ? c : e;
+
+  // Always pick the higher-scoring base, then merge skills/languages from both
+  // so a re-parse that produces fewer skills never discards the richer skill set.
+  const base = profileScore(c) >= profileScore(e) ? c : e;
+  const other = base === c ? e : c;
+
+  // Merge skills: keep all unique skills from both parses
+  const mergedSkills = unique([...base.skills, ...other.skills], (s) => s);
+
+  // Keep the best name: prefer whichever is valid; if both valid, prefer the one
+  // from the higher-scoring base unless it's empty.
+  const bestName = base.basics.name || other.basics.name;
+
+  return {
+    ...base,
+    basics: { ...base.basics, name: bestName },
+    skills: mergedSkills,
+    languages: unique([...base.languages, ...other.languages], (l) => l.split(/[\s-]/)[0].toLowerCase()),
+  };
 }
 
 export function mergePreservingOriginalStructure(input: ResumeProfile, rewritten: Partial<ResumeProfile> | null | undefined): ResumeProfile {

@@ -2417,6 +2417,22 @@ function enforceSelectedLanguagePrefix(setup: InterviewSetup) {
 
 
 
+function localizedUnsupportedClaimChallenge(setup: InterviewSetup) {
+  const language = normalizeInterviewLanguage(setup.language);
+  switch (language.code) {
+    case "de-DE":
+      return "Ich muss kurz unterbrechen. Ich kann das in deinem CV nicht klar verifizieren. Kannst du erklären, ob das offizielle Berufserfahrung, freiberufliche Arbeit, freiwillige Erfahrung, übertragbare Erfahrung oder nur ein Beispielszenario war?";
+    case "fr-FR":
+      return "Je dois m’arrêter un instant. Je ne peux pas vérifier cela clairement dans votre CV. Pouvez-vous préciser s’il s’agissait d’un emploi officiel, d’un travail freelance, d’une expérience bénévole, d’une expérience transférable ou simplement d’un exemple ?";
+    case "es-ES":
+      return "Necesito detenerme un momento. No puedo verificar eso claramente en tu CV. ¿Puedes aclarar si fue empleo oficial, trabajo freelance, experiencia voluntaria, experiencia transferible o solo un ejemplo?";
+    case "nl-NL":
+      return "Ik moet je daar even onderbreken. Ik kan dat niet duidelijk verifiëren in je cv. Kun je uitleggen of dit officiële werkervaring, freelancewerk, vrijwilligerservaring, overdraagbare ervaring of alleen een voorbeeldscenario was?";
+    default:
+      return "I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?";
+  }
+}
+
 function buildLanguageInstruction(setup: InterviewSetup) {
   const language = normalizeInterviewLanguage(setup.language);
   return [
@@ -3186,6 +3202,7 @@ function shouldMergeVisibleTranscript(
   previous: TranscriptItem | undefined,
   next: Omit<TranscriptItem, "id" | "time">,
   msSincePreviousRecruiterMessage?: number,
+  hasHadCandidateTurnSinceLastRecruiter?: boolean,
 ) {
   if (!previous) return false;
   if (previous.role !== next.role) return false;
@@ -3193,12 +3210,14 @@ function shouldMergeVisibleTranscript(
   if (next.role === "system") return false;
   if (next.role === "candidate") return true;
 
-  // Recruiter-to-recruiter: only merge if this is almost certainly a
-  // continuation of the same reply (arrived within a few seconds, no
-  // candidate turn in between — that condition is already guaranteed by
-  // `previous` being a recruiter entry here). A genuinely separate reply
-  // generated moments later should NOT merge — that's the scenario the
-  // no-merge fix was protecting against.
+  // Recruiter-to-recruiter: only merge if this is a rapid streaming fragment
+  // from the SAME reply (Vapi chunking), AND no candidate turn happened between
+  // the two recruiter messages. If a candidate spoke, these are definitionally
+  // two separate exchanges and must never merge — confirmed from live testing
+  // where the greeting merged with the follow-up question after the candidate's
+  // "Hi, how are you?" because both arrived within 4 seconds.
+  if (hasHadCandidateTurnSinceLastRecruiter) return false;
+
   const RAPID_FRAGMENT_WINDOW_MS = 4000;
   if (
     next.role === "recruiter" &&
@@ -3891,7 +3910,15 @@ const [questionIndex, setQuestionIndex] = useState(0);
         lastRecruiterMessageAtRef.current = now;
       }
 
-      if (shouldMergeVisibleTranscript(previous, cleanedItem, msSincePreviousRecruiterMessage)) {
+      // Check if a candidate turn happened between the previous recruiter
+      // message and this one — if so, these are separate exchanges, never merge.
+      const lastRecruiterIndex = cleanedItem.role === "recruiter"
+        ? current.map((e) => e.role).lastIndexOf("recruiter")
+        : -1;
+      const hasCandidateSinceLastRecruiter = lastRecruiterIndex >= 0 &&
+        current.slice(lastRecruiterIndex + 1).some((e) => e.role === "candidate");
+
+      if (shouldMergeVisibleTranscript(previous, cleanedItem, msSincePreviousRecruiterMessage, hasCandidateSinceLastRecruiter)) {
         return current.map((entry, index) =>
           index === current.length - 1
             ? {
@@ -4969,11 +4996,14 @@ const [questionIndex, setQuestionIndex] = useState(0);
           }
         });
 
+        const selectedLanguage = normalizeInterviewLanguage(activeSetup.language);
+        const unsupportedClaimChallenge = localizedUnsupportedClaimChallenge(activeSetup);
+
         const variableValues = buildWorkZoVapiVariableValues({
-          language: normalizeInterviewLanguage(activeSetup.language).code,
-          languageLabel: normalizeInterviewLanguage(activeSetup.language).label,
-          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildOpeningFlowInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. ABSOLUTE BAN: never say the sentence "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." Do not ask for metrics immediately after a weak or unclear answer. If the candidate already gave a number, latency improvement, CSAT, customer satisfaction, or before/after outcome, accept that as evidence and move to technical depth, ownership, stakeholder handling, or role-fit. Do not repeat a follow-up that was already asked. If the candidate's last answer was unclear or off-topic, ask a clarification about that answer; do not fall back to the generic metric question. If the CV role and target role are different, explore why the candidate is switching and what proof shows readiness before asking for impact numbers. If the candidate gives a qualitative outcome such as CSAT, customer satisfaction, repeat customers, fewer escalations, or faster resolution, accept it as evidence and move to the next relevant topic. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. If {candidateName} is "there" or not a real first name, do not use a name in the closing; say: 'Thank you for your time. We will be in touch soon. Have a great day.' Otherwise end only with: 'Thank you for your time, {candidateName}. We will be in touch soon. Have a great day.'`,
-          strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this exact style: 'I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. ABSOLUTE BAN: never say the sentence "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." Do not ask for metrics immediately after a weak or unclear answer. If the candidate already gave a number, latency improvement, CSAT, customer satisfaction, or before/after outcome, accept that as evidence and move to technical depth, ownership, stakeholder handling, or role-fit. Do not repeat the same follow-up twice.`,
+          language: selectedLanguage.code,
+          languageLabel: selectedLanguage.label,
+          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildOpeningFlowInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this selected-language style: '${unsupportedClaimChallenge}' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. ABSOLUTE BAN: never say the sentence "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." Do not ask for metrics immediately after a weak or unclear answer. If the candidate already gave a number, latency improvement, CSAT, customer satisfaction, or before/after outcome, accept that as evidence and move to technical depth, ownership, stakeholder handling, or role-fit. Do not repeat a follow-up that was already asked. If the candidate's last answer was unclear or off-topic, ask a clarification about that answer; do not fall back to the generic metric question. If the CV role and target role are different, explore why the candidate is switching and what proof shows readiness before asking for impact numbers. If the candidate gives a qualitative outcome such as CSAT, customer satisfaction, repeat customers, fewer escalations, or faster resolution, accept it as evidence and move to the next relevant topic. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. If {candidateName} is 'there' or not a real first name, do not use a name in the closing. End naturally in the selected language. Otherwise thank {candidateName} naturally in the selected language.`,
+          strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this selected-language style: '${unsupportedClaimChallenge}' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. ABSOLUTE BAN: never say the sentence "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." Do not ask for metrics immediately after a weak or unclear answer. If the candidate already gave a number, latency improvement, CSAT, customer satisfaction, or before/after outcome, accept that as evidence and move to technical depth, ownership, stakeholder handling, or role-fit. Do not repeat the same follow-up twice.`,
           recruiterMustChallengeUnsupportedClaims: "true",
           antiHallucinationMode: "strict",
           candidateName: safePromptCandidateName(activeSetup.candidateName),

@@ -1,4 +1,11 @@
-"use client";
+// BUG FIXED: this file used to start with "use client", which made every
+// export client-only — Next.js correctly rejects importing it from server
+// code. That broke every interview-session save (500 error) once the
+// server-side auth fix started actually calling scrubFounderPersonalDetails
+// from app/api/db/interview-session/route.ts. The directive wasn't actually
+// needed: only clearDirtyLegacyWorkZoStorage() touches window/localStorage,
+// and it already self-guards with `if (typeof window === "undefined")
+// return;` — safe to import from either client or server code without it.
 
 const PERSONAL_FOUNDER_PATTERNS = [
   /haritha/gi,

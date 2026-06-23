@@ -2705,6 +2705,33 @@ function buildFallbackDecision(
     const tangentRedirect = isKnowledgeCheckTangent(answer)
       ? buildKnowledgeCheckRedirect(input, answer)
       : null;
+
+    // BUG FIXED: a candidate asking what name/info the system has on file
+    // for THEM is their own data, not a request for confidential
+    // third-party information. Confirmed from live testing: this used to
+    // fall through to a generic deflection about not sharing "company
+    // names" — a completely different and irrelevant concern, since the
+    // candidate never asked about a company.
+    const asksOwnIdentity = /\b(what('?s| is) my name|what name (do|did) you (see|have)|do you have my name|what'?s the name (you|on))\b/i.test(answer);
+    if (asksOwnIdentity) {
+      const knownName = (input.setup?.candidateName || "").trim();
+      const looksLikeRealName = knownName && !/^(there|candidate|user|public|profile)$/i.test(knownName);
+      return withProfile({
+        intent,
+        spokenReply: looksLikeRealName
+          ? `Good question — I have your name as ${knownName}. Let me know if that's not quite right.`
+          : `Honestly, I don't have a confirmed name from your CV — could you tell me what I should call you?`,
+        displayQuestion: currentQuestion,
+        shouldAdvanceQuestion: false,
+        shouldCountAsAnswer: false,
+        shouldStayOnCurrentQuestion: true,
+        trustDelta: 1,
+        recruiterState: "interested",
+        feedback: "Candidate asked what name the system has on file — answered directly instead of deflecting.",
+        psychology: basePsychology,
+      });
+    }
+
     // The closing stage deliberately invites questions ("do you have any
     // questions for me?"). Treating that expected, invited answer the same
     // way as a random mid-interview tangent — "come back to the example" —
@@ -3831,6 +3858,41 @@ function buildSystemPrompt(
   recruiterMemory: RecruiterMemoryProfile,
 ) {
   const setup = input.setup || {};
+  const interviewLanguage = (setup.language || "").trim();
+  const isEnglishLang = !interviewLanguage || /^en/i.test(interviewLanguage) || /^english$/i.test(interviewLanguage);
+
+  // Convert BCP-47 codes to human-readable names the LLM understands clearly.
+  // "de-DE" → "German". "fr-FR" → "French". Unknown codes stay as-is.
+  function toLanguageName(code: string): string {
+    const map: Record<string, string> = {
+      "de": "German", "de-de": "German", "de-at": "German", "de-ch": "German",
+      "fr": "French", "fr-fr": "French", "fr-be": "French", "fr-ch": "French",
+      "es": "Spanish", "es-es": "Spanish", "es-419": "Spanish",
+      "it": "Italian", "it-it": "Italian",
+      "pt": "Portuguese", "pt-pt": "Portuguese", "pt-br": "Portuguese",
+      "nl": "Dutch", "nl-nl": "Dutch", "nl-be": "Dutch",
+      "pl": "Polish", "pl-pl": "Polish",
+      "ru": "Russian", "ru-ru": "Russian",
+      "tr": "Turkish", "tr-tr": "Turkish",
+      "ar": "Arabic", "ar-sa": "Arabic",
+      "hi": "Hindi", "hi-in": "Hindi",
+      "ta": "Tamil", "ta-in": "Tamil",
+      "zh": "Chinese", "zh-cn": "Chinese", "zh-tw": "Chinese",
+      "ja": "Japanese", "ja-jp": "Japanese",
+      "ko": "Korean", "ko-kr": "Korean",
+    };
+    return map[code.toLowerCase()] || code;
+  }
+
+  const languageInstruction = isEnglishLang ? "" : `LANGUAGE REQUIREMENT — CRITICAL:
+This interview MUST be conducted entirely in ${toLanguageName(interviewLanguage)}.
+Every single response you generate — questions, follow-ups, feedback, acknowledgements, everything — must be in ${toLanguageName(interviewLanguage)}.
+Do NOT use English at any point unless the candidate explicitly asks to switch.
+Do NOT start in English and then switch — begin in ${toLanguageName(interviewLanguage)} from your very first word.
+If the candidate responds in English, gently continue in ${toLanguageName(interviewLanguage)}.
+This is not a translation task — think, reason, and respond natively in ${toLanguageName(interviewLanguage)}.
+
+`;
   const jobDescription = cleanText(setup.jobDescription);
   const targetRole = firstNonEmpty(
     setup.targetRole,
@@ -3854,8 +3916,7 @@ function buildSystemPrompt(
   const brainContext = cleanText(setup.recruiterBrainContext || "").slice(0, 4200);
   const roleBriefContext = cleanText((setup as any).roleBriefContext || "").slice(0, 3500);
 
-  return `
-You are WorkZo's unified recruiter intelligence engine.
+  return `${languageInstruction}You are WorkZo's unified recruiter intelligence engine.
 You simulate a believable human interviewer, not an AI coach and not a question machine.
 
 PRIMARY GOAL:
@@ -4054,6 +4115,7 @@ TECHNICAL CODE RULES:
 8. CUTOFF RULE: If the candidate's turn is a short fragment that reads like the start of a sentence cut off mid-thought (e.g. "this part is", "so basically", "and then", "the hardest") rather than a complete thought or a real question, assume they were likely cut off by the mic/silence detection, not that they have nothing to say. Say so directly and warmly — e.g. "Sorry, I may have cut you off there — go ahead and continue" — and stay on the same question. Do not treat it as a weak or incomplete answer, and do not advance.
 9. CLARIFICATION RULE: If the candidate explicitly asks for clarification or an example ("I don't understand", "can you explain", "give me an example", "what do you mean") — actually explain. Restate the SAME active question in simpler, more concrete words and give 2-3 short concrete examples of what would count as an answer. Never pivot to a different topic or question when asked for clarification, and never fabricate or assume a detail the candidate never said (e.g. inventing a country, language, or story they didn't mention) — restating must use only what they actually said or the question itself, nothing invented.
 10. CLOSING RULE: Every real interview ends by inviting the candidate's own questions — make sure you ask something like "do you have any questions for me about the role, the team, or what happens next?" before wrapping up. If the candidate then asks a real question, actually answer it using the role/company context you have — do not redirect them back to an interview question. This is invited, expected input at this stage, not a tangent to manage.
+11. OWN-IDENTITY QUESTION RULE: If the candidate asks what name, role, or other basic profile detail you have on file for THEM (e.g. "what name do you see on my CV", "what's my email on file", "do you have my background right"), this is not a request for confidential third-party information — it is their own data, and they are allowed to know it. Answer directly: state the name/detail you actually have. If you do not have a confident name (it was empty, a placeholder, or clearly not a real name), say so honestly and ask them what you should call them — do not deflect with a generic privacy disclaimer about not sharing "company names," which is a different and irrelevant concern. This question is never about other companies or other people's information.
 
 NATURAL INTERVIEW FLOW:
 - Start like a real interview: greet, acknowledge the candidate, and let them introduce themselves before deep pressure.
