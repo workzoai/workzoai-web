@@ -18,6 +18,7 @@
 
 import OpenAI from "openai";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
+import { checkWorkZoRateLimit } from "@/lib/workzoRateLimit";
 import { getOpenAiTtsInstructions, humanizeRecruiterSpokenText } from "@/lib/workzoVoiceHumanizer";
 import { resolveRecruiterVoiceKey, RECRUITER_VOICE_TABLE } from "@/lib/recruiterVoiceConfig";
 
@@ -133,6 +134,14 @@ export async function POST(request: Request) {
 
   if (!resolved.authenticated) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // ── Rate limit — prevents TTS cost abuse outside the interview session limit ──
+  const ttsPlan = resolved.plan;
+  const ttsRateLimit = ttsPlan === "premium_pro" ? 200 : ttsPlan === "premium" ? 120 : 40;
+  const { allowed: withinTtsRateLimit } = await checkWorkZoRateLimit(`tts:${resolved.userId}`, ttsRateLimit);
+  if (!withinTtsRateLimit) {
+    return Response.json({ error: "rate_limited" }, { status: 429 });
   }
 
   // Free users get voice — 2 sessions to feel the full product.

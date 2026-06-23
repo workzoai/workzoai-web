@@ -36,35 +36,191 @@ import OpenAI from "openai";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// ── Post-generation translation ──────────────────────────────────────────────
-// The interview engine always generates in English (where GPT-4o is reliable
-// and natural). For non-English interviews, a dedicated fast translation call
-// converts the output. This is better than instructing the engine to generate
-// in another language directly, which produces unreliable results — the model
-// knows English interview patterns deeply, non-English is hit-or-miss.
-async function translateReply(text: string, targetLanguage: string): Promise<string> {
-  if (!text || !targetLanguage || /^en/i.test(targetLanguage) || /^english$/i.test(targetLanguage)) {
-    return text;
+// ── Language output handling ─────────────────────────────────────────────────
+//
+// ARCHITECTURE NOTE (why we changed away from post-translation):
+//
+// The old approach generated in English then called a separate translation API.
+// This caused a compounding failure when STT produced garbage text (e.g. the
+// candidate said German, browser STT returned "Flatulaishish harbor"):
+//   1. LLM tried to respond to garbled English
+//   2. Translation API got garbled English input
+//   3. Output was garbled target-language text ("Schwarzenehoren...")
+//   4. TTS read that aloud as nonsense
+//
+// The new approach:
+//   1. Detect if the candidate answer looks like garbled STT output
+//   2. If garbled → return a safe language-appropriate clarification request
+//   3. If clean → instruct the LLM to generate natively in the target language
+//   4. Validate the output before returning (detect if it's still English when it shouldn't be)
+//
+// Native generation is more reliable than post-translation for GPT-4o because:
+// - GPT-4o has strong native German/French/Dutch/Spanish/Italian/Portuguese
+// - The interview prompt already contains the full language instruction
+// - Translation adds latency, cost, and an extra failure point
+
+// BCP-47 / label → human name for prompt injection
+function toLanguageName(value: string): string {
+  const raw = value.toLowerCase().trim();
+  const MAP: Record<string, string> = {
+    "de": "German", "de-de": "German", "german": "German", "deutsch": "German",
+    "fr": "French", "fr-fr": "French", "french": "French", "français": "French",
+    "nl": "Dutch", "nl-nl": "Dutch", "dutch": "Dutch", "nederlands": "Dutch",
+    "es": "Spanish", "es-es": "Spanish", "spanish": "Spanish", "español": "Spanish",
+    "it": "Italian", "it-it": "Italian", "italian": "Italian", "italiano": "Italian",
+    "pt": "Portuguese", "pt-pt": "Portuguese", "pt-br": "Portuguese", "portuguese": "Portuguese",
+    "hi": "Hindi", "hi-in": "Hindi", "hindi": "Hindi",
+    "ta": "Tamil", "ta-in": "Tamil", "tamil": "Tamil",
+    "zh": "Chinese", "zh-cn": "Chinese", "chinese": "Chinese", "mandarin": "Chinese",
+    "ja": "Japanese", "ja-jp": "Japanese", "japanese": "Japanese",
+    "ko": "Korean", "ko-kr": "Korean", "korean": "Korean",
+    "ar": "Arabic", "ar-sa": "Arabic", "arabic": "Arabic",
+    "pl": "Polish", "pl-pl": "Polish", "polish": "Polish",
+    "ru": "Russian", "ru-ru": "Russian", "russian": "Russian",
+    "tr": "Turkish", "tr-tr": "Turkish", "turkish": "Turkish",
+  };
+  return MAP[raw] || "English";
+}
+
+function isEnglishLanguage(value: string): boolean {
+  const raw = (value || "").toLowerCase().trim();
+  return !raw || raw === "english" || raw.startsWith("en");
+}
+
+// ── Gibberish / STT corruption detector ────────────────────────────────────
+// Detects when STT has returned structurally impossible text — consonant cluster
+// garble, invalid character ratios, or repeated phoneme noise.
+//
+// NOTE: Short-word phonetic transcription garble (e.g. "Bachelor shop, Shoish
+// Harbor" = German speech through English STT) is NOT caught here because
+// the pattern is structurally identical to valid candidate introductions.
+// The correct fix for that class of error is locking the Vapi transcriber
+// language via assistantOverrides.transcriber.language so Vapi's STT never
+// transcribes non-English speech as English phonemes in the first place.
+function detectSTTCorruption(text: string): { isCorrupted: boolean; reason: string } {
+  const clean = text.trim();
+  if (!clean || clean.length < 2) return { isCorrupted: false, reason: "" };
+
+  // Too short to be a real answer (noise / click / breath)
+  const wordCount = clean.split(/\s+/).filter(Boolean).length;
+  if (wordCount < 2) return { isCorrupted: true, reason: "too_short" };
+
+  // Invalid character ratio — real speech has >85% valid alphabet chars
+  const validChars = (clean.match(/[a-zA-ZÀ-ɏͰ-ϿЀ-ӿ؀-ۿऀ-ॿ஀-௿぀-ヿ一-鿿\s0-9.,!?'"-]/g) || []).length;
+  const invalidRatio = 1 - validChars / clean.length;
+  if (invalidRatio > 0.25) return { isCorrupted: true, reason: "invalid_chars" };
+
+  // Long impossible words: 10+ chars with 3+ consecutive consonants AND
+  // at least 2 such words make up >35% of the answer.
+  // Catches: "Schwarzenehoren", "Kurzforsten" etc. (invented German-looking words)
+  const words = clean.split(/\s+/).filter(Boolean);
+  const longGarbledWords = words.filter(w => {
+    const alpha = w.replace(/[^a-zA-ZÀ-ɏ]/g, "");
+    if (alpha.length < 10) return false;
+    return (alpha.match(/[bcdfghjklmnpqrstvwxyz]{3,}/gi) || []).length > 0;
+  });
+  if (longGarbledWords.length >= 2 && longGarbledWords.length / words.length > 0.35) {
+    return { isCorrupted: true, reason: "consonant_cluster_garbage" };
   }
-  try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Fast, cheap translation — no need for full 4o
-      temperature: 0,
-      max_tokens: 300,
-      messages: [
-        {
-          role: "system",
-          content: `You are a professional interpreter for a job interview app. If the text is already in ${targetLanguage}, return it unchanged. Otherwise translate it into natural, professional ${targetLanguage}. Output ONLY the final candidate-facing recruiter reply — no explanations, no quotes, no preamble. Preserve the recruiter tone and meaning.`,
-        },
-        { role: "user", content: text },
-      ],
-    });
-    const translated = response.choices[0]?.message?.content?.trim();
-    return translated || text; // Fall back to English on any failure
-  } catch {
-    return text; // Non-fatal — return English if translation fails
+  // Single very long garbled word in a short answer is also a signal
+  const veryLongGarbled = words.filter(w => {
+    const alpha = w.replace(/[^a-zA-ZÀ-ɏ]/g, "");
+    if (alpha.length < 12) return false;
+    return (alpha.match(/[bcdfghjklmnpqrstvwxyz]{3,}/gi) || []).length > 0;
+  });
+  if (veryLongGarbled.length >= 1 && wordCount <= 6) {
+    return { isCorrupted: true, reason: "long_invented_word" };
   }
+
+  // Repeated phoneme noise (STT artifacts like "aaaa", "mmmm", etc.)
+  if (/(..){3,}/i.test(clean)) return { isCorrupted: true, reason: "repeated_phoneme" };
+
+  return { isCorrupted: false, reason: "" };
+}
+
+// ── Safe fallback for corrupted STT ─────────────────────────────────────────
+function buildClarificationForCorruptedSTT(languageLabel: string): string {
+  const lang = toLanguageName(languageLabel);
+  const CLARIFICATIONS: Record<string, string> = {
+    German: "Entschuldigung, ich konnte das leider nicht klar verstehen. Könntest du deine Antwort bitte noch einmal wiederholen?",
+    French: "Désolé, je n'ai pas bien compris. Pourriez-vous répéter votre réponse, s'il vous plaît ?",
+    Dutch: "Sorry, ik kon dat niet goed verstaan. Kun je je antwoord nogmaals herhalen?",
+    Spanish: "Lo siento, no pude entender bien eso. ¿Podrías repetir tu respuesta, por favor?",
+    Italian: "Mi scusi, non sono riuscito a capire bene. Potrebbe ripetere la sua risposta, per favore?",
+    Portuguese: "Desculpe, não consegui perceber bem. Poderia repetir a sua resposta, por favor?",
+    Hindi: "माफ़ करें, मैं आपकी बात स्पष्ट रूप से नहीं समझ पाया। क्या आप कृपया अपना उत्तर दोबारा दे सकते हैं?",
+    Tamil: "மன்னிக்கவும், என்னால் தெளிவாக புரிந்துகொள்ள முடியவில்லை. தயவுசெய்து உங்கள் பதிலை மீண்டும் சொல்ல முடியுமா?",
+    Chinese: "抱歉，我没能清楚地听懂。您能否再说一次您的回答？",
+    Japanese: "申し訳ありません、はっきりと聞き取れませんでした。もう一度お答えいただけますか？",
+    Korean: "죄송합니다, 잘 들리지 않았습니다. 답변을 다시 한 번 말씀해 주시겠어요?",
+    Arabic: "عذراً، لم أتمكن من فهم ذلك بوضوح. هل يمكنك تكرار إجابتك من فضلك؟",
+    Polish: "Przepraszam, nie mogłem wyraźnie zrozumieć. Czy mógłbyś powtórzyć swoją odpowiedź?",
+    Russian: "Извините, я не смог чётко расслышать. Не могли бы вы повторить ваш ответ?",
+    Turkish: "Üzgünüm, sizi net olarak anlayamadım. Cevabınızı tekrar söyler misiniz lütfen?",
+    English: "I'm sorry, I didn't catch that clearly. Could you please repeat your answer?",
+  };
+  return CLARIFICATIONS[lang] || CLARIFICATIONS.English;
+}
+
+// ── Output corruption validator ───────────────────────────────────────────────
+// After the LLM generates a reply, verify it is actually in the target language.
+// This catches cases where the LLM ignored the language instruction and replied
+// in English when German/French/etc was required.
+function detectOutputLanguageMismatch(
+  reply: string,
+  targetLanguage: string,
+): { isMismatch: boolean; reason: string } {
+  if (isEnglishLanguage(targetLanguage)) return { isMismatch: false, reason: "" };
+
+  const lang = toLanguageName(targetLanguage);
+  const text = reply.trim().toLowerCase();
+
+  // These English opener patterns should never appear in a non-English reply
+  const englishOpeners = [
+    /^(that'?s|that is) (a |an )?(great|good|interesting|useful|helpful|strong|clear)/i,
+    /^(let me|i'?d like|i want|i need|tell me|walk me|give me|could you|can you|would you)/i,
+    /^(okay|alright|right|so|now|great|perfect|excellent|wonderful|fantastic),?\s+(let'?s|i'?ll|what|how|why|tell)/i,
+    /^(thank you|thanks),?\s+(for|that|your)/i,
+    /^(i'?m|i am) (glad|happy|pleased|impressed|not|sorry)/i,
+    /^(the|a|an|your|this|that|these|those|what|how|why|when|where|which) /i,
+  ];
+
+  if (lang !== "English") {
+    const hasEnglishOpener = englishOpeners.some(p => p.test(text));
+    const hasEnglishWords = (text.match(/(the|and|or|but|with|this|that|your|you|have|has|was|were|will|would|could|should|must|can|may|might|shall|do|does|did|for|from|into|onto|upon|about|after|before|between|through|during|without|because|although|however|therefore|moreover|furthermore)/g) || []).length;
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    const englishDensity = wordCount > 0 ? hasEnglishWords / wordCount : 0;
+
+    // If >40% of words are English function words and it starts with an English opener,
+    // the LLM probably ignored the language instruction
+    if (hasEnglishOpener && englishDensity > 0.35) {
+      return { isMismatch: true, reason: "english_output_for_non_english_language" };
+    }
+  }
+
+  // Also detect gibberish in the OUTPUT (not just STT) — e.g. "Schwarzenehoren"
+  const { isCorrupted } = detectSTTCorruption(reply);
+  if (isCorrupted) return { isMismatch: true, reason: "garbled_output" };
+
+  return { isMismatch: false, reason: "" };
+}
+
+// Safe fallback when LLM output is in wrong language or garbled
+function buildNativeLanguageSafeReply(languageLabel: string, targetRole: string): string {
+  const lang = toLanguageName(languageLabel);
+  const role = targetRole || "this role";
+  const SAFE_REPLIES: Record<string, string> = {
+    German: `Entschuldigung, es gab ein technisches Problem. Bitte erzähle mir kurz etwas über deinen Hintergrund und wie deine Erfahrung zur Rolle ${role} passt.`,
+    French: `Désolé, il y a eu un problème technique. Pourriez-vous me parler brièvement de votre parcours et de la façon dont votre expérience correspond au poste ${role} ?`,
+    Dutch: `Sorry, er was een technisch probleem. Kun je me kort iets vertellen over je achtergrond en hoe je ervaring aansluit bij de rol ${role}?`,
+    Spanish: `Disculpa, hubo un problema técnico. ¿Puedes contarme brevemente sobre tu trayectoria y cómo tu experiencia encaja con el puesto ${role}?`,
+    Italian: `Mi scuso, c'è stato un problema tecnico. Puoi parlarmi brevemente del tuo percorso e di come la tua esperienza si collega al ruolo ${role}?`,
+    Portuguese: `Desculpe, houve um problema técnico. Podes falar brevemente sobre o teu percurso e como a tua experiência se relaciona com a função ${role}?`,
+    Hindi: `माफ़ करें, एक तकनीकी समस्या आई। कृपया अपनी पृष्ठभूमि के बारे में संक्षेप में बताएं और यह कि आपका अनुभव ${role} की भूमिका से कैसे जुड़ता है।`,
+    Tamil: `மன்னிக்கவும், தொழில்நுட்ப சிக்கல் ஒன்று இருந்தது. உங்கள் பின்னணி மற்றும் ${role} பொறுப்புக்கு உங்கள் அனுபவம் எப்படி தொடர்புடையது என்பதை சுருக்கமாக சொல்ல முடியுமா?`,
+    English: `Let's continue. Could you briefly tell me about your background and how your experience connects to the ${role} role?`,
+  };
+  return SAFE_REPLIES[lang] || SAFE_REPLIES.English;
 }
 
 type TranscriptTurn = {
@@ -456,6 +612,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing answer." }, { status: 400 });
   }
 
+  // ── STT corruption guard ─────────────────────────────────────────────────
+  // Detects garbled STT output BEFORE it reaches the LLM.
+  // Garbled STT (e.g. "Flatulaishish harbor Fieriar") causes the LLM to try to
+  // respond to nonsense, which then gets output as nonsense in the target language.
+  // Instead, return a clean language-appropriate clarification request immediately.
+  const sttCheck = detectSTTCorruption(answer);
+  if (sttCheck.isCorrupted) {
+    const lang = normalizeLanguageLabel(body.language);
+    const clarification = buildClarificationForCorruptedSTT(lang);
+    console.warn(`[interview/reply] STT corruption detected before LLM call. reason=${sttCheck.reason} answerPreview="${answer.slice(0, 60)}" targetLanguage=${lang}`);
+    return NextResponse.json({
+      success: true,
+      reply: clarification,
+      displayQuestion: clarification,
+      trustDelta: 0,
+      recruiterState: "interested",
+      shouldAdvanceQuestion: false,
+      provider: "stt_corruption_guard",
+    });
+  }
+
   const transcript = normaliseTranscript(body.transcript);
   const candidateTurnCount = transcript.filter((turn) => turn.role === "candidate").length;
   // BUG FIXED: this used to also trigger on body.questionIndex <= 1, but the
@@ -491,11 +668,18 @@ export async function POST(request: Request) {
       },
       memory: body.recruiterMemoryV2 || undefined,
     });
+    // Validate opening reply is in correct language
+    const openingLang = normalizeLanguageLabel(body.language);
+    const { isMismatch: openingMismatch } = detectOutputLanguageMismatch(reply, openingLang);
+    const finalOpeningReply = openingMismatch
+      ? buildNativeLanguageSafeReply(openingLang, cleanRoleLabel(body.targetRole))
+      : reply;
+
     logReplyOutcome({ userId: resolved.userId, outcome: "opening_guard", durationMs: Date.now() - requestStartedAt, questionIndex: body.questionIndex });
     return NextResponse.json({
       success: true,
-      reply,
-      displayQuestion: reply,
+      reply: finalOpeningReply,
+      displayQuestion: finalOpeningReply,
       trustDelta: 0,
       recruiterState: "interested",
       shouldAdvanceQuestion: true,
@@ -623,10 +807,18 @@ export async function POST(request: Request) {
     (v2.memory as Record<string, unknown>).trustScore =
       Math.max(0, Math.min(100, ((v2.memory as Record<string, unknown>).trustScore as number ?? 70) + (decision.trustDelta || 0)));
 
-    // ── Translate to target language if non-English ─────────────────────
+    // ── Language output validation ──────────────────────────────────────
+    // No longer post-translating (causes compounding errors on garbled STT).
+    // The LLM generates natively in the target language (language instruction
+    // is in the system prompt via unifiedRecruiterIntelligence.ts).
+    // Here we validate the output and apply a safe fallback if corrupted.
     const targetLanguage = normalizeLanguageLabel(body.language);
-    const finalReply = targetLanguage !== "English"
-      ? await translateReply(reply, targetLanguage)
+    const { isMismatch, reason: mismatchReason } = detectOutputLanguageMismatch(reply, targetLanguage);
+    if (isMismatch) {
+      console.warn(`[interview/reply] Language output mismatch detected. reason=${mismatchReason} targetLanguage=${targetLanguage} replyPreview="${reply.slice(0, 80)}"`);
+    }
+    const finalReply = isMismatch
+      ? buildNativeLanguageSafeReply(targetLanguage, cleanRoleLabel(body.targetRole))
       : reply;
 
     return NextResponse.json({
@@ -652,7 +844,11 @@ export async function POST(request: Request) {
     const reply = buildSafeFallbackRecruiterReply(body, answer, transcript);
     if (reply) {
       const targetLanguage = normalizeLanguageLabel(body.language);
-      const finalReply = targetLanguage !== "English" ? await translateReply(reply, targetLanguage) : reply;
+      // No translation — use native language safe reply if output is wrong language
+      const { isMismatch: fbMismatch } = detectOutputLanguageMismatch(reply, targetLanguage);
+      const finalReply = fbMismatch
+        ? buildNativeLanguageSafeReply(targetLanguage, cleanRoleLabel(body.targetRole))
+        : reply;
       logReplyOutcome({ userId: resolved.userId, outcome: "deterministic_fallback", durationMs, reason: message, questionIndex: body.questionIndex });
       return NextResponse.json({
         success: true,

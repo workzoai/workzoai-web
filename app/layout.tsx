@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import LegacyStoragePrivacyCleanup from "@/components/privacy/LegacyStoragePrivacyCleanup";
 import CookieConsentBanner from "@/components/privacy/CookieConsentBanner";
+import WorkZoFounderAnalyticsTracker from "@/components/WorkZoFounderAnalyticsTracker";
 import { AppLanguageProvider } from "@/lib/workzoAppLanguage";
 
 
@@ -52,6 +53,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <LegacyStoragePrivacyCleanup />
+        <WorkZoFounderAnalyticsTracker />
         {children}
         <CookieConsentBanner />
       </body>

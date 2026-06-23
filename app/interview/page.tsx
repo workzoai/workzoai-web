@@ -1992,6 +1992,59 @@ function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
     if (/measurable impact|Now add measurable|Give me one concrete metric/i.test(text)) return "உதாரணம் தெளிவாக உள்ளது. இப்போது அளவிடக்கூடிய தாக்கத்தைச் சொல்லுங்கள் — நேரம், தரம், வாடிக்கையாளர் திருப்தி, செலவு அல்லது முடிவில் என்ன மாறியது?";
   }
 
+
+  // ── Languages added to complete full coverage ───────────────────────────────
+
+  if (language.code === "ja-JP") {
+    if (/^Yes, I can hear you/i.test(text)) return "はい、はっきり聞こえます。では始めましょう。あなたの経歴と、なぜこのポジションに関心があるのかを簡単にお聞かせください。";
+    if (/I'm following you, but I need more detail/i.test(text)) return "お話はわかりますが、適合性を評価するためにもう少し詳細が必要です。具体的な状況、あなたが個人として何をしたか、その後何が変わったかを教えてください。";
+    if (/The answer still sounds team-level/i.test(text)) return "その回答はまだチームレベルに聞こえます。あなたが個人として決定・構築・解決・提供したものは何ですか？";
+    if (/measurable impact|Now add measurable|Give me one concrete metric/i.test(text)) return "ストーリーは明確です。次に測定可能な成果を教えてください。あなたの取り組みの後に何が変わりましたか？";
+    if (/I need to pause there/i.test(text)) return "少し確認させてください。それはご経歴から明確に確認できない点があります。公式な職歴なのか、フリーランス、ボランティア、転用可能な経験、それとも例として挙げたシナリオなのかを教えていただけますか？";
+  }
+
+  if (language.code === "ko-KR") {
+    if (/^Yes, I can hear you/i.test(text)) return "네, 잘 들립니다. 시작해 보겠습니다. 본인의 배경과 이 포지션에 관심을 갖게 된 이유를 간략히 말씀해 주시겠어요?";
+    if (/I'm following you, but I need more detail/i.test(text)) return "이해는 되지만, 적합성을 평가하기 위해 좀 더 구체적인 내용이 필요합니다. 구체적인 상황, 본인이 직접 한 일, 그리고 그 이후 무엇이 달라졌는지 말씀해 주세요.";
+    if (/The answer still sounds team-level/i.test(text)) return "답변이 아직 팀 수준으로 들립니다. 본인이 직접 결정하거나, 구축하거나, 해결하거나, 전달한 것이 무엇인지 말씀해 주세요.";
+    if (/measurable impact|Now add measurable|Give me one concrete metric/i.test(text)) return "이야기는 명확합니다. 이제 측정 가능한 성과를 알려 주세요. 본인의 업무 이후 무엇이 변화했나요?";
+    if (/I need to pause there/i.test(text)) return "잠깐 확인이 필요합니다. 해당 내용을 이력서에서 명확히 확인하기 어렵습니다. 공식 경력인지, 프리랜서, 자원봉사, 전이 가능한 경험인지, 아니면 예시 시나리오인지 설명해 주시겠어요?";
+  }
+
+  if (language.code === "ru-RU") {
+    if (/^Yes, I can hear you/i.test(text)) return "Да, я вас хорошо слышу. Давайте начнём. Расскажите кратко о своём опыте и о том, почему вас интересует эта позиция.";
+    if (/I'm following you, but I need more detail/i.test(text)) return "Я понимаю вас, но для оценки соответствия мне нужно больше деталей. Приведите конкретную ситуацию: что именно вы сделали лично и что изменилось после этого.";
+    if (/The answer still sounds team-level/i.test(text)) return "Ответ всё ещё звучит на уровне команды. Что конкретно вы лично решили, создали, решили или реализовали?";
+    if (/measurable impact|Now add measurable|Give me one concrete metric/i.test(text)) return "История понятна. Теперь добавьте измеримый результат. Что изменилось после вашей работы — время, качество, удовлетворённость клиентов, стоимость или бизнес-показатель?";
+    if (/I need to pause there/i.test(text)) return "Мне нужно уточнить. Это утверждение я не могу чётко подтвердить по вашему резюме. Поясните: это было официальное трудоустройство, фриланс, волонтёрство, переносимый опыт или просто пример?";
+  }
+
+  if (language.code === "tr-TR") {
+    if (/^Yes, I can hear you/i.test(text)) return "Evet, sizi net duyuyorum. Başlayalım. Deneyiminizi ve bu pozisyona neden ilgi duyduğunuzu kısaca anlatır mısınız?";
+    if (/I'm following you, but I need more detail/i.test(text)) return "Sizi anlıyorum, ancak uyumu değerlendirmek için daha fazla ayrıntıya ihtiyacım var. Somut bir durum, kişisel olarak ne yaptığınız ve ardından ne değiştiği hakkında bilgi verir misiniz?";
+    if (/The answer still sounds team-level/i.test(text)) return "Yanıt hâlâ ekip düzeyinde geliyor. Kişisel olarak neye karar verdiniz, ne inşa ettiniz, ne çözdünüz veya ne teslim ettiniz?";
+    if (/measurable impact|Now add measurable|Give me one concrete metric/i.test(text)) return "Hikâye net. Şimdi ölçülebilir bir etki ekleyin. Çalışmanızdan sonra ne değişti — zaman, kalite, müşteri memnuniyeti, maliyet veya bir iş sonucu?";
+    if (/I need to pause there/i.test(text)) return "Burada durmam gerekiyor. Bunu CV'nizden net olarak doğrulayamıyorum. Bunun resmi istihdam, serbest çalışma, gönüllülük, aktarılabilir deneyim mi yoksa yalnızca bir örnek senaryo mu olduğunu açıklar mısınız?";
+  }
+
+  if (language.code === "zh-CN") {
+    if (/I need to pause there/i.test(text)) return "我需要在这里确认一下。我无法从您的简历中清楚地核实这一点。请说明这是正式工作经历、自由职业、志愿者经验、可迁移经验，还是仅仅是一个示例场景？";
+    if (/Give me one concrete metric/i.test(text)) return "故事很清晰。现在请加上可量化的影响——节省的时间、减少的错误、客户满意度、成本或业务成果。";
+  }
+
+  if (language.code === "ar-SA") {
+    if (/I'm following you, but I need more detail/i.test(text)) return "أتابعك، لكنني أحتاج إلى مزيد من التفاصيل لتقييم المطابقة. أعطني موقفًا محددًا — ما الذي فعلته شخصيًا وما الذي تغير بعد ذلك.";
+    if (/The answer still sounds team-level/i.test(text)) return "الإجابة لا تزال تبدو على مستوى الفريق. ماذا قررت أو بنيت أو حللت أو قدمت بشكل شخصي؟";
+    if (/measurable impact|Give me one concrete metric/i.test(text)) return "القصة واضحة. الآن أضف تأثيرًا قابلًا للقياس — وقت موفر، أخطاء مخففة، رضا العملاء، تكلفة أو نتيجة أعمال.";
+    if (/I need to pause there/i.test(text)) return "أحتاج إلى التوقف هنا. لا يمكنني التحقق من ذلك بوضوح من سيرتك الذاتية. هل يمكنك توضيح ما إذا كان هذا توظيفًا رسميًا أم عملًا حرًا أم تطوعًا أم خبرة قابلة للنقل أم مجرد سيناريو مثال؟";
+  }
+
+  if (language.code === "pl-PL") {
+    if (/I'm following you, but I need more detail/i.test(text)) return "Rozumiem cię, ale potrzebuję więcej szczegółów, aby ocenić dopasowanie. Podaj konkretną sytuację — co ty osobiście zrobiłeś i co się po tym zmieniło.";
+    if (/The answer still sounds team-level/i.test(text)) return "Odpowiedź nadal brzmi jak praca zespołowa. Co ty osobiście zdecydowałeś, zbudowałeś, rozwiązałeś lub dostarczyłeś?";
+    if (/measurable impact|Give me one concrete metric/i.test(text)) return "Historia jest jasna. Teraz dodaj mierzalny wpływ — zaoszczędzony czas, zmniejszone błędy, satysfakcja klientów, koszt lub wynik biznesowy.";
+    if (/I need to pause there/i.test(text)) return "Muszę się tu zatrzymać. Nie mogę tego wyraźnie zweryfikować na podstawie twojego CV. Czy możesz wyjaśnić, czy to było oficjalne zatrudnienie, praca freelancerska, wolontariat, przenoszalne doświadczenie, czy tylko przykładowy scenariusz?";
+  }
   return text;
 }
 
@@ -4079,7 +4132,11 @@ const [questionIndex, setQuestionIndex] = useState(0);
           } else {
             console.log(`[interview] LLM reply used. durationMs=${durationMs}`);
           }
-          return data.reply.trim();
+          const serverReply = data.reply.trim();
+          // Client-side language guard: if the reply starts with English opener phrases
+          // and the interview is in a non-English language, enforce the language locally
+          const enforcedReply = enforceRuntimeLanguageForReply(currentSetup, serverReply);
+          return enforcedReply;
         }
 
         return fallback(`http_${response.status}_${data?.error || "no_reply"}`);
@@ -4131,11 +4188,22 @@ const [questionIndex, setQuestionIndex] = useState(0);
           const audioBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
           const formData = new FormData();
           formData.append("audio", audioBlob, "candidate-answer.webm");
-          formData.append("language", setupRef.current.language || "en");
+          // Send BCP-47 code to Whisper for best STT accuracy (not the label string)
+          const sttLangCode = selectedLanguageCode(setupRef.current);
+          formData.append("language", sttLangCode || "en");
 
           const response = await fetch("/api/transcribe", { method: "POST", body: formData, credentials: "include" });
           const data = await response.json().catch(() => ({}));
           const answer = String(data?.text || "").trim();
+
+          // Corruption detected by server-side Whisper output check
+          if (data?.corrupted) {
+            const lang = normalizeInterviewLanguage(setupRef.current.language);
+            const clarificationMsg = buildLocalizedGentleClarification(setupRef.current);
+            speakRecruiter(clarificationMsg);
+            setStatus("listening");
+            return;
+          }
 
           if (!answer || stopRequestedRef.current) {
             setStatus("listening");
@@ -5002,6 +5070,12 @@ const [questionIndex, setQuestionIndex] = useState(0);
         const variableValues = buildWorkZoVapiVariableValues({
           language: selectedLanguage.code,
           languageLabel: selectedLanguage.label,
+          // Explicitly set the opening greeting in the correct language so Vapi's
+          // first message is always in the selected interview language, never English.
+          // This is the fix for: "Hi there. Thank you for joining today" (English)
+          // immediately followed by German — the two systems were using different languages.
+          openingGreeting: buildLocalizedGreeting(activeSetup),
+          openingIntroQuestion: buildLocalizedIntroQuestion(activeSetup),
           workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildOpeningFlowInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this selected-language style: '${unsupportedClaimChallenge}' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. ABSOLUTE BAN: never say the sentence "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." Do not ask for metrics immediately after a weak or unclear answer. If the candidate already gave a number, latency improvement, CSAT, customer satisfaction, or before/after outcome, accept that as evidence and move to technical depth, ownership, stakeholder handling, or role-fit. Do not repeat a follow-up that was already asked. If the candidate's last answer was unclear or off-topic, ask a clarification about that answer; do not fall back to the generic metric question. If the CV role and target role are different, explore why the candidate is switching and what proof shows readiness before asking for impact numbers. If the candidate gives a qualitative outcome such as CSAT, customer satisfaction, repeat customers, fewer escalations, or faster resolution, accept it as evidence and move to the next relevant topic. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. If {candidateName} is 'there' or not a real first name, do not use a name in the closing. End naturally in the selected language. Otherwise thank {candidateName} naturally in the selected language.`,
           strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this selected-language style: '${unsupportedClaimChallenge}' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. ABSOLUTE BAN: never say the sentence "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." Do not ask for metrics immediately after a weak or unclear answer. If the candidate already gave a number, latency improvement, CSAT, customer satisfaction, or before/after outcome, accept that as evidence and move to technical depth, ownership, stakeholder handling, or role-fit. Do not repeat the same follow-up twice.`,
           recruiterMustChallengeUnsupportedClaims: "true",
@@ -5072,13 +5146,102 @@ const [questionIndex, setQuestionIndex] = useState(0);
           }
         }, 12000);
 
+        // ── Vapi assistantOverrides ───────────────────────────────────────
+        // These override the Vapi Dashboard configuration at call-start time.
+        // This is the correct fix for language issues: the dashboard template
+        // cannot be changed per-call, but assistantOverrides can.
+        //
+        // Three things are overridden:
+        //
+        // 1. firstMessage: the Vapi assistant's opening line before any user
+        //    input. The dashboard template has an English opening ("Hi there.
+        //    Thank you for joining today.") that fires before {{interviewStyle}}
+        //    is read. Setting firstMessage here overrides it at the call level.
+        //
+        // 2. transcriber.language: Vapi's own STT (not browser SpeechRecognition)
+        //    is used when Vapi is connected. The transcriber language must be
+        //    set to the interview language or Vapi auto-detects English and
+        //    transcribes German/French/etc as English phoneme soup.
+        //    ("Bachelor shop, Shoish Harbor" = German speech → English STT)
+        //
+        // 3. model.messages: prepend an absolute language instruction as the
+        //    FIRST system message so it cannot be overridden by template content.
+        //    The template's own instructions come after this, so the language
+        //    rule is established before any other instruction is read.
+
+        const isEnglishInterview = selectedLanguage.label === "English" || selectedLanguage.code.startsWith("en");
+        const localizedFirstMessage = buildLocalizedGreeting(activeSetup);
+
+        // Map BCP-47 interview language code to the format Vapi's Deepgram/Gladia
+        // transcriber expects. Vapi uses ISO 639-1 for most languages.
+        const vapiTranscriberLanguage = ((): string => {
+          const code = selectedLanguage.code.toLowerCase();
+          // Deepgram language codes supported by Vapi
+          const VAPI_LANGUAGE_MAP: Record<string, string> = {
+            "de-de": "de", "nl-nl": "nl", "fr-fr": "fr", "es-es": "es",
+            "it-it": "it", "pt-pt": "pt", "pt-br": "pt-BR",
+            "hi-in": "hi", "ta-in": "ta",
+            "zh-cn": "zh-CN", "ja-jp": "ja", "ko-kr": "ko",
+            "ar-sa": "ar", "pl-pl": "pl", "ru-ru": "ru", "tr-tr": "tr",
+            "en-us": "en-US", "en-gb": "en-GB",
+          };
+          return VAPI_LANGUAGE_MAP[code] || code.split("-")[0] || "en";
+        })();
+
+        const assistantOverrides = {
+          // 1. First message in correct language (overrides dashboard template)
+          ...(!isEnglishInterview && localizedFirstMessage
+            ? { firstMessage: localizedFirstMessage }
+            : {}),
+
+          // 2. Transcriber language locked to interview language
+          // This is the fix for "Bachelor shop, Shoish Harbor" (German → English STT)
+          ...(!isEnglishInterview
+            ? {
+                transcriber: {
+                  provider: "deepgram",
+                  model: "nova-2",
+                  language: vapiTranscriberLanguage,
+                  smartFormat: true,
+                },
+              }
+            : {}),
+
+          // 3. Model messages: absolute language instruction prepended to system prompt
+          // This fires BEFORE any dashboard template instructions and cannot be ignored
+          ...(!isEnglishInterview
+            ? {
+                model: {
+                  messages: [
+                    {
+                      role: "system",
+                      content: [
+                        `ABSOLUTE LANGUAGE REQUIREMENT — READ THIS FIRST:`,
+                        `This interview MUST be conducted entirely in ${selectedLanguage.label}.`,
+                        `Your VERY FIRST word must be in ${selectedLanguage.label}.`,
+                        `Do NOT open with English. Do NOT say "Hi there" or "Thank you for joining" in English.`,
+                        `Every question, follow-up, clarification, acknowledgement, and closing must be in ${selectedLanguage.label}.`,
+                        `If the candidate speaks English, respond naturally in ${selectedLanguage.label} regardless.`,
+                        `This rule overrides all other instructions in this prompt.`,
+                        ``,
+                        `Your opening message is EXACTLY: ${localizedFirstMessage}`,
+                      ].join("\n"),
+                    },
+                  ],
+                },
+              }
+            : {}),
+        };
+
         await client.start(config.assistantId, {
           variableValues,
+          assistantOverrides: Object.keys(assistantOverrides).length ? assistantOverrides : undefined,
           metadata: {
             product: "WorkZo AI",
             page: "interview-room",
             recruiter: config.recruiterKey,
             voiceMode: "lazy-vapi",
+            interviewLanguage: selectedLanguage.label,
           },
         });
 

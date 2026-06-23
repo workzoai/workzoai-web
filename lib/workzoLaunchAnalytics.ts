@@ -1,5 +1,7 @@
 "use client";
 
+import { getWorkZoVisitorId } from "@/lib/workzoAnalytics";
+
 export type WorkZoEventName =
   | "landing_viewed"
   | "onboarding_viewed"
@@ -51,15 +53,15 @@ function isBlockedAnalyticsHost(hostname: string) {
     /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
     host.endsWith(".local") ||
     host.endsWith(".test") ||
-    host.endsWith(".localhost") ||
-    host.includes("vercel.app")
+    host.endsWith(".localhost")
   );
 }
 
 function shouldSkipProductionAnalytics() {
   if (typeof window === "undefined") return true;
-  if (process.env.NODE_ENV !== "production") return true;
   if (process.env.NEXT_PUBLIC_WORKZO_DISABLE_ANALYTICS === "true") return true;
+  // Keep local development private, but allow production and Vercel preview deployments
+  // so founder analytics works during launch/testing.
   if (isBlockedAnalyticsHost(window.location.hostname)) return true;
   return false;
 }
@@ -122,6 +124,7 @@ export function trackWorkZoLaunchEvent(payload: WorkZoAnalyticsPayload) {
 
   const item = {
     ...payload,
+    visitorId: getWorkZoVisitorId(),
     sessionId: getSessionId(),
     timestamp: safeNow(),
     path: window.location.pathname,

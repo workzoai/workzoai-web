@@ -1,29 +1,48 @@
-# WorkZo Data Integrity Fix v6
+# WorkZo Founder Analytics Fix
 
 Replace these files in your project:
 
-1. `app/api/cv/route.ts`
-2. `lib/workzoAiCvParser.ts`
-3. `lib/workzoResumeProfileManager.ts`
-4. `app/results/page.tsx`
+- `app/api/analytics/route.ts`
+- `app/founder/analytics/FounderAnalyticsClient.tsx`
+- `app/founder/analytics/page.tsx`
+- `app/founder/page.tsx`
+- `app/founder-dashboard/page.tsx`
+- `app/layout.tsx`
+- `components/WorkZoFounderAnalyticsTracker.tsx`
+- `lib/workzoAnalytics.ts`
+- `lib/workzoLaunchAnalytics.ts`
 
-Then run:
+Then run the SQL in:
 
-```bash
-npm install
-npm run build
+- `supabase/workzo_analytics_tables.sql`
+
+Required environment variables:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+FOUNDER_ANALYTICS_SECRET=your-private-secret
 ```
 
-## What this fixes
+Founder dashboard access:
 
-- Makes AI parser primary and Affinda fallback/comparison only.
-- Selects the parser result using a structural quality score.
-- Blocks corrupted candidate names like `Associate's Degree In Computer Science`.
-- Strengthens cached-profile rejection with `nameCorrupted` checks.
-- Improves project extraction from raw CV text when the AI misses project sections.
-- Keeps previously good profile reuse, but rejects stale/corrupted cached profiles before saving.
-- Increases results DB read timeout from 6 seconds to 12 seconds to reduce false local fallback warnings.
+```txt
+/founder/analytics?secret=your-private-secret
+```
 
-## Important
+What this fixes:
 
-This package does not touch Vapi/audio files. It is focused on CV parser integrity and results timeout only.
+- Adds global page-view tracking from the root layout.
+- Sends analytics from production and Vercel preview deployments, not only custom domains.
+- Adds stable visitor IDs to launch/onboarding events.
+- Reads both anonymous analytics events and signed-in usage events.
+- Adds dashboard metrics for Visitors, Active 7d, Signed-in users, and Signed-in 30d.
+- Allows secure founder dashboard access using `?secret=`.
+- Keeps analytics non-blocking, so user flows never fail because analytics fails.
+
+After deployment, test:
+
+1. Open the site in an incognito window.
+2. Visit landing page, onboarding, upload CV, start interview.
+3. Open `/founder/analytics?secret=your-private-secret`.
+4. Confirm Visitors, Sessions, CV uploads, and Interviews increase.

@@ -20,6 +20,11 @@ import { ChangeEvent, useEffect, useId, useMemo, useState } from "react";
 import { useInterviewStore } from "@/store/interviewStore";
 import { buildAndSaveInterviewSetup, structureResumeProfileFromCv } from "@/lib/workzoCvClient";
 import {
+  saveCanonicalProfile,
+  lockInterviewLanguage,
+  clearCanonicalProfile,
+} from "@/lib/workzoCanonicalProfile";
+import {
   extractResumeProfileComplex,
   normalizeResumeText,
   type ResumeProfile,
@@ -677,6 +682,7 @@ export default function OnboardingPage() {
     setUploadError("");
     try {
       clearLatestInterviewSetup();
+      clearCanonicalProfile(); // clear stale profile before re-upload
       const form = new FormData();
       form.append("file", file);
       const response = await fetch("/api/cv", { method: "POST", body: form, credentials: "include" });
@@ -695,6 +701,15 @@ export default function OnboardingPage() {
       setAiResumeProfile(profile);
       setAiCvStructuringStatus(apiProfileIsUsable ? "ready" : "fallback");
       debugCvProfile("onboarding.upload.profile_selected", profile, { source: apiProfileIsUsable ? data?.source || "api_cv_profile" : "structure_fallback_profile", fileName: file.name });
+
+      // ── Canonical profile storage (spec §2) ──────────────────────────────
+      // Store the structured profile and raw text once. All downstream pages
+      // (Improve CV, Cover Letter, Interview) read from these sessionStorage
+      // keys instead of re-parsing. rawCvText is never the derived summary.
+      saveCanonicalProfile(profile, rawCvText, file.name);
+      lockInterviewLanguage(interviewLanguage);
+      // ─────────────────────────────────────────────────────────────────────
+
       setManualCv(rawCvText);
       const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || profile.basics.headline || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
       saveCanonicalCvSetup(canonicalSetup, store);

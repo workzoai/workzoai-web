@@ -39,6 +39,16 @@ type PlanPerformance = {
 type AnalyticsResponse = {
   summary: {
     totalEvents: number;
+    uniqueVisitors?: number;
+    totalUniqueVisitors?: number;
+    activeVisitors7d?: number;
+    activeVisitors30d?: number;
+    signedInUsers?: number;
+    activeSignedInUsers7d?: number;
+    activeSignedInUsers30d?: number;
+    totalUsageEvents?: number;
+    usageConfigured?: boolean;
+    usageReason?: string;
     uniqueSessions: number;
     uploads: number;
     interviewsStarted: number;
@@ -93,6 +103,16 @@ const PLAN_LABELS: Record<string, string> = {
 const emptyData: AnalyticsResponse = {
   summary: {
     totalEvents: 0,
+    uniqueVisitors: 0,
+    totalUniqueVisitors: 0,
+    activeVisitors7d: 0,
+    activeVisitors30d: 0,
+    signedInUsers: 0,
+    activeSignedInUsers7d: 0,
+    activeSignedInUsers30d: 0,
+    totalUsageEvents: 0,
+    usageConfigured: false,
+    usageReason: "",
     uniqueSessions: 0,
     uploads: 0,
     interviewsStarted: 0,
@@ -195,7 +215,10 @@ export default function FounderAnalyticsPage() {
   async function load() {
     setLoading(true);
     try {
-      const response = await fetch("/api/analytics", { cache: "no-store" });
+      const params = new URLSearchParams(window.location.search);
+      const secret = params.get("secret");
+      const url = secret ? `/api/analytics?secret=${encodeURIComponent(secret)}` : "/api/analytics";
+      const response = await fetch(url, { cache: "no-store" });
       const json = (await response.json()) as AnalyticsResponse;
       setData(json?.summary ? json : emptyData);
     } catch {
@@ -275,9 +298,19 @@ export default function FounderAnalyticsPage() {
               </div>
             </div>
           </div>
+          {data.summary.usageConfigured === false && (
+            <div className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-4 text-sm text-amber-100">
+              Signed-in user counts need the <code className="font-black">workzo_usage_events</code> table.
+              {data.summary.usageReason ? ` Reason: ${data.summary.usageReason}` : ""}
+            </div>
+          )}
         </section>
 
         <section className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Visitors" value={data.summary.uniqueVisitors ?? data.summary.totalUniqueVisitors ?? 0} icon={<Users className="h-5 w-5" />} />
+          <StatCard label="Active 7d" value={data.summary.activeVisitors7d ?? 0} icon={<Activity className="h-5 w-5" />} />
+          <StatCard label="Signed-in users" value={data.summary.signedInUsers ?? 0} icon={<Users className="h-5 w-5" />} />
+          <StatCard label="Signed-in 30d" value={data.summary.activeSignedInUsers30d ?? 0} icon={<Activity className="h-5 w-5" />} />
           <StatCard label="Sessions" value={data.summary.uniqueSessions} icon={<Users className="h-5 w-5" />} />
           <StatCard label="CV uploads" value={data.summary.uploads} icon={<Upload className="h-5 w-5" />} />
           <StatCard label="Interviews" value={data.summary.interviewsStarted} icon={<Activity className="h-5 w-5" />} />

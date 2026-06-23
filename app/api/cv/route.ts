@@ -10,7 +10,6 @@ import { cleanExtractedCvText } from "@/lib/workzoCvPdfCleaner";
 import {
   parseResumeWithAiStructure,
   repairResumeProfileAfterParsing,
-  normalizeCvTextForParsing,
 } from "@/lib/workzoAiCvParser";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 import { enforceCanonicalCandidateName, validateCandidateName } from "@/lib/workzoResumeProfileManager";
@@ -53,6 +52,37 @@ type AffindaResult = {
   error?: string;
 };
 
+function normalizeIdentityText(value: unknown) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function identityAppearsInRawCv(rawCv: string, value: unknown) {
+  const name = validateCandidateName(value);
+  if (!name) return false;
+  const raw = normalizeIdentityText(rawCv);
+  const compactRaw = raw.replace(/\s+/g, "");
+  const key = normalizeIdentityText(name);
+  const compactKey = key.replace(/\s+/g, "");
+  if (!raw || !key) return false;
+  return raw.includes(key) || compactRaw.includes(compactKey);
+}
+
+function isInvalidPhoneValue(value: unknown) {
+  const raw = String(value || "").trim();
+  if (!raw) return false;
+  const digits = raw.replace(/\D/g, "");
+  if (/\b(?:19|20)\d{2}\s*[-–/]\s*(?:19|20)\d{2}\b/.test(raw)) return true;
+  if (/^\(?\s*(?:19|20)\d{2}\s*[-–/]\s*(?:19|20)\d{2}\s*\)?$/.test(raw)) return true;
+  return digits.length > 0 && digits.length < 7;
+}
+
+
 function normalizeUploadFileName(fileName = "") {
   const clean = String(fileName || "uploaded-cv.pdf")
     .replace(/\s+/g, " ")
@@ -63,6 +93,45 @@ function normalizeUploadFileName(fileName = "") {
       .replace(/(?:\.docx){2,}$/i, ".docx")
       .replace(/(?:\.txt){2,}$/i, ".txt") || "uploaded-cv.pdf"
   );
+}
+
+
+function normalizeCvTextForParsing(value: string) {
+  const text = String(value || "")
+    .replace(/\r/g, "\n")
+    .replace(/\b(EDUCATION)(WORK EXPERIENCE)\b/gi, "$1\n$2")
+    .replace(/\b(Work Experience)(Skills)\b/g, "$1\n$2")
+    .replace(/\b(Professional Summary)(Skills)/gi, "$1\n$2")
+    .replace(/\b(Contact)(Professional Summary)/gi, "$1\n$2")
+    .replace(/\b(Projects?)(Professional|Work|Education|Skills)/gi, "$1\n$2")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .join("\n");
+
+  const sectionMap: Array<[RegExp, string]> = [
+    [/^(key|selected|personal|portfolio|bootcamp|academic|capstone|case study|case studies|security|data science|engineering)\s+projects?$/i, "PROJECTS"],
+    [/^projects?$/i, "PROJECTS"],
+    [/^(professional|work|employment|career|relevant)\s+experience$/i, "WORK EXPERIENCE"],
+    [/^berufserfahrung$/i, "WORK EXPERIENCE"],
+    [/^(technical|core|professional|summary of|summary)\s+skills$/i, "SKILLS"],
+    [/^fähigkeiten$|^fahigkeiten$|^expertise$/i, "SKILLS"],
+    [/^(education|educational background|academic history|education and training|bildungsweg|bildung|ausbildung)$/i, "EDUCATION"],
+    [/^(professional summary|profile summary|profile overview|profilübersicht|profilubersicht|about me|overview)$/i, "SUMMARY"],
+    [/^(languages|sprachen)$/i, "LANGUAGES"],
+    [/^(certifications|certificates|awards and certification|short courses)$/i, "CERTIFICATIONS"],
+  ];
+
+  return text
+    .split("\n")
+    .map((line) => {
+      for (const [pattern, replacement] of sectionMap) {
+        if (pattern.test(line.trim())) return replacement;
+      }
+      return line;
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function normalizeCvText(value: string) {
@@ -594,13 +663,35 @@ function pickArrayText(value: unknown, limit = 80) {
 
 function findAffindaData(document: unknown): AnyRecord {
   const root = asRecord(document) || {};
+
+  // Affinda v3 API: POST /v3/documents returns
+  //   { meta: {...}, data: { name, emails, workExperience, education, skills, ... } }
+  // OR with an outer wrapper:
+  //   { data: { identifier, fileName, data: { name, workExperience, ... } } }
+  // Try root.data first, then check if the structured fields are one level deeper.
   const direct = asRecord(root.data);
-  if (direct) return direct;
-  const innerDocument = asRecord(root.document);
-  if (innerDocument && asRecord(innerDocument.data))
-    return asRecord(innerDocument.data) || {};
-  const result = asRecord(root.result);
-  if (result && asRecord(result.data)) return asRecord(result.data) || {};
+  if (direct) {
+    // v3 sometimes nests one level deeper: { data: { identifier, data: { workExperience... } } }
+    const nested = asRecord(direct.data);
+    if (nested && (nested.workExperience || nested.education || nested.name || nested.emails)) {
+      return nested;
+    }
+    // root.data itself has the structured fields
+    if (direct.workExperience || direct.education || direct.name || direct.emails) {
+      return direct;
+    }
+  }
+
+  // Wrapped responses: { document: { data: {...} } } or { result: { data: {...} } }
+  for (const key of ["document", "result", "resume", "parsed"]) {
+    const wrapper = asRecord(root[key as keyof typeof root]);
+    if (!wrapper) continue;
+    const inner = asRecord(wrapper.data);
+    if (inner && (inner.workExperience || inner.education || inner.name)) return inner;
+    if (wrapper.workExperience || wrapper.education || wrapper.name) return wrapper;
+  }
+
+  // Fallback: root itself
   return root;
 }
 
@@ -932,6 +1023,13 @@ async function parseWithAffinda(input: {
       input.rawText,
       input.fileName,
     );
+
+    // Diagnostic: log actual Affinda response structure so we can confirm the data path
+    const rootKeys = Object.keys(asRecord(document) || {}).join(",");
+    const dataKeys = Object.keys(asRecord((asRecord(document) || {}).data) || {}).join(",");
+    const datadataKeys = Object.keys(asRecord(asRecord((asRecord(document) || {}).data)?.data) || {}).join(",");
+    console.log(`[api/cv] Affinda mapped: exp=${resumeProfile.experience?.length ?? 0} edu=${resumeProfile.education?.length ?? 0} skills=${resumeProfile.skills?.length ?? 0} | root=[${rootKeys.slice(0, 100)}] data=[${dataKeys.slice(0, 100)}] data.data=[${datadataKeys.slice(0, 100)}]`);
+
     return {
       ok: true,
       source: "affinda_resume_parser",
@@ -950,21 +1048,22 @@ async function parseWithAffinda(input: {
 function isProfileUsable(profile: ResumeProfile | undefined | null) {
   if (!profile) return false;
   const basics = profile.basics || {};
-  const name = validateCandidateName(basics.name || "") || isHumanName(basics.name || "");
-  const email = String(basics.email || "").trim();
-  const phone = String(basics.phone || "").replace(/\D/g, "");
+  const name = (basics.name || "").trim();
   const expCount = Array.isArray(profile.experience) ? profile.experience.length : 0;
   const eduCount = Array.isArray(profile.education) ? profile.education.length : 0;
-  const skillsCount = Array.isArray(profile.skills) ? profile.skills.length : 0;
 
-  const hasIdentity = Boolean(
-    name ||
-      /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ||
-      phone.length >= 7,
-  );
-  const hasStructure = expCount > 0 || eduCount > 0 || skillsCount >= 5;
+  // Must have at least one structured section (experience OR education).
+  // Skills-only results mean the parser found keyword lists but missed the CV
+  // structure — confirmed from live logs where Affinda returned name + skills
+  // but experience:[] education:[] for decorative PDF templates.
+  if (expCount === 0 && eduCount === 0) return false;
 
-  return hasIdentity && hasStructure;
+  // Must have a name that isn't a section heading or placeholder.
+  if (!name) return false;
+  const PLACEHOLDER = /^(candidate|professional|selected project|unknown|n\/a|testing and debugging|projects?|education|skills?|experience)$/i;
+  if (PLACEHOLDER.test(name)) return false;
+
+  return true;
 }
 
 function profileQualityScore(profile: ResumeProfile | undefined | null) {
@@ -983,7 +1082,8 @@ function profileQualityScore(profile: ResumeProfile | undefined | null) {
   if (name) score += 60;
   else score -= 90;
   if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) score += 35;
-  if (phone.replace(/\D/g, "").length >= 7) score += 15;
+  if (phone.replace(/\D/g, "").length >= 7 && !isInvalidPhoneValue(phone)) score += 15;
+  if (isInvalidPhoneValue(phone)) score -= 35;
   if (headline && headline.length <= 120) score += 15;
   if (expCount > 0) score += expCount * 35;
   else score -= 40;
@@ -1218,6 +1318,14 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
   );
   const jd = normalizeResumeText(String(body.jobDescription || ""));
   const existingProfile = body.resumeProfile || body.profile;
+  // Normalize fileName from JSON body — client may send triple-extension names
+  // like "Haritha Vijayakumar.pdf.pdf.pdf" from repeated re-parse cycles.
+  if (body.fileName) {
+    body = {
+      ...body,
+      fileName: normalizeUploadFileName(body.fileName),
+    };
+  }
 
   const isImprovementRequest = body.mode === "improve";
   if (isImprovementRequest && !isPremium) {
@@ -1258,6 +1366,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
       (incomingEmail.length > 0 && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(incomingEmail));
 
     const phoneLooksCorrupted =
+      isInvalidPhoneValue(incomingPhone) ||
       /^\d{4}[-/]\d{4}/.test(incomingPhone) || // looks like date range
       /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(incomingPhone);
 
@@ -1273,9 +1382,15 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
     });
 
     const nameLooksCorrupted = Boolean(incomingName && !incomingValidName);
+    const profileNameMissingFromRaw = Boolean(
+      incomingValidName &&
+      rawCv.length > 200 &&
+      !identityAppearsInRawCv(rawCv, incomingValidName)
+    );
 
     const profileIsCorrupted =
       nameLooksCorrupted ||
+      profileNameMissingFromRaw ||
       emailLooksCorrupted ||
       phoneLooksCorrupted ||
       headlineLooksCorrupted ||
@@ -1313,6 +1428,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
         phoneCorrupted: phoneLooksCorrupted,
         headlineCorrupted: headlineLooksCorrupted,
         nameCorrupted: nameLooksCorrupted,
+        profileNameMissingFromRaw,
         experienceCorrupted: experienceLooksCorrupted,
       });
       // Fall through to fresh AI parse below
@@ -1590,6 +1706,17 @@ export async function POST(request: Request) {
         isProfileUsable(affinda.resumeProfile) &&
         affindaScore > aiScore + 25
       );
+
+      // Log Affinda outcome so we can distinguish parse failure from field-mapping failure
+      if (affinda.ok && affinda.resumeProfile) {
+        const aExp = affinda.resumeProfile.experience?.length ?? 0;
+        const aEdu = affinda.resumeProfile.education?.length ?? 0;
+        if (!useAffinda) {
+          console.warn(`[api/cv] Affinda result rejected (exp=${aExp} edu=${aEdu} score=${affindaScore} aiScore=${aiScore}) — using AI parser. source=${affinda.source}`);
+        }
+      } else if (!affinda.ok && affinda.source !== "affinda_not_configured") {
+        console.warn(`[api/cv] Affinda failed (${affinda.source}): ${affinda.error ?? "(no message)"}`);
+      }
 
       if (useAffinda && affinda.resumeProfile) {
         debugCvPipeline("api.cv.parser.selection", {

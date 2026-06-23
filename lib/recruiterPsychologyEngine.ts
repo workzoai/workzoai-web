@@ -89,11 +89,18 @@ const recruiterProfiles: Record<RecruiterPersonality, RecruiterProfile> = {
     role: "Friendly HR",
     voiceGender: "female",
     pacing: "calm",
-    pressureBias: -8,
-    interruptionBias: -12,
-    questionFocus: ["communication", "teamwork", "motivation", "culture fit", "conflict handling"],
+    pressureBias: -10,
+    interruptionBias: -14,
+    questionFocus: ["communication", "teamwork", "motivation", "culture fit", "conflict handling", "values alignment"],
     behaviorPrompt:
-      "Warm, supportive, human, and honest. Ask about communication, teamwork, motivation, and culture fit. Challenge gently when answers are vague.",
+      "You are Sarah, a warm and people-focused HR recruiter. Your job is to make the candidate feel comfortable while still assessing fit. " +
+      "Ask about communication style, how they work in teams, what motivates them, and how they handle conflict or feedback. " +
+      "When answers are vague, prompt gently — never aggressively. " +
+      "Say things like 'That's helpful, can you tell me a bit more about...' or 'How did that make you feel?' " +
+      "You care about culture fit and emotional intelligence as much as skills. " +
+      "You do NOT push hard for metrics — you accept qualitative outcomes. " +
+      "You are the least interruptive recruiter. Let the candidate finish before responding. " +
+      "Never say 'I need proof' or 'Give me a number'. Instead ask 'How did the team respond to that?' or 'What was the impact on the people involved?'",
   },
   analytical_hiring_manager: {
     key: "analytical_hiring_manager",
@@ -101,11 +108,18 @@ const recruiterProfiles: Record<RecruiterPersonality, RecruiterProfile> = {
     role: "Hiring Manager",
     voiceGender: "male",
     pacing: "balanced",
-    pressureBias: 8,
-    interruptionBias: 8,
-    questionFocus: ["measurable impact", "ownership", "technical depth", "business value", "evidence"],
+    pressureBias: 10,
+    interruptionBias: 10,
+    questionFocus: ["measurable impact", "personal ownership", "technical depth", "business value", "evidence and proof"],
     behaviorPrompt:
-      "Analytical, direct, evidence-driven, and serious. Push for metrics, ownership, technical depth, and measurable business impact.",
+      "You are Daniel, an analytical hiring manager who evaluates candidates on evidence, not claims. " +
+      "You are direct, serious, and evidence-driven. You probe every claim for metrics, scope, and personal ownership. " +
+      "When a candidate says 'we improved X', you immediately ask: 'What was your specific role in that?' " +
+      "When they claim success, ask: 'How did you measure it? What was the baseline?' " +
+      "You are focused on business impact: revenue, cost, efficiency, retention, or customer outcomes. " +
+      "You challenge vague answers with: 'I need more than that. Give me one concrete example with a result.' " +
+      "You ask technical depth questions relevant to the role. " +
+      "You are not unkind, but you are not easily impressed. A strong answer gets: 'Good — now go deeper.'",
   },
   startup_recruiter: {
     key: "startup_recruiter",
@@ -113,11 +127,18 @@ const recruiterProfiles: Record<RecruiterPersonality, RecruiterProfile> = {
     role: "Startup Recruiter",
     voiceGender: "female",
     pacing: "fast",
-    pressureBias: 14,
-    interruptionBias: 16,
-    questionFocus: ["speed", "ownership", "execution", "ambiguity", "adaptability"],
+    pressureBias: 16,
+    interruptionBias: 18,
+    questionFocus: ["speed of execution", "ownership and initiative", "ambiguity handling", "adaptability", "what you built from scratch"],
     behaviorPrompt:
-      "Fast-paced, practical, and energetic. Interrupt quickly when answers are vague. Test ownership, speed, adaptability, and execution.",
+      "You are Priya, a fast-moving startup recruiter who values execution over credentials. " +
+      "You move fast. You interrupt if the candidate is rambling. You have no patience for corporate language. " +
+      "You care about: What did YOU build from scratch? How fast did you ship? What did you do when the plan broke? " +
+      "When answers are slow or vague, cut in with: 'I'm going to stop you — what actually shipped?' or 'Skip the context, what did you personally do?' " +
+      "You test for ownership aggressively: 'Were you the decision-maker or were you supporting someone?' " +
+      "You reward candidates who say 'I launched X in 3 weeks without a team' more than 'we delivered a project'. " +
+      "High pressure. High energy. You treat the interview like a pitch — the candidate has 30 seconds to prove relevance. " +
+      "You ask things like: 'If we hired you tomorrow, what would you do in week one?' and 'What's the fastest you've ever shipped something important?'",
   },
   corporate_recruiter: {
     key: "corporate_recruiter",
@@ -125,11 +146,19 @@ const recruiterProfiles: Record<RecruiterPersonality, RecruiterProfile> = {
     role: "Corporate Recruiter",
     voiceGender: "male",
     pacing: "structured",
-    pressureBias: 5,
-    interruptionBias: 4,
-    questionFocus: ["structure", "reliability", "planning", "process", "professionalism"],
+    pressureBias: 3,
+    interruptionBias: 2,
+    questionFocus: ["governance and compliance", "documentation and audit trails", "hierarchy and stakeholder alignment", "risk management", "process adherence", "cross-functional approval processes"],
     behaviorPrompt:
-      "Structured, formal, precise, and process-oriented. Expect concise, organized answers with consistency and professionalism.",
+      "You are Markus, a structured corporate recruiter focused on compliance, governance, and process integrity. " +
+      "You are formal and methodical. You do not rush. You follow a structured question sequence. " +
+      "You care about: Did they follow the right process? Did they escalate properly? Did they document their decisions? Were all stakeholders informed and aligned? " +
+      "You ask questions like: 'Who signed off on that decision?' and 'How did you ensure audit compliance?' and 'What was the approval process?' " +
+      "You are explicitly NOT focused on speed or disruption — you value reliability, predictability, and risk mitigation. " +
+      "When a candidate says they moved fast or bypassed process, you raise an eyebrow: 'Was that escalated appropriately?' " +
+      "You are polite and formal. You say 'Could you walk me through the governance process for that?' not 'Give me a number'. " +
+      "You are interested in seniority hierarchy, committee decisions, risk registers, change management, and compliance frameworks. " +
+      "This makes you DISTINCT from Daniel (who focuses on metrics and outcomes) — you focus on HOW decisions were made, WHO was involved, and WHETHER process was followed.",
   },
 };
 
@@ -271,34 +300,90 @@ function scoreAnswer(input: PsychologyInput) {
   const answer = input.answer;
   const role = input.targetRole || "";
   const jd = input.jobDescription || "";
+  const personality = normalizeRecruiterPersonality(input.recruiterPersonality);
+
+  // Base scores — same starting point for all
   let confidence = 42;
   let clarity = 42;
   let relevance = 42;
   let evidence = 34;
   let structure = 36;
 
-  if (hasMetric(answer)) evidence += 32;
-  if (claimsImprovement(answer)) relevance += 12;
-  if (hasOwnership(answer)) confidence += 18;
-  if (hasStructure(answer)) structure += 24;
-  if (answer.length > 220) clarity += 12;
-  if (isTooShort(answer)) {
-    clarity -= 12;
-    evidence -= 8;
-  }
-  if (isTooLong(answer)) {
-    clarity -= 18;
-    structure -= 12;
-  }
-  if (vagueOwnership(answer)) {
-    confidence -= 14;
-    evidence -= 8;
-  }
-  if (isGeneric(answer)) {
-    clarity -= 10;
-    evidence -= 12;
+  // Universal signals
+  const metricPresent = hasMetric(answer);
+  const improvementClaimed = claimsImprovement(answer);
+  const ownershipPresent = hasOwnership(answer);
+  const structurePresent = hasStructure(answer);
+  const tooShort = isTooShort(answer);
+  const tooLong = isTooLong(answer);
+  const generic = isGeneric(answer);
+  const vagueOwn = vagueOwnership(answer);
+
+  // ── Personality-specific scoring weights ─────────────────────────────────
+  if (personality === "friendly_hr") {
+    // Sarah: rewards communication signals, emotional language, culture words
+    // Doesn't penalise lack of metrics as hard as others
+    const hasCultureWords = /\b(team|collaborate|support|listen|empathy|feedback|open|honest|value|people|relationship|culture|motivation|conflict|resolve)\b/i.test(answer);
+    const hasEmotionalContext = /\b(felt|feeling|realised|learned|grew|understood|appreciated|difficult|challenging|proud|rewarding)\b/i.test(answer);
+    if (hasCultureWords) { confidence += 14; relevance += 12; }
+    if (hasEmotionalContext) { clarity += 10; relevance += 8; }
+    if (metricPresent) evidence += 16; // metrics nice-to-have, not required
+    if (improvementClaimed) relevance += 14;
+    if (ownershipPresent) confidence += 10;
+    if (structurePresent) structure += 18;
+    if (answer.length > 180) clarity += 10;
+    if (tooShort) { clarity -= 8; evidence -= 4; }
+    if (tooLong) { clarity -= 10; structure -= 8; }
+    if (vagueOwn) { confidence -= 6; } // gentle penalty — Sarah expects team language
+    if (generic) { clarity -= 6; evidence -= 6; }
+
+  } else if (personality === "analytical_hiring_manager") {
+    // Daniel: metrics are mandatory, vague ownership heavily penalised
+    if (metricPresent) evidence += 36;
+    if (improvementClaimed && !metricPresent) { evidence -= 14; relevance -= 4; } // claims without proof
+    if (ownershipPresent) { confidence += 22; evidence += 8; }
+    if (structurePresent) structure += 26;
+    if (answer.length > 220) clarity += 12;
+    if (tooShort) { clarity -= 16; evidence -= 14; }
+    if (tooLong) { clarity -= 20; structure -= 14; }
+    if (vagueOwn) { confidence -= 20; evidence -= 12; }
+    if (generic) { clarity -= 14; evidence -= 16; }
+
+  } else if (personality === "startup_recruiter") {
+    // Priya: speed signals, initiative, built-from-scratch language
+    // Heavily penalises rambling and team-speak
+    const hasSpeedSignal = /\b(shipped|launched|built|created|deployed|moved fast|week|sprint|overnight|quickly|immediately|zero to|from scratch|solo|alone|without a team)\b/i.test(answer);
+    const hasInitiative = /\b(i decided|i proposed|i initiated|i saw|i noticed|i took ownership|without being asked|on my own|proactively)\b/i.test(answer);
+    if (hasSpeedSignal) { confidence += 20; relevance += 16; }
+    if (hasInitiative) { confidence += 18; evidence += 12; }
+    if (metricPresent) evidence += 28;
+    if (ownershipPresent) { confidence += 24; evidence += 10; }
+    if (structurePresent) structure += 18;
+    if (tooShort) { clarity -= 10; evidence -= 8; } // concise is ok for Priya
+    if (tooLong) { clarity -= 28; structure -= 20; } // rambling is worst sin for Priya
+    if (vagueOwn) { confidence -= 26; evidence -= 16; } // "we did it" is unacceptable
+    if (generic) { clarity -= 18; evidence -= 18; }
+    if (improvementClaimed) relevance += 10;
+
+  } else {
+    // Markus (corporate_recruiter): process, governance, compliance signals
+    // Penalises "moved fast and broke things" language, rewards procedural language
+    const hasProcessSignal = /\b(process|procedure|protocol|governance|compliance|audit|documented|escalated|approved|signed off|committee|stakeholder|aligned|reviewed|framework|policy|regulation|risk|change management)\b/i.test(answer);
+    const hasFastMove = /\b(bypassed|skipped|moved fast|shipped quickly|no approval|without asking|alone|independently without)\b/i.test(answer);
+    if (hasProcessSignal) { structure += 28; relevance += 20; confidence += 10; }
+    if (hasFastMove) { structure -= 18; confidence -= 12; } // red flag for Markus
+    if (metricPresent) evidence += 20;
+    if (ownershipPresent) confidence += 14;
+    if (structurePresent) structure += 22;
+    if (answer.length > 200) clarity += 10; // Markus prefers thorough answers
+    if (tooShort) { clarity -= 16; structure -= 12; } // incomplete = non-compliant
+    if (tooLong) { clarity -= 8; structure -= 6; } // long is ok if structured
+    if (vagueOwn) { confidence -= 10; }
+    if (generic) { clarity -= 12; evidence -= 10; }
+    if (improvementClaimed) relevance += 8;
   }
 
+  // Universal role/JD match
   const roleTokens = role.toLowerCase().split(/\W+/).filter((token) => token.length > 3);
   const jdTokens = jd.toLowerCase().split(/\W+/).filter((token) => token.length > 5).slice(0, 40);
   const answerLower = answer.toLowerCase();
@@ -330,61 +415,105 @@ function createInterruption(input: PsychologyInput, score: ReturnType<typeof sco
   const answer = input.answer;
   const pressure = input.previousPressure || 35;
   const shouldBeMoreDirect = pressure + profile.interruptionBias > 42;
+  const p = profile.key;
 
+  // Contradiction check — all personalities handle this, but with different phrasing
   if (contradictions.length) {
-    return {
-      shouldInterrupt: true,
-      interruptionMessage: `Wait — I need to clarify something. ${contradictions[0]}`,
-      severity: "high" as const,
-    };
+    const msg =
+      p === "friendly_hr"
+        ? `I just want to make sure I understand — ${contradictions[0]}`
+        : p === "startup_recruiter"
+          ? `Hold on — ${contradictions[0]} Which is it?`
+          : p === "corporate_recruiter"
+            ? `I need to pause here for a compliance point. ${contradictions[0]}`
+            : `Wait — I need to clarify something. ${contradictions[0]}`;
+    return { shouldInterrupt: true, interruptionMessage: msg, severity: "high" as const };
   }
+
+  // Claims improvement without metric
   if (claimsImprovement(answer) && !hasMetric(answer)) {
-    return {
-      shouldInterrupt: shouldBeMoreDirect,
-      interruptionMessage: "Let me stop you there. How exactly did you measure that improvement?",
-      severity: "medium" as const,
-    };
+    const msg =
+      p === "friendly_hr"
+        ? "Could you give me a sense of the impact — even qualitatively? How did things change?"
+        : p === "startup_recruiter"
+          ? "Stop — what's the actual number? Revenue, time saved, users, something concrete."
+          : p === "corporate_recruiter"
+            ? "Could you walk me through how that improvement was measured and documented?"
+            : "Let me stop you there. How exactly did you measure that improvement?";
+    return { shouldInterrupt: shouldBeMoreDirect, interruptionMessage: msg, severity: "medium" as const };
   }
+
+  // Vague ownership
   if (vagueOwnership(answer)) {
-    return {
-      shouldInterrupt: shouldBeMoreDirect,
-      interruptionMessage: "Pause there. What exactly was YOUR direct contribution?",
-      severity: "medium" as const,
-    };
+    const msg =
+      p === "friendly_hr"
+        ? "That's helpful — and what was your personal role in that?"
+        : p === "startup_recruiter"
+          ? "I'm going to cut in — were YOU the one who did this, or was it the team? Be specific."
+          : p === "corporate_recruiter"
+            ? "Could you clarify your designated role in that project? What was formally your responsibility?"
+            : "Pause there. What exactly was YOUR direct contribution?";
+    return { shouldInterrupt: shouldBeMoreDirect, interruptionMessage: msg, severity: "medium" as const };
   }
+
+  // Too long
   if (isTooLong(answer)) {
+    const msg =
+      p === "friendly_hr"
+        ? "Thank you — let me bring you back. What was the key outcome of all that?"
+        : p === "startup_recruiter"
+          ? "I'm going to stop you — what actually happened? One sentence."
+          : p === "corporate_recruiter"
+            ? "Let me ask you to summarise the key process outcome. What was the final result?"
+            : "Let me stop you there. Start with the result first, then give me one example.";
+    return { shouldInterrupt: true, interruptionMessage: msg, severity: "medium" as const };
+  }
+
+  // Too short
+  if (isTooShort(answer)) {
+    const msg =
+      p === "friendly_hr"
+        ? "Can you tell me a bit more about that? I'd love to hear the full picture."
+        : p === "startup_recruiter"
+          ? "That's not enough. Give me the real situation and what you personally did."
+          : p === "corporate_recruiter"
+            ? "Could you expand on that? I'd like to understand the full process you followed."
+            : "That is too brief. Give me one specific example with action and result.";
+    return { shouldInterrupt: false, interruptionMessage: msg, severity: "low" as const };
+  }
+
+  // Generic language
+  if (isGeneric(answer)) {
+    const msg =
+      p === "friendly_hr"
+        ? "I appreciate that — could you give me one real example from your experience that shows that?"
+        : p === "startup_recruiter"
+          ? "That's a generic answer. Tell me one specific thing you built or shipped."
+          : p === "corporate_recruiter"
+            ? "Could you give me a specific documented example that demonstrates that capability?"
+            : "That still sounds generic. Give me a real example from your work.";
+    return { shouldInterrupt: shouldBeMoreDirect, interruptionMessage: msg, severity: "medium" as const };
+  }
+
+  // Markus-specific: fast-mover red flag
+  if (p === "corporate_recruiter" && /\b(bypassed|skipped|without approval|no sign.off|alone|independently without|without asking)\b/i.test(answer)) {
     return {
       shouldInterrupt: true,
-      interruptionMessage: "Let me stop you there. Start with the result first, then give me one example.",
+      interruptionMessage: "Can I ask — was that decision escalated through the proper approval process? Who signed off on it?",
       severity: "medium" as const,
     };
   }
-  if (isTooShort(answer)) {
-    return {
-      shouldInterrupt: false,
-      interruptionMessage: "That is too brief. Give me one specific example with action and result.",
-      severity: "low" as const,
-    };
-  }
-  if (isGeneric(answer)) {
-    return {
-      shouldInterrupt: shouldBeMoreDirect,
-      interruptionMessage: "That still sounds generic. Give me a real example from your work.",
-      severity: "medium" as const,
-    };
-  }
+
+  // Low relevance
   if (score.relevance < 36) {
-    return {
-      shouldInterrupt: false,
-      interruptionMessage: "Tie this more clearly to the role. Why would this matter for this job?",
-      severity: "low" as const,
-    };
+    const msg =
+      p === "corporate_recruiter"
+        ? "How does that connect to the governance requirements of this role specifically?"
+        : "Tie this more clearly to the role. Why would this matter for this job?";
+    return { shouldInterrupt: false, interruptionMessage: msg, severity: "low" as const };
   }
-  return {
-    shouldInterrupt: false,
-    interruptionMessage: "",
-    severity: "low" as const,
-  };
+
+  return { shouldInterrupt: false, interruptionMessage: "", severity: "low" as const };
 }
 
 function updateMemory(input: PsychologyInput, score: ReturnType<typeof scoreAnswer>, contradictions: string[], mood: RecruiterMood): RecruiterMemory {
@@ -478,30 +607,88 @@ function computePressure(previousPressure: number, score: ReturnType<typeof scor
 }
 
 function reactionForMood(mood: RecruiterMood, profile: RecruiterProfile) {
-  const prefixByPacing = {
-    calm: "Okay.",
-    balanced: "Hmm.",
-    fast: "Wait.",
-    structured: "Let me be precise.",
-  }[profile.pacing];
+  const p = profile.key;
 
-  if (mood === "impressed") return `${prefixByPacing} That is a stronger example.`;
-  if (mood === "interested") return `${prefixByPacing} That gives me something useful to work with.`;
-  if (mood === "skeptical") return `${prefixByPacing} I am not fully convinced yet.`;
-  if (mood === "impatient") return `${prefixByPacing} You are losing the main point.`;
-  if (mood === "clarifying") return `${prefixByPacing} I need to clarify a mismatch before we continue.`;
-  if (mood === "interrupting") return `${prefixByPacing} Let me stop you there.`;
-  if (mood === "concerned") return `${prefixByPacing} That creates a concern for me.`;
-  return `${prefixByPacing} I am evaluating the answer.`;
+  const reactions: Record<RecruiterPersonality, Record<RecruiterMood, string>> = {
+    friendly_hr: {
+      impressed:    "That's really good to hear — that's exactly the kind of example I was hoping for.",
+      interested:   "Thank you, that helps me understand you better.",
+      skeptical:    "I want to make sure I'm getting a full picture — can you tell me a bit more?",
+      impatient:    "Let me bring you back to the core of what I asked.",
+      clarifying:   "I just want to make sure I've understood that correctly before we move on.",
+      interrupting: "Let me jump in here for a moment.",
+      concerned:    "That's something I'd want to explore a bit further.",
+      neutral:      "Okay, that gives me something to work with.",
+    },
+    analytical_hiring_manager: {
+      impressed:    "Good — that's the kind of evidence I need. Let's go deeper.",
+      interested:   "Hmm. That's useful, but I want to verify the specifics.",
+      skeptical:    "I'm not fully convinced. What's the data behind that?",
+      impatient:    "You're losing the thread. Give me the result first.",
+      clarifying:   "Wait — I need to reconcile something before we continue.",
+      interrupting: "Let me stop you there.",
+      concerned:    "That raises a flag for me. Explain that.",
+      neutral:      "Noted. Let's keep moving.",
+    },
+    startup_recruiter: {
+      impressed:    "Okay — that's what I'm talking about. What did you do next?",
+      interested:   "Right, that's a start. What was your actual output?",
+      skeptical:    "I'm not buying it yet. What specifically did YOU ship?",
+      impatient:    "Too slow. What actually happened?",
+      clarifying:   "Hold on — which part of that was you?",
+      interrupting: "Stop — I'm going to cut in.",
+      concerned:    "That's a red flag. Tell me more.",
+      neutral:      "Okay. Keep going.",
+    },
+    corporate_recruiter: {
+      impressed:    "That is well-structured. I appreciate the thoroughness.",
+      interested:   "I see. Could you clarify the process that led to that outcome?",
+      skeptical:    "I'm not certain the full compliance picture is clear here.",
+      impatient:    "Let's return to the process question I raised.",
+      clarifying:   "I need to pause on a procedural point.",
+      interrupting: "If I may interject — ",
+      concerned:    "That raises a governance question for me.",
+      neutral:      "Understood. Proceeding to the next point.",
+    },
+  };
+
+  const personalityReactions = reactions[p] || reactions.analytical_hiring_manager;
+  return personalityReactions[mood] || personalityReactions.neutral;
 }
 
 function createNextQuestionSeed(input: PsychologyInput, score: ReturnType<typeof scoreAnswer>, memory: RecruiterMemory, contradictions: string[], profile: RecruiterProfile) {
+  const p = profile.key;
+
   if (contradictions.length) return `Clarify this contradiction directly: ${contradictions[0]}`;
-  if (memory.missingMetrics.length) return `Earlier or just now, the candidate claimed improvement without numbers. Ask how success was measured.`;
-  if (memory.vagueAnswers.length) return `The candidate's ownership is unclear. Ask what they personally did.`;
-  if (score.relevance < 40) return `Ask them to connect the example more directly to ${input.targetRole || "the role"}.`;
-  if (score.structure < 40) return `Ask them to answer again with result first, then one example.`;
-  return `Ask a realistic follow-up focused on ${profile.questionFocus.slice(0, 2).join(" and ")}.`;
+
+  if (p === "friendly_hr") {
+    if (memory.vagueAnswers.length) return `The candidate used team-based language. Gently ask: 'And what was your personal contribution to that?'`;
+    if (score.relevance < 40) return `Ask how they felt about that experience and what it taught them about working with others.`;
+    if (score.structure < 40) return `Ask them to walk you through the situation from the beginning — what happened and how they responded.`;
+    return `Ask a question focused on ${profile.questionFocus.slice(0, 2).join(" and ")} — make it conversational and human.`;
+  }
+
+  if (p === "analytical_hiring_manager") {
+    if (memory.missingMetrics.length) return `The candidate claimed improvement without proof. Ask: 'What was the exact metric — before and after?'`;
+    if (memory.vagueAnswers.length) return `Ownership is still unclear. Ask: 'What would NOT have happened if you hadn't been there?'`;
+    if (score.evidence < 40) return `Ask for a specific example with a measurable business outcome — revenue, cost, time, retention, or efficiency.`;
+    if (score.relevance < 40) return `Ask them to connect this directly to the ${input.targetRole || "role"} requirements.`;
+    return `Push for deeper technical or business detail on ${profile.questionFocus.slice(0, 2).join(" and ")}.`;
+  }
+
+  if (p === "startup_recruiter") {
+    if (memory.vagueAnswers.length) return `Ownership is team-speak. Ask: 'What specifically did YOU ship? What would have been missing without you?'`;
+    if (memory.missingMetrics.length) return `Ask: 'Give me one number — users, revenue, time, anything concrete.'`;
+    if (score.structure < 40) return `Ask: 'What was the fastest you moved on something similar? What did you ship and how long did it take?'`;
+    if (score.relevance < 40) return `Ask: 'If we hired you tomorrow, what would you do in the first week?'`;
+    return `Ask a high-velocity ownership question about ${profile.questionFocus.slice(0, 2).join(" or ")}.`;
+  }
+
+  // Markus (corporate_recruiter)
+  if (memory.missingMetrics.length) return `Ask: 'How was that outcome formally documented and reported to stakeholders?'`;
+  if (score.structure < 40) return `Ask them to walk through the formal process step by step — who was involved, what approvals were needed, and how it was signed off.`;
+  if (score.relevance < 40) return `Ask how that experience connects to the governance or compliance requirements of this role.`;
+  return `Ask a structured question about ${profile.questionFocus.slice(0, 2).join(" and ")} — focus on process, approval chains, and documentation.`;
 }
 
 export function evaluateRecruiterPsychology(input: PsychologyInput): PsychologyResult {

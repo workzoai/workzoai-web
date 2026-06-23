@@ -52,6 +52,25 @@ type DbAnalyticsEvent = {
   created_at: string;
 };
 
+type UsageEvent = {
+  user_id: string | null;
+  event_name: string | null;
+  plan: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+type UsageSummary = {
+  configured: boolean;
+  signedInUsers: number;
+  activeSignedInUsers7d: number;
+  activeSignedInUsers30d: number;
+  totalUsageEvents: number;
+  featureCounts: Record<string, number>;
+  planCounts: Record<string, number>;
+  reason?: string;
+};
+
 function cleanText(value: unknown, max = 500) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
@@ -117,6 +136,18 @@ function avg(values: Array<number | null | undefined>) {
   const clean = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
   if (!clean.length) return null;
   return Math.round(clean.reduce((sum, value) => sum + value, 0) / clean.length);
+}
+
+function daysAgo(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date;
+}
+
+function isAfter(value: string | null | undefined, threshold: Date) {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) && time >= threshold.getTime();
 }
 
 function eventName(item: DbAnalyticsEvent) {
@@ -199,7 +230,50 @@ function buildPlanBreakdown(events: DbAnalyticsEvent[]) {
   }, {});
 }
 
-function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[]) {
+
+function buildUsageSummary(usageEvents: UsageEvent[] = [], configured = true, reason?: string): UsageSummary {
+  const withUser = usageEvents.filter((item) => item.user_id);
+  const signedInUsers = new Set(withUser.map((item) => item.user_id).filter(Boolean)).size;
+  const activeSignedInUsers7d = new Set(
+    withUser.filter((item) => isAfter(item.created_at, daysAgo(7))).map((item) => item.user_id).filter(Boolean),
+  ).size;
+  const activeSignedInUsers30d = new Set(
+    withUser.filter((item) => isAfter(item.created_at, daysAgo(30))).map((item) => item.user_id).filter(Boolean),
+  ).size;
+
+  return {
+    configured,
+    signedInUsers,
+    activeSignedInUsers7d,
+    activeSignedInUsers30d,
+    totalUsageEvents: usageEvents.length,
+    featureCounts: countBy(usageEvents.map((item) => item.event_name || "unknown_event")),
+    planCounts: countBy(usageEvents.map((item) => item.plan || "free")),
+    ...(reason ? { reason } : {}),
+  };
+}
+
+async function readUsageSummary(supabase: ReturnType<typeof getSupabaseAdmin>): Promise<UsageSummary> {
+  if (!supabase) return buildUsageSummary([], false, "supabase_not_configured");
+
+  try {
+    const { data, error } = await supabase
+      .from("workzo_usage_events")
+      .select("user_id, event_name, plan, metadata, created_at")
+      .order("created_at", { ascending: false })
+      .limit(10000);
+
+    if (error) {
+      return buildUsageSummary([], false, error.message || "usage_table_read_failed");
+    }
+
+    return buildUsageSummary((data || []) as UsageEvent[], true);
+  } catch (error) {
+    return buildUsageSummary([], false, error instanceof Error ? error.message : String(error));
+  }
+}
+
+function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[], usageSummary: UsageSummary = buildUsageSummary([])) {
   // Exclude events generated while a founder/dev-tools plan override was
   // active — these are test sessions clicking through the app as a fake
   // plan, not real user behavior, and would otherwise skew completion
@@ -210,6 +284,8 @@ function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[]) {
   const counts = countBy(events.map(eventName));
   const sessions = new Set(events.map((item) => item.session_id).filter(Boolean));
   const visitors = new Set(events.map((item) => item.visitor_id).filter(Boolean));
+  const activeVisitors7d = new Set(events.filter((item) => isAfter(item.created_at, daysAgo(7))).map((item) => item.visitor_id).filter(Boolean));
+  const activeVisitors30d = new Set(events.filter((item) => isAfter(item.created_at, daysAgo(30))).map((item) => item.visitor_id).filter(Boolean));
   const uploads = counts.cv_uploaded || 0;
   const interviewsStarted = counts.interview_started || 0;
   const answersSubmitted = counts.answer_submitted || 0;
@@ -264,6 +340,17 @@ function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[]) {
     productionEvents: events.length,
     totalUniqueVisitors: visitors.size,
     uniqueVisitorsAllTime: visitors.size,
+    uniqueVisitors: visitors.size,
+    activeVisitors7d: activeVisitors7d.size,
+    activeVisitors30d: activeVisitors30d.size,
+    signedInUsers: usageSummary.signedInUsers,
+    activeSignedInUsers7d: usageSummary.activeSignedInUsers7d,
+    activeSignedInUsers30d: usageSummary.activeSignedInUsers30d,
+    totalUsageEvents: usageSummary.totalUsageEvents,
+    usageFeatureCounts: usageSummary.featureCounts,
+    usagePlanCounts: usageSummary.planCounts,
+    usageConfigured: usageSummary.configured,
+    usageReason: usageSummary.reason || "",
     uniqueSessions: sessions.size,
     uploads,
     interviewsStarted,
@@ -301,6 +388,13 @@ function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[]) {
       productionEvents: events.length,
       totalUniqueVisitors: visitors.size,
       uniqueVisitorsAllTime: visitors.size,
+      uniqueVisitors: visitors.size,
+      activeVisitors7d: activeVisitors7d.size,
+      activeVisitors30d: activeVisitors30d.size,
+      signedInUsers: usageSummary.signedInUsers,
+      activeSignedInUsers7d: usageSummary.activeSignedInUsers7d,
+      activeSignedInUsers30d: usageSummary.activeSignedInUsers30d,
+      totalUsageEvents: usageSummary.totalUsageEvents,
       uniqueSessions: sessions.size,
       cvUploads: uploads,
       uploads,
@@ -356,7 +450,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, reason: "unauthorized" }, { status: 404 });
     }
     const supabase = getSupabaseAdmin();
-    if (!supabase) return NextResponse.json({ ok: true, configured: false, summary: buildAnalyticsResponse([]).summary, metrics: buildAnalyticsResponse([]).metrics, events: [], reason: "supabase_not_configured" });
+    if (!supabase) return NextResponse.json({ ok: true, configured: false, summary: buildAnalyticsResponse([], buildUsageSummary([], false, "supabase_not_configured")).summary, metrics: buildAnalyticsResponse([], buildUsageSummary([], false, "supabase_not_configured")).metrics, events: [], reason: "supabase_not_configured" });
+    const usageSummary = await readUsageSummary(supabase);
     const { data, error } = await supabase
       .from("workzo_analytics_events")
       .select("event, visitor_id, session_id, path, source, referrer, host, origin, is_local, device_type, user_agent, role, market, recruiter, mode, score, trust, pressure, metadata, client_timestamp, created_at")
@@ -364,11 +459,11 @@ export async function GET(request: Request) {
       .limit(10000);
     if (error) {
       console.error("[WorkZo analytics] metrics read failed", { message: error.message, details: error.details, hint: error.hint, code: error.code });
-      return NextResponse.json({ ok: true, configured: true, summary: buildAnalyticsResponse([]).summary, metrics: buildAnalyticsResponse([]).metrics, events: [], reason: "read_failed", error: error.message, details: error.details, hint: error.hint, code: error.code });
+      return NextResponse.json({ ok: true, configured: true, summary: buildAnalyticsResponse([], usageSummary).summary, metrics: buildAnalyticsResponse([], usageSummary).metrics, events: [], reason: "read_failed", error: error.message, details: error.details, hint: error.hint, code: error.code });
     }
-    return NextResponse.json(buildAnalyticsResponse((data || []) as DbAnalyticsEvent[]));
+    return NextResponse.json(buildAnalyticsResponse((data || []) as DbAnalyticsEvent[], usageSummary));
   } catch (error) {
     console.error("[WorkZo analytics] metrics route failed", error);
-    return NextResponse.json({ ok: true, configured: false, summary: buildAnalyticsResponse([]).summary, metrics: buildAnalyticsResponse([]).metrics, events: [], reason: "route_failed", error: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({ ok: true, configured: false, summary: buildAnalyticsResponse([], buildUsageSummary([], false, "route_failed")).summary, metrics: buildAnalyticsResponse([], buildUsageSummary([], false, "route_failed")).metrics, events: [], reason: "route_failed", error: error instanceof Error ? error.message : String(error) });
   }
 }

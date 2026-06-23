@@ -67,6 +67,7 @@ type InterviewRequest = {
     language?: string;
     recruiterMemoryProfile?: unknown;
     jobMemoryProfile?: unknown;
+    resumeProfile?: unknown;
   };
   cvText?: string;
   jobDescription?: string;
@@ -79,6 +80,7 @@ type InterviewRequest = {
   recruiterTrust?: number;
   recruiterState?: string | null;
   recruiterMemorySummary?: string;
+  resumeProfile?: unknown;
 };
 
 function text(value: unknown, maxChars = 1200) {
@@ -1099,12 +1101,63 @@ export async function POST(request: Request) {
       recruiterState: body.recruiterState || "neutral",
       lastAnswerScore: null, // updated by scoring engine each turn
     });
+    // Build a structured profile text from resumeProfile if available — this gives
+    // the evidence planner accurate skills, projects, and experience to extract from
+    // (regex extraction from the plain cvText fallback loses structured fields)
+    const profileForPlanner = (body.resumeProfile || setup.resumeProfile) as Record<string, unknown> | undefined;
+    const structuredCvForPlanner = profileForPlanner ? (() => {
+      const b = (profileForPlanner.basics as Record<string, string>) || {};
+      const lines: string[] = [];
+      if (b.name) lines.push(`Candidate: ${b.name}`);
+      if (b.headline) lines.push(`Headline: ${b.headline}`);
+      const summary = profileForPlanner.summary as string;
+      if (summary) lines.push(`Summary: ${summary}`);
+      const exp = profileForPlanner.experience as Array<Record<string, unknown>>;
+      if (Array.isArray(exp) && exp.length) {
+        lines.push("EXPERIENCE");
+        exp.slice(0, 8).forEach(e => {
+          lines.push(`${e.title || ""} at ${e.company || ""} (${e.dates || ""})`);
+          (e.bullets as string[] || []).slice(0, 4).forEach(b => lines.push(`- ${b}`));
+        });
+      }
+      const edu = profileForPlanner.education as Array<Record<string, unknown>>;
+      if (Array.isArray(edu) && edu.length) {
+        lines.push("EDUCATION");
+        edu.slice(0, 4).forEach(e => lines.push(`${e.degree || ""} at ${e.institution || ""}`));
+      }
+      const skills = profileForPlanner.skills as string[];
+      if (Array.isArray(skills) && skills.length) lines.push(`SKILLS\n${skills.join(", ")}`);
+      const projects = profileForPlanner.projects as Array<Record<string, unknown>>;
+      if (Array.isArray(projects) && projects.length) {
+        lines.push("PROJECTS");
+        projects.slice(0, 6).forEach(p => {
+          lines.push(`${p.name || "Project"}`);
+          (p.bullets as string[] || []).slice(0, 3).forEach(b => lines.push(`- ${b}`));
+        });
+      }
+      const langs = profileForPlanner.languages as string[];
+      if (Array.isArray(langs) && langs.length) lines.push(`Languages: ${langs.join(", ")}`);
+      return lines.join("\n").trim();
+    })() : null;
+
     const evidencePlan = buildWorkZoInterviewEvidencePlan({
-      cvText: cvGroundingEvidence || compactCv,
+      cvText: structuredCvForPlanner || cvGroundingEvidence || compactCv,
       jobDescription: companyDecoratedJob,
       targetRole: text(body.targetRole || setup.targetRole, 120),
       transcript: body.transcript || [],
     });
+
+    // Log the interview plan for req 20g
+    if (evidencePlan?.matchedSkills?.length || evidencePlan?.cvSkills?.length) {
+      console.log("[WorkZo] interview.question.from_plan", {
+        cvSkills: evidencePlan.cvSkills?.slice(0, 8),
+        matchedSkills: evidencePlan.matchedSkills?.slice(0, 6),
+        missingSkills: evidencePlan.missingOrWeakJdEvidence?.slice(0, 4),
+        cvProjects: evidencePlan.cvProjects?.slice(0, 4),
+        totalQuestions: evidencePlan.questionPlan,
+        targetRole: text(body.targetRole || setup.targetRole, 80),
+      });
+    }
     const evidencePlanContext = serializeWorkZoInterviewEvidencePlan(evidencePlan);
     const recruiterBrainContext = `${serializeRecruiterBrainForPrompt(recruiterBrain)}\n\n${evidencePlanContext}`;
     // ───────────────────────────────────────────────────────────────────────

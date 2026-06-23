@@ -611,7 +611,30 @@ function coerceEducation(items: unknown): ResumeEducation[] {
       return true;
     })
     .slice(0, 8);
-  return sortEducationByDate(parsed);
+  const validated = parsed.map((item) => {
+    // Detect AI-hallucinated same-year ranges for multi-year programs
+    // e.g. "2014 - 2014" for a Master's degree (confirmed from live logs: Surender_Resume.pdf
+    // produced "2014 - 2014" for a joint degree between two universities).
+    // These occur when the AI sees a split/exchange program and guesses based on one year only.
+    const dates = item.dates || "";
+    const yearMatches = dates.match(/\b(19|20)\d{2}\b/g);
+    if (yearMatches && yearMatches.length >= 2) {
+      const years = yearMatches.map(Number);
+      const startYear = Math.min(...years);
+      const endYear = Math.max(...years);
+      if (startYear === endYear) {
+        const degreeText = (item.degree + " " + item.institution).toLowerCase();
+        const isMultiYear = /\b(master|mba|msc|bachelor|bsc|phd|diploma|degree|bootcamp|programme|program)\b/i.test(degreeText);
+        if (isMultiYear) {
+          // Keep the entry but flag the dates as unverified — better than dropping the degree
+          return { ...item, dates: `${startYear} (dates unverified - check original CV)` };
+        }
+      }
+    }
+    return item;
+  });
+
+  return sortEducationByDate(validated);
 }
 
 function coerceProjects(items: unknown): ResumeProject[] {
@@ -696,6 +719,77 @@ function cleanEmailField(value: unknown): string {
   return match[0].toLowerCase();
 }
 
+
+// ── Structural skill/job-title discriminator (module level) ─────────────
+// CLASS A — terminal title nouns: words that END a job title and are never
+//   standalone skills by themselves. "Engineer" or "Manager" alone means nothing
+//   as a skill. These filter a skill only when they appear as the LAST word.
+//
+// CLASS B — domain context words: appear in both titles AND skill names.
+//   "Cloud" → "Cloud Engineer" (title) vs "Google Cloud" (platform skill).
+//   These must NOT filter a skill on their own — only the full phrase matters.
+//
+// STRUCTURAL RULE: a skill phrase is a job title (not a skill) when:
+//   its last word is a CLASS A title noun
+//   AND no word in the phrase is a brand/technology anchor
+//   AND the full phrase has no domain-specific suffix that makes it a tool/area
+//
+// This rule works for any CV, language, role, or domain without a hardcoded list.
+
+// CLASS A: words that are terminal job-title nouns — never standalone skills.
+// Safe to filter when the LAST word of a phrase matches this.
+const TITLE_NOUN_RE = /^(manager|managerin|engineer|developer|designer|analyst|specialist|consultant|coordinator|administrator|director|lead|head|chief|officer|executive|intern|trainee|architect|scientist|researcher|recruiter|representative|technician|planner|editor|writer|supervisor|superintendent|leiter|leiterin|ingenieur|ingenieurin|entwickler|entwicklerin|berater|beraterin|spezialist|spezialistin|koordinator|koordinatorin|praktikant|praktikantin|wissenschaftler|forscher)$/i;
+
+// CLASS B: domain-context words — appear in both titles AND skill names.
+// Do NOT use these alone to filter; context (full phrase) determines meaning.
+// Listed here only for documentation — not used in the filter logic.
+// cloud, data, technical, system, network, software, business, customer,
+// marketing, sales, support, product, it, hr, ux, ui, etc.
+
+// Brand/technology anchors: when any word in a skill phrase matches this,
+// the phrase names a specific tool/platform/service, not a job title.
+// Pattern: proper-noun product brands that never appear in job titles alone.
+const TECH_BRAND_RE = /^(google|microsoft|amazon|apple|salesforce|oracle|sap|ibm|cisco|adobe|atlassian|hubspot|zendesk|servicenow|workday|tableau|splunk|nessus|wireshark|crowdstrike|github|gitlab|bitbucket|jira|confluence|slack|notion|figma|sketch|powerbi|databricks|snowflake|redshift|bigquery|terraform|kubernetes|docker|jenkins|ansible|airflow|spark|hadoop|kafka|elasticsearch|mongodb|postgresql|mysql|redis|azure|aws|gcp|okta|pagerduty|datadog|grafana|prometheus|newrelic|twilio|stripe|shopify|wordpress|react|angular|vue|django|fastapi|spring|dotnet|nodejs|tensorflow|pytorch|scikit|langchain|openai|anthropic|cohere|pinecone|weaviate|mongodb|firebase|supabase|vercel|netlify|heroku|digitalocean|cloudflare|akamai|fastly|sendgrid|mailchimp|marketo|pardot|eloqua|zoho|freshdesk|freshservice|intercom|drift|segment|amplitude|mixpanel|heap|fullstory|hotjar|looker|metabase|dbt|fivetran|airbyte|stitch|matillion|informatica|talend|mulesoft|boomi|zapier|workato|make|n8n|power|sharepoint|teams|zoom|webex|meet)$/i;
+
+// Domain-area suffixes: when the LAST word is one of these (not a CLASS A title noun),
+// the phrase names a skill area or discipline, not a job title.
+// e.g. "Data Analysis", "Cloud Security", "Network Monitoring", "Technical Support"
+const SKILL_AREA_SUFFIX_RE = /^(analysis|analytics|security|monitoring|administration|engineering|architecture|visualization|visualisation|automation|intelligence|testing|assurance|management|operations|development|design|science|computing|infrastructure|integration|optimization|optimisation|implementation|deployment|configuration|troubleshooting|support|maintenance|reporting|planning|strategy|communication|writing|documentation|training|research|governance|compliance|modelling|modeling|processing|pipelines|migration|scaling|performance|reliability|observability|recovery|protection|detection|response|hunting|assessment|auditing|mapping|classification|annotation)$/i;
+
+function isJobTitleNotSkill(skill: string): boolean {
+  const words = skill.trim().split(/\s+/).filter(Boolean);
+  if (!words.length || words.length > 5) return false;
+
+  // Single word: filter if it IS a CLASS A title noun or a German compound role title
+  // e.g. "Engineer" → filtered | "Projektleiter" → filtered | "Python" → kept
+  if (words.length === 1) {
+    if (TITLE_NOUN_RE.test(words[0])) return true;
+    // German compound job titles: "Projektleiter", "Softwareentwickler", "Marketingmanager"
+    // These end with a known German title suffix and are long enough to be compounds (8+ chars)
+    const GERMAN_TITLE_SUFFIX_RE = /(?:leiter|leiterin|ingenieur|ingenieurin|entwickler|entwicklerin|berater|beraterin|spezialist|spezialistin|koordinator|koordinatorin|praktikant|praktikantin|wissenschaftler|forscher|manager|managerin|analyst|analystin|designer|designerin|architekt|architektin|techniker|technikerin)$/i;
+    if (words[0].length >= 8 && GERMAN_TITLE_SUFFIX_RE.test(words[0])) return true;
+    return false;
+  }
+
+  // Multi-word: check if any word is a brand anchor → definitely a tool/platform
+  if (words.some(w => TECH_BRAND_RE.test(w))) return false;
+
+  const lastWord = words[words.length - 1];
+
+  // Last word is a domain-area suffix → this is a skill area, not a job title
+  // "Data Analysis", "Cloud Security", "Technical Support", "Network Monitoring"
+  if (SKILL_AREA_SUFFIX_RE.test(lastWord)) return false;
+
+  // Last word is a CLASS A title noun → job title phrase
+  // "Marketing Manager", "Data Analyst", "Cloud Engineer", "Senior Developer"
+  if (TITLE_NOUN_RE.test(lastWord)) return true;
+
+  // All words are domain-context words (no title noun, no area suffix, no brand)
+  // e.g. "IT Support" (it=context, support=context → neither CLASS A nor area suffix)
+  // These are skill areas — keep them. The LLM puts them there for a reason.
+  return false;
+}
+
 function repairProfileIdentity(profile: ResumeProfile, rawText: string, fileName = "", modelName = ""): ResumeProfile {
   // General, file-agnostic exclusion set: anything already independently
   // extracted as a skill or as a company name cannot also be accepted as
@@ -719,8 +813,16 @@ function repairProfileIdentity(profile: ResumeProfile, rawText: string, fileName
   // from live testing (a candidate name appearing in its own skills array).
   // General check, not a specific-name denylist: works for any candidate.
   const nameNormalized = normalizeForCompare(name);
+  // Also remove bare role-title phrases that ended up in skills
+  // (e.g. "Marketing Manager", "Data Analyst" as skills rather than job titles)
+  // using the same isBarePureRoleTitle logic — defined in buildProfileFromAi above.
+  // Inline version here since we're outside that function scope:
   const skills = Array.isArray(profile.skills)
-    ? profile.skills.filter((skill) => normalizeForCompare(skill) !== nameNormalized)
+    ? profile.skills.filter((skill) => {
+        if (normalizeForCompare(skill) === nameNormalized) return false;
+        if (isJobTitleNotSkill(skill)) return false;
+        return true;
+      })
     : profile.skills;
 
   return {
@@ -867,16 +969,28 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
   const projects = aiProjects.length ? aiProjects : rawProjects;
 
   const aiName = clean(basics.name).toLowerCase();
+  // Role-title pattern for skill filtering — matches ONLY when the skill
+  // is a bare job-title phrase with no brand/technology prefix.
+  // IMPORTANT: must NOT reject legitimate compound skill names like:
+  //   "Google Cloud", "Azure DevOps", "Technical Support", "Data Analysis",
+  //   "Cloud Security", "IT Support", "Marketing Automation", "Customer Success"
+  // These all contain role-type words but are genuine skills.
+  // Rule: only reject when ALL words in the skill are role-type words AND there
+  // is no brand prefix (proper noun starting with capital, not in the role list).
+  // ── Structural skill/job-title discriminator ─────────────────────────────
+  // ROLE_WORD_RE mixes two conceptually different word classes. We split them:
+  //
+
+
   const rawSkills = unique(asList(ai.skills), 40)
     .filter((s) => {
       const trimmed = s.trim();
       if (!trimmed) return false;
       // Reject if it's the candidate's own name
       if (aiName && trimmed.toLowerCase() === aiName) return false;
-      // Reject bare role words or multi-word role-title phrases
-      if (ROLE_WORD_RE.test(trimmed)) return false;
-      const words = trimmed.split(/\s+/);
-      if (words.length <= 3 && words.some((w) => ROLE_WORD_RE.test(w))) return false;
+      // Reject BARE role-title phrases (no brand prefix) — but keep compound tool names
+      // like "Google Cloud", "Technical Support", "Data Analysis", "Azure DevOps"
+      if (isJobTitleNotSkill(trimmed)) return false;
       // Reject overly long entries (sentences, not skills)
       if (s.length > 80) return false;
       return true;
@@ -953,7 +1067,10 @@ function sanitizeParsedProfileFields(profile: ResumeProfile, rawText: string, fi
   const projects = Array.isArray(profile.projects) && profile.projects.length ? profile.projects : extractProjectsFromRawText(rawText);
 
   const headlineRaw = clean(profile.basics?.headline || '');
-  const headlineLooksLikeSentence = headlineRaw.length > 150 || (headlineRaw.split(/\s+/).length > 14 && /\b(with|and|for|to|that|which|after|before|because|while|where|using|leading|improving|supporting|managing|developing|creating|providing)\b/i.test(headlineRaw));
+  const headlineLooksLikeSentence = headlineRaw.length > 100 ||
+      (headlineRaw.split(/\s+/).length > 10 && /\b(with|and|for|to|that|which|after|before|because|while|where|using|leading|improving|supporting|managing|developing|creating|providing|transitioning|completing|seeking|pursuing|focused|specialized|passionate)\b/i.test(headlineRaw)) ||
+      // Detect transition/career-change sentences: starts with common sentence openers
+      /^(ex-|former|experienced|results-driven|detail-oriented|passionate|motivated|dedicated|highly|a tech|i am|skilled|seasoned)/i.test(headlineRaw);
   const headlineLooksLikeBullet = /^(led|managed|assisted|supported|coordinated|created|developed|implemented|improved|provided|responsible|collaborated|conducted)\b/i.test(headlineRaw) && headlineRaw.length > 60;
   const safeHeadline = headlineLooksLikeSentence || headlineLooksLikeBullet
     ? clean(experience[0]?.title || fallback.basics?.headline || 'Professional')
@@ -1085,9 +1202,35 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "EDUCATION ordering: sort education entries by start date DESCENDING (most recent first).",
             "EDUCATION fields: 'degree' is the QUALIFICATION NAME (e.g. 'Bachelor of Science', 'Master of Arts in Marketing', 'Data Science Bootcamp'). 'institution' is the SCHOOL/UNIVERSITY NAME. NEVER put the school name in the degree field. If only a school name appears without an explicit degree title, set degree to empty string and only fill institution.",
             "LOCATION field: must be a physical address, city, or country. NEVER put education entries, university names, dates, or date ranges in the location field.",
+            "SKILLS EXTRACTION RULES — extract skills from ALL these formats:",
+            "  1. Comma-separated list:  'Python, SQL, Tableau' → [Python, SQL, Tableau]",
+            "  2. Line-separated list:   each skill on its own line",
+            "  3. Category format:       'Programming: Python, SQL' → [Python, SQL] (extract values, drop category label)",
+            "  4. Grouped labels:        'Tools: JIRA, Confluence | Platforms: AWS, GCP' → [JIRA, Confluence, AWS, GCP]",
+            "  5. Colon-separated:       'Data Visualization: Tableau, Matplotlib, Seaborn' → [Tableau, Matplotlib, Seaborn]",
+            "  NEVER include category labels (like 'Programming', 'Data Engineering', 'Machine Learning', 'Tools', 'Platforms') as skills themselves.",
+            "  IMPORTANT PDF artifact: some PDFs merge the category label and first skill with no separator, e.g. 'Security ToolsSplunk, Wireshark' or 'Cloud PlatformsAWS, Azure, Google Cloud'. Recognize this pattern and extract: Splunk, Wireshark (from Security Tools), AWS, Azure, Google Cloud (from Cloud Platforms). The merged part before the first recognizable tool/product name is the category label.",
+            "  ALWAYS include 'Google Cloud', 'Azure', 'AWS', 'Google Cloud Platform', 'Microsoft Azure' as skills when present — these are cloud platforms, not job titles.",
+            "  ALWAYS include 'Technical Support', 'Customer Support', 'Data Analysis', 'IT Support', 'Cloud Security' as skills when present — these are skill areas, not job titles.",
+            "  DO NOT filter out compound skill names just because they contain words like 'cloud', 'data', 'technical', 'system', or 'network'. Those words appear in both job titles AND skill names. Only exclude a skill if the entire phrase is a standalone job title (e.g. 'Cloud Engineer', 'Data Analyst') with no qualifier.",
+            "  The category label is the text before the colon. Extract only what comes AFTER the colon as individual skills.",
+            "  Example: 'Generative AI: LangChain, Retrieval-Augmented Generation (RAG)' → [LangChain, RAG]",
+            "  Deduplicate: if the same skill appears under multiple categories, include it once.",
+            "",
             "SKILLS deduplication: remove duplicate skills that differ only in casing (e.g. 'Python' and 'python').",
             "",
-            "PROJECT EXTRACTION RULES — never drop projects when the CV contains them.",
+            "PHONE VALIDATION: The phone field must contain an actual phone number with a realistic dial pattern.",
+            "  REJECT these as phone numbers: '(2021 - 2022)', '2019 - 2021', any value that is only year ranges.",
+            "  A valid phone contains digits AND a country code or area code pattern (e.g. '+49 176 123 456', '(0221) 1234-56', '+1-800-555-1234').",
+            "  If no valid phone number is found, set phone to empty string — never use a date or year range as phone.",
+            "",
+            "NAME VALIDATION: basics.name must be the candidate's full personal name.",
+            "  INVALID names: 'Projects', 'Key Projects', 'Education', 'Skills', 'Testing And Debugging', 'Financial Accountant',",
+            "    'Senior Accountant', 'Marketing Manager', 'Graphic Designer', 'Candidate', 'Professional',",
+            "    any section heading, any skill, any job title used as a name.",
+            "  If the name field would be one of these invalid values, scan the document header for a real person name instead.",
+            "  A valid name is 1–5 words, no digits, no section-heading words.",
+            "",
             "Projects may appear under: PROJECTS, PERSONAL PROJECTS, BOOTCAMP PROJECTS, DATA SCIENCE PROJECTS, ACADEMIC PROJECTS, PORTFOLIO PROJECTS, CASE STUDIES, PROJECT EXPERIENCE, or as named portfolio items after education/bootcamp.",
             "For each project, extract the project name and factual bullets. Preserve technologies, datasets, APIs, cloud tools, dashboards, ML/NLP/RAG terms, outcomes, and links if visible.",
             "If a project is mixed into a bootcamp or portfolio section, still put it in projects — do NOT convert it into work experience, education, or skills.",
@@ -1096,6 +1239,8 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "",
             "If the name is split across lines around a job title, combine person-name tokens only: FIRST / ROLE / LAST => FIRST LAST.",
             "Keep bullets factual. Split bullets only when the source clearly separates responsibilities.",
+            "BULLETS ARE REQUIRED: If a job listing has any text below the title/company (responsibilities, achievements, tasks, any sentences), you MUST extract those as bullets. An empty bullets array [] is ONLY acceptable when the job listing has literally zero text underneath it — no sentences, no phrases, nothing. If there is ANY text below the role header, extract it as bullets. Never return bullets:[] when content exists.",
+            "If PDF extraction merged bullets into one long paragraph (common in two-column layouts), split them at sentence boundaries into separate bullet strings.",
             "JSON shape: { basics:{name,headline,email,phone,location,linkedin}, summary, experience:[{title,company,location,dates,bullets:[]}], education:[{degree,institution,location,dates}], skills:[], projects:[{name,bullets:[]}], languages:[], certifications:[], strengths:[], additionalEvidence:[], warnings:[] }",
           ].join("\n"),
         },

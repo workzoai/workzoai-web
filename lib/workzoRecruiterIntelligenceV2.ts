@@ -703,17 +703,49 @@ function findNextUntestedTopic(memory: RecruiterMemoryV2, roadmap: CompetencyId[
 
 function makeReplyPersonaSpecific(reply: string, setup: RecruiterIntelligenceSetup): string {
   const persona = `${setup.recruiterPersonality || ""} ${setup.recruiterName || ""} ${setup.recruiterTitle || ""}`.toLowerCase();
-  if (/sarah|friendly|talent partner|supportive/.test(persona)) {
+
+  // ── Sarah (Friendly HR) ───────────────────────────────────────────────────
+  if (/sarah|friendly_hr|friendly|talent partner|supportive/.test(persona)) {
     return reply
-      .replace(/^Let me pause you there —/i, "That's helpful. To make it stronger,")
-      .replace(/^I need to pause there\./i, "Let me clarify that gently.")
-      .replace(/^I need to verify that\./i, "I want to make sure I understand this accurately.")
+      .replace(/^Let me pause you there —/i, "That's helpful. To make it even stronger,")
+      .replace(/^I need to pause there\./i, "Let me gently clarify something.")
+      .replace(/^I need to verify that\./i, "I want to make sure I've understood that correctly.")
       .replace(/^Give me/i, "Could you give me")
-      .replace(/^Tell me/i, "Could you tell me");
+      .replace(/^Tell me/i, "Could you tell me")
+      .replace(/^Walk me through/i, "Could you walk me through")
+      .replace(/^I'm not convinced/i, "I'd like to understand that a bit better")
+      .replace(/^That's not enough/i, "Could you share a bit more about that?")
+      .replace(/^Prove it/i, "Could you give me a real example of that?")
+      .replace(/^What's the number\?/i, "What was the impact — even roughly?");
   }
-  if (/markus|corporate|process/.test(persona)) {
-    return reply.replace(/^Tell me/i, "Walk me through the process of");
+
+  // ── Priya (Startup Recruiter) ─────────────────────────────────────────────
+  if (/priya|startup_recruiter|startup/.test(persona)) {
+    return reply
+      .replace(/^Could you tell me/i, "Tell me")
+      .replace(/^Could you walk me through/i, "Walk me through")
+      .replace(/^I would like to understand/i, "I need to understand")
+      .replace(/^That is interesting/i, "Okay, but what did you actually ship?")
+      .replace(/^Let me stop you there\./i, "Stop —")
+      .replace(/^That gives me something to work with/i, "That's a start. What else?")
+      .replace(/^Could you give me a sense/i, "Give me a number —")
+      .replace(/^I appreciate that/i, "Right, but specifically —");
   }
+
+  // ── Markus (Corporate Recruiter) ─────────────────────────────────────────
+  if (/markus|corporate_recruiter|corporate/.test(persona)) {
+    return reply
+      .replace(/^Tell me/i, "Could you walk me through the process of")
+      .replace(/^Give me/i, "Could you outline for me")
+      .replace(/^What did you do/i, "What was the formal process you followed when")
+      .replace(/^How did you handle/i, "What was the approved procedure for handling")
+      .replace(/^That's not enough/i, "I'd like more procedural detail on that.")
+      .replace(/^I need more than that/i, "Could you elaborate on the compliance and documentation aspects?")
+      .replace(/^Stop —/i, "If I may interject —")
+      .replace(/^I'm not buying it/i, "I'm not confident the process picture is complete here.")
+      .replace(/^What did you ship/i, "What was the formally delivered output of that initiative?");
+  }
+
   return reply;
 }
 

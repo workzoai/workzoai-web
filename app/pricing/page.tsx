@@ -92,8 +92,8 @@ const PLAN_CARDS: PlanCard[] = [
 
 const comparisonRows = [
   { label: "Voice AI Interviews", free: "2 / mo", premium: "50 / mo", premiumPro: "Unlimited", section: "interview" },
-  { label: "Recruiter Intelligence", free: "Trial", premium: "Advanced", premiumPro: "Advanced", section: "interview" },
-  { label: "Follow-up Questions", free: "Basic", premium: "Realistic", premiumPro: "Deep + pressure", section: "interview" },
+  { label: "Recruiter Intelligence", free: "Full (2 sessions)", premium: "Advanced", premiumPro: "Advanced", section: "interview" },
+  { label: "Follow-up Questions", free: "Full (2 sessions)", premium: "Realistic", premiumPro: "Deep + pressure", section: "interview" },
   { label: "Interview Reports", free: "Basic", premium: "Advanced", premiumPro: "Advanced + Replay", section: "interview" },
   { label: "Interview History", free: "Limited", premium: "Unlimited", premiumPro: "Unlimited", section: "interview" },
   { label: "Improve CV", free: "—", premium: "Included", premiumPro: "Included", section: "application" },

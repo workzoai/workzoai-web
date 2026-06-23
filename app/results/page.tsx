@@ -32,6 +32,7 @@ import {
 import UpgradeModal from "@/components/premium/UpgradeModal";
 import PremiumUsageBadge from "@/components/premium/PremiumUsageBadge";
 import WorkZoPremiumProSuitePanel from "@/components/premium/WorkZoPremiumProSuitePanel";
+import ReadinessScorePanel from "@/components/ReadinessScorePanel";
 import { recordWorkZoReportViewed, getWorkZoUsageSummary } from "@/lib/workzoUsageTracker";
 import { useWorkZoAdvancedReportGate } from "@/lib/workzoAdvancedReportGate";
 import { readLatestInterviewSetup } from "@/lib/workzoInterviewSetup";
@@ -1994,6 +1995,20 @@ export default function ResultsPage() {
             </section>
           </>
         )}
+
+        {/* ── Readiness Score — Phase 3 ─────────────────────────────────── */}
+        <ReadinessScorePanel
+          isPremium={report.isPremium}
+          interviewScore={report.overallScore}
+          communicationScore={report.communicationScore}
+          confidenceScore={report.confidenceScore}
+          trustScore={report.trustScore}
+          ownershipScore={report.ownershipScore}
+          structureScore={report.structureScore}
+          evidenceScore={report.evidenceQuality}
+          targetRole={report.roleLabel}
+          transcript={result?.transcript}
+        />
 
         <section className="mt-6">
           <WorkZoPremiumProSuitePanel source="results" report={report as unknown as Record<string, unknown>} />

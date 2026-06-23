@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import WorkOBotFloating from "@/components/WorkOBotFloating";
 import WorkZoPremiumProSuitePanel from "@/components/premium/WorkZoPremiumProSuitePanel";
+import ReadinessScorePanel from "@/components/ReadinessScorePanel";
 import {
   WORKZO_PLAN_LIMITS,
   canUseWorkZoFeature,
@@ -84,6 +85,7 @@ const FREE_ACTIONS: DashboardActionCard[] = [
 
 const PREMIUM_ACTIONS: DashboardActionCard[] = [
   { title: "Start interview", detail: "50 interviews/month · advanced recruiter intelligence", href: "/interview", icon: Mic, cta: "Start interview", accent: "blue" },
+  { title: "Technical Assessment", detail: "SQL, Python, Excel, Scenarios — role-specific skill test", href: "/technical-assessment", icon: BarChart3, cta: "Take test", accent: "cyan" },
   { title: "Improve your CV", detail: "ATS keyword gap · matched, partial, missing chips · score", href: "/cv", icon: FileText, cta: "Open CV tools", accent: "emerald" },
   { title: "Cover Letter", detail: "AI-generated from your CV + job description", href: "/cover-letter", icon: Mail, cta: "Generate letter", accent: "violet" },
   { title: "Job Assist", detail: "Fit score, gaps, and 7 likely questions per role", href: "/jobs", icon: Briefcase, cta: "Browse jobs", accent: "amber" },
@@ -93,6 +95,7 @@ const PREMIUM_ACTIONS: DashboardActionCard[] = [
 
 const PRO_ACTIONS: DashboardActionCard[] = [
   { title: "Start Pro interview", detail: "Unlimited · Vapi AI voice · premium recruiter personas", href: "/interview?mode=pro", icon: Mic, cta: "Start interview", accent: "violet" },
+  { title: "Technical Assessment", detail: "Advanced role-specific tests with full AI scoring", href: "/technical-assessment", icon: BarChart3, cta: "Take test", accent: "cyan" },
   { title: "Live AI Recruiter", detail: "60 min/month · face-to-face video · Tavus-powered", href: "/onboarding?mode=tavus", icon: Video, cta: "Start video session", accent: "violet" },
   { title: "Improve CV", detail: "ATS keyword gap, scoring, and job-specific targeting", href: "/cv", icon: FileText, cta: "Open CV tools", accent: "emerald" },
   { title: "Cover Letter", detail: "AI-generated, CV-aware, role-specific in seconds", href: "/cover-letter", icon: Mail, cta: "Generate letter", accent: "cyan" },
@@ -411,6 +414,16 @@ export default function DashboardPage() {
               </span>
             )}
           </div>
+          {/* ── Readiness Score compact widget ──────────────────────────── */}
+          {mounted && plan !== "free" && (
+            <div className="mb-6">
+              <ReadinessScorePanel
+                isPremium={plan === "premium" || plan === "premium_pro"}
+                compact={true}
+              />
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {actionCards.map((card) => {
               const Icon = card.icon;

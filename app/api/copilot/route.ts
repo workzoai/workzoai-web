@@ -400,6 +400,16 @@ function actionInstruction(action: CopilotAction) {
     "  - Technical drawing / specification writing → system documentation & SOP authoring",
     "  - PLM / Windchill tools → product lifecycle systems & configuration management tools",
     "",
+    "ROLE-SPECIFIC JD DOMAIN FOCUS — apply based on what the JD asks for:",
+    "  Customer Success / Account Management JD: emphasise onboarding, stakeholder management, escalation handling, QBRs, renewal, adoption, churn prevention, customer communication, implementation support, change management, training delivery, NPS/CSAT, and customer advocacy. Surface any customer-facing, relationship-building, or project coordination experience.",
+    "  Data Analyst / BI / Analytics JD: emphasise SQL, Python, R, dashboards, Power BI, Tableau, Looker, Excel, data cleaning, ETL, reporting, business insights, A/B testing, statistical analysis, data modelling, and KPI tracking. Surface any analytical, quantitative, or data-driven work.",
+    "  Technical Support / IT Support JD: emphasise troubleshooting, ticketing (Jira/Zendesk/ServiceNow), ITIL/ITSM, SLA management, incident resolution, root-cause analysis, escalation handling, product support, user training, and documentation. Surface any problem-solving or customer-issue-resolution experience.",
+    "  Cybersecurity / InfoSec JD: emphasise SIEM (Splunk/QRadar), incident response, threat detection, IAM, vulnerability management, penetration testing, cloud security (AWS/Azure/GCP), firewall/endpoint tools, compliance frameworks (ISO 27001, SOC 2, GDPR), and security tooling. Surface any risk, compliance, or security-adjacent work.",
+    "  Software Engineering / Development JD: emphasise specific languages (Python, Java, TypeScript, Go), frameworks, APIs, databases, CI/CD, testing, system design, architecture, code review, and agile delivery. Surface technical depth, scale, and engineering quality.",
+    "  Product Management JD: emphasise roadmapping, prioritisation, stakeholder alignment, user research, KPIs, A/B testing, OKRs, sprint planning, cross-functional leadership, go-to-market execution, and product analytics. Surface any influence-without-authority and data-driven decision experience.",
+    "  Marketing / Growth JD: emphasise campaign management, performance marketing, SEO/SEM, paid media, content strategy, brand management, conversion optimisation, funnel analysis, CRM, marketing automation, and attribution. Surface any data, analytics, or audience-targeting work.",
+    "  Apply these focus areas dynamically — if the JD mentions multiple domains (e.g. Technical Support transitioning to Customer Success), surface what maps to the JD's primary domain and translate adjacent skills accordingly.",
+    "",
     "RULES:",
     "1. Do NOT invent companies, job titles, dates, employers, degrees, metrics, or achievements not in the original CV. Every fact must trace to real CV content — only the framing and emphasis change to match the JD.",
     "2. Keep the same structure: same section order, same jobs, same number of bullets per role — but reorder bullets within a job by JD relevance, and reword every one toward the JD where genuine evidence supports it.",
@@ -690,6 +700,15 @@ PROFESSIONAL WRITING STANDARD:
 - No first-person pronouns.
 - Quantify with numbers/percentages/scale wherever the original provides them.
 ${outputLanguage !== "English" ? `- Write every text field (summary, headline, bullets, project descriptions) ENTIRELY in ${outputLanguage} — if a field has multiple clauses separated by "|" or "·", ALL clauses must be translated, not just some of them. Do not translate: candidate name, company names, institution names, certification names, or proper nouns with no natural translation.` : ""}
+
+ROLE-SPECIFIC JD DOMAIN FOCUS (apply based on what the JD asks for):
+- Customer Success / Account Management JD: emphasise onboarding, stakeholder management, escalation handling, renewals, adoption, customer communication, implementation support, change management, training, NPS/CSAT. Surface customer-facing and relationship-building experience.
+- Data Analyst / BI / Analytics JD: emphasise SQL, Python, dashboards, Power BI, Tableau, data cleaning, ETL, reporting, statistical analysis, A/B testing, KPIs. Surface quantitative and data-driven work.
+- Technical Support / IT Support JD: emphasise troubleshooting, ticketing, ITIL/ITSM, SLA management, incident resolution, escalation handling, user training. Surface problem-solving and customer-issue experience.
+- Cybersecurity / InfoSec JD: emphasise SIEM, incident response, threat detection, IAM, vulnerability management, cloud security, compliance frameworks. Surface risk, compliance, security-adjacent work.
+- Software Engineering JD: emphasise languages, frameworks, APIs, databases, CI/CD, system design, architecture, code review, agile delivery.
+- Product Management JD: emphasise roadmapping, prioritisation, stakeholder alignment, user research, KPIs, OKRs, cross-functional leadership.
+- Apply dynamically — if transitioning between domains (e.g. Technical Support → Customer Success), surface experience that maps to the JD's primary domain.
 
 ABSOLUTE STRUCTURAL RULES — THESE ARE NEVER OPTIONAL:
 1. basics.name MUST be copied EXACTLY, character-for-character, from the input profile's basics.name field. Do not paraphrase it, shorten it, replace it with a project name, company name, job title, or the word "Candidate"/"Professional" under any circumstance.

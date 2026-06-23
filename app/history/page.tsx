@@ -2,9 +2,17 @@ import Link from "next/link";
 import { ArrowLeft, BarChart3, CalendarDays, Crown, Lock, LockKeyhole, RotateCcw, ShieldCheck, Star } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import HistoryAnalyticsPing from "./HistoryAnalyticsPing";
 
-async function getPlanFromCookies(): Promise<string> {
+async function getPlanFromServer(): Promise<string> {
+  // Use server-backed DB plan — cannot be spoofed via devtools cookie manipulation.
+  // Falls back to cookie if the DB call fails (e.g. during Supabase maintenance).
+  try {
+    const resolved = await resolveWorkZoServerPlan();
+    if (resolved.authenticated && resolved.plan) return resolved.plan;
+  } catch {}
+  // Cookie fallback — lower security but better than showing nothing
   try {
     const cookieStore = await cookies();
     const planCookie =
@@ -84,7 +92,7 @@ export default async function HistoryPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const plan = await getPlanFromCookies();
+  const plan = await getPlanFromServer();
   const planLimits = getPlanLimits(plan);
 
   if (!user) {

@@ -30,6 +30,45 @@ function cleanEmail(value: unknown): string {
   return match ? match[0].toLowerCase() : "";
 }
 
+
+
+function looksLikeDateOrYearRange(value: string): boolean {
+  const raw = cleanText(value, 120);
+  if (!raw) return false;
+  const digits = raw.replace(/\D/g, "");
+  if (/\b(?:19|20)\d{2}\s*[-–/to]+\s*(?:19|20)\d{2}\b/i.test(raw)) return true;
+  if (/\b(?:19|20)\d{2}\s*[-–/to]+\s*(present|current|heute)\b/i.test(raw)) return true;
+  if (/^\(?\s*(?:19|20)\d{2}\s*[-–/]\s*(?:19|20)\d{2}\s*\)?$/.test(raw)) return true;
+  return digits.length >= 4 && digits.length <= 8 && /(?:19|20)\d{2}/.test(raw) && !/^\+/.test(raw);
+}
+
+function cleanPhoneField(value: unknown, rawText = ""): string {
+  const raw = cleanText(value, 160);
+  const normalize = (candidate: string) => {
+    let phone = cleanText(candidate, 80)
+      .replace(/[A-Za-z]+@[A-Za-z0-9._%+\-]+\.[A-Za-z]{2,}/g, "")
+      .replace(/\b(?:19|20)\d{2}\s*[-–]\s*(?:19|20)\d{2}\b/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const digits = phone.replace(/\D/g, "");
+    if (looksLikeDateOrYearRange(phone)) return "";
+    if (digits.length < 7 || digits.length > 16) return "";
+    if (!/[+()\-\s]/.test(phone) && digits.length < 8) return "";
+    return phone;
+  };
+
+  const direct = normalize(raw);
+  if (direct) return direct;
+
+  const text = cleanText(rawText, 6000);
+  const candidates = text.match(/\+?\d[\d\s().\-]{7,}\d/g) || [];
+  for (const candidate of candidates) {
+    const phone = normalize(candidate);
+    if (phone) return phone;
+  }
+  return "";
+}
+
 function unique<T>(items: T[], keyFn: (item: T) => string) {
   const seen = new Set<string>();
   const out: T[] = [];
@@ -79,13 +118,13 @@ function prepareLines(rawText: string) {
     .slice(0, 180);
 }
 
-const STRONG_SECTION_RE = /^(key\s+projects|selected\s+projects|security\s+projects|relevant\s+experience|technical\s+skills|professional\s+skills|about\s+me|awards?|awards?\s+received|berufliches\s+profil|berufserfahrung|bildung|bildungsweg|contacts?|core\s+competencies|education|education\s+and\s+training|erfolge\s+beim\s+kunden|experience|expertise|fähigkeiten|fahigkeiten|kontakt|languages?|overview|professional\s+experience|professional\s+summary|profile|profile\s+overview|profile\s+summary|profil(?:\s*übersicht|\s*ubersicht)?|projects?|references?|skills?|summary|summary\s+of\s+skills|work\s+experience|certifications?|zertifikate)$/i;
+const STRONG_SECTION_RE = /^(key\s+projects|selected\s+projects|security\s+projects|relevant\s+experience|technical\s+skills|professional\s+skills|about\s+me|awards?|awards?\s+received|berufliches\s+profil|berufserfahrung|bildung|bildungsweg|contacts?|core\s+competencies|education|educational\s+background|education\s+and\s+training|erfolge\s+beim\s+kunden|experience|expertise|fähigkeiten|fahigkeiten|kontakt|languages?|overview|professional\s+experience|professional\s+summary|profile|profile\s+overview|profile\s+summary|profil(?:\s*übersicht|\s*ubersicht)?|projects?|references?|skills?|summary|summary\s+of\s+skills|work\s+experience|certifications?|zertifikate|honou?rs?|honou?rs?\s+and\s+awards|academic\s+history|short\s+courses)$/i;
 
 // Soft-skill and professional phrases that appear as CV section content but look
 // superficially like 2-word names. Any of these must never be returned as a name.
 // This is a phrase-level check (whole string match), complementing BAD_NAME_WORD_RE
 // which works at the individual-word level.
-const SOFT_SKILL_PHRASE_RE = /^(critical thinking|effective communication|public relations|time management|project management|stakeholder management|problem solving|decision making|data analysis|data visualization|machine learning|generative ai|cloud security|threat detection|threat hunting|soc operations|incident response|penetration testing|vulnerability management|client acquisition|market analysis|market research|brand management|crisis communication|event planning|content creation|social media|digital marketing|agile methodology|process improvement|personal training|team training|product strategy|product design|product lifecycle|user research|growth optimization|cross.functional|analytical thinking|design thinking|lesson planning|classroom management|web design|front end|back end|full stack|database administration|network security|system administration|active directory|windows server|requirements analysis|service delivery|requirements management)$/i;
+const SOFT_SKILL_PHRASE_RE = /^(magna cum laude|summa cum laude|cum laude|educational background|relevant experience|key projects|security projects|professional summary|critical thinking|effective communication|public relations|time management|project management|stakeholder management|problem solving|decision making|data analysis|data visualization|machine learning|generative ai|cloud security|threat detection|threat hunting|soc operations|incident response|penetration testing|vulnerability management|client acquisition|market analysis|market research|brand management|crisis communication|event planning|content creation|social media|digital marketing|agile methodology|process improvement|personal training|team training|product strategy|product design|product lifecycle|user research|growth optimization|cross.functional|analytical thinking|design thinking|lesson planning|classroom management|web design|front end|back end|full stack|database administration|network security|system administration|active directory|windows server|requirements analysis|service delivery|requirements management)$/i;
 
 const BAD_NAME_WORD_RE = /\b(candidate|professional|unknown|resume|cv|curriculum|profile|profilesummary|summary|experience|workexperience|education|skills?|projects?|languages?|contact|email|phone|linkedin|github|headline|english|german|deutsch|dutch|french|spanish|italian|portuguese|fluent|native|conversational|support|engineer|analyst|manager|specialist|developer|consultant|technical|data|customer|success|sales|marketing|product|project|program|software|frontend|backend|fullstack|itil|itsm|api|sql|python|tableau|power\s*bi|gcp|aws|rag|nlp|machine\s+learning|matplotlib|seaborn|tensorflow|sklearn|langchain|programming|bash|powershell|security|cloud|ticketing|roadmapping|agile|scrum|stakeholder|competencies|initiative|platform|dashboard|teacher|preschool|accountant|designer|coordinator|assistant|intern|executive|director|officer|lead|head|chief|owner|founder|recruiter|architect|scientist|researcher|writer|editor|planner|technician|school|university|college|industries|solutions|community|financial|senior|junior|principal|jede|stadt|straße|strasse|service|services|startup|bootcamp|institute|corporation|corp|gmbh|inc|ltd|llc|group|holding|digital|technologies|technology|systems|agency|studio|labs|ventures|consulting|innovations?|coaching|thinking|leadership|communication|planning|analysis|management|visualization|engineering|integration|scraping|generation|retrieval|augmented|certification|freelance|volunteer|degree|bachelor|master|associate|diploma|certificate|science|arts|computer|software|development)\b/i;
 
@@ -439,7 +478,7 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
       name: resolvedName,
       headline: cleanText(cleanHeadlineField(basics.headline), 200) || "Professional",
       email: cleanEmail(basics.email) || cleanText(basics.email, 200),
-      phone: cleanText(basics.phone, 80),
+      phone: cleanPhoneField(basics.phone, rawText || p.rawText || ""),
       location: cleanText(cleanLocation(basics.location), 200),
       linkedin: cleanText(basics.linkedin, 300),
     },
@@ -519,7 +558,9 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
       };
     }),
     skills: unique(
-      (Array.isArray(p.skills) ? p.skills.map((s) => cleanText(s, 90)).filter(Boolean) : [])
+      (Array.isArray(p.skills)
+        ? p.skills.flatMap((skill) => cleanText(skill, 180).split(/[,;•|]/g).map((s) => cleanText(s, 90))).filter(Boolean)
+        : [])
         .filter((s) => {
           const sn = norm(s);
           const nameNorm = norm(resolvedName);
