@@ -896,21 +896,14 @@ function buildSetupFromStorage(): InterviewSetup {
 
   const profile = recruiterProfiles[recruiterId] || recruiterProfiles.friendly_hr;
 
-  const recruiterName =
-    getNestedValue(state, [
-      "recruiterName",
-      "setup.recruiterName",
-      "recruiter.name",
-      "selectedRecruiter.name",
-    ]) || profile.name;
+  // Always derive from profile; only accept stored name if it matches this recruiter
+  const storedRecruiterName = getNestedValue(state, ["recruiterName", "setup.recruiterName", "recruiter.name", "selectedRecruiter.name"]);
+  const storedNameBelongsToProfile = storedRecruiterName && profile.name &&
+    String(storedRecruiterName).toLowerCase().includes(profile.name.split(" ")[0].toLowerCase());
+  const recruiterName = (storedNameBelongsToProfile ? storedRecruiterName : null) || profile.name;
 
-  const recruiterTitle =
-    getNestedValue(state, [
-      "recruiterTitle",
-      "setup.recruiterTitle",
-      "recruiter.title",
-      "selectedRecruiter.title",
-    ]) || profile.title;
+  const storedRecruiterTitle = getNestedValue(state, ["recruiterTitle", "setup.recruiterTitle", "recruiter.title", "selectedRecruiter.title"]);
+  const recruiterTitle = (storedNameBelongsToProfile ? storedRecruiterTitle : null) || profile.title;
 
   const recruiterImage =
     getNestedValue(state, [
@@ -1772,9 +1765,34 @@ function selectedLanguageCode(setup: InterviewSetup) {
   return normalizeInterviewLanguage(setup.language).code;
 }
 
+function selectedLanguageIsoCode(setup: InterviewSetup) {
+  const code = selectedLanguageCode(setup).toLowerCase();
+  if (code.startsWith("zh")) return "zh";
+  if (code.startsWith("pt")) return "pt";
+  return code.split("-")[0] || "en";
+}
+
+function buildVapiTranscriberOverride(setup: InterviewSetup) {
+  const language = normalizeInterviewLanguage(setup.language);
+  const isoLanguage = selectedLanguageIsoCode(setup);
+
+  // IMPORTANT: Vapi/Daily transcripts were being decoded as English for
+  // German/French/etc. interviews, producing garbage such as
+  // "Danker for dinner" instead of real German. Lock STT to the selected
+  // interview language for every call; never rely on auto-detect.
+  return {
+    provider: "deepgram",
+    model: "nova-2",
+    language: isoLanguage,
+    smartFormat: true,
+    endpointing: language.code.toLowerCase().startsWith("en") ? 350 : 650,
+  };
+}
+
 function buildLocalizedGreeting(setup: InterviewSetup) {
   const language = normalizeInterviewLanguage(setup.language);
   const name = safeGreetingName(setup.candidateName);
+  const hasRealName = name !== "there" && name.length > 1;
 
   switch (language.code) {
     case "de-DE":
@@ -3677,6 +3695,11 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const vapiConnectedRef = useRef(false);
   const vapiStartingRef = useRef(false);
   const vapiFallbackStartedRef = useRef(false);
+  // True only while WorkZo itself is intentionally stopping a Vapi/Daily call.
+  // Daily emits an "ejected / Meeting has ended" error during a normal stop;
+  // without this guard that harmless event was logged as a real Vapi failure
+  // and could start the browser fallback even though WorkZo caused the stop.
+  const vapiIntentionalStopRef = useRef(false);
   const vapiTimeoutRef = useRef<number | null>(null);
   const vapiFinalUserTextRef = useRef("");
   const vapiQuestionSignatureRef = useRef("");
@@ -4189,7 +4212,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
           const formData = new FormData();
           formData.append("audio", audioBlob, "candidate-answer.webm");
           // Send BCP-47 code to Whisper for best STT accuracy (not the label string)
-          const sttLangCode = selectedLanguageCode(setupRef.current);
+          const sttLangCode = selectedLanguageIsoCode(setupRef.current);
           formData.append("language", sttLangCode || "en");
 
           const response = await fetch("/api/transcribe", { method: "POST", body: formData, credentials: "include" });
@@ -4387,7 +4410,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
       setInterimText("");
       answerBufferRef.current = "";
       resetSilenceTimer();
-      playListeningChime();
     };
 
     recognition.onresult = (event) => {
@@ -4799,6 +4821,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const stopPremiumVoice = useCallback(() => {
     vapiConnectedRef.current = false;
     vapiStartingRef.current = false;
+    vapiIntentionalStopRef.current = true;
 
     if (vapiTimeoutRef.current) {
       window.clearTimeout(vapiTimeoutRef.current);
@@ -4814,6 +4837,12 @@ const [questionIndex, setQuestionIndex] = useState(0);
     } catch {}
 
     vapiClientRef.current = null;
+
+    // Give Daily/Vapi enough time to emit its normal "meeting ended" cleanup
+    // event, then allow future genuine errors to be handled again.
+    window.setTimeout(() => {
+      vapiIntentionalStopRef.current = false;
+    }, 1200);
   }, []);
 
   const analyzeVapiUserAnswer = useCallback((answer: string) => {
@@ -4888,6 +4917,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
       // Reset stale client/call state first, then mark this new AI voice start attempt.
       stopPremiumVoice();
+      vapiIntentionalStopRef.current = false;
       vapiStartingRef.current = true;
 
       if (!premiumVoiceEnabled || !audioEnabled) {
@@ -4941,20 +4971,49 @@ const [questionIndex, setQuestionIndex] = useState(0);
         vapiClientRef.current = client;
 
         const releaseToFallback = (error: unknown) => {
-          if (stopRequestedRef.current) return;
-          console.error("WORKZO VAPI CONNECTION FAILED", error);
+          if (stopRequestedRef.current || vapiFallbackStartedRef.current) return;
+
+          const normalizedMessage = normalizeErrorMessage(error);
+          const lowerMessage = normalizedMessage.toLowerCase();
+          const isDailyMeetingCleanup =
+            lowerMessage.includes("meeting has ended") ||
+            lowerMessage.includes("meeting ended") ||
+            lowerMessage.includes('"type":"ejected"') ||
+            lowerMessage.includes("due to ejection");
+          const isKrispProcessorNoise =
+            lowerMessage.includes("krisp") ||
+            lowerMessage.includes("worklet_not_supported") ||
+            lowerMessage.includes("unable to load a worklet") ||
+            lowerMessage.includes("error applying mic processor");
+
+          // Krisp/Daily processor warnings are common in localhost/dev and do
+          // not always mean the Vapi call failed. Also ignore the Daily
+          // "meeting ended" event if WorkZo intentionally stopped the call.
+          if (isKrispProcessorNoise || (isDailyMeetingCleanup && vapiIntentionalStopRef.current)) return;
+
+          console.warn("WORKZO VAPI CONNECTION FAILED — switching to browser fallback", {
+            message: normalizedMessage,
+            role: activeSetup.targetRole,
+            recruiter: activeSetup.recruiterName,
+            language: activeSetup.language,
+            assistantId: config.assistantId,
+            recruiterKey: config.recruiterKey,
+          });
           classifyVoiceError(error);
           trackWorkZoErrorEvent("vapi_connection_failed", error, {
             role: activeSetup.targetRole,
             recruiter: activeSetup.recruiterName,
+            language: activeSetup.language,
+            assistantId: config.assistantId,
           }, "high");
           setPremiumVoiceStatus("failed");
-          setPremiumVoiceError("Voice failed. Switching to browser voice.");
+          setPremiumVoiceError("Live voice is unavailable. Continuing with standard voice.");
           stopPremiumVoice();
           if (!vapiFallbackStartedRef.current) void startBrowserFallbackInterview(activeSetup);
         };
 
         client.on?.("call-start", () => {
+          vapiIntentionalStopRef.current = false;
           vapiStartingRef.current = false;
           vapiConnectedRef.current = true;
           vapiFallbackStartedRef.current = false;
@@ -5065,21 +5124,20 @@ const [questionIndex, setQuestionIndex] = useState(0);
         });
 
         const selectedLanguage = normalizeInterviewLanguage(activeSetup.language);
+        const isEnglishInterview = selectedLanguage.code.toLowerCase().startsWith("en");
         const unsupportedClaimChallenge = localizedUnsupportedClaimChallenge(activeSetup);
 
+        // Build variableValues — ONLY include fields that the Vapi assistant
+        // template references as {{variables}}. Sending large instruction blobs
+        // here (workzoStrictGrounding, pacingRules, etc.) pushes the payload
+        // over Vapi's ~10KB limit and causes a 400 error on every call.
+        // All static instruction text lives in the assistant's system prompt
+        // on the Vapi Dashboard instead.
         const variableValues = buildWorkZoVapiVariableValues({
           language: selectedLanguage.code,
           languageLabel: selectedLanguage.label,
-          // Explicitly set the opening greeting in the correct language so Vapi's
-          // first message is always in the selected interview language, never English.
-          // This is the fix for: "Hi there. Thank you for joining today" (English)
-          // immediately followed by German — the two systems were using different languages.
           openingGreeting: buildLocalizedGreeting(activeSetup),
           openingIntroQuestion: buildLocalizedIntroQuestion(activeSetup),
-          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} ${buildOpeningFlowInstruction(activeSetup)} ${buildContextQualityNotice(activeSetup)} Use the factual memory brief and company/role blueprint to ask CV/JD-specific follow-ups. You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this selected-language style: '${unsupportedClaimChallenge}' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. ABSOLUTE BAN: never say the sentence "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." Do not ask for metrics immediately after a weak or unclear answer. If the candidate already gave a number, latency improvement, CSAT, customer satisfaction, or before/after outcome, accept that as evidence and move to technical depth, ownership, stakeholder handling, or role-fit. Do not repeat a follow-up that was already asked. If the candidate's last answer was unclear or off-topic, ask a clarification about that answer; do not fall back to the generic metric question. If the CV role and target role are different, explore why the candidate is switching and what proof shows readiness before asking for impact numbers. If the candidate gives a qualitative outcome such as CSAT, customer satisfaction, repeat customers, fewer escalations, or faster resolution, accept it as evidence and move to the next relevant topic. Before ending, ask one final closing challenge: why should we choose you over another candidate using one verified result. Do not end abruptly. If {candidateName} is 'there' or not a real first name, do not use a name in the closing. End naturally in the selected language. Otherwise thank {candidateName} naturally in the selected language.`,
-          strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} You are WorkZo AI's realistic recruiter. Treat the CV/resume as the ONLY source of truth for the candidate's own background (companies, roles, titles, years of experience, certifications, degrees, achievements, metrics). The job description describes what the EMPLOYER wants, not what the candidate has done — never treat a match between the candidate's claim and the job description's title or requirements as verification of the candidate's history. Never accept unsupported claims as true. Before any positive follow-up, check whether the candidate's claim about their OWN background is supported by the CV specifically. If the candidate claims a company, role, title, years of experience, certification, degree, achievement, or metric that is not visible in the CV, challenge it immediately and politely — even if that exact title or skill appears in the job description. Use this selected-language style: '${unsupportedClaimChallenge}' Example: if CV does not mention Tesla or 15 years and candidate says 'I have fifteen years of experience at Tesla', do not say thanks or ask achievements. Challenge the mismatch first. Do not validate fake or exaggerated inputs. Ask one concise follow-up at a time. Prioritize CV/JD fit, career-transition logic, technical depth, ownership, and role relevance before demanding metrics. ABSOLUTE BAN: never say the sentence "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." Do not ask for metrics immediately after a weak or unclear answer. If the candidate already gave a number, latency improvement, CSAT, customer satisfaction, or before/after outcome, accept that as evidence and move to technical depth, ownership, stakeholder handling, or role-fit. Do not repeat the same follow-up twice.`,
-          recruiterMustChallengeUnsupportedClaims: "true",
-          antiHallucinationMode: "strict",
           candidateName: safePromptCandidateName(activeSetup.candidateName),
           recruiterName: activeSetup.recruiterName,
           recruiterRole: activeSetup.recruiterTitle,
@@ -5089,33 +5147,27 @@ const [questionIndex, setQuestionIndex] = useState(0);
           companyName: activeSetup.targetCompany || "the company",
           recruiterPersonality: recruiterPersonalityInstructions(activeSetup),
           companyStyleInstructions: companyStyleInstructions(detectCompanyInterviewStyle(activeSetup)),
+          // Keep cv and jd summaries short to stay under Vapi payload limit
           cvText: [
             enforceSelectedLanguagePrefix(activeSetup),
-            buildOpeningFlowInstruction(activeSetup),
             buildFactualMemoryBrief(activeSetup),
-            formatWorkZoCompanyBlueprintForPrompt(activeSetup.companyBlueprint),
-            "CV fact memory:",
-            JSON.stringify(extractCvFactMemory(activeSetup)),
-            "",
-            "Raw CV/resume context:",
-            activeSetup.cvText || "",
+            "CV context:",
+            (activeSetup.cvText || "").slice(0, 1200),
           ].join("\n"),
           jobDescription: [
-            enforceSelectedLanguagePrefix(activeSetup),
-            buildOpeningFlowInstruction(activeSetup),
-            buildContextQualityNotice(activeSetup),
             buildLanguageInstruction(activeSetup),
-            formatWorkZoCompanyBlueprintForPrompt(activeSetup.companyBlueprint),
-            "JD fact memory:",
-            JSON.stringify(extractJdFactMemory(activeSetup)),
-            "",
-            "Raw job description context:",
-            activeSetup.jobDescription || "",
+            "JD context:",
+            (activeSetup.jobDescription || "").slice(0, 1200),
           ].join("\n"),
+          // Core grounding rules — kept concise
+          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} You are WorkZo AI's recruiter. Treat the CV as the ONLY source of truth for the candidate's background. Challenge unsupported claims. Ask one question per turn. ${unsupportedClaimChallenge}`,
+          strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} Treat the CV as ground truth. Challenge unsupported companies, roles, years, and achievements. Ask one concise follow-up at a time.`,
+          recruiterMustChallengeUnsupportedClaims: "true",
+          antiHallucinationMode: "strict",
         });
 
         vapiTimeoutRef.current = window.setTimeout(() => {
-          if (!vapiConnectedRef.current && !stopRequestedRef.current) {
+          if (!vapiConnectedRef.current && !stopRequestedRef.current && !vapiFallbackStartedRef.current) {
             console.warn("WORKZO VAPI STILL CONNECTING", {
               role: activeSetup.targetRole,
               recruiter: activeSetup.recruiterName,
@@ -5125,138 +5177,76 @@ const [questionIndex, setQuestionIndex] = useState(0);
               recruiter: activeSetup.recruiterName,
             }, "medium");
             setPremiumVoiceStatus("connecting");
-            setPremiumVoiceError("Voice is still connecting. You can wait, retry voice, or continue without voice.");
+            setPremiumVoiceError("Live voice is still connecting. Please wait — WorkZo will not switch to fallback unless the call truly fails.");
 
+            // Localhost/dev, cold starts, and Daily room creation can take
+            // longer than 30 seconds. The previous code stopped Vapi at ~30s,
+            // which itself produced Daily's `ejected / Meeting has ended` error
+            // and forced the fallback voice. Keep the Vapi call alive much
+            // longer, and only fall back after a genuine extended timeout.
             window.setTimeout(() => {
-              if (!vapiConnectedRef.current && !stopRequestedRef.current) {
-                console.warn("WORKZO VAPI CONNECTION TIMEOUT", {
+              if (!vapiConnectedRef.current && !stopRequestedRef.current && !vapiFallbackStartedRef.current) {
+                console.warn("WORKZO VAPI EXTENDED CONNECTION TIMEOUT", {
                   role: activeSetup.targetRole,
                   recruiter: activeSetup.recruiterName,
                 });
-                trackWorkZoFailureEvent("vapi_connection_timeout", {
+                trackWorkZoFailureEvent("vapi_connection_extended_timeout", {
                   role: activeSetup.targetRole,
                   recruiter: activeSetup.recruiterName,
                 }, "high");
                 setPremiumVoiceStatus("failed");
-                setPremiumVoiceError("Voice timed out. Switching to browser voice.");
+                setPremiumVoiceError("Live voice could not connect after an extended wait. Switching to standard voice.");
+                vapiIntentionalStopRef.current = true;
                 stopPremiumVoice();
                 if (!vapiFallbackStartedRef.current) void startBrowserFallbackInterview(activeSetup);
               }
-            }, 18000);
+            }, 60000);
           }
-        }, 12000);
+        }, 15000);
 
-        // ── Vapi assistantOverrides ───────────────────────────────────────
-        // These override the Vapi Dashboard configuration at call-start time.
-        // This is the correct fix for language issues: the dashboard template
-        // cannot be changed per-call, but assistantOverrides can.
-        //
-        // Three things are overridden:
-        //
-        // 1. firstMessage: the Vapi assistant's opening line before any user
-        //    input. The dashboard template has an English opening ("Hi there.
-        //    Thank you for joining today.") that fires before {{interviewStyle}}
-        //    is read. Setting firstMessage here overrides it at the call level.
-        //
-        // 2. transcriber.language: Vapi's own STT (not browser SpeechRecognition)
-        //    is used when Vapi is connected. The transcriber language must be
-        //    set to the interview language or Vapi auto-detects English and
-        //    transcribes German/French/etc as English phoneme soup.
-        //    ("Bachelor shop, Shoish Harbor" = German speech → English STT)
-        //
-        // 3. model.messages: prepend an absolute language instruction as the
-        //    FIRST system message so it cannot be overridden by template content.
-        //    The template's own instructions come after this, so the language
-        //    rule is established before any other instruction is read.
-
-        const isEnglishInterview = selectedLanguage.label === "English" || selectedLanguage.code.startsWith("en");
+        // ── Vapi safe call-start payload ──────────────────────────────────
+        // Vapi Web SDK start() accepts: client.start(assistantId, assistantOverrides).
+        // variableValues, firstMessage, and transcriber must be direct fields of
+        // the second argument — never nested inside `assistantOverrides`.
         const localizedFirstMessage = buildLocalizedGreeting(activeSetup);
 
-        // Map BCP-47 interview language code to the format Vapi's Deepgram/Gladia
-        // transcriber expects. Vapi uses ISO 639-1 for most languages.
-        const vapiTranscriberLanguage = ((): string => {
-          const code = selectedLanguage.code.toLowerCase();
-          // Deepgram language codes supported by Vapi
-          const VAPI_LANGUAGE_MAP: Record<string, string> = {
-            "de-de": "de", "nl-nl": "nl", "fr-fr": "fr", "es-es": "es",
-            "it-it": "it", "pt-pt": "pt", "pt-br": "pt-BR",
-            "hi-in": "hi", "ta-in": "ta",
-            "zh-cn": "zh-CN", "ja-jp": "ja", "ko-kr": "ko",
-            "ar-sa": "ar", "pl-pl": "pl", "ru-ru": "ru", "tr-tr": "tr",
-            "en-us": "en-US", "en-gb": "en-GB",
-          };
-          return VAPI_LANGUAGE_MAP[code] || code.split("-")[0] || "en";
-        })();
-
-        const assistantOverrides = {
-          // 1. First message in correct language (overrides dashboard template)
-          ...(!isEnglishInterview && localizedFirstMessage
-            ? { firstMessage: localizedFirstMessage }
-            : {}),
-
-          // 2. Transcriber language locked to interview language
-          // This is the fix for "Bachelor shop, Shoish Harbor" (German → English STT)
-          ...(!isEnglishInterview
-            ? {
-                transcriber: {
-                  provider: "deepgram",
-                  model: "nova-2",
-                  language: vapiTranscriberLanguage,
-                  smartFormat: true,
-                },
-              }
-            : {}),
-
-          // 3. Model messages: absolute language instruction prepended to system prompt
-          // This fires BEFORE any dashboard template instructions and cannot be ignored
-          ...(!isEnglishInterview
-            ? {
-                model: {
-                  messages: [
-                    {
-                      role: "system",
-                      content: [
-                        `ABSOLUTE LANGUAGE REQUIREMENT — READ THIS FIRST:`,
-                        `This interview MUST be conducted entirely in ${selectedLanguage.label}.`,
-                        `Your VERY FIRST word must be in ${selectedLanguage.label}.`,
-                        `Do NOT open with English. Do NOT say "Hi there" or "Thank you for joining" in English.`,
-                        `Every question, follow-up, clarification, acknowledgement, and closing must be in ${selectedLanguage.label}.`,
-                        `If the candidate speaks English, respond naturally in ${selectedLanguage.label} regardless.`,
-                        `This rule overrides all other instructions in this prompt.`,
-                        ``,
-                        `Your opening message is EXACTLY: ${localizedFirstMessage}`,
-                      ].join("\n"),
-                    },
-                  ],
-                },
-              }
-            : {}),
+        const vapiStartOptions: Record<string, unknown> = {
+          variableValues,
+          firstMessage: localizedFirstMessage,
+          transcriber: buildVapiTranscriberOverride(activeSetup),
         };
 
-        await client.start(config.assistantId, {
-          variableValues,
-          assistantOverrides: Object.keys(assistantOverrides).length ? assistantOverrides : undefined,
-          metadata: {
-            product: "WorkZo AI",
-            page: "interview-room",
-            recruiter: config.recruiterKey,
-            voiceMode: "lazy-vapi",
-            interviewLanguage: selectedLanguage.label,
-          },
+        console.info("WORKZO VAPI LANGUAGE LOCK", {
+          interviewLanguage: selectedLanguage.label,
+          vapiTranscriberLanguage: selectedLanguageIsoCode(activeSetup),
+          assistantId: config.assistantId,
+          recruiterKey: config.recruiterKey,
         });
+
+        await client.start(config.assistantId, vapiStartOptions);
 
         return true;
       } catch (error) {
-        console.error("WORKZO VAPI START FAILED", error);
+        console.warn("WORKZO VAPI START FAILED — switching to browser fallback", {
+          message: normalizeErrorMessage(error),
+          role: activeSetup.targetRole,
+          recruiter: activeSetup.recruiterName,
+          language: activeSetup.language,
+          assistantId: config.assistantId,
+          recruiterKey: config.recruiterKey,
+        });
         classifyVoiceError(error);
         trackWorkZoErrorEvent("voice_connect_failed", error, {
           role: activeSetup.targetRole,
           recruiter: activeSetup.recruiterName,
+          language: activeSetup.language,
+          assistantId: config.assistantId,
         }, "high");
         vapiStartingRef.current = false;
         setPremiumVoiceStatus("failed");
-        setPremiumVoiceError("Premium voice could not start. Check the console for WORKZO VAPI START FAILED.");
+        setPremiumVoiceError("Live voice is unavailable. Continuing with standard voice.");
         stopPremiumVoice();
+        if (!vapiFallbackStartedRef.current) void startBrowserFallbackInterview(activeSetup);
         return false;
       }
     },

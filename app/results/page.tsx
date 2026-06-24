@@ -907,7 +907,7 @@ function ScoreRing({ score, grade }: { score: number; grade: string }) {
       <div className="grid h-[5.25rem] w-[5.25rem] place-items-center rounded-full bg-[#120b3d] text-center">
         <div>
           <p className="text-3xl font-black text-white">{score}</p>
-          <p className="text-[11px] font-black text-blue-100">{grade} · /100</p>
+          <p className="text-[11px] font-black text-blue-100">{grade} / 100</p>
         </div>
       </div>
     </div>
@@ -1758,11 +1758,11 @@ export default function ResultsPage() {
 
               <p className="mt-2 text-sm leading-6 text-slate-300">{report.verdict}</p>
 
-              {report.answersCount < 3 && (
+              {report.answersCount <= 1 && (
                 <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-2.5">
                   <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
                   <p className="text-xs leading-5 text-amber-100">
-                    <span className="font-black">Short session detected.</span> Only {report.answersCount} answer{report.answersCount === 1 ? "" : "s"} were captured — scores are indicative only. Complete a full session for an accurate debrief.
+                    <span className="font-black">Very short session.</span> Only {report.answersCount} answer was captured — this debrief may not reflect your full ability. Complete a full session for an accurate result.
                   </p>
                 </div>
               )}
