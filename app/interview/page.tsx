@@ -6083,21 +6083,14 @@ const [questionIndex, setQuestionIndex] = useState(0);
                           <span>Voice On/Off</span>
                           <span className="text-slate-400">{audioEnabled ? "On" : "Off"}</span>
                         </button>
-                        {serverPlan === "premium_pro" ? (
-                          <button
-                            type="button"
-                            onClick={() => setPremiumVoiceEnabled((value) => !value)}
-                            className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
-                          >
-                            <span>Live AI voice (Pro)</span>
-                            <span className="text-slate-400">{premiumVoiceEnabled ? "On" : "Off"}</span>
-                          </button>
-                        ) : (
-                          <div className="flex w-full items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-sm opacity-50">
-                            <span>Live AI voice</span>
-                            <span className="text-slate-500">Premium Pro only</span>
-                          </div>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setPremiumVoiceEnabled((value) => !value)}
+                          className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
+                        >
+                          <span>Live AI voice</span>
+                          <span className="text-slate-400">{premiumVoiceEnabled ? "On" : "Off"}</span>
+                        </button>
                         <label className="block rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm">
                           <div className="mb-2 flex items-center justify-between">
                             <span>Voice Speed</span>

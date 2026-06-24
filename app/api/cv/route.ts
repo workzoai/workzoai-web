@@ -13,6 +13,7 @@ import {
 } from "@/lib/workzoAiCvParser";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 import { enforceCanonicalCandidateName, validateCandidateName } from "@/lib/workzoResumeProfileManager";
+import { mergeCvProfile, shouldRejectAffinda } from "@/lib/cvProfileMerge";
 
 const require = createRequire(import.meta.url);
 
@@ -175,6 +176,12 @@ async function parsePdf(buffer: Buffer) {
   return result.text || "";
 }
 
+async function parseDocx(buffer: Buffer): Promise<string> {
+  const mammoth = require("mammoth");
+  const result = await mammoth.extractRawText({ buffer });
+  return result.value || "";
+}
+
 async function extractFileTextFromBuffer(
   buffer: Buffer,
   fileName: string,
@@ -187,8 +194,15 @@ async function extractFileTextFromBuffer(
     return parsePdf(buffer);
   if (lowerType.includes("text") || lowerName.endsWith(".txt"))
     return buffer.toString("utf8");
+  if (
+    lowerType.includes("wordprocessingml") ||
+    lowerType.includes("msword") ||
+    lowerName.endsWith(".docx") ||
+    lowerName.endsWith(".doc")
+  )
+    return parseDocx(buffer);
 
-  throw new Error("Unsupported file type. Please upload a PDF or TXT CV.");
+  throw new Error("Unsupported file type. Please upload a PDF, DOCX, or TXT CV.");
 }
 
 function cleanText(value: unknown) {
@@ -1704,6 +1718,7 @@ export async function POST(request: Request) {
         affinda.ok &&
         affinda.resumeProfile &&
         isProfileUsable(affinda.resumeProfile) &&
+        !shouldRejectAffinda(affinda.resumeProfile) &&
         affindaScore > aiScore + 25
       );
 
@@ -1737,12 +1752,17 @@ export async function POST(request: Request) {
           score: affindaScore,
           name: affinda.resumeProfile.basics?.name,
         });
+        const mergedAffindaProfile = mergeCvProfile({
+          parsedProfile: affinda.resumeProfile,
+          rawText: cleanedCv,
+          fileName: safeFileName,
+        });
         return buildResponse({
           aiOk: true,
           source: affinda.source,
           error: "",
           rawCvText: cleanedCv,
-          resumeProfile: affinda.resumeProfile,
+          resumeProfile: mergedAffindaProfile as any,
           fileName: safeFileName,
         });
       }
@@ -1766,12 +1786,17 @@ export async function POST(request: Request) {
         name: aiResult.resumeProfile.basics?.name,
       });
 
+      const mergedAiProfile = mergeCvProfile({
+        parsedProfile: aiResult.resumeProfile,
+        rawText: cleanedCv,
+        fileName: safeFileName,
+      });
       return buildResponse({
         aiOk: aiResult.ok,
         source: aiResult.source,
         error: aiResult.error,
         rawCvText: cleanedCv,
-        resumeProfile: aiResult.resumeProfile,
+        resumeProfile: mergedAiProfile as any,
         fileName: safeFileName,
       });
     }
