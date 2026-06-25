@@ -1,1331 +1,1018 @@
+
+/**
+ * app/api/interview/reply/route.ts
+ *
+ * WHAT CHANGED vs original:
+ * - The reply route now delegates entirely to the unified recruiter intelligence
+ *   engine (decideUnifiedRecruiterResponse) instead of making an independent
+ *   LLM call via OpenRouter. This removes the "two competing brains" problem:
+ *   the same GPT-4o structured call that powers the main /api/interview route
+ *   also powers this one, so memory, trust, pressure, and tone are consistent.
+ *
+ * - For premium users the main /api/interview route already returns a
+ *   spokenReply from the unified engine. This route is now a thin convenience
+ *   wrapper that re-runs the engine with the same input when the caller needs
+ *   a refreshed spoken reply mid-session (e.g. after a partial STT retry).
+ *
+ * - The OpenRouter dependency is removed from this file entirely. The unified
+ *   engine already falls back to the deterministic heuristic if OPENAI_API_KEY
+ *   is missing, so this route inherits that graceful degradation automatically.
+ *
+ * - Temperature, max_tokens, and prompt quality are controlled in one place:
+ *   lib/unifiedRecruiterIntelligence.ts (temperature 0.62, max_tokens 1100).
+ */
+
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
-import { getRoleIntelligenceBrief, serializeRoleBriefForPrompt } from "@/lib/workzoRoleIntelligence";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { checkWorkZoRateLimit } from "@/lib/workzoRateLimit";
 import {
   decideUnifiedRecruiterResponse,
   type TranscriptItem,
 } from "@/lib/unifiedRecruiterIntelligence";
-import { enhanceWorkZoDecisionV2 } from "@/lib/workzoRecruiterIntelligenceV2";
-import {
-  applyInterviewIntelligence95ToDecision,
-  buildInterviewIntelligence95,
-  decorateJobContextWithCompanyDNA,
-} from "@/lib/workzoInterviewIntelligence95";
-import {
-  buildRecruiterBrain,
-  serializeRecruiterBrainForPrompt,
-} from "@/lib/recruiterBrainEngine";
-import {
-  buildWorkZoInterviewEvidencePlan,
-  serializeWorkZoInterviewEvidencePlan,
-} from "@/lib/workzoInterviewEvidencePlanner";
+import { buildWorkZoRecruiterReplyV2 } from "@/lib/workzoRecruiterIntelligenceV2";
+
+import OpenAI from "openai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type CandidateFactProfile = {
-  companies?: string[];
-  titles?: string[];
-  skills?: string[];
-  education?: string[];
-  evidenceText?: string;
-  estimatedYearsExperience?: number;
-  factVersion?: string;
+// ── Language output handling ─────────────────────────────────────────────────
+//
+// ARCHITECTURE NOTE (why we changed away from post-translation):
+//
+// The old approach generated in English then called a separate translation API.
+// This caused a compounding failure when STT produced garbage text (e.g. the
+// candidate said German, browser STT returned "Flatulaishish harbor"):
+//   1. LLM tried to respond to garbled English
+//   2. Translation API got garbled English input
+//   3. Output was garbled target-language text ("Schwarzenehoren...")
+//   4. TTS read that aloud as nonsense
+//
+// The new approach:
+//   1. Detect if the candidate answer looks like garbled STT output
+//   2. If garbled → return a safe language-appropriate clarification request
+//   3. If clean → instruct the LLM to generate natively in the target language
+//   4. Validate the output before returning (detect if it's still English when it shouldn't be)
+//
+// Native generation is more reliable than post-translation for GPT-4o because:
+// - GPT-4o has strong native German/French/Dutch/Spanish/Italian/Portuguese
+// - The interview prompt already contains the full language instruction
+// - Translation adds latency, cost, and an extra failure point
+
+// BCP-47 / label → human name for prompt injection
+function toLanguageName(value: string): string {
+  const raw = value.toLowerCase().trim();
+  const MAP: Record<string, string> = {
+    "de": "German", "de-de": "German", "german": "German", "deutsch": "German",
+    "fr": "French", "fr-fr": "French", "french": "French", "français": "French",
+    "nl": "Dutch", "nl-nl": "Dutch", "dutch": "Dutch", "nederlands": "Dutch",
+    "es": "Spanish", "es-es": "Spanish", "spanish": "Spanish", "español": "Spanish",
+    "it": "Italian", "it-it": "Italian", "italian": "Italian", "italiano": "Italian",
+    "pt": "Portuguese", "pt-pt": "Portuguese", "pt-br": "Portuguese", "portuguese": "Portuguese",
+    "hi": "Hindi", "hi-in": "Hindi", "hindi": "Hindi",
+    "ta": "Tamil", "ta-in": "Tamil", "tamil": "Tamil",
+    "zh": "Chinese", "zh-cn": "Chinese", "chinese": "Chinese", "mandarin": "Chinese",
+    "ja": "Japanese", "ja-jp": "Japanese", "japanese": "Japanese",
+    "ko": "Korean", "ko-kr": "Korean", "korean": "Korean",
+    "ar": "Arabic", "ar-sa": "Arabic", "arabic": "Arabic",
+    "pl": "Polish", "pl-pl": "Polish", "polish": "Polish",
+    "ru": "Russian", "ru-ru": "Russian", "russian": "Russian",
+    "tr": "Turkish", "tr-tr": "Turkish", "turkish": "Turkish",
+  };
+  return MAP[raw] || "English";
+}
+
+function isEnglishLanguage(value: string): boolean {
+  const raw = (value || "").toLowerCase().trim();
+  return !raw || raw === "english" || raw.startsWith("en");
+}
+
+// ── Gibberish / STT corruption detector ────────────────────────────────────
+// Detects when STT has returned structurally impossible text — consonant cluster
+// garble, invalid character ratios, or repeated phoneme noise.
+//
+// NOTE: Short-word phonetic transcription garble (e.g. "Bachelor shop, Shoish
+// Harbor" = German speech through English STT) is NOT caught here because
+// the pattern is structurally identical to valid candidate introductions.
+// The correct fix for that class of error is locking the Vapi transcriber
+// language via assistantOverrides.transcriber.language so Vapi's STT never
+// transcribes non-English speech as English phonemes in the first place.
+function detectSTTCorruption(text: string): { isCorrupted: boolean; reason: string } {
+  const clean = text.trim();
+  if (!clean || clean.length < 2) return { isCorrupted: false, reason: "" };
+
+  // Too short to be a real answer (noise / click / breath)
+  const wordCount = clean.split(/\s+/).filter(Boolean).length;
+  if (wordCount < 2) return { isCorrupted: true, reason: "too_short" };
+
+  // Invalid character ratio — real speech has >85% valid alphabet chars
+  const validChars = (clean.match(/[a-zA-ZÀ-ɏͰ-ϿЀ-ӿ؀-ۿऀ-ॿ஀-௿぀-ヿ一-鿿\s0-9.,!?'"-]/g) || []).length;
+  const invalidRatio = 1 - validChars / clean.length;
+  if (invalidRatio > 0.25) return { isCorrupted: true, reason: "invalid_chars" };
+
+  // Long impossible words: 10+ chars with 3+ consecutive consonants AND
+  // at least 2 such words make up >35% of the answer.
+  // Catches: "Schwarzenehoren", "Kurzforsten" etc. (invented German-looking words)
+  const words = clean.split(/\s+/).filter(Boolean);
+  const longGarbledWords = words.filter(w => {
+    const alpha = w.replace(/[^a-zA-ZÀ-ɏ]/g, "");
+    if (alpha.length < 10) return false;
+    return (alpha.match(/[bcdfghjklmnpqrstvwxyz]{3,}/gi) || []).length > 0;
+  });
+  if (longGarbledWords.length >= 2 && longGarbledWords.length / words.length > 0.35) {
+    return { isCorrupted: true, reason: "consonant_cluster_garbage" };
+  }
+  // Single very long garbled word in a short answer is also a signal
+  const veryLongGarbled = words.filter(w => {
+    const alpha = w.replace(/[^a-zA-ZÀ-ɏ]/g, "");
+    if (alpha.length < 12) return false;
+    return (alpha.match(/[bcdfghjklmnpqrstvwxyz]{3,}/gi) || []).length > 0;
+  });
+  if (veryLongGarbled.length >= 1 && wordCount <= 6) {
+    return { isCorrupted: true, reason: "long_invented_word" };
+  }
+
+  // Repeated phoneme noise (STT artifacts like "aaaa", "mmmm", etc.)
+  if (/(..){3,}/i.test(clean)) return { isCorrupted: true, reason: "repeated_phoneme" };
+
+  return { isCorrupted: false, reason: "" };
+}
+
+// ── Safe fallback for corrupted STT ─────────────────────────────────────────
+function buildClarificationForCorruptedSTT(languageLabel: string): string {
+  const lang = toLanguageName(languageLabel);
+  const CLARIFICATIONS: Record<string, string> = {
+    German: "Entschuldigung, ich konnte das leider nicht klar verstehen. Könntest du deine Antwort bitte noch einmal wiederholen?",
+    French: "Désolé, je n'ai pas bien compris. Pourriez-vous répéter votre réponse, s'il vous plaît ?",
+    Dutch: "Sorry, ik kon dat niet goed verstaan. Kun je je antwoord nogmaals herhalen?",
+    Spanish: "Lo siento, no pude entender bien eso. ¿Podrías repetir tu respuesta, por favor?",
+    Italian: "Mi scusi, non sono riuscito a capire bene. Potrebbe ripetere la sua risposta, per favore?",
+    Portuguese: "Desculpe, não consegui perceber bem. Poderia repetir a sua resposta, por favor?",
+    Hindi: "माफ़ करें, मैं आपकी बात स्पष्ट रूप से नहीं समझ पाया। क्या आप कृपया अपना उत्तर दोबारा दे सकते हैं?",
+    Tamil: "மன்னிக்கவும், என்னால் தெளிவாக புரிந்துகொள்ள முடியவில்லை. தயவுசெய்து உங்கள் பதிலை மீண்டும் சொல்ல முடியுமா?",
+    Chinese: "抱歉，我没能清楚地听懂。您能否再说一次您的回答？",
+    Japanese: "申し訳ありません、はっきりと聞き取れませんでした。もう一度お答えいただけますか？",
+    Korean: "죄송합니다, 잘 들리지 않았습니다. 답변을 다시 한 번 말씀해 주시겠어요?",
+    Arabic: "عذراً، لم أتمكن من فهم ذلك بوضوح. هل يمكنك تكرار إجابتك من فضلك؟",
+    Polish: "Przepraszam, nie mogłem wyraźnie zrozumieć. Czy mógłbyś powtórzyć swoją odpowiedź?",
+    Russian: "Извините, я не смог чётко расслышать. Не могли бы вы повторить ваш ответ?",
+    Turkish: "Üzgünüm, sizi net olarak anlayamadım. Cevabınızı tekrar söyler misiniz lütfen?",
+    English: "I'm sorry, I didn't catch that clearly. Could you please repeat your answer?",
+  };
+  return CLARIFICATIONS[lang] || CLARIFICATIONS.English;
+}
+
+// ── Output corruption validator ───────────────────────────────────────────────
+// After the LLM generates a reply, verify it is actually in the target language.
+// This catches cases where the LLM ignored the language instruction and replied
+// in English when German/French/etc was required.
+function detectOutputLanguageMismatch(
+  reply: string,
+  targetLanguage: string,
+): { isMismatch: boolean; reason: string } {
+  if (isEnglishLanguage(targetLanguage)) return { isMismatch: false, reason: "" };
+
+  const lang = toLanguageName(targetLanguage);
+  const text = reply.trim().toLowerCase();
+
+  // These English opener patterns should never appear in a non-English reply
+  const englishOpeners = [
+    /^(that'?s|that is) (a |an )?(great|good|interesting|useful|helpful|strong|clear)/i,
+    /^(let me|i'?d like|i want|i need|tell me|walk me|give me|could you|can you|would you)/i,
+    /^(okay|alright|right|so|now|great|perfect|excellent|wonderful|fantastic),?\s+(let'?s|i'?ll|what|how|why|tell)/i,
+    /^(thank you|thanks),?\s+(for|that|your)/i,
+    /^(i'?m|i am) (glad|happy|pleased|impressed|not|sorry)/i,
+    /^(the|a|an|your|this|that|these|those|what|how|why|when|where|which) /i,
+  ];
+
+  if (lang !== "English") {
+    const hasEnglishOpener = englishOpeners.some(p => p.test(text));
+    const hasEnglishWords = (text.match(/(the|and|or|but|with|this|that|your|you|have|has|was|were|will|would|could|should|must|can|may|might|shall|do|does|did|for|from|into|onto|upon|about|after|before|between|through|during|without|because|although|however|therefore|moreover|furthermore)/g) || []).length;
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    const englishDensity = wordCount > 0 ? hasEnglishWords / wordCount : 0;
+
+    // If >40% of words are English function words and it starts with an English opener,
+    // the LLM probably ignored the language instruction
+    if (hasEnglishOpener && englishDensity > 0.35) {
+      return { isMismatch: true, reason: "english_output_for_non_english_language" };
+    }
+  }
+
+  // Also detect gibberish in the OUTPUT (not just STT) — e.g. "Schwarzenehoren"
+  const { isCorrupted } = detectSTTCorruption(reply);
+  if (isCorrupted) return { isMismatch: true, reason: "garbled_output" };
+
+  return { isMismatch: false, reason: "" };
+}
+
+// Safe fallback when LLM output is in wrong language or garbled
+function buildNativeLanguageSafeReply(languageLabel: string, targetRole: string): string {
+  const lang = toLanguageName(languageLabel);
+  const role = targetRole || "this role";
+  const SAFE_REPLIES: Record<string, string> = {
+    German: `Entschuldigung, es gab ein technisches Problem. Bitte erzähle mir kurz etwas über deinen Hintergrund und wie deine Erfahrung zur Rolle ${role} passt.`,
+    French: `Désolé, il y a eu un problème technique. Pourriez-vous me parler brièvement de votre parcours et de la façon dont votre expérience correspond au poste ${role} ?`,
+    Dutch: `Sorry, er was een technisch probleem. Kun je me kort iets vertellen over je achtergrond en hoe je ervaring aansluit bij de rol ${role}?`,
+    Spanish: `Disculpa, hubo un problema técnico. ¿Puedes contarme brevemente sobre tu trayectoria y cómo tu experiencia encaja con el puesto ${role}?`,
+    Italian: `Mi scuso, c'è stato un problema tecnico. Puoi parlarmi brevemente del tuo percorso e di come la tua esperienza si collega al ruolo ${role}?`,
+    Portuguese: `Desculpe, houve um problema técnico. Podes falar brevemente sobre o teu percurso e como a tua experiência se relaciona com a função ${role}?`,
+    Hindi: `माफ़ करें, एक तकनीकी समस्या आई। कृपया अपनी पृष्ठभूमि के बारे में संक्षेप में बताएं और यह कि आपका अनुभव ${role} की भूमिका से कैसे जुड़ता है।`,
+    Tamil: `மன்னிக்கவும், தொழில்நுட்ப சிக்கல் ஒன்று இருந்தது. உங்கள் பின்னணி மற்றும் ${role} பொறுப்புக்கு உங்கள் அனுபவம் எப்படி தொடர்புடையது என்பதை சுருக்கமாக சொல்ல முடியுமா?`,
+    English: `Let's continue. Could you briefly tell me about your background and how your experience connects to the ${role} role?`,
+  };
+  return SAFE_REPLIES[lang] || SAFE_REPLIES.English;
+}
+
+type TranscriptTurn = {
+  role: "recruiter" | "candidate" | string;
+  speaker?: string;
+  text: string;
 };
 
-type ClaimValidationResult = {
-  hasIssue: boolean;
-  claimedCompany?: string;
-  claimedTitle?: string;
-  claimedYears?: number;
-  verifiedCompanies: string[];
-  verifiedTitles?: string[];
-  estimatedYearsExperience?: number;
-  issue?: "unverified_company" | "unverified_title" | "inflated_years" | "title_and_years";
-  concern?: string;
-  challenge?: string;
-};
-
-type InterviewRequest = {
+type ReplyRequestBody = {
   answer?: string;
   currentQuestion?: string;
-  transcript?: TranscriptItem[];
-  setup?: {
-    cvText?: string;
-    candidateProfileSummary?: string;
-    jobDescription?: string;
-    jobProfileSummary?: string;
-    candidateFactProfile?: CandidateFactProfile;
-    targetRole?: string;
-    targetMarket?: string;
-    companyDescription?: string;
-    companyName?: string;
-    companyStyle?: string;
-    recruiterPersonality?: string;
-    language?: string;
-    recruiterMemoryProfile?: unknown;
-    jobMemoryProfile?: unknown;
-    resumeProfile?: unknown;
-  };
+  transcript?: TranscriptTurn[];
   cvText?: string;
   jobDescription?: string;
   targetRole?: string;
   targetMarket?: string;
-  companyDescription?: string;
-  targetCompany?: string;
   companyStyle?: string;
   recruiterPersonality?: string;
+  language?: string;
+  candidateName?: string;
+  targetCompany?: string;
+  recruiterName?: string;
+  recruiterTitle?: string;
   recruiterTrust?: number;
   recruiterState?: string | null;
-  recruiterMemorySummary?: string;
-  resumeProfile?: unknown;
+  questionIndex?: number;
+  // Pre-computed signals passed in as hints (kept for API compatibility).
+  // The unified engine ignores these and makes its own assessment, which is
+  // more accurate than keyword-based pattern matching.
+  signals?: {
+    contradiction?: string;
+    unsupportedClaim?: string;
+    missingMetric?: boolean;
+    missingOwnership?: boolean;
+    vague?: boolean;
+    trust?: number;
+    interest?: number;
+  };
+  // Structured resume profile for richer CV context in the LLM.
+  resumeProfile?: {
+    basics?: { name?: string; headline?: string; email?: string; phone?: string; location?: string; linkedin?: string };
+    summary?: string;
+    experience?: Array<{ title?: string; company?: string; dates?: string; bullets?: string[] }>;
+    education?: Array<{ degree?: string; institution?: string; dates?: string }>;
+    skills?: string[];
+    projects?: Array<{ name?: string; bullets?: string[] }>;
+    languages?: string[];
+    [key: string]: unknown;
+  } | null;
+  // V2 persistent memory — enables competency tracking, concern resolution,
+  // topic progression, and JD gaps to persist across turns.
+  recruiterMemoryV2?: unknown;
 };
 
-function text(value: unknown, maxChars = 1200) {
-  const clean = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-  return clean.slice(0, maxChars);
-}
-
-function compactInterviewContext(value: unknown, maxChars = 900) {
-  const clean = text(value, maxChars * 2);
-  if (clean.length <= maxChars) return clean;
-
-  const priorityPatterns = [
-    /\b(?:experience|worked|responsible|managed|led|handled|supported|resolved|built|created|developed|implemented|improved|analyzed|designed|collaborated|trained|coached)\b/i,
-    /\b(?:customer|client|stakeholder|team|support|sales|data|analytics|manufacturing|warehouse|logistics|quality|safety|delivery|KPI|CRM|SaaS|SQL|Python|Excel|Tableau)\b/i,
-    /\b\d+%|\b\d+\s*(?:years?|customers?|tickets?|projects?|months?)\b/i,
-  ];
-
-  const sentences = clean
-    .split(/(?<=[.!?])\s+/)
-    .map((sentence) => sentence.trim())
-    .filter((sentence) => sentence.length > 12);
-
-  const selected = sentences
-    .map((sentence, index) => ({
-      sentence,
-      index,
-      score: priorityPatterns.reduce((sum, pattern) => sum + (pattern.test(sentence) ? 2 : 0), 0) + (index < 6 ? 1 : 0),
-    }))
-    .sort((a, b) => b.score - a.score || a.index - b.index)
-    .slice(0, 8)
-    .sort((a, b) => a.index - b.index)
-    .map((item) => item.sentence)
-    .join(" ");
-
-  return (selected || clean).slice(0, maxChars).trim();
+function cleanText(value: unknown, maxLength = 6000): string {
+  if (typeof value !== "string") return "";
+  return value.replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
 
-type NormalizedInterviewLanguage = { code: string; label: string };
+function stripRepeatedSpeech(value: string): string {
+  const clean = cleanText(value, 2000);
+  if (!clean) return "";
 
-async function translateRecruiterTextIfNeeded(value: string, languageValue?: string): Promise<string> {
-  const clean = text(value, 1200);
-  const language = normalizeInterviewLanguage(languageValue);
-  if (!clean || language.label === "English") return clean;
-  if (!process.env.OPENAI_API_KEY) return clean;
-  try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0,
-      max_tokens: 360,
-      messages: [
-        {
-          role: "system",
-          content: `Translate this recruiter interview reply into natural, professional ${language.label}. If it is already in ${language.label}, return it unchanged. Output only the candidate-facing text.`,
-        },
-        { role: "user", content: clean },
-      ],
-    });
-    return response.choices[0]?.message?.content?.trim() || clean;
-  } catch {
-    return clean;
+  const normalized = clean.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  const words = normalized.split(" ").filter(Boolean);
+  const originalWords = clean.split(/\s+/).filter(Boolean);
+
+  if (words.length < 6) return clean;
+
+  // Exact duplicated halves from STT/Vapi: "answer answer".
+  if (words.length % 2 === 0) {
+    const half = words.length / 2;
+    const first = words.slice(0, half).join(" ");
+    const second = words.slice(half).join(" ");
+    if (first === second) return originalWords.slice(0, half).join(" ");
   }
-}
 
-function normalizeInterviewLanguage(value?: string): NormalizedInterviewLanguage {
-  const raw = text(value || "English", 80).toLowerCase();
-  if (raw.includes("german") || raw.includes("deutsch") || raw === "de" || raw === "de-de") return { code: "de-DE", label: "German" };
-  if (raw.includes("dutch") || raw.includes("nederlands") || raw === "nl" || raw === "nl-nl") return { code: "nl-NL", label: "Dutch" };
-  if (raw.includes("french") || raw.includes("français") || raw.includes("francais") || raw === "fr" || raw === "fr-fr") return { code: "fr-FR", label: "French" };
-  if (raw.includes("spanish") || raw.includes("español") || raw.includes("espanol") || raw === "es" || raw === "es-es") return { code: "es-ES", label: "Spanish" };
-  if (raw.includes("italian") || raw.includes("italiano") || raw === "it" || raw === "it-it") return { code: "it-IT", label: "Italian" };
-  if (raw.includes("portuguese") || raw.includes("portugu") || raw === "pt" || raw === "pt-pt" || raw === "pt-br") return { code: "pt-PT", label: "Portuguese" };
-  if (raw.includes("hindi") || raw.includes("हिन्दी") || raw.includes("हिंदी") || raw === "hi" || raw === "hi-in") return { code: "hi-IN", label: "Hindi" };
-  if (raw.includes("chinese") || raw.includes("中文") || raw.includes("mandarin") || raw === "zh" || raw === "zh-cn") return { code: "zh-CN", label: "Chinese" };
-  if (raw.includes("japanese") || raw.includes("日本") || raw === "ja" || raw === "ja-jp") return { code: "ja-JP", label: "Japanese" };
-  if (raw.includes("korean") || raw.includes("한국") || raw === "ko" || raw === "ko-kr") return { code: "ko-KR", label: "Korean" };
-  if (raw.includes("arabic") || raw.includes("العربية") || raw === "ar" || raw === "ar-sa") return { code: "ar-SA", label: "Arabic" };
-  if (raw.includes("polish") || raw.includes("polski") || raw === "pl" || raw === "pl-pl") return { code: "pl-PL", label: "Polish" };
-  if (raw.includes("russian") || raw.includes("русский") || raw === "ru" || raw === "ru-ru") return { code: "ru-RU", label: "Russian" };
-  if (raw.includes("turkish") || raw.includes("türkçe") || raw === "tr" || raw === "tr-tr") return { code: "tr-TR", label: "Turkish" };
-  return { code: "en-US", label: "English" };
-}
-
-function candidateAnswerCount(transcript?: TranscriptItem[]) {
-  const candidateTurnCount = (transcript || []).filter((item) => {
-    const role = String(item?.role || "").toLowerCase();
-    return role === "candidate" || role === "user";
-  }).length;
-  return candidateTurnCount;
-}
-
-function isGreetingOrLanguageCheck(answer: string) {
-  const lower = text(answer, 300).toLowerCase();
-  return lower.split(/\s+/).filter(Boolean).length <= 12 && /\b(hello|hi|hey|how are you|can you hear me|do you hear me|namaste|नमस्ते|hallo|bonjour|hola|ciao|olá|ola)\b/i.test(lower);
-}
-
-function isConfusedOrNeedsRepeat(answer: string) {
-  return /\b(i don'?t understand|not understand|repeat|again|confused|समझ नहीं|समझ नही|नहीं समझ|nicht verstanden|nochmal|répéter|no entiendo|non capisco)\b/i.test(answer);
-}
-
-function buildLocalizedIntroQuestion(languageValue: string | undefined, roleValue: string | undefined) {
-  const language = normalizeInterviewLanguage(languageValue);
-  const role = text(roleValue, 120) || "this role";
-  switch (language.code) {
-    case "de-DE": return `Schön. Ich habe mir deinen Lebenslauf und die Rolle ${role} angesehen. Zum Einstieg: Kannst du dich bitte kurz vorstellen und erklären, wie deine Erfahrung zu dieser Gelegenheit passt?`;
-    case "nl-NL": return `Fijn. Ik heb je cv en de rol ${role} bekeken. Om te beginnen: kun je jezelf kort voorstellen en uitleggen hoe je ervaring aansluit op deze kans?`;
-    case "fr-FR": return `Très bien. J’ai consulté votre CV et le poste ${role}. Pour commencer, pouvez-vous vous présenter brièvement et expliquer en quoi votre expérience correspond à cette opportunité ?`;
-    case "es-ES": return `Perfecto. He revisado tu CV y el puesto de ${role}. Para empezar, ¿puedes presentarte brevemente y explicar cómo tu experiencia encaja con esta oportunidad?`;
-    case "it-IT": return `Perfetto. Ho letto il tuo CV e il ruolo ${role}. Per iniziare, puoi presentarti brevemente e spiegare come la tua esperienza si collega a questa opportunità?`;
-    case "pt-PT": return `Ótimo. Analisei o teu CV e a função ${role}. Para começar, podes apresentar-te brevemente e explicar como a tua experiência se relaciona com esta oportunidade?`;
-    case "hi-IN": return `अच्छा। मैंने आपका CV और ${role} भूमिका देखी है। शुरुआत के लिए, कृपया अपना छोटा परिचय दें और बताएं कि आपका अनुभव इस अवसर से कैसे जुड़ता है।`;
-    case "zh-CN": return `好的。我看过你的简历和${role}这个职位。请先简要介绍一下自己，并说明你的经验如何匹配这个机会。`;
-    case "ja-JP": return `ありがとうございます。履歴書と${role}の職務内容を確認しました。まず、簡単に自己紹介をして、このポジションにご自身の経験がどうつながるか説明していただけますか？`;
-    case "ko-KR": return `좋습니다. 이력서와 ${role} 역할을 검토했습니다. 먼저 간단히 자기소개를 해주시고, 본인의 경험이 이 기회와 어떻게 연결되는지 설명해 주세요.`;
-    case "ar-SA": return `جيد. لقد راجعت سيرتك الذاتية ودور ${role}. لنبدأ: هل يمكنك تقديم نفسك باختصار وشرح كيف ترتبط خبرتك بهذه الفرصة؟`;
-    case "pl-PL": return `Dobrze. Zapoznałem się z twoim CV i rolą ${role}. Na początek przedstaw się krótko i wyjaśnij, jak twoje doświadczenie pasuje do tej możliwości.`;
-    case "ru-RU": return `Хорошо. Я посмотрел ваше резюме и роль ${role}. Для начала коротко представьтесь и объясните, как ваш опыт связан с этой возможностью.`;
-    case "tr-TR": return `Güzel. Özgeçmişini ve ${role} rolünü inceledim. Başlamak için kendini kısaca tanıtıp deneyiminin bu fırsatla nasıl bağlantılı olduğunu açıklar mısın?`;
-    default: return `Great. I’ve had a look at your background and I can see you’re targeting a ${role} position. To get started, tell me about yourself — what you’ve been doing and what’s driving you toward this direction.`;
+  // Near duplicated halves with one or two filler-word differences.
+  for (let half = Math.floor(words.length / 2) - 2; half <= Math.ceil(words.length / 2) + 2; half += 1) {
+    if (half < 4 || half >= words.length) continue;
+    const first = words.slice(0, half);
+    const second = words.slice(half, half * 2);
+    if (second.length < Math.max(4, first.length - 2)) continue;
+    const overlap = first.filter((word, index) => second[index] === word).length / Math.max(first.length, second.length);
+    if (overlap >= 0.82) return originalWords.slice(0, half).join(" ");
   }
-}
 
-function buildLocalizedGentleClarification(languageValue?: string) {
-  const language = normalizeInterviewLanguage(languageValue);
-  if (language.code === "hi-IN") return "कोई बात नहीं। थोड़ा समय लें। दो या तीन वाक्यों में अपना परिचय दें और इस भूमिका से जुड़ा एक अनुभव बताएं।";
-  if (language.code === "de-DE") return "Kein Problem. Nimm dir kurz Zeit. Bitte stell dich in zwei bis drei Sätzen vor und nenne eine Erfahrung, die für diese Rolle relevant ist.";
-  if (language.code === "fr-FR") return "Pas de problème. Prenez un instant. Présentez-vous en deux ou trois phrases et donnez une expérience pertinente pour ce poste.";
-  return "No problem. Take a moment. Please introduce yourself in two or three sentences and mention one experience that is relevant to this role.";
-}
-
-function maybeBuildEarlyInterviewResponse(input: { answer: string; transcript?: TranscriptItem[]; language?: string; targetRole?: string }) {
-  const count = candidateAnswerCount(input.transcript);
-  if (count <= 1 || isGreetingOrLanguageCheck(input.answer)) return buildLocalizedIntroQuestion(input.language, input.targetRole);
-  if (count <= 2 && isConfusedOrNeedsRepeat(input.answer)) return buildLocalizedGentleClarification(input.language);
-  return "";
-}
-
-
-function normalizeCompany(value: string) {
-  return (value || "")
-    .toLowerCase()
-    .replace(/&/g, " and ")
-    .replace(/\b(?:gmbh|inc|corp|corporation|company|co|ltd|limited|llc|ag|plc|pvt|private|technologies|technology|solutions|systems|services)\b/g, " ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function uniqueCompanies(values: string[], limit = 24) {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of values) {
-    const cleaned = String(raw || "")
-      .replace(/\s+/g, " ")
-      .replace(/^[•\-–—|:]+|[•\-–—|:]+$/g, "")
-      .trim();
-    if (!cleaned || cleaned.length < 2 || cleaned.length > 80) continue;
-    if (cleaned.split(/[,;|]/).length > 2) continue;
-    if (/\b(?:data analyst|software engineer|technical support|product design|project manager|sales executive|customer success|candidate|recruiter|company|role|team|english|german|global|remote|hybrid|fluent|conversational|python|sql|tableau|excel|power bi|skills?|language|programming|machine learning|visualization|contact|summary|profile)\b/i.test(cleaned)) continue;
-    const key = normalizeCompany(cleaned);
-    if (!key || key.length < 2 || seen.has(key)) continue;
-    seen.add(key);
-    out.push(cleaned);
-    if (out.length >= limit) break;
-  }
-  return out;
-}
-
-
-function uniqueTitleFacts(values: string[], limit = 24) {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of values) {
-    const cleaned = String(raw || "")
-      .replace(/\s+/g, " ")
-      .replace(/^[•\-–—|:]+|[•\-–—|:]+$/g, "")
-      .trim();
-    if (!cleaned || cleaned.length < 2 || cleaned.length > 80) continue;
-    if (cleaned.split(/[,;|]/).length > 2) continue;
-    if (/\b(?:candidate|recruiter|company|english|german|global|remote|hybrid|resume|cv|email|phone|linkedin|fluent|conversational|skills?|language|programming|python|sql|tableau|excel|power bi|machine learning|visualization|contact|summary|profile)\b/i.test(cleaned)) continue;
-    const key = normalizeRoleTitle(cleaned);
-    if (!key || key.length < 2 || seen.has(key)) continue;
-    seen.add(key);
-    out.push(cleaned);
-    if (out.length >= limit) break;
-  }
-  return out;
-}
-
-
-function extractCompanyLikeNames(sourceText: string, limit = 18) {
-  const source = (sourceText || "").replace(/\s+/g, " ");
-  const out: string[] = [];
-  const patterns = [
-    /\b(?:at|with|for|from)\s+([A-Z][A-Za-z0-9&.'-]*(?:\s+[A-Z][A-Za-z0-9&.'-]*){0,5})\b/g,
-    /\b([A-Z][A-Za-z0-9&.'-]*(?:\s+[A-Z][A-Za-z0-9&.'-]*){0,4}\s+(?:GmbH|Inc|Corp|Corporation|Ltd|Limited|LLC|AG|PLC|Pvt|Technologies|Technology|Solutions|Systems|Services|University|School|College))\b/g,
-  ];
-
-  for (const pattern of patterns) {
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(source))) {
-      const candidate = (match[1] || "")
-        .replace(/\b(?:as|where|when|and|but|because|for|from|in|on|during|between|with|using|to|the|a|an|i|we|my|our)\b.*$/i, "")
-        .replace(/[,.!?;:]+$/g, "")
-        .trim();
-      if (candidate) out.push(candidate);
-      if (out.length >= limit) break;
+  // Repeated sentence-like chunks without punctuation.
+  const chunkSize = Math.floor(words.length / 2);
+  if (chunkSize >= 5) {
+    const firstChunk = words.slice(0, chunkSize).join(" ");
+    const remaining = words.slice(chunkSize).join(" ");
+    if (remaining.includes(firstChunk) || firstChunk.includes(remaining)) {
+      return originalWords.slice(0, chunkSize).join(" ");
     }
   }
 
-  return uniqueCompanies(out, limit);
+  return clean;
 }
 
-function companyMatchesClaim(claimed: string, verifiedCompanies: string[]) {
-  const claimedKey = normalizeCompany(claimed);
-  if (!claimedKey) return false;
-  const claimedTokens = new Set(claimedKey.split(" ").filter((token) => token.length > 2));
+function cleanRoleLabel(value: unknown): string {
+  const raw = cleanText(value, 140);
+  if (!raw) return "this role";
+  if (/^(interview role|role|job role|target role|position|this role)$/i.test(raw)) return "this role";
+  return raw.replace(/\s+role$/i, "");
+}
 
-  return verifiedCompanies.some((company) => {
-    const key = normalizeCompany(company);
-    if (!key) return false;
-    if (key === claimedKey || key.includes(claimedKey) || claimedKey.includes(key)) return true;
-    const tokens = key.split(" ").filter((token) => token.length > 2);
-    if (!tokens.length || !claimedTokens.size) return false;
-    const overlap = tokens.filter((token) => claimedTokens.has(token)).length;
-    return overlap / Math.max(tokens.length, claimedTokens.size) >= 0.67;
-  });
+function hasMeaningfulJdOrCv(body: ReplyRequestBody): boolean {
+  return Boolean(cleanText(body.cvText, 200).length > 80 || cleanText(body.jobDescription, 200).length > 80);
 }
 
 
-function normalizeRoleTitle(value: string) {
-  return (value || "")
-    .toLowerCase()
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9+.# ]+/g, " ")
-    .replace(/\b(?:senior|junior|lead|principal|associate|assistant|trainee|intern|graduate|professional|specialist)\b/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+function normalizeLanguageLabel(value: unknown): string {
+  const raw = cleanText(value, 80).toLowerCase();
+  if (raw.includes("german") || raw.includes("deutsch") || raw === "de" || raw === "de-de") return "German";
+  if (raw.includes("dutch") || raw.includes("nederlands") || raw === "nl" || raw === "nl-nl") return "Dutch";
+  if (raw.includes("french") || raw.includes("français") || raw.includes("francais") || raw === "fr" || raw === "fr-fr") return "French";
+  if (raw.includes("spanish") || raw.includes("español") || raw.includes("espanol") || raw === "es" || raw === "es-es") return "Spanish";
+  if (raw.includes("italian") || raw.includes("italiano") || raw === "it" || raw === "it-it") return "Italian";
+  if (raw.includes("portuguese") || raw.includes("portugu") || raw === "pt" || raw === "pt-pt" || raw === "pt-br") return "Portuguese";
+  if (raw.includes("hindi") || raw === "hi" || raw === "hi-in") return "Hindi";
+  return "English";
 }
 
-function titleMatchesClaim(claimed: string, verifiedTitles: string[], evidenceText: string) {
-  const claimedKey = normalizeRoleTitle(claimed);
-  if (!claimedKey || claimedKey.length < 3) return true;
+function isOpeningSmallTalk(answer: string): boolean {
+  const clean = answer.toLowerCase().replace(/[^a-z\u00c0-\u024f0-9\s']/gi, " ").replace(/\s+/g, " ").trim();
+  if (!clean) return false;
+  const words = clean.split(/\s+/).filter(Boolean);
 
-  const evidenceKey = normalizeRoleTitle(evidenceText || "");
-  if (evidenceKey.includes(claimedKey)) return true;
+  const hasSubstantiveContent = /\b(experience|background|worked|years?|role|position|company|skill|project|studied|degree|responsible|managed|built|developed|led|created|handled|support|engineer|analyst|manager|specialist|supervisor|design|technical)\b/i.test(clean);
 
-  const claimedTokens = claimedKey.split(" ").filter((token) => token.length > 2);
-  if (!claimedTokens.length) return true;
+  // BUG FIXED: this used to return true for ANY answer ≤12 words on the
+  // opening turn regardless of content — a genuine, substantive answer like
+  // "I have 12 years of experience as a product design engineer" (exactly
+  // 12 words) was misclassified as small talk and got the canned opening
+  // line repeated verbatim instead of being treated as a real answer.
+  // Anything under 12 words on the opening turn is treated as small talk.
+  // Real interview answers to "tell me about yourself" are 20+ words minimum.
+  // This catches: "hi I'm good and how are you" (7w), "doing great thanks for having me" (6w), etc.
+  // Previously was ≤6 which let 7-11 word greetings through to GPT-4o unnecessarily.
+  if (words.length <= 12 && !hasSubstantiveContent) return true;
+  if (words.length > 30) return false;
 
-  return verifiedTitles.some((title) => {
-    const key = normalizeRoleTitle(title);
-    if (!key) return false;
-    if (key === claimedKey || key.includes(claimedKey) || claimedKey.includes(key)) return true;
-    const tokens = key.split(" ").filter((token) => token.length > 2);
-    if (!tokens.length) return false;
-    const overlap = claimedTokens.filter((token) => tokens.includes(token)).length;
-    return overlap / Math.max(claimedTokens.length, tokens.length) >= 0.58;
-  });
-}
+  // Longer answers that are still pure social openers (up to 30 words)
+  // e.g. "I'm doing really well thank you so much I'm a bit nervous but excited to be here"
+  const greetingDensity = (clean.match(/\b(good|well|fine|great|okay|ok|nervous|excited|happy|glad|thank|thanks|appreciate|nice|wonderful|fantastic|hi|hello|hey|how are you|how about you|doing well|i'm good|im good|i am good)\b/g) || []).length;
 
-function cleanClaimedTitle(value: string) {
-  return (value || "")
-    .replace(/\b(?:for|at|with|in|where|when|and|but|because|during|from|to|the|a|an|my|our|their|this|that)\b.*$/i, "")
-    .replace(/[,.!?;:]+$/g, "")
-    .replace(/^\s*(?:a|an|the)\s+/i, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+  // High greeting density + no substantive content = social opener
+  if (greetingDensity >= 2 && !hasSubstantiveContent) return true;
 
-function extractExperienceTitleClaims(answer: string) {
-  const clean = (answer || "").replace(/\s+/g, " ").trim();
-  if (!clean) return [];
-
-  const patterns = [
-    /\b(?:i\s+)?(?:have|had)\s+(?:about\s+|around\s+|over\s+|more than\s+|nearly\s+)?(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|twenty)\s*(?:\+\s*)?(?:years?|yrs?)\s+(?:of\s+)?(?:experience\s+)?(?:as|working as)\s+(?:a\s+|an\s+|the\s+)?([a-zA-Z][a-zA-Z0-9+.#/& -]{2,70})/gi,
-    /\b(?:i\s+)?(?:worked|work|was working|have worked|had worked|served|am working|was employed)\s+as\s+(?:a\s+|an\s+|the\s+)?([a-zA-Z][a-zA-Z0-9+.#/& -]{2,70})/gi,
-    /\b(?:my\s+)?(?:role|position|job|title)\s+(?:was|is|as)\s+(?:a\s+|an\s+|the\s+)?([a-zA-Z][a-zA-Z0-9+.#/& -]{2,70})/gi,
-  ];
-
-  const claims: string[] = [];
-  for (const pattern of patterns) {
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(clean))) {
-      const title = cleanClaimedTitle(match[1] || "");
-      if (!title) continue;
-      if (/\b(?:experience|years|company|team|role|job|background|career|field|industry)\b/i.test(title)) continue;
-      claims.push(title);
-    }
+  // STT filler fragments
+  if (/^(sure|yes|yeah|yep|okay|ok|right|got it|let me|uh|um|er|ah|so|and|alright|go ahead|ready|let'?s go|test test|can you hear|audio test)[\s,.]*/.test(clean) && words.length <= 15 && !hasSubstantiveContent) {
+    return true;
   }
 
-  return Array.from(new Set(claims.map((item) => item.toLowerCase()))).map((lower) => {
-    const original = claims.find((item) => item.toLowerCase() === lower) || lower;
-    return original.charAt(0).toUpperCase() + original.slice(1);
-  }).slice(0, 4);
+  return false;
 }
 
-const numberWordMap: Record<string, number> = {
-  one: 1,
-  two: 2,
-  three: 3,
-  four: 4,
-  five: 5,
-  six: 6,
-  seven: 7,
-  eight: 8,
-  nine: 9,
-  ten: 10,
-  eleven: 11,
-  twelve: 12,
-  thirteen: 13,
-  fourteen: 14,
-  fifteen: 15,
-  sixteen: 16,
-  seventeen: 17,
-  eighteen: 18,
-  nineteen: 19,
-  twenty: 20,
-};
+// Opening turns are almost always short ("can you hear me", "I'm good how are
+// you"), but they are NOT all the same message — a candidate who only checked
+// audio should not get the exact same reply as one who also asked "how are
+// you". This reads the actual words instead of returning one static string
+// regardless of input, so the opening doesn't feel like it ignored half of
+// what was said.
+function buildOpeningIntroReply(languageValue: unknown, targetRole: unknown, answer = ""): string {
+  const language = normalizeLanguageLabel(languageValue);
+  const role = cleanRoleLabel(targetRole);
+  const clean = answer.toLowerCase();
 
-function parseNumberLike(value: string) {
-  const clean = (value || "").toLowerCase().trim();
-  if (/^\d+$/.test(clean)) return Number(clean);
-  return numberWordMap[clean] || 0;
-}
+  const askedCanYouHear = /\b(can|do|could) you hear me\b|\bhear me (ok|okay|fine|clearly)?\b|\baudio (ok|okay|test|working)\b|\bcan you see me\b/.test(clean);
+  const askedHowAreYou = /\bhow are you\b|\bhow(?:'?s| is) it going\b|\bhow are things\b|\bhow you doing\b/.test(clean);
+  const saidGreetingOnly = /\b(hi|hello|hey)\b/.test(clean) && !askedHowAreYou;
 
-function extractClaimedYears(answer: string) {
-  const clean = (answer || "").replace(/\s+/g, " ").trim().toLowerCase();
-  const claims: number[] = [];
-  const patterns = [
-    /\b(?:i\s+)?(?:have|had|bring|possess)\s+(?:about\s+|around\s+|over\s+|more than\s+|nearly\s+|almost\s+)?(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s*(?:\+\s*)?(?:years?|yrs?)\s+(?:of\s+)?(?:experience|background)/gi,
-    /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s*(?:\+\s*)?(?:years?|yrs?)\s+(?:of\s+)?(?:experience|background)\b/gi,
-  ];
-
-  for (const pattern of patterns) {
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(clean))) {
-      const value = parseNumberLike(match[1] || "");
-      if (value > 0) claims.push(value);
-    }
-  }
-
-  return claims.length ? Math.max(...claims) : 0;
-}
-
-
-function answerDirectlyAsksForCvVerification(answer: string) {
-  const lower = (answer || "").replace(/\s+/g, " ").toLowerCase();
-  return /\b(do you see|can you see|is that on|does it show|is it mentioned|do i have|does my)\b.*\b(cv|resume|profile)\b/.test(lower) ||
-    /\b(cv|resume|profile)\b.*\b(show|mention|see|support|verify|confirm)\b/.test(lower);
-}
-
-function evidenceMentionsClaimedYears(evidenceText: string, claimedYears: number) {
-  if (!claimedYears || claimedYears <= 0) return false;
-  const source = (evidenceText || "").toLowerCase();
-  const wordsByNumber: Record<number, string[]> = {
-    1: ["one"], 2: ["two"], 3: ["three"], 4: ["four"], 5: ["five"], 6: ["six"], 7: ["seven"], 8: ["eight"], 9: ["nine"], 10: ["ten"],
-    11: ["eleven"], 12: ["twelve"], 13: ["thirteen"], 14: ["fourteen"], 15: ["fifteen"], 16: ["sixteen"], 17: ["seventeen"], 18: ["eighteen"], 19: ["nineteen"], 20: ["twenty"],
+  const PARTS: Record<string, { hear: string; wellbeingAsked: string; wellbeingMutual: string; greetingOnly: string; body: string }> = {
+    German: {
+      hear: "Ja, ich kann dich gut hören. ",
+      wellbeingAsked: "Mir geht es gut, danke der Nachfrage. ",
+      wellbeingMutual: "Schön, dass es dir auch gut geht. ",
+      greetingOnly: "Danke für die Begrüßung. ",
+      body: `Ich habe mir den Rollenkontext für ${role} angesehen. Zum Einstieg: Kannst du dich bitte kurz vorstellen und erklären, wie deine Erfahrung zu dieser Gelegenheit passt?`,
+    },
+    Dutch: {
+      hear: "Ja, ik kan je goed horen. ",
+      wellbeingAsked: "Het gaat goed, dank je dat je het vraagt. ",
+      wellbeingMutual: "Fijn om te horen dat het ook goed met jou gaat. ",
+      greetingOnly: "Bedankt voor de begroeting. ",
+      body: `Ik heb de rolcontext voor ${role} bekeken. Om te beginnen: kun je jezelf kort voorstellen en uitleggen hoe je ervaring aansluit op deze kans?`,
+    },
+    French: {
+      hear: "Oui, je vous entends bien. ",
+      wellbeingAsked: "Je vais bien, merci de demander. ",
+      wellbeingMutual: "Ravi d’entendre que vous allez bien aussi. ",
+      greetingOnly: "Merci pour votre message. ",
+      body: `J’ai consulté le contexte du poste ${role}. Pour commencer, pouvez-vous vous présenter brièvement et expliquer en quoi votre expérience correspond à cette opportunité ?`,
+    },
+    Spanish: {
+      hear: "Sí, te escucho bien. ",
+      wellbeingAsked: "Estoy bien, gracias por preguntar. ",
+      wellbeingMutual: "Me alegra saber que tú también estás bien. ",
+      greetingOnly: "Gracias por el saludo. ",
+      body: `He revisado el contexto del puesto ${role}. Para empezar, ¿puedes presentarte brevemente y explicar cómo tu experiencia encaja con esta oportunidad?`,
+    },
+    Italian: {
+      hear: "Sì, ti sento bene. ",
+      wellbeingAsked: "Sto bene, grazie per avermelo chiesto. ",
+      wellbeingMutual: "Mi fa piacere sentire che stai bene anche tu. ",
+      greetingOnly: "Grazie per il saluto. ",
+      body: `Ho letto il contesto del ruolo ${role}. Per iniziare, puoi presentarti brevemente e spiegare come la tua esperienza si collega a questa opportunità?`,
+    },
+    Portuguese: {
+      hear: "Sim, consigo ouvir-te bem. ",
+      wellbeingAsked: "Estou bem, obrigado por perguntares. ",
+      wellbeingMutual: "Fico feliz por saber que também estás bem. ",
+      greetingOnly: "Obrigado pelo cumprimento. ",
+      body: `Analisei o contexto da função ${role}. Para começar, podes apresentar-te brevemente e explicar como a tua experiência se relaciona com esta oportunidade?`,
+    },
+    Hindi: {
+      hear: "हाँ, मैं आपको साफ़ सुन पा रही हूँ। ",
+      wellbeingAsked: "मैं ठीक हूँ, पूछने के लिए धन्यवाद। ",
+      wellbeingMutual: "अच्छा लगा कि आप भी ठीक हैं। ",
+      greetingOnly: "नमस्ते कहने के लिए धन्यवाद। ",
+      body: `मैंने ${role} भूमिका का संदर्भ देखा है। शुरुआत के लिए, कृपया अपना छोटा परिचय दें और बताएं कि आपका अनुभव इस अवसर से कैसे जुड़ता है।`,
+    },
+    English: {
+      hear: "Yes, I can hear you clearly. ",
+      wellbeingAsked: "I’m doing well, thank you for asking. ",
+      wellbeingMutual: "Glad to hear you’re doing well too. ",
+      greetingOnly: "Thanks for the hello. ",
+      body: `I've reviewed the role context you provided for ${role}. To get started, could you briefly introduce yourself and explain how your experience connects to this opportunity?`,
+    },
   };
-  const wordOptions = wordsByNumber[claimedYears] || [];
-  const yearPatterns = [String(claimedYears), ...wordOptions]
-    .map((value) => new RegExp(`\\b${value}\\+?\\s*(?:years?|yrs?)\\b`, "i"));
-  return yearPatterns.some((pattern) => pattern.test(source));
+
+  const set = PARTS[language] || PARTS.English;
+  let prefix = "";
+  if (askedCanYouHear) prefix += set.hear;
+  if (askedHowAreYou) prefix += set.wellbeingAsked + set.wellbeingMutual;
+  else if (saidGreetingOnly && !askedCanYouHear) prefix += set.greetingOnly;
+
+  return `${prefix}${set.body}`;
 }
 
-function estimateYearsFromEvidence(text: string) {
-  const source = (text || "").replace(/\s+/g, " ");
-  const explicit = source.match(/(?:over|more than|around|about|nearly)?\s*(\d{1,2})\+?\s+years?\s+of\s+experience/i);
-  const explicitYears = explicit ? Number(explicit[1]) : 0;
-
-  // Trust explicit CV summary experience before summed ranges. Summing duplicated
-  // PDF extraction, education, and projects can create impossible values.
-  if (explicitYears > 0 && explicitYears <= 20) return explicitYears;
-
-  const currentYear = new Date().getFullYear();
-  const ranges: Array<[number, number]> = [];
-  const patterns = [
-    /\b(?:\d{1,2}\/)?((?:19|20)\d{2})\s*(?:-|–|—|to)\s*(?:present|current|heute|now|((?:19|20)\d{2}))/gi,
-    /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+((?:19|20)\d{2})\s*(?:-|–|—|to)\s*(?:present|current|heute|now|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+((?:19|20)\d{2}))/gi,
-  ];
-
-  for (const pattern of patterns) {
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(source))) {
-      const start = Number(match[1]);
-      const end = match[2] ? Number(match[2]) : currentYear;
-      if (start >= 1980 && end >= start && end <= currentYear + 1) {
-        if (!ranges.some(([a, b]) => a === start && b === end)) ranges.push([start, end]);
-      }
-    }
-  }
-
-  const rangeYears = ranges.reduce((sum, [start, end]) => sum + Math.max(0.5, end - start), 0);
-  const estimated = Math.min(rangeYears, 15);
-  return estimated > 0 ? Math.round(estimated * 10) / 10 : 0;
+function normaliseTranscript(raw: TranscriptTurn[] | undefined): TranscriptItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(-20).map((turn) => ({
+    role: turn.role === "candidate" ? "candidate" : "recruiter",
+    text: stripRepeatedSpeech(cleanText(turn.text, 800)),
+  }));
 }
 
-function extractTitleLikeNames(sourceText: string, limit = 18) {
-  const source = (sourceText || "").replace(/\s+/g, " ");
-  const commonTitles = source.match(/\b(?:Technical Support Engineer|Application Engineer|Data Analyst|Data Scientist|Sales Executive|Business Development Executive|Customer Success Manager|Product Design Engineer|CAD Designer|Graduate Intern|Software Engineer|Project Manager|Production Supervisor|Operations Manager|Support Specialist|Product Specialist|Manufacturing Operations Professional|Customer-Facing SaaS|Business Development Professional)\b/gi) || [];
-  return uniqueTitleFacts(commonTitles, limit);
+
+function normalizeForSimilarity(value: string) {
+  return cleanText(value, 1200)
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function extractExperienceCompanyClaims(answer: string) {
-  const clean = (answer || "").replace(/\s+/g, " ").trim();
-  if (!clean) return [];
+function getBadRecruiterReplyReason(reply: string, transcript: TranscriptItem[]): string | null {
+  const clean = normalizeForSimilarity(reply);
+  if (!clean) return "empty_reply";
+  const repeatedShortPhrase = clean.match(/^(.{4,80})\s+\1$/i);
+  if (repeatedShortPhrase) return "repeated_short_phrase";
+  const wordsForRepeat = clean.split(/\s+/).filter(Boolean);
+  if (wordsForRepeat.length >= 2 && wordsForRepeat.length <= 8) {
+    const half = Math.floor(wordsForRepeat.length / 2);
+    if (half > 0 && wordsForRepeat.slice(0, half).join(" ") === wordsForRepeat.slice(half, half * 2).join(" ")) return "repeated_short_phrase";
+  }
 
-  const experienceClaimPatterns = [
-    /\b(?:i\s+)?(?:worked|work|was working|have worked|had worked|joined|served|consulted|interned|was employed|am employed)\s+(?:as\s+[A-Za-z ]+\s+)?(?:at|with|for|in)\s+([A-Z][A-Za-z0-9&.'-]*(?:\s+[A-Z][A-Za-z0-9&.'-]*){0,5})\b/gi,
-    /\b(?:my|the)\s+(?:experience|role|job|position|responsibility|project|internship)\s+(?:at|with|for|in)\s+([A-Z][A-Za-z0-9&.'-]*(?:\s+[A-Z][A-Za-z0-9&.'-]*){0,5})\b/gi,
-    /\b(?:when|while)\s+i\s+(?:was\s+)?(?:worked|working|employed|interning)\s+(?:at|with|for|in)\s+([A-Z][A-Za-z0-9&.'-]*(?:\s+[A-Z][A-Za-z0-9&.'-]*){0,5})\b/gi,
-  ];
+  // Never let CV layout artifacts leak into the spoken interview.
+  if (/\b(professional experience contact|experience contact|skills contact|education contact|profile summary|core competencies|tools ticketing|gans e scooter|candidate\b|public\b)\b/i.test(reply)) {
+    return "cv_layout_artifact";
+  }
 
-  const claims: string[] = [];
-  for (const pattern of experienceClaimPatterns) {
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(clean))) {
-      const value = (match[1] || "")
-        .replace(/\b(?:as|where|when|and|but|because|for|from|in|on|during|between|with|using|to|the|a|an|i|we|my|our)\b.*$/i, "")
-        .replace(/[,.!?;:]+$/g, "")
-        .trim();
-      if (value) claims.push(value);
+  // Kill the old robotic metric loop globally. The recruiter can ask for evidence,
+  // but not this repeated template sentence.
+  if (/give me one concrete metric or proof point|time saved, tickets reduced, customer impact|before-and-after result/i.test(reply)) {
+    return "banned_metric_template";
+  }
+
+  const recentRecruiter = transcript
+    .filter((turn) => turn.role === "recruiter")
+    .map((turn) => normalizeForSimilarity(turn.text))
+    .filter(Boolean)
+    .slice(-3);
+
+  for (const previous of recentRecruiter) {
+    if (previous === clean) return "exact_repeat";
+    const words = clean.split(" ").filter((word) => word.length > 4);
+    if (words.length >= 7) {
+      const overlap = words.filter((word) => previous.includes(word)).length / words.length;
+      if (overlap >= 0.72) return "near_repeat";
     }
   }
 
-  return uniqueCompanies(claims, 5);
+  return null;
 }
 
-function validateCandidateCompanyClaim({
-  answer,
-  setup,
-  compactCv,
-}: {
-  answer: string;
-  setup: InterviewRequest["setup"];
-  compactCv: string;
-}): ClaimValidationResult {
-  const factProfile = setup?.candidateFactProfile || {};
-  const primaryEvidence = factProfile.evidenceText || compactCv || "";
-  const evidenceText = primaryEvidence;
+function isBadRecruiterReply(reply: string, transcript: TranscriptItem[]) {
+  return getBadRecruiterReplyReason(reply, transcript) !== null;
+}
 
-  // Ground only against CV-derived facts. Do not let compact interview/JD
-  // summaries leak target-role, language, or skill lines into verified facts.
-  const verifiedCompanies = uniqueCompanies([
-    ...(Array.isArray(factProfile.companies) ? factProfile.companies : []),
-    ...extractCompanyLikeNames(primaryEvidence, 18),
-  ], 24);
+// Language-aware fallback reply builder.
+// Translates the English fallback reply into the interview language so the
+// rule-engine fallback (used when GPT-4o times out or is unavailable) does
+// not break language immersion. Covers all 15 supported interview languages.
+function localizeRecruiterFallback(englishReply: string, languageValue: string | undefined): string {
+  const lang = normalizeLanguageLabel(languageValue);
+  if (lang === "English" || !lang) return englishReply;
 
-  const verifiedTitles = uniqueTitleFacts([
-    ...(Array.isArray(factProfile.titles) ? factProfile.titles : []),
-    ...extractTitleLikeNames(primaryEvidence, 18),
-  ], 24);
-
-  const estimatedYearsExperience =
-    typeof factProfile.estimatedYearsExperience === "number" && factProfile.estimatedYearsExperience > 0
-      ? factProfile.estimatedYearsExperience
-      : estimateYearsFromEvidence(evidenceText);
-
-  const companyClaims = extractExperienceCompanyClaims(answer);
-  const titleClaims = extractExperienceTitleClaims(answer);
-  const claimedYears = extractClaimedYears(answer);
-
-  const unverifiedCompany = companyClaims.find((claim) => !companyMatchesClaim(claim, verifiedCompanies));
-  const unverifiedTitle = titleClaims.find((claim) => !titleMatchesClaim(claim, verifiedTitles, evidenceText));
-  const asksForCvVerification = answerDirectlyAsksForCvVerification(answer);
-  const evidenceSupportsClaimedYears = evidenceMentionsClaimedYears(evidenceText, claimedYears);
-  const inflatedYears =
-    claimedYears > 0 && (
-      (estimatedYearsExperience > 0 && claimedYears >= Math.max(estimatedYearsExperience + 2, estimatedYearsExperience * 1.45)) ||
-      (asksForCvVerification && !evidenceSupportsClaimedYears) ||
-      (claimedYears >= 6 && !evidenceSupportsClaimedYears) ||
-      (claimedYears >= 4 && !evidenceSupportsClaimedYears && Boolean(unverifiedTitle))
-    );
-
-  if (!unverifiedCompany && !unverifiedTitle && !inflatedYears && !asksForCvVerification) {
-    return { hasIssue: false, verifiedCompanies, verifiedTitles, estimatedYearsExperience };
-  }
-
-  const verifiedCompanyLine = verifiedCompanies.slice(0, 4).join(", ");
-  const verifiedTitleLine = verifiedTitles.slice(0, 5).join(", ");
-  const concerns: string[] = [];
-
-  if (unverifiedCompany) {
-    concerns.push(`candidate mentioned experience at ${unverifiedCompany}, but that company is not visible in the verified CV evidence${verifiedCompanyLine ? ` (${verifiedCompanyLine})` : ""}`);
-  }
-
-  if (unverifiedTitle) {
-    concerns.push(`candidate claimed experience as ${unverifiedTitle}, but the verified CV titles/evidence do not clearly show that${verifiedTitleLine ? ` (visible titles: ${verifiedTitleLine})` : ""}`);
-  }
-
-  if (inflatedYears) {
-    concerns.push(
-      estimatedYearsExperience
-        ? `candidate claimed ${claimedYears} years of experience, while the CV evidence suggests about ${estimatedYearsExperience} years or does not support that timeline`
-        : `candidate claimed ${claimedYears} years of experience, but the CV evidence I have does not clearly support that number`,
-    );
-  }
-
-  const evidenceSnapshot = [
-    verifiedTitleLine ? `roles I can see: ${verifiedTitleLine}` : "",
-    verifiedCompanyLine ? `companies I can see: ${verifiedCompanyLine}` : "",
-    estimatedYearsExperience ? `timeline suggests about ${estimatedYearsExperience} years` : "",
-  ].filter(Boolean).join("; ");
-
-  const heardClaim = [
-    unverifiedTitle ? `${unverifiedTitle}` : "",
-    unverifiedCompany ? `at ${unverifiedCompany}` : "",
-    inflatedYears ? `${claimedYears} years` : "",
-  ].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-
-  const humanChallenge = (() => {
-    const evidenceLine = evidenceSnapshot
-      ? `The CV evidence I have shows ${evidenceSnapshot}.`
-      : "I cannot clearly verify that from the CV evidence I have.";
-
-    if (unverifiedCompany && (unverifiedTitle || inflatedYears)) {
-      return `Let me clarify one thing before we move on. I heard you mention ${heardClaim}, but I cannot clearly verify that combination from your CV. ${evidenceLine} Was this an unlisted role, a client project, freelance work, or a responsibility inside another listed position?`;
-    }
-
-    if (unverifiedCompany) {
-      return `Let me clarify one thing before we move on. I heard you mention experience at ${unverifiedCompany}, but I do not see that company in the CV evidence I have. ${evidenceLine} Was this an unlisted role, freelance work, a client project, or something outside the resume?`;
-    }
-
-    if (unverifiedTitle) {
-      return `Let me clarify one thing before we move on. I heard you describe yourself as ${unverifiedTitle}, but I do not see that as a verified role title in your CV evidence. ${evidenceLine} Was that your official title, a target role, or a responsibility within another role?`;
-    }
-
-    if (asksForCvVerification) {
-      return `Good question — based on the CV evidence I have, I cannot verify ${claimedYears} years of experience. ${evidenceLine} Can you clarify whether that experience is listed under another role, or is it outside the resume?`;
-    }
-
-    return `Let me clarify the timeline before we continue. You mentioned ${claimedYears} years of experience, but the CV evidence I have does not clearly support that number. ${evidenceLine} Can you explain where that timeline comes from?`;
-  })();
-
-  return {
-    hasIssue: true,
-    claimedCompany: unverifiedCompany,
-    claimedTitle: unverifiedTitle,
-    claimedYears: inflatedYears ? claimedYears : undefined,
-    verifiedCompanies,
-    verifiedTitles,
-    estimatedYearsExperience,
-    issue: unverifiedCompany && (unverifiedTitle || inflatedYears)
-      ? "title_and_years"
-      : unverifiedCompany
-        ? "unverified_company"
-        : unverifiedTitle
-          ? "unverified_title"
-          : "inflated_years",
-    concern: `Possible CV inconsistency: ${concerns.join("; ")}. Recruiter should stay slightly cautious for the next few answers until the candidate clarifies this.`,
-    challenge: humanChallenge,
+  // Language-specific safe fallback phrases keyed to the patterns the
+  // rule engine uses. We localise the 4 most common fallback outputs.
+  const LOCALIZED_FALLBACKS: Record<string, Record<string, string>> = {
+    German: {
+      "No problem": "Kein Problem",
+      "what you did, why it mattered, and how it connects": "was du getan hast, warum es wichtig war und wie es zur Rolle passt",
+      "Let\'s move to a new area": "Kommen wir zu einem neuen Bereich",
+      "What changed after your work": "Was hat sich durch deine Arbeit verändert",
+      "what part of": "welcher Teil von",
+      "do you feel strongest in today": "liegt dir heute am stärksten",
+      "and what part would need the most ramp-up": "und welcher Bereich würde die meiste Einarbeitung erfordern",
+      "Let me make your answer easier to assess": "Damit ich deine Antwort besser einschätzen kann",
+      "What was your personal responsibility": "Was war deine persönliche Verantwortung",
+      "That helps": "Das hilft mir weiter",
+      "That customer-facing experience is relevant": "Diese Kundenerfahrung ist relevant",
+      "Can you walk me through one difficult customer situation": "Kannst du mir eine schwierige Kundensituation schildern",
+      "briefly covering the situation, what you personally did, and what changed afterwards": "kurz die Situation, was du persönlich getan hast und was sich danach verändert hat",
+      "Let\'s move to another part": "Kommen wir zu einem anderen Aspekt",
+      "I understand the transition": "Ich verstehe den Wechsel",
+      "What practical experience, project, customer work, or training": "Welche praktische Erfahrung, welches Projekt, welche Kundenerfahrung oder Ausbildung",
+      "gives you confidence that you can perform well in": "gibt dir die Sicherheit, dass du in der Rolle",
+      "Take me one level deeper": "Geh eine Ebene tiefer",
+      "what was the hardest decision you personally made": "Was war die schwierigste Entscheidung, die du persönlich getroffen hast",
+    },
+    French: {
+      "No problem": "Pas de problème",
+      "what you did, why it mattered, and how it connects": "ce que vous avez fait, pourquoi c\'était important et en quoi cela se rattache au poste",
+      "Let\'s move to a new area": "Passons à un nouveau sujet",
+      "What changed after your work": "Qu\'est-ce qui a changé après votre travail",
+      "Let me make your answer easier to assess": "Pour que je puisse mieux évaluer votre réponse",
+      "What was your personal responsibility": "Quelle était votre responsabilité personnelle",
+      "That helps": "C\'est utile",
+      "I understand the transition": "Je comprends la transition",
+    },
+    Dutch: {
+      "No problem": "Geen probleem",
+      "what you did, why it mattered, and how it connects": "wat je hebt gedaan, waarom het belangrijk was en hoe het verband houdt met de rol",
+      "Let\'s move to a new area": "Laten we naar een ander onderwerp gaan",
+      "Let me make your answer easier to assess": "Zodat ik je antwoord beter kan beoordelen",
+      "What was your personal responsibility": "Wat was jouw persoonlijke verantwoordelijkheid",
+      "That helps": "Dat is nuttig",
+    },
+    Spanish: {
+      "No problem": "No hay problema",
+      "what you did, why it mattered, and how it connects": "lo que hiciste, por qué importaba y cómo se relaciona con el puesto",
+      "Let\'s move to a new area": "Pasemos a otro tema",
+      "That helps": "Eso ayuda",
+    },
+    Italian: {
+      "No problem": "Nessun problema",
+      "what you did, why it mattered, and how it connects": "cosa hai fatto, perché era importante e come si collega al ruolo",
+      "Let\'s move to a new area": "Passiamo a un altro argomento",
+      "That helps": "È utile",
+    },
+    Portuguese: {
+      "No problem": "Sem problema",
+      "what you did, why it mattered, and how it connects": "o que fizeste, porque foi importante e como se relaciona com a função",
+      "Let\'s move to a new area": "Passemos para outro tópico",
+      "That helps": "Isso ajuda",
+    },
+    Hindi: {
+      "No problem": "कोई बात नहीं",
+      "Let\'s move to a new area": "आइए एक नए विषय पर चलते हैं",
+      "That helps": "यह मददगार है",
+    },
+    Tamil: {
+      "No problem": "பரவாயில்லை",
+      "Let\'s move to a new area": "வேறொரு தலைப்பிற்கு செல்வோம்",
+      "That helps": "இது உதவியாக இருக்கிறது",
+    },
   };
+
+  const phrases = LOCALIZED_FALLBACKS[lang];
+  if (!phrases) return englishReply; // Language not in map — return English
+
+  let result = englishReply;
+  for (const [en, translated] of Object.entries(phrases)) {
+    result = result.replace(new RegExp(en.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), translated);
+  }
+  return result;
 }
 
-function compactTranscript(items: TranscriptItem[] | undefined) {
-  return (items || [])
-    .slice(-10)
-    .map((item) => ({
-      role: item.role,
-      text: text(item.text, 220),
-      time: item.time,
-    }))
-    .filter((item) => item.text);
+function buildSafeFallbackRecruiterReply(body: ReplyRequestBody, answer: string, transcript: TranscriptItem[]) {
+  const role = cleanRoleLabel(body.targetRole);
+  const low = answer.toLowerCase();
+  const recentRecruiter = transcript.filter((turn) => turn.role === "recruiter").map((turn) => normalizeForSimilarity(turn.text)).slice(-4);
+
+  const alreadyAskedCustomer = recentRecruiter.some((text) => /difficult customer|customer situation|customer.*handled|personally did/.test(text));
+  const alreadyAskedTransition = recentRecruiter.some((text) => /transition|readiness|ready for|not just interest|different direction/.test(text));
+  const alreadyAskedDepth = recentRecruiter.some((text) => /one level deeper|hardest decision|technical|diagnosed|resolved/.test(text));
+
+  const hasCustomerEvidence = /customer|client|csat|satisfaction|rapport|relationship|trust|b2b|b2c|de[- ]?escalat|frustrated|happy|feedback|5\s*(?:\/|out of)?\s*5|95|96|97|98/i.test(answer);
+  const hasTechnicalEvidence = /api|latency|seconds?|milliseconds?|router|firmware|remote|troubleshoot|debug|diagnos|sql|python|server|network|ticket|incident|integration/i.test(answer);
+  const hasOutcome = /reduced|improved|saved|fixed|resolved|faster|happy|satisfied|from .* to|25 seconds|millisecond|result|impact|agreed|closed/i.test(answer);
+  const hasOwnership = /\bi\b|personally|my|handled|built|fixed|resolved|diagnosed|created|led|improved|reduced/i.test(answer);
+
+  if (hasCustomerEvidence && !alreadyAskedCustomer) {
+    return localizeRecruiterFallback(`That customer-facing experience is relevant for ${role}. Can you walk me through one difficult customer situation — briefly covering the situation, what you personally did, and what changed afterwards?`, body.language);
+  }
+
+  if (hasCustomerEvidence && alreadyAskedCustomer) {
+    return localizeRecruiterFallback(`That gives me a clearer example. Let's move to another part of ${role}: how would you manage an ongoing customer relationship after the first issue is solved — for example adoption, follow-ups, retention, or preventing the same problem from happening again?`, body.language);
+  }
+
+  if (hasTechnicalEvidence && hasOutcome && !alreadyAskedDepth) {
+    return localizeRecruiterFallback(`That is a useful technical impact example. Take me one level deeper: what was the hardest decision you personally made in that situation, and why did it improve the result?`, body.language);
+  }
+
+  if (/switch|shift|change|transition|move into|interested in|want to/i.test(low) && !alreadyAskedTransition) {
+    return localizeRecruiterFallback(`I understand the transition you are aiming for. What practical experience, project, customer work, or training gives you confidence that you can perform well in ${role}?`, body.language);
+  }
+
+  if (!hasOwnership) {
+    return localizeRecruiterFallback(`Let me make your answer easier to assess. What was your personal responsibility in that example, and what was handled by the team or another person?`, body.language);
+  }
+
+  if (!hasOutcome) {
+    return localizeRecruiterFallback(`That gives me context. What changed after your work — even qualitatively, such as a calmer customer, a resolved issue, faster response, better handover, or improved trust?`, body.language);
+  }
+
+  return `That helps. Let’s move to a new area: what part of ${role} do you feel strongest in today, and what part would need the most ramp-up?`;
 }
 
-
-function isAdmissionOfFalseClaim(answer: string) {
-  const lower = (answer || "").replace(/\s+/g, " ").trim().toLowerCase();
-  if (!lower) return false;
-  return /\b(i\s+lied|i\s+just\s+lied|i\s+was\s+lying|i\s+made\s+that\s+up|i\s+made\s+it\s+up|that'?s\s+not\s+true|that\s+wasn'?t\s+true|it'?s\s+not\s+true|sorry\s+(?:that'?s|it'?s)\s+not\s+true|sorry\s+i\s+lied|i\s+exaggerated|i\s+was\s+exaggerating|i\s+gave\s+false\s+information|false\s+information|not\s+real|not\s+correct)\b/i.test(lower);
-}
-
-function buildAdmissionRedirectResponse({
-  compactCv,
-  claimValidation,
-  trust,
-}: {
-  compactCv: string;
-  claimValidation?: ClaimValidationResult;
-  trust: number;
+// Structured, greppable logging so a degraded/failed LLM turn is always
+// visible in server logs — never just a silent client-side fallback.
+// Search server logs for "[interview/reply]" to see every turn's outcome.
+function logReplyOutcome(info: {
+  userId?: string | null;
+  outcome: "opening_guard" | "unified_engine" | "deterministic_guard" | "deterministic_fallback" | "hard_failure";
+  durationMs: number;
+  reason?: string | null;
+  questionIndex?: number;
 }) {
-  const verifiedTitles = claimValidation?.verifiedTitles?.filter(Boolean).slice(0, 3) || [];
-  const verifiedCompanies = claimValidation?.verifiedCompanies?.filter(Boolean).slice(0, 3) || [];
-  const roleFallback = compactCv ? compactCv.slice(0, 180) : "the experience visible in your resume";
-  const roleLine = verifiedTitles.length ? verifiedTitles.join(", ") : roleFallback;
-  const companyLine = verifiedCompanies.length ? ` at ${verifiedCompanies.join(", ")}` : "";
-  const reply = `Thank you for being honest. Recruiters care a lot about consistency between what you say and what is visible on your resume. Let’s reset and work only with the verified experience I can see: ${roleLine}${companyLine}. Tell me about one real customer or stakeholder situation from that experience, what you personally did, and what changed after your support.`
-    .replace(/\s+/g, " ")
-    .trim();
-  const nextTrust = Math.max(20, Math.min(90, trust - 10));
-
-  return NextResponse.json({
-    question: reply,
-    displayQuestion: reply,
-    feedback: "Candidate admitted an unsupported claim. Recruiter acknowledged honesty, lowered trust slightly, and redirected to verified CV experience.",
-    intent: "admitted_false_claim",
-    shouldAdvanceQuestion: false,
-    shouldCountAsAnswer: false,
-    shouldStayOnCurrentQuestion: true,
-    trustDelta: -10,
-    recruiterState: "skeptical",
-    correction: reply,
-    concern: "Candidate admitted that a prior experience claim was not true. Recruiter should stay cautious and ask for verified examples.",
-    psychology: {
-      trust: nextTrust,
-      interest: 50,
-      skepticism: 78,
-      patience: 58,
-      engagement: 60,
-      confidenceInCandidate: 34,
-    },
-    recruiterMemory: {
-      summary: "Candidate admitted an unsupported claim. Stay cautious and require verified CV-grounded examples.",
-      weakMoments: ["Admitted unsupported or exaggerated experience claim."],
-      strongMoments: ["Was honest after clarification."],
-      openDoubts: ["Needs to rebuild trust with verified resume examples."],
-      roleFitSignals: [],
-    },
-    memoryEvents: [
-      {
-        type: "admitted_false_claim",
-        severity: "high",
-        detail: "Candidate admitted a previous claim was false or exaggerated.",
-      },
-    ],
-    pressure: {
-      level: 72,
-      label: "trust reset",
-      reason: "Candidate admitted a false or exaggerated claim.",
-      behaviorShift: "Recruiter acknowledges honesty, becomes cautious, and redirects to verified resume experience.",
-    },
-    honestFeedback: {
-      headline: "Trust reset",
-      recruiterRead: "The candidate admitted an unsupported claim. A real recruiter would appreciate the honesty but become more cautious.",
-      risk: "False or exaggerated claims can reduce recruiter confidence quickly.",
-      nextFix: "Return to concrete, verified examples from the CV and describe personal contribution clearly.",
-    },
-    scores: {
-      relevance: 25,
-      clarity: 45,
-      structure: 35,
-      evidence: 15,
-      confidence: 28,
-      pressure: 72,
-      overall: nextTrust,
-    },
-    liveUiState: {
-      label: "Recruiter is resetting trust",
-      theme: "skeptical",
-      pressure: {
-        level: 72,
-        label: "trust reset",
-        reason: "Candidate admitted a false or exaggerated claim.",
-        behaviorShift: "Recruiter redirects to verified CV evidence.",
-      },
-      honestFeedback: null,
-      recruiterMemoryInsight: null,
-      livePressureSimulation: null,
-      marketExpectation: null,
-      humanImperfection: null,
-      socialSignals: null,
-      cinematicRealism: null,
-    },
-    trustTimeline: [
-      {
-        type: "drop",
-        delta: -10,
-        reason: "Candidate admitted an unsupported or exaggerated claim.",
-      },
-    ],
-  });
-}
-
-// Rate limiting moved to lib/workzoRateLimit.ts (database-backed). An
-// in-memory Map here does not work correctly on Vercel serverless — each
-// cold start gets its own empty Map, so multiple instances could each
-// independently allow up to the limit, multiplying actual throughput well
-// past the intended cap. The replacement keys by user ID, set at the call
-// site below once auth has resolved.
-
-// FREE_INTERVIEW_LIMIT: 2 interviews per account, lifetime (tied to user_id).
-// Resets only if the user deletes their account. Never resets on a new month.
-// Enforced server-side by counting rows in interview_sessions for this user_id.
-// Client-side localStorage tracking is kept for UI feedback only.
-const FREE_INTERVIEW_LIMIT = 2;
-
-/**
- * Count how many interview sessions this user has started (all time for free,
- * current month for paid plans where limits reset monthly).
- * Uses the service role client so it works regardless of cookie auth state.
- */
-async function getServerSideInterviewCount(userId: string, monthOnly: boolean): Promise<number> {
-  const { createClient } = await import("@supabase/supabase-js");
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  );
-
-  let query = supabase
-    .from("interview_sessions")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId);
-
-  if (monthOnly) {
-    // Count only sessions started in the current calendar month
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    query = query.gte("created_at", monthStart);
+  const line = `[interview/reply] outcome=${info.outcome} durationMs=${info.durationMs} user=${info.userId || "unknown"} q=${info.questionIndex ?? "?"}${info.reason ? ` reason=${info.reason}` : ""}`;
+  if (info.outcome === "unified_engine" || info.outcome === "opening_guard") {
+    console.log(line);
+  } else {
+    // deterministic_guard / deterministic_fallback / hard_failure all mean the
+    // candidate did NOT get the real LLM reply this turn — always a warning.
+    console.warn(line);
   }
-
-  const { count, error } = await query;
-  if (error) {
-    console.warn("[interview] Could not read session count from DB:", error.message);
-    return 0; // fail open — don't block user if DB is unavailable
-  }
-  return count ?? 0;
 }
 
 export async function POST(request: Request) {
+  const requestStartedAt = Date.now();
+  // ── Auth gate ──────────────────────────────────────────────────────────────
+  let resolved;
   try {
-    // ── Auth + plan resolution (always server-side) ───────────────────────────
-    // We no longer fall back to a cookie-parsed plan for interview gating.
-    // The cookie fallback in workzoServerPlan.ts handles the UX case of a
-    // missed webhook — but for rate/limit enforcement we need the DB plan.
-    let resolved;
-    try {
-      resolved = await resolveWorkZoServerPlan();
-    } catch {
-      return NextResponse.json({ error: "Could not resolve account plan." }, { status: 500 });
-    }
+    resolved = await resolveWorkZoServerPlan();
+  } catch (error) {
+    console.error("[interview/reply] resolveWorkZoServerPlan failed — client will silently fall back to rule engine.", error);
+    return NextResponse.json({ error: "Could not resolve account plan." }, { status: 500 });
+  }
+  if (!resolved.authenticated) {
+    console.warn("[interview/reply] Unauthenticated request — client will silently fall back to rule engine.");
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-    if (!resolved.authenticated) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // ── Plan gate — same as /api/interview ────────────────────────────────────
+  // Free users get full reply intelligence for 2 sessions.
+  // Restore when ready: uncomment below.
+  // if (resolved.plan !== "premium" && resolved.plan !== "premium_pro") {
+  //   return NextResponse.json({ error: "upgrade_required", requiredPlan: "premium", reply: null }, { status: 403 });
+  // }
 
-    const plan = resolved.plan;
-    const paid = plan === "premium" || plan === "premium_pro";
-    const userId = resolved.userId!;
-    const rateLimitKey = `interview:${userId}`;
+  // ── Rate limit ────────────────────────────────────────────────────────────
+  const rateLimitKey = `interview_reply:${resolved.userId}`;
+  const rateLimit = resolved.plan === "premium_pro" ? 60 : 30;
+  const { allowed } = await checkWorkZoRateLimit(rateLimitKey, rateLimit);
+  if (!allowed) {
+    console.warn(`[interview/reply] Rate limited — user=${resolved.userId} plan=${resolved.plan} limit=${rateLimit}/min. Client will silently fall back to rule engine.`);
+    return NextResponse.json({ error: "rate_limited", reply: null }, { status: 429 });
+  }
 
-    // ── Per-minute rate limiter (database-backed, protects API cost per burst) ──
-    // Free: 20 req/min  |  Paid: 60 req/min
-    const { allowed: withinRateLimit } = await checkWorkZoRateLimit(rateLimitKey, paid ? 60 : 20);
-    if (!withinRateLimit) {
-      return NextResponse.json(
-        { error: paid ? "Rate limit reached." : "upgrade_required_rate_limit" },
-        { status: 429 },
-      );
-    }
+  const body = (await request.json().catch(() => ({}))) as ReplyRequestBody;
 
-    // ── Server-side interview count enforcement ───────────────────────────────
-    // Free users: lifetime cap of 2 (spec: "2 AI interviews total").
-    // Premium users: 50/month cap.
-    // Premium Pro: unlimited.
-    if (plan === "free") {
-      const used = await getServerSideInterviewCount(userId, false /* all-time */);
-      if (used >= FREE_INTERVIEW_LIMIT) {
-        return NextResponse.json(
-          {
-            error: "interview_limit_reached",
-            plan: "free",
-            used,
-            limit: FREE_INTERVIEW_LIMIT,
-            message: `Free plan includes ${FREE_INTERVIEW_LIMIT} interviews. Upgrade to continue practising.`,
-            requiredPlan: "premium",
-          },
-          { status: 403 },
-        );
-      }
-    } else if (plan === "premium") {
-      const used = await getServerSideInterviewCount(userId, true /* this month */);
-      const PREMIUM_MONTHLY_LIMIT = 50;
-      if (used >= PREMIUM_MONTHLY_LIMIT) {
-        return NextResponse.json(
-          {
-            error: "interview_limit_reached",
-            plan: "premium",
-            used,
-            limit: PREMIUM_MONTHLY_LIMIT,
-            message: `You have used all ${PREMIUM_MONTHLY_LIMIT} interviews this month. Upgrade to Premium Pro for unlimited access.`,
-            requiredPlan: "premium_pro",
-          },
-          { status: 403 },
-        );
-      }
-    }
-    // premium_pro: no interview count check — unlimited
-    // ─────────────────────────────────────────────────────────────────────────
+  const answer = stripRepeatedSpeech(cleanText(body.answer, 2000));
+  if (!answer) {
+    return NextResponse.json({ error: "Missing answer." }, { status: 400 });
+  }
 
-    const body = (await request.json()) as InterviewRequest;
-    const setup = body.setup || {};
-    const answer = text(body.answer);
+  // ── STT corruption guard ─────────────────────────────────────────────────
+  // Detects garbled STT output BEFORE it reaches the LLM.
+  // Garbled STT (e.g. "Flatulaishish harbor Fieriar") causes the LLM to try to
+  // respond to nonsense, which then gets output as nonsense in the target language.
+  // Instead, return a clean language-appropriate clarification request immediately.
+  const sttCheck = detectSTTCorruption(answer);
+  if (sttCheck.isCorrupted) {
+    const lang = normalizeLanguageLabel(body.language);
+    const clarification = buildClarificationForCorruptedSTT(lang);
+    console.warn(`[interview/reply] STT corruption detected before LLM call. reason=${sttCheck.reason} answerPreview="${answer.slice(0, 60)}" targetLanguage=${lang}`);
+    return NextResponse.json({
+      success: true,
+      reply: clarification,
+      displayQuestion: clarification,
+      trustDelta: 0,
+      recruiterState: "interested",
+      shouldAdvanceQuestion: false,
+      provider: "stt_corruption_guard",
+    });
+  }
 
-    if (!answer) {
-      return NextResponse.json(
-        { error: "Candidate answer is required." },
-        { status: 400 },
-      );
-    }
+  const transcript = normaliseTranscript(body.transcript);
+  const candidateTurnCount = transcript.filter((turn) => turn.role === "candidate").length;
+  // BUG FIXED: this used to also trigger on body.questionIndex <= 1, but the
+  // client sends questionIndex BEFORE incrementing it for the current turn
+  // (increment happens only after the reply comes back) — so the second
+  // real candidate answer was still sent with questionIndex=1, incorrectly
+  // extending the opening-turn guard to it. Confirmed from live testing: a
+  // genuine 12-word self-introduction ("I have 12 years of experience as a
+  // product design engineer...") got treated as opening small talk and the
+  // exact same intro question was asked again verbatim. candidateTurnCount
+  // is computed fresh from the actual transcript at request time and isn't
+  // subject to that lag — the transcript sent already includes the current
+  // turn, so candidateTurnCount === 1 only for the literal first turn.
+  const isOpeningTurn = candidateTurnCount <= 1;
 
-    const cvGroundingEvidence = compactInterviewContext(
-      [
-        setup.candidateFactProfile?.evidenceText,
-        setup.cvText,
-        body.cvText,
-        setup.candidateProfileSummary,
-      ]
-        .filter((entry): entry is string => typeof entry === "string" && Boolean(entry.trim()))
-        .join(" "),
-      2200,
-    );
-    const compactCv = compactInterviewContext(
-      setup.candidateProfileSummary || setup.cvText || body.cvText,
-      720,
-    );
-    const compactJob = compactInterviewContext(
-      setup.jobProfileSummary || body.jobDescription || setup.jobDescription,
-      650,
-    );
-
-    // currentQuestion should be the actual last recruiter question from the live
-    // transcript (sent by the client). Fall back to body.currentQuestion for
-    // backward compatibility with older clients.
-    const resolvedCurrentQuestion = text(
-      (Array.isArray(body.transcript) && body.transcript.length > 0
-        ? [...body.transcript].reverse().find((t) => t.role === "recruiter")?.text
-        : undefined) || body.currentQuestion,
-      360,
-    );
-
-    const earlyInterviewResponse = maybeBuildEarlyInterviewResponse({
+  // Critical first-turn guard: short rapport answers must never get swallowed by
+  // the LLM/state engine. This guarantees the interview moves from greeting to
+  // the real self-introduction question.
+  if (isOpeningTurn && isOpeningSmallTalk(answer)) {
+    const reply = buildOpeningIntroReply(body.language, body.targetRole, answer);
+    // Also initialise V2 memory for a clean slate when the opening guard fires.
+    const v2Opening = buildWorkZoRecruiterReplyV2({
       answer,
-      transcript: body.transcript,
-      language: setup.language,
-      targetRole: body.targetRole || setup.targetRole,
+      setup: {
+        cvText: cleanText(body.cvText, 6000),
+        jobDescription: cleanText(body.jobDescription, 4000),
+        targetRole: cleanRoleLabel(body.targetRole),
+        targetMarket: cleanText(body.targetMarket, 120),
+        recruiterPersonality: cleanText(body.recruiterPersonality, 120),
+        language: cleanText(body.language, 40),
+        recruiterName: cleanText(body.recruiterName, 120),
+        recruiterTitle: cleanText(body.recruiterTitle, 120),
+      },
+      memory: body.recruiterMemoryV2 || undefined,
     });
+    // Validate opening reply is in correct language
+    const openingLang = normalizeLanguageLabel(body.language);
+    const { isMismatch: openingMismatch } = detectOutputLanguageMismatch(reply, openingLang);
+    const finalOpeningReply = openingMismatch
+      ? buildNativeLanguageSafeReply(openingLang, cleanRoleLabel(body.targetRole))
+      : reply;
 
-    if (earlyInterviewResponse) {
-      return NextResponse.json({
-        question: earlyInterviewResponse,
-        displayQuestion: earlyInterviewResponse,
-        feedback: "Natural opening flow. Recruiter is building rapport before moving into evaluation.",
-        intent: "opening_flow",
-        shouldAdvanceQuestion: true,
-        shouldCountAsAnswer: false,
-        shouldStayOnCurrentQuestion: false,
-        trustDelta: 0,
-        recruiterState: "interested",
-        correction: "",
-        concern: "",
-        psychology: {
-          trust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58,
-          interest: 64,
-          skepticism: 18,
-          patience: 80,
-          engagement: 68,
-          confidenceInCandidate: 58,
-        },
-        cvRead: null,
-        recruiterMemory: null,
-        scores: { relevance: 0, clarity: 0, structure: 0, evidence: 0, confidence: 58, pressure: 20, overall: typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58 },
-        liveUiState: {
-          label: "Opening conversation",
-          theme: "interested",
-          pressure: null,
-          honestFeedback: null,
-          recruiterMemoryInsight: null,
-          livePressureSimulation: null,
-          marketExpectation: null,
-          humanImperfection: null,
-          socialSignals: null,
-          cinematicRealism: null,
-        },
-        trustTimeline: [{ type: "steady", delta: 0, reason: "Opening flow." }],
-      });
-    }
-
-    const intelligence95 = buildInterviewIntelligence95({
-      answer,
-      currentQuestion: resolvedCurrentQuestion,
-      transcript: compactTranscript(body.transcript),
-      cvText: cvGroundingEvidence || compactCv,
-      jobDescription: compactJob,
-      targetRole: text(body.targetRole || setup.targetRole, 120),
-      companyName: text((setup as any).companyName || (body as any).companyName, 120),
-      companyStyle: text(body.companyStyle || setup.companyStyle, 120),
-      recruiterPersonality: text(body.recruiterPersonality || setup.recruiterPersonality, 80),
-      currentTrust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58,
-      currentState: body.recruiterState || null,
+    logReplyOutcome({ userId: resolved.userId, outcome: "opening_guard", durationMs: Date.now() - requestStartedAt, questionIndex: body.questionIndex });
+    return NextResponse.json({
+      success: true,
+      reply: finalOpeningReply,
+      displayQuestion: finalOpeningReply,
+      trustDelta: 0,
+      recruiterState: "interested",
+      shouldAdvanceQuestion: true,
+      provider: "opening_guard",
+      // Return V2 memory even on opening turn so first real answer is tracked
+      recruiterMemoryV2: v2Opening.memory,
     });
+  }
 
-    const companyDecoratedJob = decorateJobContextWithCompanyDNA(compactJob, intelligence95.companyDNA);
-
-    const claimValidation = validateCandidateCompanyClaim({
-      answer,
-      setup,
-      compactCv: cvGroundingEvidence || compactCv,
-    });
-
-    if (isAdmissionOfFalseClaim(answer)) {
-      return buildAdmissionRedirectResponse({
-        compactCv: cvGroundingEvidence || compactCv,
-        claimValidation,
-        trust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58,
-      });
-    }
-
-    if (claimValidation.hasIssue) {
-      return NextResponse.json({
-        question: claimValidation.challenge,
-        displayQuestion: claimValidation.challenge,
-        feedback: "Possible CV inconsistency detected. Recruiter is asking a human clarification before scoring this answer.",
-        intent: "possible_exaggeration",
-        shouldAdvanceQuestion: false,
-        shouldCountAsAnswer: false,
-        shouldStayOnCurrentQuestion: true,
-        trustDelta: -6,
-        recruiterState: "skeptical",
-        correction: claimValidation.challenge,
-        concern: claimValidation.concern,
-        psychology: {
-          trust: Math.max(25, Math.min(90, (typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58) - 6)),
-          interest: 52,
-          skepticism: 72,
-          patience: 54,
-          engagement: 60,
-          confidenceInCandidate: 40,
-        },
-        cvRead: {
-          verifiedCompanies: claimValidation.verifiedCompanies.slice(0, 8),
-          claimedCompany: claimValidation.claimedCompany,
-          claimedTitle: claimValidation.claimedTitle,
-          claimedYears: claimValidation.claimedYears,
-          verifiedTitles: claimValidation.verifiedTitles?.slice(0, 8) || [],
-          estimatedYearsExperience: claimValidation.estimatedYearsExperience,
-          issue: claimValidation.issue || "cv_grounding_mismatch",
-        },
-        recruiterMemory: {
-          summary: `Candidate made a CV claim that needs clarification. Stay slightly cautious for the next few answers, but give the candidate a chance to explain.`,
-          weakMoments: ["Possible mismatch between spoken experience and CV evidence; needs clarification."],
-          strongMoments: [],
-          openDoubts: [claimValidation.concern || "Unverified company claim."],
-          roleFitSignals: [],
-        },
-        memoryEvents: [
-          {
-            type: "cv_grounding_check",
-            severity: "medium",
-            detail: claimValidation.concern,
-          },
-        ],
-        pressure: {
-          level: 68,
-          label: "consistency check",
-          reason: "Candidate mentioned experience that is not clearly visible in CV evidence.",
-          behaviorShift: "Recruiter pauses politely, references the CV evidence, and asks for clarification before moving on.",
-        },
-        honestFeedback: {
-          headline: "CV consistency check",
-          recruiterRead: "The recruiter heard a role, company, or timeline claim that is not clearly supported by the available CV evidence.",
-          risk: "Unsupported claims make a recruiter more cautious until the timeline or responsibility is clarified.",
-          nextFix: "Clarify whether this was an official role, client project, responsibility inside another role, freelance work, or not yet added to the resume.",
-        },
-        interruption: {
-          shouldInterrupt: true,
-          interruptionMessage: claimValidation.challenge,
-          severity: "medium",
-        },
-        scores: {
-          relevance: 35,
-          clarity: 48,
-          structure: 42,
-          evidence: 18,
-          confidence: 35,
-          pressure: 68,
-          overall: Math.max(25, Math.min(90, (typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58) - 8)),
-        },
-        liveUiState: {
-          label: "Recruiter is clarifying CV evidence",
-          theme: "skeptical",
-          pressure: {
-            level: 68,
-            label: "consistency check",
-            reason: "Claim is not clearly supported by CV evidence.",
-            behaviorShift: "Recruiter asks a calm clarification before continuing.",
-          },
-          honestFeedback: null,
-          recruiterMemoryInsight: null,
-          livePressureSimulation: null,
-          marketExpectation: null,
-          humanImperfection: null,
-          socialSignals: null,
-          cinematicRealism: null,
-        },
-        trustTimeline: [
-          {
-            type: "drop",
-            delta: -8,
-            reason: claimValidation.concern,
-          },
-        ],
-      });
-    }
-
-    // ── Recruiter Brain: pre-compute all missing intelligence features ──────
-    // JD coverage, competency tracker, interview strategy, hiring recommendation,
-    // emotional state, adaptive difficulty, company style, and memory timeline.
-    // The brain context is serialized and injected into the LLM system prompt.
-    const recruiterBrain = buildRecruiterBrain({
-      cvText: cvGroundingEvidence || compactCv,
-      jobDescription: companyDecoratedJob,
-      targetRole: text(body.targetRole || setup.targetRole, 120),
-      companyStyle: text(body.companyStyle || setup.companyStyle, 120),
-      transcript: body.transcript || [],
-      trust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58,
-      recruiterState: body.recruiterState || "neutral",
-      lastAnswerScore: null, // updated by scoring engine each turn
-    });
-    // Build a structured profile text from resumeProfile if available — this gives
-    // the evidence planner accurate skills, projects, and experience to extract from
-    // (regex extraction from the plain cvText fallback loses structured fields)
-    const profileForPlanner = (body.resumeProfile || setup.resumeProfile) as Record<string, unknown> | undefined;
-    const structuredCvForPlanner = profileForPlanner ? (() => {
-      const b = (profileForPlanner.basics as Record<string, string>) || {};
+  try {
+    // ── Step 1: Run V2 engine to update persistent state ──────────────────
+    // V2 tracks: competency coverage (never re-tests covered dimensions),
+    // concern resolution (moves on when evidence given), topic progression
+    // (structured roadmap), JD gaps, candidate goals, metrics, strengths.
+    // The memory is returned to the client and sent back next turn —
+    // this is what prevents repeated questions across the full interview.
+    // When resumeProfile is available, prepend structured CV data so the LLM
+    // has explicit company names, roles, and skills — reducing hallucinations
+    // like "I don't see Zoho Corp in your CV" when it IS there.
+    const structuredProfileSummary = (() => {
+      const p = body.resumeProfile;
+      if (!p) return "";
       const lines: string[] = [];
+      const b = p.basics || {};
       if (b.name) lines.push(`Candidate: ${b.name}`);
-      if (b.headline) lines.push(`Headline: ${b.headline}`);
-      const summary = profileForPlanner.summary as string;
-      if (summary) lines.push(`Summary: ${summary}`);
-      const exp = profileForPlanner.experience as Array<Record<string, unknown>>;
-      if (Array.isArray(exp) && exp.length) {
-        lines.push("EXPERIENCE");
-        exp.slice(0, 8).forEach(e => {
-          lines.push(`${e.title || ""} at ${e.company || ""} (${e.dates || ""})`);
-          (e.bullets as string[] || []).slice(0, 4).forEach(b => lines.push(`- ${b}`));
-        });
+      if (b.headline) lines.push(`Current role: ${b.headline}`);
+      if (Array.isArray(p.experience) && p.experience.length) {
+        const companies = p.experience.map((e) => e.company).filter(Boolean);
+        const roles = p.experience.map((e) => e.title).filter(Boolean);
+        if (companies.length) lines.push(`Verified employers: ${companies.join(", ")}`);
+        if (roles.length) lines.push(`Verified roles: ${roles.join(", ")}`);
+        lines.push("Work history:");
+        for (const exp of p.experience.slice(0, 5)) {
+          lines.push(`- ${[exp.title, exp.company, exp.dates].filter(Boolean).join(" | ")}`);
+          if (Array.isArray(exp.bullets)) {
+            (exp.bullets as string[]).slice(0, 2).forEach((b2) => lines.push(`  • ${b2}`));
+          }
+        }
       }
-      const edu = profileForPlanner.education as Array<Record<string, unknown>>;
-      if (Array.isArray(edu) && edu.length) {
-        lines.push("EDUCATION");
-        edu.slice(0, 4).forEach(e => lines.push(`${e.degree || ""} at ${e.institution || ""}`));
+      if (Array.isArray(p.education) && p.education.length) {
+        lines.push("Education:");
+        for (const edu of p.education.slice(0, 3)) {
+          lines.push(`- ${[edu.degree, edu.institution, edu.dates].filter(Boolean).join(" | ")}`);
+        }
       }
-      const skills = profileForPlanner.skills as string[];
-      if (Array.isArray(skills) && skills.length) lines.push(`SKILLS\n${skills.join(", ")}`);
-      const projects = profileForPlanner.projects as Array<Record<string, unknown>>;
-      if (Array.isArray(projects) && projects.length) {
-        lines.push("PROJECTS");
-        projects.slice(0, 6).forEach(p => {
-          lines.push(`${p.name || "Project"}`);
-          (p.bullets as string[] || []).slice(0, 3).forEach(b => lines.push(`- ${b}`));
-        });
+      if (Array.isArray(p.skills) && p.skills.length) {
+        lines.push(`Skills: ${(p.skills as string[]).slice(0, 20).join(", ")}`);
       }
-      const langs = profileForPlanner.languages as string[];
-      if (Array.isArray(langs) && langs.length) lines.push(`Languages: ${langs.join(", ")}`);
-      return lines.join("\n").trim();
-    })() : null;
+      if (Array.isArray(p.languages) && p.languages.length) {
+        lines.push(`Languages: ${(p.languages as string[]).join(", ")}`);
+      }
+      return lines.join("\n");
+    })();
 
-    const evidencePlan = buildWorkZoInterviewEvidencePlan({
-      cvText: structuredCvForPlanner || cvGroundingEvidence || compactCv,
-      jobDescription: companyDecoratedJob,
-      targetRole: text(body.targetRole || setup.targetRole, 120),
-      transcript: body.transcript || [],
-    });
+    const rawCvText = cleanText(body.cvText, 5000);
+    const cvText = structuredProfileSummary
+      ? `${structuredProfileSummary}\n\n---\n${rawCvText}`.slice(0, 6000)
+      : rawCvText;
+    const jobDescription = cleanText(body.jobDescription, 4000);
+    const targetRole = cleanRoleLabel(body.targetRole);
 
-    // Log the interview plan for req 20g
-    if (evidencePlan?.matchedSkills?.length || evidencePlan?.cvSkills?.length) {
-      console.log("[WorkZo] interview.question.from_plan", {
-        cvSkills: evidencePlan.cvSkills?.slice(0, 8),
-        matchedSkills: evidencePlan.matchedSkills?.slice(0, 6),
-        missingSkills: evidencePlan.missingOrWeakJdEvidence?.slice(0, 4),
-        cvProjects: evidencePlan.cvProjects?.slice(0, 4),
-        totalQuestions: evidencePlan.questionPlan,
-        targetRole: text(body.targetRole || setup.targetRole, 80),
-      });
-    }
-    const evidencePlanContext = serializeWorkZoInterviewEvidencePlan(evidencePlan);
-    const recruiterBrainContext = `${serializeRecruiterBrainForPrompt(recruiterBrain)}\n\n${evidencePlanContext}`;
-    // ───────────────────────────────────────────────────────────────────────
-
-    // Generate role intelligence brief for ANY role — not just hardcoded ones.
-    // This gives the recruiter genuine domain knowledge about the target role,
-    // tailored to the specific JD and company context if provided.
-    let roleBriefContext = "";
-    try {
-      const roleBrief = await getRoleIntelligenceBrief({
-        role: text(body.targetRole || setup.targetRole, 120),
-        jobDescription: companyDecoratedJob.slice(0, 3000),
-        companyContext: text(body.companyDescription || setup.companyDescription || body.targetCompany || setup.companyName, 600),
-        market: text(body.targetMarket || setup.targetMarket, 80),
-      });
-      roleBriefContext = serializeRoleBriefForPrompt(roleBrief);
-    } catch (e) {
-      console.warn("[interview/route] Role brief generation failed:", e);
-    }
-
-    const baseDecision = await decideUnifiedRecruiterResponse({
+    const v2 = buildWorkZoRecruiterReplyV2({
       answer,
-      currentQuestion: resolvedCurrentQuestion,
-      transcript: compactTranscript(body.transcript),
-      recruiterTrust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58,
-      recruiterState: body.recruiterState || null,
+      currentQuestion: cleanText(body.currentQuestion, 400) || "Tell me about yourself.",
+      transcript,
       setup: {
-        cvText: compactCv,
-        jobDescription: companyDecoratedJob,
-        targetRole: text(body.targetRole || setup.targetRole, 120),
-        targetMarket: text(body.targetMarket || setup.targetMarket, 80),
-        companyStyle: text(body.companyStyle || setup.companyStyle, 120),
-        recruiterPersonality: text(body.recruiterPersonality || setup.recruiterPersonality, 80),
-        language: text(setup.language, 40),
-        recruiterMemoryProfile: body.recruiterMemorySummary
-          ? { summary: text(body.recruiterMemorySummary, 280) }
-          : undefined,
-        jobMemoryProfile: undefined,
-        recruiterBrainContext,
-        // Universal role intelligence — generated for any role, any industry
-        roleBriefContext,
+        cvText,
+        jobDescription,
+        targetRole,
+        targetMarket: cleanText(body.targetMarket, 120),
+        companyStyle: cleanText(body.companyStyle, 120),
+        recruiterPersonality: cleanText(body.recruiterPersonality, 120),
+        language: cleanText(body.language, 40),
+        candidateName: cleanText(body.candidateName, 120),
+        targetCompany: cleanText(body.targetCompany, 160),
+        recruiterName: cleanText(body.recruiterName, 120),
+        recruiterTitle: cleanText(body.recruiterTitle, 120),
       },
+      trust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : undefined,
+      memory: body.recruiterMemoryV2 || undefined,
     });
 
-    const enhancedDecision = enhanceWorkZoDecisionV2({
-      decision: baseDecision,
+    // ── Step 2: Build brain context from V2 memory ─────────────────────────
+    // This tells GPT-4o exactly what's been covered, what concerns remain,
+    // what JD gaps are open, and what topic to move to next. The recruiter
+    // uses this to avoid repeating questions and to thread answers naturally.
+    const mem = v2.memory as Record<string, unknown>;
+    const lines: string[] = [];
+
+    const answeredCompetencies = Array.isArray(mem.answeredCompetencies) ? mem.answeredCompetencies as string[] : [];
+    const activeConcerns = Array.isArray(mem.activeConcerns) ? mem.activeConcerns as Array<{id:string;score:number;askedCount:number}> : [];
+    const resolvedConcerns = Array.isArray(mem.resolvedConcerns) ? mem.resolvedConcerns as string[] : [];
+    const jdMissingSkills = Array.isArray(mem.jdMissingSkills) ? mem.jdMissingSkills as string[] : [];
+    const jdMatchedSkills = Array.isArray(mem.jdMatchedSkills) ? mem.jdMatchedSkills as string[] : [];
+    const topicOrder = Array.isArray(mem.interviewTopicOrder) ? mem.interviewTopicOrder as string[] : [];
+    const topicIndex = typeof mem.currentTopicIndex === "number" ? mem.currentTopicIndex : 0;
+    const metrics = Array.isArray(mem.metrics) ? mem.metrics as string[] : [];
+    const candidateGoals = Array.isArray(mem.candidateGoals) ? mem.candidateGoals as string[] : [];
+    const strengths = Array.isArray(mem.strengths) ? mem.strengths as string[] : [];
+    const companies = Array.isArray(mem.companies) ? mem.companies as string[] : [];
+    const contradictions = Array.isArray(mem.contradictions) ? mem.contradictions as string[] : [];
+
+    if (answeredCompetencies.length)
+      lines.push("COMPETENCIES COVERED — DO NOT RE-TEST: " + answeredCompetencies.join(", "));
+    if (activeConcerns.length)
+      lines.push("ACTIVE CONCERNS (address once if score >40, then move on): " +
+        activeConcerns.map((c) => `${c.id} (score:${c.score}/100, asked:${c.askedCount}x)`).join(", "));
+    if (resolvedConcerns.length)
+      lines.push("RESOLVED CONCERNS — NEVER REVISIT: " + resolvedConcerns.join(", "));
+    if (jdMissingSkills.length)
+      lines.push("JD SKILLS NOT YET EVIDENCED — probe naturally: " + jdMissingSkills.join(", "));
+    if (jdMatchedSkills.length)
+      lines.push("JD SKILLS EVIDENCED: " + jdMatchedSkills.join(", "));
+    const nextTopic = topicOrder[topicIndex];
+    if (nextTopic) lines.push("NEXT INTERVIEW TOPIC — follow this: " + nextTopic);
+    if (metrics.length) lines.push("CANDIDATE METRICS TO REFERENCE: " + metrics.slice(0, 3).join(", "));
+    if (candidateGoals.length) lines.push("CANDIDATE GOALS: " + candidateGoals.join("; "));
+    if (strengths.length) lines.push("DEMONSTRATED STRENGTHS: " + strengths.join(", "));
+    if (companies.length) lines.push("COMPANIES MENTIONED: " + companies.join(", "));
+    if (contradictions.length) lines.push("CONTRADICTIONS DETECTED: " + contradictions.join(" | "));
+
+    const recruiterBrainContext = lines.length
+      ? "=== RECRUITER MEMORY STATE ===\n" + lines.join("\n") + "\n=== END MEMORY STATE ==="
+      : "";
+
+    // ── Step 3: Call GPT-4o with the full context ──────────────────────────
+    const decision = await decideUnifiedRecruiterResponse({
       answer,
-      currentQuestion: resolvedCurrentQuestion,
-      transcript: compactTranscript(body.transcript),
-      currentTrust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : 58,
+      currentQuestion: cleanText(body.currentQuestion, 400) || "Tell me about yourself.",
+      transcript,
       setup: {
-        cvText: compactCv,
-        jobDescription: companyDecoratedJob,
-        targetRole: text(body.targetRole || setup.targetRole, 120),
-        targetMarket: text(body.targetMarket || setup.targetMarket, 80),
-        companyStyle: text(body.companyStyle || setup.companyStyle, 120),
-        recruiterPersonality: text(body.recruiterPersonality || setup.recruiterPersonality, 80),
-        language: text(setup.language, 40),
+        cvText,
+        jobDescription,
+        targetRole,
+        targetMarket: cleanText(body.targetMarket, 120),
+        companyStyle: cleanText(body.companyStyle, 120),
+        recruiterPersonality: cleanText(body.recruiterPersonality, 120),
+        language: cleanText(body.language, 40),
+        candidateName: cleanText(body.candidateName, 120),
+        targetCompany: cleanText(body.targetCompany, 160),
+        recruiterName: cleanText(body.recruiterName, 120),
+        recruiterTitle: cleanText(body.recruiterTitle, 120),
+        // V2 brain state injected directly into the LLM system prompt
         recruiterBrainContext,
       },
+      recruiterTrust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : undefined,
+      recruiterState: body.recruiterState ?? null,
     });
 
-    const decision = applyInterviewIntelligence95ToDecision(enhancedDecision, intelligence95);
-    const finalQuestion = await translateRecruiterTextIfNeeded(decision.spokenReply, setup.language);
-    const finalDisplayQuestion = await translateRecruiterTextIfNeeded(decision.displayQuestion || decision.spokenReply, setup.language);
+    const unifiedReply = decision.spokenReply.trim();
+    if (!unifiedReply) throw new Error("Empty reply from unified engine.");
+
+    const badReplyReason = getBadRecruiterReplyReason(unifiedReply, transcript);
+    const deterministicReply = badReplyReason ? buildSafeFallbackRecruiterReply(body, answer, transcript) : null;
+    const reply = badReplyReason && deterministicReply ? deterministicReply : unifiedReply;
+
+    logReplyOutcome({
+      userId: resolved.userId,
+      outcome: reply === unifiedReply ? "unified_engine" : "deterministic_guard",
+      durationMs: Date.now() - requestStartedAt,
+      reason: badReplyReason,
+      questionIndex: body.questionIndex,
+    });
+
+    // Update V2 trust from LLM decision
+    (v2.memory as Record<string, unknown>).trustScore =
+      Math.max(0, Math.min(100, ((v2.memory as Record<string, unknown>).trustScore as number ?? 70) + (decision.trustDelta || 0)));
+
+    // ── Language output validation ──────────────────────────────────────
+    // No longer post-translating (causes compounding errors on garbled STT).
+    // The LLM generates natively in the target language (language instruction
+    // is in the system prompt via unifiedRecruiterIntelligence.ts).
+    // Here we validate the output and apply a safe fallback if corrupted.
+    const targetLanguage = normalizeLanguageLabel(body.language);
+    const { isMismatch, reason: mismatchReason } = detectOutputLanguageMismatch(reply, targetLanguage);
+    if (isMismatch) {
+      console.warn(`[interview/reply] Language output mismatch detected. reason=${mismatchReason} targetLanguage=${targetLanguage} replyPreview="${reply.slice(0, 80)}"`);
+    }
+    const finalReply = isMismatch
+      ? buildNativeLanguageSafeReply(targetLanguage, cleanRoleLabel(body.targetRole))
+      : reply;
 
     return NextResponse.json({
-      question: finalQuestion,
-      displayQuestion: finalDisplayQuestion,
-      feedback: decision.feedback,
-      intent: decision.intent,
-      shouldAdvanceQuestion: decision.shouldAdvanceQuestion,
-      shouldCountAsAnswer: decision.shouldCountAsAnswer,
-      shouldStayOnCurrentQuestion: decision.shouldStayOnCurrentQuestion,
+      success: true,
+      reply: finalReply,
+      displayQuestion: finalReply,
       trustDelta: decision.trustDelta,
       recruiterState: decision.recruiterState,
-      correction: decision.correction || "",
-      concern: decision.concern || "",
-      psychology: decision.psychology,
-      cvRead: decision.cvRead || null,
-      recruiterMemory: decision.recruiterMemory || null,
-      memoryEvents: decision.memoryEvents || [],
-      pressure: decision.pressure || null,
-      honestFeedback: decision.honestFeedback || null,
-      recruiterMemoryInsight: decision.recruiterMemoryInsight || null,
-      livePressureSimulation: decision.livePressureSimulation || null,
-      marketExpectation: decision.marketExpectation || null,
-      humanImperfection: decision.humanImperfection || null,
-      socialSignals: decision.socialSignals || null,
-      cinematicRealism: decision.cinematicRealism || null,
-      conversationStage: decision.conversationStage || null,
-      workzoIntelligenceV2: decision.workzoIntelligenceV2 || null,
-      workzoInterviewIntelligence95: decision.workzoInterviewIntelligence95 || null,
-      companyDNA: decision.companyDNA || null,
-      deterministicScore: decision.deterministicScore || null,
-      contradictionChallenge: decision.contradictionChallenge || null,
-      latencyCue: decision.latencyCue || null,
-      whatRecruiterHeard: decision.whatRecruiterHeard || null,
-      benchmark: decision.benchmark || null,
-      answerRewrites: decision.answerRewrites || [],
-      interruption: {
-        shouldInterrupt:
-          decision.intent === "nonsense" ||
-          decision.intent === "possible_exaggeration" ||
-          decision.intent === "contradiction",
-        interruptionMessage: decision.concern || decision.correction || "",
-        severity:
-          decision.intent === "nonsense" || decision.intent === "contradiction"
-            ? "medium"
-            : "low",
-      },
-      scores: {
-        relevance: decision.deterministicScore?.relevance ?? (decision.shouldCountAsAnswer ? Math.max(40, Math.min(92, decision.psychology.interest)) : 0),
-        clarity: decision.deterministicScore?.clarity ?? (decision.intent === "interview_answer" ? Math.max(38, Math.min(90, decision.psychology.engagement)) : 0),
-        structure: decision.deterministicScore?.structure ?? (decision.intent === "interview_answer" ? Math.max(34, Math.min(88, decision.psychology.patience)) : 0),
-        evidence: decision.deterministicScore?.evidence ?? (
-          decision.intent === "possible_exaggeration" || decision.intent === "contradiction" || decision.intent === "nonsense"
-            ? 22
-            : decision.shouldCountAsAnswer
-              ? Math.max(42, Math.min(90, decision.psychology.confidenceInCandidate))
-              : 0),
-        confidence: decision.deterministicScore?.confidence ?? decision.psychology.confidenceInCandidate,
-        ownership: decision.deterministicScore?.ownership ?? null,
-        roleFit: decision.deterministicScore?.roleFit ?? null,
-        companyFit: decision.deterministicScore?.companyFit ?? null,
-        pressure: decision.pressure?.level ?? 45,
-        overall: decision.deterministicScore?.overall ?? decision.psychology.trust,
-      },
-      liveUiState: {
-        label:
-          decision.intent === "candidate_question"
-            ? "Clarifying"
-            : decision.intent === "possible_exaggeration" || decision.intent === "nonsense" || decision.intent === "contradiction"
-              ? "Recruiter is checking consistency"
-              : decision.pressure?.label === "intense" || decision.pressure?.label === "high"
-                ? "Pressure increased"
-                : decision.recruiterState === "skeptical"
-                  ? "Skepticism rising"
-                  : decision.shouldCountAsAnswer
-                    ? "Answer accepted"
-                    : "Staying on question",
-        theme: decision.recruiterState,
-        pressure: decision.pressure || null,
-        honestFeedback: decision.honestFeedback || null,
-        recruiterMemoryInsight: decision.recruiterMemoryInsight || null,
-        livePressureSimulation: decision.livePressureSimulation || null,
-        marketExpectation: decision.marketExpectation || null,
-        humanImperfection: decision.humanImperfection || null,
-        socialSignals: decision.socialSignals || null,
-        cinematicRealism: decision.cinematicRealism || null,
-      },
-      trustTimeline: [
-        {
-          type: decision.trustDelta < 0 ? "drop" : decision.trustDelta > 0 ? "gain" : "steady",
-          delta: decision.trustDelta,
-          reason: decision.workzoIntelligenceV2?.trust?.reason || decision.pressure?.reason || decision.feedback,
-        },
-      ],
+      shouldAdvanceQuestion: decision.shouldAdvanceQuestion,
+      provider: reply === unifiedReply ? "unified_engine" : "deterministic_guard",
+      durationMs: Date.now() - requestStartedAt,
+      // ── V2 memory — client MUST persist and send back next turn ──────────
+      // Without this, all memory resets to zero every question.
+      recruiterMemoryV2: v2.memory,
     });
   } catch (error) {
+    const durationMs = Date.now() - requestStartedAt;
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      `[interview/reply] HARD FAILURE — falling back to rule engine. user=${resolved.userId || "unknown"} durationMs=${durationMs} questionIndex=${body.questionIndex ?? "?"} answerPreview="${answer.slice(0, 80)}" error=${message}`,
+      error instanceof Error ? error.stack : error,
+    );
+    const reply = buildSafeFallbackRecruiterReply(body, answer, transcript);
+    if (reply) {
+      const targetLanguage = normalizeLanguageLabel(body.language);
+      // No translation — use native language safe reply if output is wrong language
+      const { isMismatch: fbMismatch } = detectOutputLanguageMismatch(reply, targetLanguage);
+      const finalReply = fbMismatch
+        ? buildNativeLanguageSafeReply(targetLanguage, cleanRoleLabel(body.targetRole))
+        : reply;
+      logReplyOutcome({ userId: resolved.userId, outcome: "deterministic_fallback", durationMs, reason: message, questionIndex: body.questionIndex });
+      return NextResponse.json({
+        success: true,
+        reply: finalReply,
+        displayQuestion: finalReply,
+        trustDelta: 0,
+        recruiterState: "engaged",
+        shouldAdvanceQuestion: true,
+        provider: "deterministic_fallback",
+        durationMs,
+      });
+    }
+
+    logReplyOutcome({ userId: resolved.userId, outcome: "hard_failure", durationMs, reason: message, questionIndex: body.questionIndex });
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Interview intelligence failed.",
+        success: false,
+        reply: null,
+        error: message,
+        durationMs,
       },
-      { status: 500 },
+      { status: 200 },
     );
   }
 }

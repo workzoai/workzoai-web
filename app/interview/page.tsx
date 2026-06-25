@@ -1643,6 +1643,83 @@ function extractRoleClaims(answer: string) {
   return Array.from(roles);
 }
 
+
+function normalizeClaimForEvidence(value: string) {
+  return safeText(value)
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/\bcorporation\b/g, "corp")
+    .replace(/\bcompany\b/g, "co")
+    .replace(/\blimited\b/g, "ltd")
+    .replace(/\bprivate\b/g, "pvt")
+    .replace(/\btechnologies\b/g, "technology")
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function claimRootAlias(value: string) {
+  const normalized = normalizeClaimForEvidence(value);
+  if (!normalized) return "";
+
+  // Common STT / accent distortions seen in live voice:
+  // Zoho Corp -> Zoho car/core/call/corps, CSS Corp -> CSS core/car.
+  if (/^zoho/.test(normalized)) return "zoho";
+  if (/^css/.test(normalized)) return "css";
+  if (/^manageengine/.test(normalized)) return "manageengine";
+
+  return normalized;
+}
+
+function claimMatchesVerifiedFact(claim: string, facts: string[]) {
+  const claimNorm = normalizeClaimForEvidence(claim);
+  const claimAlias = claimRootAlias(claim);
+  if (!claimNorm || !claimAlias) return false;
+
+  return facts.some((fact) => {
+    const factNorm = normalizeClaimForEvidence(fact);
+    const factAlias = claimRootAlias(fact);
+    if (!factNorm || !factAlias) return false;
+
+    if (claimNorm === factNorm || claimAlias === factAlias) return true;
+    if (claimNorm.length >= 4 && factNorm.includes(claimNorm)) return true;
+    if (factNorm.length >= 4 && claimNorm.includes(factNorm)) return true;
+
+    // If both names share a strong first token, treat it as supported. This
+    // prevents false challenges when STT hears "Zoho car/core" instead of
+    // "Zoho Corp", while still avoiding random two-letter matches.
+    const claimFirst = safeText(claim).toLowerCase().split(/\s+/)[0]?.replace(/[^a-z0-9]/g, "") || "";
+    const factFirst = safeText(fact).toLowerCase().split(/\s+/)[0]?.replace(/[^a-z0-9]/g, "") || "";
+    return claimFirst.length >= 4 && claimFirst === factFirst;
+  });
+}
+
+function verifiedResumeFactBlock(setup: InterviewSetup) {
+  const cvFacts = extractCvFactMemory(setup);
+  const profile = setup.resumeProfile as Record<string, unknown> | null | undefined;
+  const experience = Array.isArray(profile?.experience)
+    ? (profile.experience as Array<Record<string, unknown>>)
+        .map((job) => {
+          const title = safeText(job.title);
+          const company = safeText(job.company);
+          const dates = safeText(job.dates);
+          return [title, company, dates].filter(Boolean).join(" • ");
+        })
+        .filter(Boolean)
+        .slice(0, 8)
+    : [];
+
+  return [
+    "VERIFIED RESUME FACTS — AUTHORITATIVE:",
+    cvFacts.companies.length ? `Verified companies/employers: ${cvFacts.companies.join(", ")}.` : "Verified companies/employers: none extracted.",
+    cvFacts.roles.length ? `Verified roles/titles: ${cvFacts.roles.join(", ")}.` : "Verified roles/titles: none extracted.",
+    experience.length ? `Verified experience timeline: ${experience.join(" | ")}.` : "Verified experience timeline: none extracted.",
+    cvFacts.skills.length ? `Verified skills/signals: ${cvFacts.skills.join(", ")}.` : "Verified skills/signals: none extracted.",
+    "MANDATORY RULE: Never say you do not see, cannot verify, or cannot confirm a company, employer, role, years-of-experience claim, education entry, project, or skill if it is listed above or appears as a close speech-to-text variant of a listed fact.",
+    "Speech-to-text variants are allowed: for example, Zoho car/core/corps means Zoho Corp; CSS core means CSS Corp. Treat those as pronunciation/transcription issues and continue normally.",
+    "If the candidate says a verified company or role, ask about responsibilities, ownership, examples, challenges, metrics, and outcomes instead of challenging whether it exists.",
+  ].join("\n");
+}
+
 function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
   const evidence = normalizedEvidenceText(setup);
   if (!evidence) return "";
@@ -1658,8 +1735,11 @@ function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
     return "The candidate admitted the claim is false or exaggerated.";
   }
 
+  const cvFacts = extractCvFactMemory(setup);
+
   const companyClaims = extractCompanyClaims(answer);
   for (const company of companyClaims) {
+    if (claimMatchesVerifiedFact(company, cvFacts.companies)) continue;
     if (!evidenceIncludesClaim(cvEvidence, company)) {
       return `The company "${company}" is not visible in the candidate's CV.`;
     }
@@ -1667,6 +1747,7 @@ function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
 
   const roleClaims = extractRoleClaims(answer);
   for (const role of roleClaims) {
+    if (claimMatchesVerifiedFact(role, cvFacts.roles)) continue;
     if (!evidenceIncludesClaim(cvEvidence, role)) {
       return `The role "${role}" is not clearly supported by the CV.`;
     }
@@ -1785,7 +1866,10 @@ function buildVapiTranscriberOverride(setup: InterviewSetup) {
     model: "nova-2",
     language: isoLanguage,
     smartFormat: true,
-    endpointing: language.code.toLowerCase().startsWith("en") ? 350 : 650,
+    // Vapi maximum endpointing is 500ms. Values above 500 cause a 400 Bad Request.
+    // English: 350ms (faster responses, natural cadence)
+    // Non-English: 480ms (slightly more time for non-native speech patterns, stays under 500)
+    endpointing: language.code.toLowerCase().startsWith("en") ? 350 : 480,
   };
 }
 
@@ -2721,15 +2805,46 @@ function extractCvCredibilityFlags(setup: InterviewSetup): CvCredibilityFlag[] {
 function extractCvFactMemory(setup: InterviewSetup) {
   const cv = safeText(setup.cvText);
   const evidence = normalizedEvidenceText(setup);
-  const companies = uniqueLimited(extractCompanyClaims(cv), 8);
-  const roles = uniqueLimited(extractRoleClaims(cv), 8);
-  const namedPhrases = extractCapitalizedPhrases(cv).filter((item) => !companies.includes(item) && !roles.includes(item)).slice(0, 8);
+
+  // Prefer reading companies and roles directly from the structured resumeProfile.
+  // extractCompanyClaims() uses regex that requires a preposition ("at|with|for|in Company")
+  // but the structured CV text uses bullet format "- Title • Company • Dates" which has
+  // no preposition. This caused "Zoho Corp" to be missed and replaced with lowercase "zoho",
+  // making the VAPI model falsely challenge valid company claims.
+  const profile = setup.resumeProfile as Record<string, unknown> | null | undefined;
+  const profileExperience = Array.isArray((profile as Record<string, unknown> | null)?.experience)
+    ? ((profile as Record<string, unknown>).experience as Array<Record<string, unknown>>)
+    : [];
+
+  const profileCompanies = profileExperience
+    .map((exp) => safeText(exp.company))
+    .filter((c) => c.length >= 2);
+  const profileRoles = profileExperience
+    .map((exp) => safeText(exp.title))
+    .filter((r) => r.length >= 2);
+  const profileSkills = Array.isArray((profile as Record<string, unknown> | null)?.skills)
+    ? ((profile as Record<string, unknown>).skills as string[]).map((item) => safeText(item)).filter((s) => s.length >= 2)
+    : [];
+
+  // Fall back to regex extraction only when no structured profile is available
+  const companies = uniqueLimited(
+    profileCompanies.length ? profileCompanies : extractCompanyClaims(cv),
+    10,
+  );
+  const roles = uniqueLimited(
+    profileRoles.length ? profileRoles : extractRoleClaims(cv),
+    10,
+  );
+
+  const namedPhrases = extractCapitalizedPhrases(cv).filter((item) => !companies.some((c) => c.toLowerCase() === item.toLowerCase()) && !roles.some((r) => r.toLowerCase() === item.toLowerCase())).slice(0, 8);
   const years = Array.from(new Set((cv.match(/\b\d{1,2}\s*\+?\s*(?:years?|yrs?)\b/gi) || []).map((item) => item.trim()))).slice(0, 6);
   const metrics = extractMetricSnippets(cv).slice(0, 8);
   const skills = uniqueLimited(
-    [
-      "sql", "python", "excel", "power bi", "tableau", "crm", "salesforce", "zendesk", "freshdesk", "jira", "customer support", "technical support", "data analysis", "stakeholder management", "project management", "api", "saas",
-    ].filter((skill) => evidence.includes(skill)),
+    profileSkills.length
+      ? profileSkills.slice(0, 14)
+      : [
+          "sql", "python", "excel", "power bi", "tableau", "crm", "salesforce", "zendesk", "freshdesk", "jira", "customer support", "technical support", "data analysis", "stakeholder management", "project management", "api", "saas",
+        ].filter((skill) => evidence.includes(skill)),
     14,
   );
 
@@ -2763,6 +2878,7 @@ function buildFactualMemoryBrief(setup: InterviewSetup) {
   const credibilityFlags = extractCvCredibilityFlags(setup);
 
   return [
+    verifiedResumeFactBlock(setup),
     buildContextQualityNotice(setup),
     cvFacts.companies.length ? `CV companies: ${cvFacts.companies.join(", ")}.` : "CV companies: none clearly extracted.",
     cvFacts.roles.length ? `CV roles: ${cvFacts.roles.join(", ")}.` : "CV roles: none clearly extracted.",
@@ -4790,7 +4906,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
             type: "add-message",
             message: {
               role: "system",
-              content: `FACT-CHECK ALERT: The candidate's last answer contains a claim that is NOT supported by their CV or the job description. Specifically: ${contradiction} Before responding to anything else in their answer, pause and challenge this claim directly and politely using the required style ("I need to pause there. I cannot verify that from your CV. Can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario?"). Do not move on to a new topic until the candidate has addressed this.`,
+              content: `FACT-CHECK ALERT: The candidate's last answer appears to contain a claim that is not supported by the verified resume facts or job description. Specifically: ${contradiction} First check the VERIFIED RESUME FACTS already provided in cvSummary/cvText. If the claim is a close speech-to-text variant of a verified fact, do NOT challenge it; correct it mentally and continue. Only if it is genuinely absent, ask one brief clarification.`,
             },
           });
         } catch {
@@ -5151,8 +5267,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
           cvText: [
             enforceSelectedLanguagePrefix(activeSetup),
             buildFactualMemoryBrief(activeSetup),
-            "CV context:",
-            (activeSetup.cvText || "").slice(0, 1200),
+            "Raw CV excerpt (secondary only — verified facts above are authoritative):",
+            (activeSetup.cvText || "").slice(0, 900),
           ].join("\n"),
           jobDescription: [
             buildLanguageInstruction(activeSetup),
@@ -5160,10 +5276,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
             (activeSetup.jobDescription || "").slice(0, 1200),
           ].join("\n"),
           // Core grounding rules — kept concise
-          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} You are WorkZo AI's recruiter. Treat the CV as the ONLY source of truth for the candidate's background. Challenge unsupported claims. Ask one question per turn. ${unsupportedClaimChallenge}`,
-          strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} Treat the CV as ground truth. Challenge unsupported companies, roles, years, and achievements. Ask one concise follow-up at a time.`,
-          recruiterMustChallengeUnsupportedClaims: "true",
-          antiHallucinationMode: "strict",
+          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} You are WorkZo AI's recruiter. The VERIFIED RESUME FACTS in cvSummary/cvText are authoritative. Never say you do not see or cannot verify an employer, role, timeline, education, project, or skill already listed there, including close speech-to-text variants such as Zoho car/core for Zoho Corp or CSS core for CSS Corp. For verified facts, ask about responsibilities, ownership, challenges, metrics, and outcomes. Challenge only claims that are truly absent from verified facts and raw CV context. Ask one question per turn. ${unsupportedClaimChallenge}`,
+          strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} VERIFIED RESUME FACTS are authoritative. Never challenge companies/roles/years listed there. Treat speech-to-text variants of listed employers as supported. Challenge only genuinely unsupported new claims. Ask one concise follow-up at a time.`,
+          recruiterMustChallengeUnsupportedClaims: "only_if_absent_from_verified_resume_facts",
+          antiHallucinationMode: "verified_resume_authoritative",
         });
 
         vapiTimeoutRef.current = window.setTimeout(() => {
@@ -5216,6 +5332,17 @@ const [questionIndex, setQuestionIndex] = useState(0);
           transcriber: buildVapiTranscriberOverride(activeSetup),
         };
 
+        // Debug log: verify what CV data VAPI actually receives
+        // Check browser console for "WORKZO VAPI CV CONTEXT" to confirm companies list
+        const cvFactsForLog = extractCvFactMemory(activeSetup);
+        console.info("WORKZO VAPI CV CONTEXT", {
+          candidateName: activeSetup.candidateName,
+          cvCompanies: cvFactsForLog.companies,
+          cvRoles: cvFactsForLog.roles,
+          cvSkills: cvFactsForLog.skills.slice(0, 5),
+          hasResumeProfile: Boolean(activeSetup.resumeProfile),
+          cvTextLength: (activeSetup.cvText || "").length,
+        });
         console.info("WORKZO VAPI LANGUAGE LOCK", {
           interviewLanguage: selectedLanguage.label,
           vapiTranscriberLanguage: selectedLanguageIsoCode(activeSetup),

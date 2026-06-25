@@ -208,7 +208,7 @@ export function buildWorkZoVapiVariableValues(input: {
       `Start with brief rapport. Answer small social questions naturally before continuing. ` +
       `Ask ONE question per turn. Listen to the candidate's answer and choose your next question FROM what they just said. ` +
       `If they mention a skill, project, career transition, gap, or outcome — follow that thread. ` +
-      `Probe gently for specifics and ownership. Challenge only when something doesn't add up. ` +
+      `Probe gently for specifics and ownership. The CV summary may contain a VERIFIED RESUME FACTS block; treat that block as authoritative. Never say you do not see or cannot verify an employer, role, timeline, education, project, or skill listed there. If speech recognition turns a listed employer into a close variant (for example Zoho car/core/corps for Zoho Corp, or CSS core for CSS Corp), treat it as supported and continue. Challenge only genuinely new claims that are absent from the verified facts. ` +
       `Do not repeat the same follow-up. Never use the robotic line "Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result." ` +
       `If the candidate gives any real metric or outcome, including latency reduction, CSAT, customer satisfaction, fewer escalations, quality improvement, or a before/after result, accept it and move to a deeper role-relevant question. ` +
       `If the answer is unclear or speech recognition is poor, ask one natural clarification in ${languageLabel}; do not invent the candidate's words, do not translate random sounds into fake English, and do not demand metrics. ` +
@@ -219,7 +219,7 @@ export function buildWorkZoVapiVariableValues(input: {
       // for a while. Stated explicitly here so live voice candidates get the
       // same baseline questions every real interview includes.
       `Early in the interview, naturally ask what the candidate currently does (or most recently did) and why they're interested in this specific role — not generically, but tied to what this role actually involves. ` +
-      `At least once, pick a specific requirement stated in the job description below that you don't see clearly evidenced in the CV, and ask about it directly — e.g. "This role needs X, I'm not seeing that in your background, do you have experience with that?" Don't rely only on generic competency questions; ground at least one question in the actual job description text. ` +
+      `At least once, pick a specific requirement stated in the job description and ask about it directly. If the CV verified facts already show related experience, phrase it positively, e.g. "I see you handled customer-facing support at Zoho Corp and CSS Corp; how would that help with this requirement?" Only say you do not see something when it is genuinely absent from the verified facts. ` +
       `Near the end of the interview, invite the candidate's own questions — ask something like "do you have any questions for me about the role or what happens next?" If they ask something, actually answer it using what you know about the role — don't redirect them back into the interview. ` +
       // Capped at 700 chars — kept as a precaution from when this was first
       // added, even though the actual regression turned out to be a missing
@@ -244,10 +244,10 @@ export function buildWorkZoVapiVariableValues(input: {
     strictGroundingRules:
       input.strictGroundingRules ||
       input.workzoStrictGrounding ||
-      "Use the CV and job description as ground truth. Challenge unsupported companies, roles, years, achievements, degrees, certifications, and metrics before continuing.",
+      "Use the VERIFIED RESUME FACTS inside the CV summary as authoritative. Never challenge employers, roles, dates, education, projects, skills, or years already listed there. Treat close speech-to-text variants of listed facts as supported. Challenge only genuinely unsupported new claims.",
     recruiterMustChallengeUnsupportedClaims:
-      input.recruiterMustChallengeUnsupportedClaims || "true",
-    antiHallucinationMode: input.antiHallucinationMode || "strict",
+      input.recruiterMustChallengeUnsupportedClaims || "only_if_absent_from_verified_resume_facts",
+    antiHallucinationMode: input.antiHallucinationMode || "verified_resume_authoritative",
     pacingRules:
       "Speak slowly and clearly, at 0.82x normal interview speed. " +
       "Use 400ms natural pauses after each sentence. " +

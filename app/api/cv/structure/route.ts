@@ -13,6 +13,7 @@ import {
 } from "@/lib/workzoAiCvParser";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 import { enforceCanonicalCandidateName } from "@/lib/workzoResumeProfileManager";
+import { mergeCvProfile } from "@/lib/cvProfileMerge";
 
 const require = createRequire(import.meta.url);
 
@@ -1077,12 +1078,25 @@ function buildResponse(input: {
   targetRole?: string;
   targetMarket?: string;
 }) {
-  const resumeProfile = lockResumeProfileIdentity({
+  const lockedProfile = lockResumeProfileIdentity({
     profile: input.resumeProfile,
     rawText: input.rawCvText,
     fileName: input.fileName || "",
     candidateName: input.candidateName || "",
   });
+
+  // Final global guard: the structure endpoint must return the same validated
+  // profile shape as /api/cv. This prevents invalid phones, template text,
+  // education-in-experience, and duplicate rows from leaking into onboarding.
+  const resumeProfile = mergeCvProfile({
+    parsedProfile: lockedProfile as any,
+    rawText: input.rawCvText,
+    fileName: input.fileName || "",
+    requestBody: {
+      candidateName: input.candidateName || "",
+      fileName: input.fileName || "",
+    },
+  }) as ResumeProfile;
   const finalName = resumeProfile.basics?.name || "";
   if (finalName && finalName !== input.resumeProfile.basics?.name) {
     debugCvPipeline("api.cv.name_override", {

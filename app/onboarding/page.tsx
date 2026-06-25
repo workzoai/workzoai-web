@@ -176,6 +176,56 @@ function saveSetupToStore(nextSetup: SetupState, store: unknown) {
   } catch { /* localStorage may be blocked */ }
 }
 
+
+type StoredCanonicalProfile = {
+  profile?: ResumeProfile | null;
+  rawCvText?: string;
+  fileName?: string;
+};
+
+/**
+ * Local safe loader for the canonical CV profile.
+ *
+ * Important:
+ * - This file already writes canonical profile through saveCanonicalProfile().
+ * - persistFast() runs as a plain function, so it cannot depend on React state.
+ * - Do not assume lib/workzoCanonicalProfile exports loadCanonicalProfile in every build.
+ * - Read storage defensively and never throw during Start Interview.
+ */
+function loadCanonicalProfile(): StoredCanonicalProfile | null {
+  if (typeof window === "undefined") return null;
+
+  const storageKeys = [
+    "workzo-canonical-profile",
+    "workzoCanonicalProfile",
+    "workzo-cv-canonical-profile",
+    "workzo_latest_cv_profile",
+    "workzo-latest-cv-profile",
+  ];
+
+  for (const key of storageKeys) {
+    try {
+      const raw = window.sessionStorage.getItem(key) || window.localStorage.getItem(key);
+      if (!raw) continue;
+
+      const parsed = JSON.parse(raw) as StoredCanonicalProfile | ResumeProfile | null;
+      if (!parsed || typeof parsed !== "object") continue;
+
+      if ("profile" in parsed && parsed.profile && typeof parsed.profile === "object") {
+        return parsed as StoredCanonicalProfile;
+      }
+
+      if ("basics" in parsed) {
+        return { profile: parsed as ResumeProfile };
+      }
+    } catch {
+      // Ignore malformed/stale storage and try the next key.
+    }
+  }
+
+  return null;
+}
+
 function buildInterviewCvContext(profile: ResumeProfile, fallbackRawText: string) {
   const lines: string[] = [];
   const basics = profile.basics || {};
@@ -573,7 +623,11 @@ export default function OnboardingPage() {
   function persistFast() {
     const draft = buildDraftSetup();
     const rawCvText = normalizeResumeText(draft.cvText || effectiveCvText || "");
-    const profile = extractResumeProfileComplex(rawCvText);
+    // Use the AI-parsed profile saved to sessionStorage after /api/cv upload.
+    // loadCanonicalProfile() is storage-based so it works inside persistFast
+    // which is a plain function (not a React component) and cannot access state.
+    const canonicalStored = loadCanonicalProfile();
+    const profile = (canonicalStored?.profile ?? null) || extractResumeProfileComplex(rawCvText);
     const fastBlueprint = buildWorkZoCompanyBlueprint({
       companyName: companyName || String(draft.companyName || draft.targetCompany || "Target company"),
       targetRole: role || profile.basics.headline || "General Role",

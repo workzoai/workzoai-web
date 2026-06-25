@@ -165,16 +165,61 @@ function planFrom(item: DbAnalyticsEvent): string {
   return "free";
 }
 
-function isDevOverrideEvent(item: DbAnalyticsEvent): boolean {
-  return Boolean((item.metadata || {}).devOverrideActive);
+function isInternalAnalyticsEvent(item: DbAnalyticsEvent): boolean {
+  const metadata = item.metadata || {};
+  const source = String(metadata.source || metadata.analyticsSource || metadata.userType || metadata.actor || "").toLowerCase();
+  const email = String(metadata.email || metadata.userEmail || "").toLowerCase();
+  const internalEmails = (process.env.FOUNDER_ANALYTICS_INTERNAL_EMAILS || "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+  return Boolean(
+    metadata.devOverrideActive ||
+    metadata.isInternalUser ||
+    metadata.internalTest ||
+    metadata.founderTest ||
+    metadata.qaTest ||
+    ["founder", "internal", "qa", "tester", "freelancer", "dev"].includes(source) ||
+    (email && internalEmails.includes(email))
+  );
+}
+
+function isVoiceFailureEventName(name: string) {
+  return [
+    "voice_failed",
+    "vapi_failed",
+    "vapi_connection_failed",
+    "voice_connect_failed",
+    "speech_recognition_error",
+  ].includes(name);
+}
+
+function isVoiceStartEventName(name: string) {
+  return [
+    "voice_started",
+    "vapi_connected",
+    "vapi_connection_slow",
+  ].includes(name);
 }
 
 function weakSignalsFrom(events: DbAnalyticsEvent[]) {
+  const ignored = new Set([
+    "ended",
+    "paused",
+    "completed",
+    "finished",
+    "done",
+    "good answer. recruiter is ready to go deeper.",
+  ]);
   const signals: string[] = [];
   for (const item of events) {
     const metadata = item.metadata || {};
-    const raw = metadata.weakSignal || metadata.weakness || metadata.concern || metadata.reason || metadata.issue || "";
-    if (typeof raw === "string" && raw.trim()) signals.push(raw.trim().slice(0, 80));
+    const raw = metadata.weakSignal || metadata.weakness || metadata.concern || metadata.issue || metadata.reason || "";
+    if (typeof raw !== "string") continue;
+    const cleaned = raw.trim().slice(0, 80);
+    if (!cleaned || ignored.has(cleaned.toLowerCase())) continue;
+    signals.push(cleaned);
   }
   return countBy(signals);
 }
@@ -186,7 +231,7 @@ function buildModePerformance(events: DbAnalyticsEvent[]) {
     acc[mode] = {
       starts: modeEvents.filter((item) => eventName(item) === "interview_started").length,
       completions: modeEvents.filter((item) => eventName(item) === "interview_completed").length,
-      voiceFailures: modeEvents.filter((item) => ["voice_failed", "vapi_failed"].includes(eventName(item))).length,
+      voiceFailures: modeEvents.filter((item) => isVoiceFailureEventName(eventName(item))).length,
       results: modeEvents.filter((item) => eventName(item) === "results_viewed").length,
       avgTrust: avg(modeEvents.map((item) => item.trust)),
     };
@@ -222,7 +267,7 @@ function buildPlanBreakdown(events: DbAnalyticsEvent[]) {
       interviewsStarted,
       completedInterviews,
       resultsViewed: planEvents.filter((item) => eventName(item) === "results_viewed").length,
-      voiceFailures: planEvents.filter((item) => ["voice_failed", "vapi_failed"].includes(eventName(item))).length,
+      voiceFailures: planEvents.filter((item) => isVoiceFailureEventName(eventName(item))).length,
       completionRate: pct(completedInterviews, interviewsStarted),
       avgTrust: avg(planEvents.map((item) => item.trust)),
     };
@@ -274,12 +319,11 @@ async function readUsageSummary(supabase: ReturnType<typeof getSupabaseAdmin>): 
 }
 
 function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[], usageSummary: UsageSummary = buildUsageSummary([])) {
-  // Exclude events generated while a founder/dev-tools plan override was
-  // active — these are test sessions clicking through the app as a fake
-  // plan, not real user behavior, and would otherwise skew completion
-  // rates, voice-failure rates, etc.
-  const devTestEvents = allEvents.filter(isDevOverrideEvent);
-  const events = allEvents.filter((item) => !isDevOverrideEvent(item));
+  // Exclude founder/internal/QA/freelancer test events from production metrics.
+  // Internal events are still counted separately so the founder can debug the product
+  // without polluting real-user conversion, voice, and completion numbers.
+  const internalEvents = allEvents.filter(isInternalAnalyticsEvent);
+  const events = allEvents.filter((item) => !isInternalAnalyticsEvent(item));
 
   const counts = countBy(events.map(eventName));
   const sessions = new Set(events.map((item) => item.session_id).filter(Boolean));
@@ -289,8 +333,12 @@ function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[], usageSummary: Usa
   const uploads = counts.cv_uploaded || 0;
   const interviewsStarted = counts.interview_started || 0;
   const answersSubmitted = counts.answer_submitted || 0;
-  const voiceStarts = counts.voice_started || counts.vapi_connected || 0;
-  const voiceFailures = counts.voice_failed || counts.vapi_failed || 0;
+  const voiceStarts = Object.entries(counts)
+    .filter(([name]) => isVoiceStartEventName(name))
+    .reduce((sum, [, count]) => sum + count, 0);
+  const voiceFailures = Object.entries(counts)
+    .filter(([name]) => isVoiceFailureEventName(name))
+    .reduce((sum, [, count]) => sum + count, 0);
   const voicePaused = counts.voice_paused || 0;
   const voiceRecovered = counts.voice_recovered || 0;
   const completedInterviews = counts.interview_completed || 0;
@@ -336,8 +384,9 @@ function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[], usageSummary: Usa
   }));
 
   const summary = {
-    totalEvents: events.length,
+    totalEvents: allEvents.length,
     productionEvents: events.length,
+    internalEvents: internalEvents.length,
     totalUniqueVisitors: visitors.size,
     uniqueVisitorsAllTime: visitors.size,
     uniqueVisitors: visitors.size,
@@ -374,7 +423,8 @@ function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[], usageSummary: Usa
     dropoffFunnel,
     modePerformance: buildModePerformance(events),
     planBreakdown: buildPlanBreakdown(events),
-    devTestEvents: devTestEvents.length,
+    internalTestEvents: internalEvents.length,
+    devTestEvents: internalEvents.length,
     topWeakness,
     insight,
   };
@@ -384,8 +434,9 @@ function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[], usageSummary: Usa
     configured: true,
     summary,
     metrics: {
-      totalEvents: events.length,
+      totalEvents: allEvents.length,
       productionEvents: events.length,
+      internalEvents: internalEvents.length,
       totalUniqueVisitors: visitors.size,
       uniqueVisitorsAllTime: visitors.size,
       uniqueVisitors: visitors.size,

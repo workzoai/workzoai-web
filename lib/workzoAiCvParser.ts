@@ -791,10 +791,29 @@ function isJobTitleNotSkill(skill: string): boolean {
 }
 
 function repairProfileIdentity(profile: ResumeProfile, rawText: string, fileName = "", modelName = ""): ResumeProfile {
-  // General, file-agnostic exclusion set: anything already independently
-  // extracted as a skill or as a company name cannot also be accepted as
-  // the candidate's own name. A real person's name essentially never
-  // duplicates one of their own listed skills or a former employer's name.
+  // MUTATION GUARD: if the profile already has a valid human name, do NOT scan
+  // raw text to replace it. Confirmed mutation: "Sophia Martinez" → "Core Competencies"
+  // because the section heading scored higher in the raw PDF text order.
+  const alreadyValidName = isLikelyHumanName(profile.basics?.name || "");
+  if (alreadyValidName) {
+    const email = cleanEmailField(extractEmail(rawText) || profile.basics?.email);
+    const phone = extractPhone(rawText) || clean(profile.basics?.phone);
+    const linkedin = cleanLinkedinUrl(extractLinkedin(rawText) || clean(profile.basics?.linkedin));
+    const nameNormalized = normalizeForCompare(alreadyValidName);
+    const skills = Array.isArray(profile.skills)
+      ? profile.skills.filter((skill) => {
+          if (normalizeForCompare(skill) === nameNormalized) return false;
+          if (isJobTitleNotSkill(skill)) return false;
+          return true;
+        })
+      : profile.skills;
+    return {
+      ...profile, rawText, skills,
+      basics: { ...profile.basics, name: alreadyValidName, email, phone, linkedin },
+    } as ResumeProfile;
+  }
+
+  // Name missing or invalid — attempt raw text recovery.
   const excludeAsName = [
     ...(Array.isArray(profile.skills) ? profile.skills : []),
     ...(Array.isArray(profile.experience) ? profile.experience.map((item) => item?.company).filter((value): value is string => Boolean(value)) : []),

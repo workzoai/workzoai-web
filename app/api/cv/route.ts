@@ -1251,12 +1251,27 @@ function buildResponse(input: {
   targetRole?: string;
   targetMarket?: string;
 }) {
-  const resumeProfile = sanitizeProfileForResponse(lockResumeProfileIdentity({
+  const lockedAndRepairedProfile = sanitizeProfileForResponse(lockResumeProfileIdentity({
     profile: input.resumeProfile,
     rawText: input.rawCvText,
     fileName: input.fileName || "",
     candidateName: input.candidateName || "",
   }), input.rawCvText, input.fileName || "");
+
+  // Final global guard: run the canonical validator AFTER legacy repair/identity
+  // locking. Some legacy repair functions can reintroduce invalid values (for
+  // example dates as phone numbers or education rows inside experience), so the
+  // last object returned to frontend/interview must always be validated here.
+  const resumeProfile = mergeCvProfile({
+    parsedProfile: lockedAndRepairedProfile as any,
+    rawText: input.rawCvText,
+    fileName: input.fileName || "",
+    requestBody: {
+      candidateName: input.candidateName || "",
+      fileName: input.fileName || "",
+    },
+  }) as ResumeProfile;
+
   const cleanProfileText = buildProfileText(resumeProfile, input.rawCvText);
 
   // IMPORTANT v7 safety fix:
@@ -1644,11 +1659,15 @@ export async function POST(request: Request) {
         );
 
       const safeFileName = normalizeUploadFileName(file.name);
-      const fileType =
-        file.type ||
-        (safeFileName.toLowerCase().endsWith(".pdf")
-          ? "application/pdf"
-          : "text/plain");
+      const fileType = (() => {
+        if (file.type && file.type !== "application/octet-stream") return file.type;
+        const n = safeFileName.toLowerCase();
+        if (n.endsWith(".pdf"))  return "application/pdf";
+        if (n.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        if (n.endsWith(".doc"))  return "application/msword";
+        if (n.endsWith(".txt"))  return "text/plain";
+        return file.type || "application/octet-stream";
+      })();
       const buffer = Buffer.from(await file.arrayBuffer());
       const extracted = await extractFileTextFromBuffer(
         buffer,
@@ -1667,15 +1686,22 @@ export async function POST(request: Request) {
           { status: 422 },
         );
 
-      // AI is primary. Affinda is useful as a fallback/comparison source, but live logs
-      // showed Affinda scoring far below the AI parser and often missing sections.
-      // Run both, lock identities, then choose by structural quality score.
-      const affinda = await parseWithAffinda({
-        buffer,
-        fileName: safeFileName,
-        fileType,
-        rawText: cleanedCv,
-      });
+      // Affinda disabled by default — set AFFINDA_ENABLED=true to re-enable.
+      const affindaEnabled =
+        process.env.AFFINDA_ENABLED === "true" &&
+        Boolean(process.env.AFFINDA_API_KEY?.trim()) &&
+        Boolean(process.env.AFFINDA_WORKSPACE_ID?.trim());
+      let affinda: AffindaResult;
+      if (!affindaEnabled) {
+        affinda = { ok: false, source: "affinda_not_configured", error: "Affinda disabled" };
+      } else {
+        try {
+          affinda = await parseWithAffinda({ buffer, fileName: safeFileName, fileType, rawText: cleanedCv });
+        } catch (err) {
+          console.warn("[api/cv] Affinda error:", err instanceof Error ? err.message : err);
+          affinda = { ok: false, source: "affinda_failed", error: "Affinda threw" };
+        }
+      }
 
       if (affinda.ok && affinda.resumeProfile) {
         affinda.resumeProfile = lockResumeProfileIdentity({
