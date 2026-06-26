@@ -173,6 +173,14 @@ function scoreSetup(setup: WorkZoInterviewSetup) {
   if (setup.setupVersion || setup.version) score += 2;
   if (getTime(setup)) score += 1;
 
+  // Weight by experience count so a profile with more entries always beats
+  // a stale cached profile with fewer — prevents old single-job profiles
+  // from overwriting freshly uploaded multi-job CVs on equal base scores.
+  const expCount = Array.isArray(setup.resumeProfile?.experience)
+    ? setup.resumeProfile.experience.length
+    : 0;
+  score += Math.min(expCount, 8) * 3;
+
   return score;
 }
 
@@ -215,16 +223,116 @@ export function normalizeCandidateName(value: unknown): string {
 function sanitizeResumeProfile(profile: any, rawCvText = "") {
   if (!profile || typeof profile !== "object") return undefined;
 
+  // ── Structural preservation rule ──────────────────────────────────────────
+  // completeResumeProfile runs a dedup/filter pass that can drop valid
+  // experience entries when the raw CV text it receives is a formatted context
+  // string rather than original PDF text — the filter misidentifies certain
+  // job titles or company names as section headers or artifacts.
+  //
+  // Similarly, enforceCanonicalCandidateName re-scans rawCvText for a name,
+  // which can produce garbage ("Unknown Section Header") when rawCvText is a
+  // decorated PDF that leads with spaced-caps section headers before the name.
+  //
+  // Rule: if the incoming profile already has a valid name AND at least one
+  // structured section (experience, education, or skills), trust the structure
+  // as-is and only clean individual field values — do not re-run the parser.
+  // This preserves all experience entries from the original parse regardless
+  // of what rawCvText contains.
+
+  const incomingName = cleanString(profile.basics?.name || "", 120);
+  const hasValidName = isValidCandidateName(incomingName);
+  const hasExperience = Array.isArray(profile.experience) && profile.experience.length > 0;
+  const hasEducation = Array.isArray(profile.education) && profile.education.length > 0;
+  const hasSkills = Array.isArray(profile.skills) && profile.skills.length > 0;
+  const hasStructure = hasExperience || hasEducation || hasSkills;
+
+  // ── Helper: clean all structured fields without touching their count ────
+  const cleanStructure = (p: any) => ({
+    ...p,
+    basics: {
+      ...(p.basics || {}),
+      name: cleanHumanName(cleanString(p.basics?.name || "", 120)) || cleanString(p.basics?.name || "", 120),
+      headline: cleanString(p.basics?.headline || "", 200),
+      email: cleanString(p.basics?.email || "", 200),
+      phone: cleanString(p.basics?.phone || "", 80),
+      location: cleanString(p.basics?.location || "", 200),
+      linkedin: cleanString(p.basics?.linkedin || "", 300),
+    },
+    summary: cleanString(p.summary || "", 2000),
+    experience: Array.isArray(p.experience)
+      ? p.experience
+          .map((e: any) => ({
+            title: cleanString(e.title || "", 180),
+            company: cleanString(e.company || "", 180),
+            location: cleanString(e.location || "", 180),
+            dates: cleanString(e.dates || "", 80),
+            bullets: Array.isArray(e.bullets)
+              ? e.bullets.map((b: any) => cleanString(String(b), 500)).filter(Boolean).slice(0, 10)
+              : [],
+          }))
+          .filter((e: any) => e.title || e.company)
+      : [],
+    education: Array.isArray(p.education)
+      ? p.education
+          .map((e: any) => ({
+            degree: cleanString(e.degree || "", 180),
+            institution: cleanString(e.institution || "", 180),
+            location: cleanString(e.location || "", 180),
+            dates: cleanString(e.dates || "", 80),
+          }))
+          .filter((e: any) => e.degree || e.institution)
+      : [],
+    skills: Array.isArray(p.skills)
+      ? p.skills.map((s: any) => cleanString(String(s), 100)).filter(Boolean).slice(0, 80)
+      : [],
+    projects: Array.isArray(p.projects)
+      ? p.projects
+          .map((pp: any) => ({
+            name: cleanString(pp.name || "", 200),
+            bullets: Array.isArray(pp.bullets)
+              ? pp.bullets.map((b: any) => cleanString(String(b), 500)).filter(Boolean).slice(0, 6)
+              : [],
+          }))
+          .filter((pp: any) => pp.name)
+      : [],
+    languages: Array.isArray(p.languages)
+      ? p.languages.map((l: any) => cleanString(String(l), 100)).filter(Boolean)
+      : [],
+    certifications: Array.isArray(p.certifications)
+      ? p.certifications.map((cert: any) => cleanString(String(cert), 200)).filter(Boolean)
+      : [],
+  });
+
+  if (hasValidName && hasStructure) {
+    // Fast path: profile is already well-formed. Preserve all entries exactly
+    // as parsed — do not re-run completeResumeProfile which can drop entries
+    // via its dedup/filter when rawCvText is a formatted context string rather
+    // than the original PDF text.
+    return cleanStructure(profile) as any;
+  }
+
+  if (!hasValidName && hasStructure) {
+    // Name is missing or corrupt but structure is good. Preserve all entries,
+    // only repair the name using rawCvText or enforceCanonicalCandidateName.
+    const cleaned = cleanStructure(profile) as any;
+    const repairedName = enforceCanonicalCandidateName(
+      { basics: { ...(profile.basics || {}), name: "" } },
+      rawCvText || profile.rawText || "",
+    ).basics?.name || "";
+    cleaned.basics.name = cleanHumanName(repairedName) || normalizeCandidateName(repairedName) || "";
+    return cleaned;
+  }
+
+  // No structure at all — run full repair pipeline to build from rawCvText.
+  // This is the text-paste flow or a completely empty profile.
   const completed = completeResumeProfile(profile, rawCvText || profile.rawText || "");
   const canonical = enforceCanonicalCandidateName(completed, rawCvText || completed.rawText || "");
   canonical.basics.name = cleanHumanName(canonical.basics.name) || normalizeCandidateName(canonical.basics.name) || "";
 
-  // Reject only profiles with no usable structure. Do not reject a good profile
-  // just because a model temporarily guessed a bad name; name is repaired above.
-  const hasStructure = Boolean(
+  const hasStructureAfter = Boolean(
     canonical.experience?.length || canonical.education?.length || canonical.skills?.length || canonical.projects?.length,
   );
-  if (!hasStructure && isLowQualityResumeProfile(canonical)) return undefined;
+  if (!hasStructureAfter && isLowQualityResumeProfile(canonical)) return undefined;
 
   return canonical;
 }

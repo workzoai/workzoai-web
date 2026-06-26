@@ -74,7 +74,9 @@ const CodePanel = dynamic(() => import("@/components/interview/CodePanel"), {
   ssr: false,
   loading: () => (
     <div className="flex h-full min-h-[300px] items-center justify-center rounded-lg border border-white/10 bg-[#0d1117]">
-      <span className="text-xs text-slate-600 font-black uppercase tracking-widest animate-pulse">Loading editor…</span>
+      <span className="text-xs text-slate-600 font-black uppercase tracking-widest animate-pulse">
+        Loading editor…
+      </span>
     </div>
   ),
 });
@@ -210,7 +212,15 @@ type InterviewSetup = {
 
 const recruiterProfiles: Record<
   string,
-  { name: string; title: string; image: string; voiceHint: string; companyArchetype: string; focusAreas: string[]; pressureStyle: string }
+  {
+    name: string;
+    title: string;
+    image: string;
+    voiceHint: string;
+    companyArchetype: string;
+    focusAreas: string[];
+    pressureStyle: string;
+  }
 > = {
   friendly_hr: {
     name: "Sarah Chen",
@@ -218,7 +228,12 @@ const recruiterProfiles: Record<
     image: "/recruiters/sarah.png",
     voiceHint: "female",
     companyArchetype: "Structured global company",
-    focusAreas: ["motivation", "communication", "role fit", "specific examples"],
+    focusAreas: [
+      "motivation",
+      "communication",
+      "role fit",
+      "specific examples",
+    ],
     pressureStyle: "Warm first, then precise follow-ups",
   },
   sarah: {
@@ -227,7 +242,12 @@ const recruiterProfiles: Record<
     image: "/recruiters/sarah.png",
     voiceHint: "female",
     companyArchetype: "Structured global company",
-    focusAreas: ["motivation", "communication", "role fit", "specific examples"],
+    focusAreas: [
+      "motivation",
+      "communication",
+      "role fit",
+      "specific examples",
+    ],
     pressureStyle: "Warm first, then precise follow-ups",
   },
   startup_recruiter: {
@@ -254,7 +274,12 @@ const recruiterProfiles: Record<
     image: "/recruiters/daniel.png",
     voiceHint: "male",
     companyArchetype: "Metrics-driven hiring team",
-    focusAreas: ["metrics", "trade-offs", "technical reasoning", "decision quality"],
+    focusAreas: [
+      "metrics",
+      "trade-offs",
+      "technical reasoning",
+      "decision quality",
+    ],
     pressureStyle: "Drills into numbers, trade-offs, and individual ownership",
   },
   daniel: {
@@ -263,7 +288,12 @@ const recruiterProfiles: Record<
     image: "/recruiters/daniel.png",
     voiceHint: "male",
     companyArchetype: "Metrics-driven hiring team",
-    focusAreas: ["metrics", "trade-offs", "technical reasoning", "decision quality"],
+    focusAreas: [
+      "metrics",
+      "trade-offs",
+      "technical reasoning",
+      "decision quality",
+    ],
     pressureStyle: "Drills into numbers, trade-offs, and individual ownership",
   },
   german_corporate: {
@@ -291,7 +321,12 @@ const recruiterProfiles: Record<
     image: "/recruiters/alex.png",
     voiceHint: "male",
     companyArchetype: "Big Tech / FAANG",
-    focusAreas: ["technical depth", "structured thinking", "metrics", "trade-offs"],
+    focusAreas: [
+      "technical depth",
+      "structured thinking",
+      "metrics",
+      "trade-offs",
+    ],
     pressureStyle: "Technical, systematic, and probes every assumption",
   },
   alex: {
@@ -300,7 +335,12 @@ const recruiterProfiles: Record<
     image: "/recruiters/alex.png",
     voiceHint: "male",
     companyArchetype: "Big Tech / FAANG",
-    focusAreas: ["technical depth", "structured thinking", "metrics", "trade-offs"],
+    focusAreas: [
+      "technical depth",
+      "structured thinking",
+      "metrics",
+      "trade-offs",
+    ],
     pressureStyle: "Technical, systematic, and probes every assumption",
   },
   startup_founder: {
@@ -327,7 +367,12 @@ const recruiterProfiles: Record<
     image: "/recruiters/james.png",
     voiceHint: "male",
     companyArchetype: "Strategy consulting",
-    focusAreas: ["case structure", "stakeholder logic", "recommendations", "clarity"],
+    focusAreas: [
+      "case structure",
+      "stakeholder logic",
+      "recommendations",
+      "clarity",
+    ],
     pressureStyle: "Redirects rambling answers into structured reasoning",
   },
   james: {
@@ -336,7 +381,12 @@ const recruiterProfiles: Record<
     image: "/recruiters/james.png",
     voiceHint: "male",
     companyArchetype: "Strategy consulting",
-    focusAreas: ["case structure", "stakeholder logic", "recommendations", "clarity"],
+    focusAreas: [
+      "case structure",
+      "stakeholder logic",
+      "recommendations",
+      "clarity",
+    ],
     pressureStyle: "Redirects rambling answers into structured reasoning",
   },
   sales_director: {
@@ -363,7 +413,12 @@ const recruiterProfiles: Record<
     image: "/recruiters/aisha.png",
     voiceHint: "female",
     companyArchetype: "Product-led technology company",
-    focusAreas: ["user evidence", "prioritisation", "product sense", "cross-functional influence"],
+    focusAreas: [
+      "user evidence",
+      "prioritisation",
+      "product sense",
+      "cross-functional influence",
+    ],
     pressureStyle: "Tests product judgment and user-backed decisions",
   },
   aisha: {
@@ -372,7 +427,12 @@ const recruiterProfiles: Record<
     image: "/recruiters/aisha.png",
     voiceHint: "female",
     companyArchetype: "Product-led technology company",
-    focusAreas: ["user evidence", "prioritisation", "product sense", "cross-functional influence"],
+    focusAreas: [
+      "user evidence",
+      "prioritisation",
+      "product sense",
+      "cross-functional influence",
+    ],
     pressureStyle: "Tests product judgment and user-backed decisions",
   },
   executive_recruiter: {
@@ -381,7 +441,12 @@ const recruiterProfiles: Record<
     image: "/recruiters/victoria.png",
     voiceHint: "female",
     companyArchetype: "Executive search",
-    focusAreas: ["leadership narrative", "strategic maturity", "executive presence", "self-awareness"],
+    focusAreas: [
+      "leadership narrative",
+      "strategic maturity",
+      "executive presence",
+      "self-awareness",
+    ],
     pressureStyle: "Calm, senior-level, and deeply strategic",
   },
   victoria: {
@@ -390,7 +455,12 @@ const recruiterProfiles: Record<
     image: "/recruiters/victoria.png",
     voiceHint: "female",
     companyArchetype: "Executive search",
-    focusAreas: ["leadership narrative", "strategic maturity", "executive presence", "self-awareness"],
+    focusAreas: [
+      "leadership narrative",
+      "strategic maturity",
+      "executive presence",
+      "self-awareness",
+    ],
     pressureStyle: "Calm, senior-level, and deeply strategic",
   },
   enterprise_recruiter: {
@@ -421,7 +491,6 @@ const navItems = [
   { label: "Results", href: "/results", icon: BarChart3 },
 ];
 
-
 const recruiterQuestions = [
   "Can you walk me through your background and what makes you interested in this role?",
   "Tell me about one relevant situation from your experience.",
@@ -430,14 +499,12 @@ const recruiterQuestions = [
   "What would you improve if you handled the same situation again?",
 ];
 
-
 function getVisibleTranscriptItems(transcript: TranscriptItem[]) {
   return transcript.filter((item) => {
     if (!item || typeof item.text !== "string") return false;
     return item.text.trim().length > 0;
   });
 }
-
 
 function formatTranscriptTime(date: Date) {
   return date.toLocaleTimeString([], {
@@ -459,7 +526,13 @@ const initialTranscript: TranscriptItem[] = [
 
 function MessageIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
     </svg>
   );
@@ -467,7 +540,13 @@ function MessageIcon() {
 
 function AlertIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
       <path d="M12 9v4" />
       <path d="M12 17h.01" />
@@ -485,7 +564,11 @@ function normalizeRecruiterId(value: unknown) {
 
   if (!raw) return "friendly_hr";
 
-  if (key === "friendly_hr" || raw.includes("sarah") || raw.includes("friendly")) {
+  if (
+    key === "friendly_hr" ||
+    raw.includes("sarah") ||
+    raw.includes("friendly")
+  ) {
     return "friendly_hr";
   }
 
@@ -493,39 +576,79 @@ function normalizeRecruiterId(value: unknown) {
     return "startup_recruiter";
   }
 
-  if (key === "analytical_hiring_manager" || raw.includes("daniel") || raw.includes("analytical_hiring")) {
+  if (
+    key === "analytical_hiring_manager" ||
+    raw.includes("daniel") ||
+    raw.includes("analytical_hiring")
+  ) {
     return "analytical_hiring_manager";
   }
 
-  if (key === "german_corporate" || raw.includes("markus") || raw.includes("german_corporate")) {
+  if (
+    key === "german_corporate" ||
+    raw.includes("markus") ||
+    raw.includes("german_corporate")
+  ) {
     return "german_corporate";
   }
 
-  if (key === "faang_hiring_manager" || raw.includes("alex") || raw.includes("faang")) {
+  if (
+    key === "faang_hiring_manager" ||
+    raw.includes("alex") ||
+    raw.includes("faang")
+  ) {
     return "faang_hiring_manager";
   }
 
-  if (key === "startup_founder" || raw.includes("zoe") || raw.includes("startup_founder")) {
+  if (
+    key === "startup_founder" ||
+    raw.includes("zoe") ||
+    raw.includes("startup_founder")
+  ) {
     return "startup_founder";
   }
 
-  if (key === "consulting_partner" || raw.includes("james") || raw.includes("harrington") || raw.includes("consulting")) {
+  if (
+    key === "consulting_partner" ||
+    raw.includes("james") ||
+    raw.includes("harrington") ||
+    raw.includes("consulting")
+  ) {
     return "consulting_partner";
   }
 
-  if (key === "sales_director" || raw.includes("marcus webb") || raw.includes("noah jones") || raw.includes("sales_director")) {
+  if (
+    key === "sales_director" ||
+    raw.includes("marcus webb") ||
+    raw.includes("noah jones") ||
+    raw.includes("sales_director")
+  ) {
     return "sales_director";
   }
 
-  if (key === "product_leader" || raw.includes("aisha") || raw.includes("product_leader")) {
+  if (
+    key === "product_leader" ||
+    raw.includes("aisha") ||
+    raw.includes("product_leader")
+  ) {
     return "product_leader";
   }
 
-  if (key === "executive_recruiter" || raw.includes("victoria") || raw.includes("stern") || raw.includes("executive_recruiter")) {
+  if (
+    key === "executive_recruiter" ||
+    raw.includes("victoria") ||
+    raw.includes("stern") ||
+    raw.includes("executive_recruiter")
+  ) {
     return "executive_recruiter";
   }
 
-  if (key === "enterprise_recruiter" || raw.includes("david") || raw.includes("kimura") || raw.includes("enterprise_recruiter")) {
+  if (
+    key === "enterprise_recruiter" ||
+    raw.includes("david") ||
+    raw.includes("kimura") ||
+    raw.includes("enterprise_recruiter")
+  ) {
     return "enterprise_recruiter";
   }
 
@@ -552,7 +675,6 @@ function getNestedValue(source: unknown, paths: string[]) {
   return "";
 }
 
-
 function getNestedObject(source: unknown, paths: string[]) {
   if (!source || typeof source !== "object") return null;
 
@@ -568,7 +690,8 @@ function getNestedObject(source: unknown, paths: string[]) {
       current = (current as Record<string, unknown>)[part];
     }
 
-    if (current && typeof current === "object") return current as Record<string, unknown>;
+    if (current && typeof current === "object")
+      return current as Record<string, unknown>;
   }
 
   return null;
@@ -582,11 +705,17 @@ function stringList(value: unknown, limit = 10) {
     .slice(0, limit);
 }
 
-function buildReadableResumeContextFromProfile(profile: unknown, fallbackCvText: string) {
+function buildReadableResumeContextFromProfile(
+  profile: unknown,
+  fallbackCvText: string,
+) {
   if (!profile || typeof profile !== "object") return fallbackCvText;
 
   const data = profile as Record<string, unknown>;
-  const basics = data.basics && typeof data.basics === "object" ? (data.basics as Record<string, unknown>) : {};
+  const basics =
+    data.basics && typeof data.basics === "object"
+      ? (data.basics as Record<string, unknown>)
+      : {};
   const lines: string[] = [];
 
   const name = normalizeStoredCandidateName(basics.name);
@@ -599,10 +728,15 @@ function buildReadableResumeContextFromProfile(profile: unknown, fallbackCvText:
 
   if (name) lines.push(`Candidate name: ${name}`);
   if (headline) lines.push(`Headline: ${headline}`);
-  if (email || phone || location || linkedin) lines.push(`Contact: ${[email, phone, location, linkedin].filter(Boolean).join(" • ")}`);
+  if (email || phone || location || linkedin)
+    lines.push(
+      `Contact: ${[email, phone, location, linkedin].filter(Boolean).join(" • ")}`,
+    );
   if (summary) lines.push(`Summary: ${summary}`);
 
-  const experience = Array.isArray(data.experience) ? data.experience.slice(0, 6) : [];
+  const experience = Array.isArray(data.experience)
+    ? data.experience.slice(0, 6)
+    : [];
   if (experience.length) {
     lines.push("Experience:");
     for (const item of experience) {
@@ -611,26 +745,35 @@ function buildReadableResumeContextFromProfile(profile: unknown, fallbackCvText:
       const title = safeText(exp.title || exp.role || exp.position, "Role");
       const company = safeText(exp.company || exp.organization);
       const dates = safeText(exp.dates || exp.period);
-      const bullets = stringList(exp.bullets || exp.highlights || exp.responsibilities, 4);
+      const bullets = stringList(
+        exp.bullets || exp.highlights || exp.responsibilities,
+        4,
+      );
       lines.push(`- ${[title, company, dates].filter(Boolean).join(" • ")}`);
       bullets.forEach((bullet) => lines.push(`  • ${bullet}`));
     }
   }
 
-  const education = Array.isArray(data.education) ? data.education.slice(0, 4) : [];
+  const education = Array.isArray(data.education)
+    ? data.education.slice(0, 4)
+    : [];
   if (education.length) {
     lines.push("Education:");
     for (const item of education) {
       if (!item || typeof item !== "object") continue;
       const edu = item as Record<string, unknown>;
-      lines.push(`- ${[safeText(edu.degree), safeText(edu.institution), safeText(edu.dates)].filter(Boolean).join(" • ")}`);
+      lines.push(
+        `- ${[safeText(edu.degree), safeText(edu.institution), safeText(edu.dates)].filter(Boolean).join(" • ")}`,
+      );
     }
   }
 
   const skills = stringList(data.skills, 18);
   if (skills.length) lines.push(`Skills: ${skills.join(", ")}`);
 
-  const projects = Array.isArray(data.projects) ? data.projects.slice(0, 4) : [];
+  const projects = Array.isArray(data.projects)
+    ? data.projects.slice(0, 4)
+    : [];
   if (projects.length) {
     lines.push("Projects:");
     for (const item of projects) {
@@ -662,8 +805,11 @@ function readJsonFromStorage(key: string) {
   }
 }
 
-
-function findFirstStringDeep(source: unknown, keys: string[], depth = 0): string {
+function findFirstStringDeep(
+  source: unknown,
+  keys: string[],
+  depth = 0,
+): string {
   if (!source || typeof source !== "object" || depth > 5) return "";
   const record = source as Record<string, unknown>;
 
@@ -702,8 +848,14 @@ function resolvePersistedInterviewLanguage(state: unknown) {
     "interviewMarket",
   ]).toLowerCase();
 
-  if (market.includes("germany") || market.includes("deutschland")) return "German";
-  if (market.includes("netherlands") || market.includes("dutch") || market.includes("nederland")) return "Dutch";
+  if (market.includes("germany") || market.includes("deutschland"))
+    return "German";
+  if (
+    market.includes("netherlands") ||
+    market.includes("dutch") ||
+    market.includes("nederland")
+  )
+    return "Dutch";
   if (market.includes("france")) return "French";
   if (market.includes("spain")) return "Spanish";
   if (market.includes("italy")) return "Italian";
@@ -716,7 +868,6 @@ function normalizeStoredLanguageForRuntime(value: string) {
   const language = normalizeInterviewLanguage(value);
   return language.label === "Auto" ? "English" : language.label;
 }
-
 
 function findSetupFromLocalStorage() {
   if (typeof window === "undefined") return null;
@@ -760,7 +911,11 @@ function normalizeCandidateName(name: string) {
     .trim();
 
   if (!cleaned || cleaned.length < 2) return "";
-  if (/\b(resume|cv|curriculum|profile|summary|experience|education|skills|project|projects|sales|manager|executive|engineer|analyst|bootcamp|school|college|university|institute|academy|data|science|technology|technologies|software|solutions|services|support|specialist|consultant|developer|coordinator|administrator|director|assistant|associate|officer|partner|talent|recruiter|hiring|technical|business|customer|senior|junior|lead|head|chief|principal|intern|graduate|bachelor|master|degree|certificate|certification|diploma|training|course|program|bootcamp|coding|marketing|finance|accounting|operations|design|research|development|product|strategy|communications|program|management|digital|growth|success)\b/i.test(cleaned)) {
+  if (
+    /\b(resume|cv|curriculum|profile|summary|experience|education|skills|project|projects|sales|manager|executive|engineer|analyst|bootcamp|school|college|university|institute|academy|data|science|technology|technologies|software|solutions|services|support|specialist|consultant|developer|coordinator|administrator|director|assistant|associate|officer|partner|talent|recruiter|hiring|technical|business|customer|senior|junior|lead|head|chief|principal|intern|graduate|bachelor|master|degree|certificate|certification|diploma|training|course|program|bootcamp|coding|marketing|finance|accounting|operations|design|research|development|product|strategy|communications|program|management|digital|growth|success)\b/i.test(
+      cleaned,
+    )
+  ) {
     return "";
   }
 
@@ -783,10 +938,20 @@ function extractNameFromCvText(cvText: string) {
   const firstLine = rawLines.find((line) => {
     if (line.length < 3 || line.length > 50) return false;
     // Skip structured context keys
-    if (/^(candidate name|headline|contact|summary|experience|education|skills|projects|languages|cv fact memory|raw cv|jd fact memory):/i.test(line)) return false;
+    if (
+      /^(candidate name|headline|contact|summary|experience|education|skills|projects|languages|cv fact memory|raw cv|jd fact memory):/i.test(
+        line,
+      )
+    )
+      return false;
     if (/@|www|http|\+|\d/.test(line)) return false;
     // Skip lines that contain common CV section headers or job titles
-    if (/\b(resume|curriculum|profile|summary|experience|education|skills|bootcamp|school|college|university|data science|data analyst|engineer|manager|specialist|consultant|support|developer|coordinator|director|partner|recruiter|technical|business|customer|senior|junior|lead|head|chief|intern|graduate)\b/i.test(line)) return false;
+    if (
+      /\b(resume|curriculum|profile|summary|experience|education|skills|bootcamp|school|college|university|data science|data analyst|engineer|manager|specialist|consultant|support|developer|coordinator|director|partner|recruiter|technical|business|customer|senior|junior|lead|head|chief|intern|graduate)\b/i.test(
+        line,
+      )
+    )
+      return false;
     // Must look like a person's name: 2-4 words, all letters/hyphens/apostrophes
     const parts = line.split(/\s+/).filter(Boolean);
     if (parts.length < 2 || parts.length > 4) return false;
@@ -822,7 +987,10 @@ function buildSetupFromStorage(): InterviewSetup {
     "setup.resumeProfile",
   ]);
 
-  const cvText = buildReadableResumeContextFromProfile(resumeProfile, rawCvText);
+  const cvText = buildReadableResumeContextFromProfile(
+    resumeProfile,
+    rawCvText,
+  );
 
   const jobDescription = getNestedValue(state, [
     "jobDescription",
@@ -856,7 +1024,8 @@ function buildSetupFromStorage(): InterviewSetup {
     ]),
   );
   const cvCandidateName = normalizeCandidateName(extractNameFromCvText(cvText));
-  const candidateName = profileCandidateName || storedCandidateName || cvCandidateName || "";
+  const candidateName =
+    profileCandidateName || storedCandidateName || cvCandidateName || "";
 
   const targetRole =
     getNestedValue(state, [
@@ -894,16 +1063,33 @@ function buildSetupFromStorage(): InterviewSetup {
     ]),
   );
 
-  const profile = recruiterProfiles[recruiterId] || recruiterProfiles.friendly_hr;
+  const profile =
+    recruiterProfiles[recruiterId] || recruiterProfiles.friendly_hr;
 
   // Always derive from profile; only accept stored name if it matches this recruiter
-  const storedRecruiterName = getNestedValue(state, ["recruiterName", "setup.recruiterName", "recruiter.name", "selectedRecruiter.name"]);
-  const storedNameBelongsToProfile = storedRecruiterName && profile.name &&
-    String(storedRecruiterName).toLowerCase().includes(profile.name.split(" ")[0].toLowerCase());
-  const recruiterName = (storedNameBelongsToProfile ? storedRecruiterName : null) || profile.name;
+  const storedRecruiterName = getNestedValue(state, [
+    "recruiterName",
+    "setup.recruiterName",
+    "recruiter.name",
+    "selectedRecruiter.name",
+  ]);
+  const storedNameBelongsToProfile =
+    storedRecruiterName &&
+    profile.name &&
+    String(storedRecruiterName)
+      .toLowerCase()
+      .includes(profile.name.split(" ")[0].toLowerCase());
+  const recruiterName =
+    (storedNameBelongsToProfile ? storedRecruiterName : null) || profile.name;
 
-  const storedRecruiterTitle = getNestedValue(state, ["recruiterTitle", "setup.recruiterTitle", "recruiter.title", "selectedRecruiter.title"]);
-  const recruiterTitle = (storedNameBelongsToProfile ? storedRecruiterTitle : null) || profile.title;
+  const storedRecruiterTitle = getNestedValue(state, [
+    "recruiterTitle",
+    "setup.recruiterTitle",
+    "recruiter.title",
+    "selectedRecruiter.title",
+  ]);
+  const recruiterTitle =
+    (storedNameBelongsToProfile ? storedRecruiterTitle : null) || profile.title;
 
   const recruiterImage =
     getNestedValue(state, [
@@ -941,20 +1127,28 @@ function toneClass(tone: string) {
   return "bg-white/10 text-slate-300";
 }
 
-
 function recruiterObjectPosition(recruiterId: string, recruiterName: string) {
   const value = `${recruiterId} ${recruiterName}`.toLowerCase();
 
   // Safe portrait crop: keeps the face fully visible while filling the frame.
-  if (value.includes("daniel") || value.includes("analytical")) return "50% 28%";
+  if (value.includes("daniel") || value.includes("analytical"))
+    return "50% 28%";
   if (value.includes("markus") || value.includes("corporate")) return "50% 28%";
-  if (value.includes("priya") || value.includes("startup_recruiter")) return "50% 26%";
+  if (value.includes("priya") || value.includes("startup_recruiter"))
+    return "50% 26%";
   if (value.includes("alex") || value.includes("faang")) return "50% 27%";
-  if (value.includes("zoe") || value.includes("startup_founder")) return "50% 26%";
+  if (value.includes("zoe") || value.includes("startup_founder"))
+    return "50% 26%";
   if (value.includes("james") || value.includes("consulting")) return "50% 28%";
-  if (value.includes("marcus") || value.includes("noah") || value.includes("sales")) return "50% 28%";
+  if (
+    value.includes("marcus") ||
+    value.includes("noah") ||
+    value.includes("sales")
+  )
+    return "50% 28%";
   if (value.includes("aisha") || value.includes("product")) return "50% 26%";
-  if (value.includes("victoria") || value.includes("executive")) return "50% 27%";
+  if (value.includes("victoria") || value.includes("executive"))
+    return "50% 27%";
   if (value.includes("david") || value.includes("enterprise")) return "50% 28%";
   return "50% 26%";
 }
@@ -985,7 +1179,10 @@ function getWorkZoAnalyticsSessionId() {
   }
 }
 
-function trackWorkZoInterviewEvent(eventName: string, payload: Record<string, unknown> = {}) {
+function trackWorkZoInterviewEvent(
+  eventName: string,
+  payload: Record<string, unknown> = {},
+) {
   if (typeof window === "undefined") return;
 
   try {
@@ -1015,15 +1212,17 @@ function trackWorkZoInterviewEvent(eventName: string, payload: Record<string, un
       path: window.location.pathname,
       origin: window.location.origin,
       host: window.location.hostname,
-      isLocal: window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1",
+      isLocal:
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1",
       environment: process.env.NODE_ENV,
-      recruiter: typeof payload.recruiter === "string" ? payload.recruiter : undefined,
+      recruiter:
+        typeof payload.recruiter === "string" ? payload.recruiter : undefined,
       role: typeof payload.role === "string" ? payload.role : undefined,
       metadata: payload,
     }),
   }).catch(() => {});
 }
-
 
 type WorkZoAnswerQuality = "weak" | "average" | "strong" | "excellent";
 type WorkZoFailureSeverity = "low" | "medium" | "high" | "critical";
@@ -1049,7 +1248,8 @@ const WORKZO_FAILURE_EVENTS_KEY = "workzo_failure_events";
 const WORKZO_CANDIDATE_PATTERNS_KEY = "workzo_candidate_patterns";
 
 function safeLocalStorageList(key: string) {
-  if (typeof window === "undefined") return [] as Array<Record<string, unknown>>;
+  if (typeof window === "undefined")
+    return [] as Array<Record<string, unknown>>;
 
   try {
     const raw = window.localStorage.getItem(key);
@@ -1065,7 +1265,12 @@ function isWorkZoPremiumUnlocked(plan: "free" | "premium" | "premium_pro") {
   return true;
 }
 
-function pushWorkZoLocalEvent(key: string, eventName: string, payload: Record<string, unknown> = {}, limit = 500) {
+function pushWorkZoLocalEvent(
+  key: string,
+  eventName: string,
+  payload: Record<string, unknown> = {},
+  limit = 500,
+) {
   if (typeof window === "undefined") return;
 
   try {
@@ -1079,7 +1284,10 @@ function pushWorkZoLocalEvent(key: string, eventName: string, payload: Record<st
     };
 
     const list = safeLocalStorageList(key);
-    window.localStorage.setItem(key, JSON.stringify([event, ...list].slice(0, limit)));
+    window.localStorage.setItem(
+      key,
+      JSON.stringify([event, ...list].slice(0, limit)),
+    );
   } catch {}
 }
 
@@ -1099,7 +1307,12 @@ function trackWorkZoFailureEvent(
   payload: Record<string, unknown> = {},
   severity: WorkZoFailureSeverity = "medium",
 ) {
-  pushWorkZoLocalEvent(WORKZO_FAILURE_EVENTS_KEY, eventName, { severity, ...payload }, 500);
+  pushWorkZoLocalEvent(
+    WORKZO_FAILURE_EVENTS_KEY,
+    eventName,
+    { severity, ...payload },
+    500,
+  );
   trackWorkZoInterviewEvent(eventName, { severity, ...payload });
 }
 
@@ -1111,21 +1324,40 @@ function trackWorkZoErrorEvent(
 ) {
   const errorMessage = normalizeErrorMessage(error);
 
-  pushWorkZoLocalEvent(WORKZO_ERROR_EVENTS_KEY, eventName, {
-    severity,
-    errorMessage,
-    ...payload,
-  }, 500);
+  pushWorkZoLocalEvent(
+    WORKZO_ERROR_EVENTS_KEY,
+    eventName,
+    {
+      severity,
+      errorMessage,
+      ...payload,
+    },
+    500,
+  );
 
   trackWorkZoFailureEvent(eventName, { errorMessage, ...payload }, severity);
 }
 
-function classifyAnswerQuality(answer: string, setup?: InterviewSetup): WorkZoAnswerQuality {
+function classifyAnswerQuality(
+  answer: string,
+  setup?: InterviewSetup,
+): WorkZoAnswerQuality {
   const signal = analyzeAnswerSignals(answer, setup);
 
-  if (signal.unsupported || signal.admission || signal.short || signal.vague) return "weak";
-  if (signal.metric && signal.ownership && signal.outcome && signal.wordCount >= 35) return "excellent";
-  if ((signal.metric && signal.ownership) || (signal.ownership && signal.outcome)) return "strong";
+  if (signal.unsupported || signal.admission || signal.short || signal.vague)
+    return "weak";
+  if (
+    signal.metric &&
+    signal.ownership &&
+    signal.outcome &&
+    signal.wordCount >= 35
+  )
+    return "excellent";
+  if (
+    (signal.metric && signal.ownership) ||
+    (signal.ownership && signal.outcome)
+  )
+    return "strong";
   return "average";
 }
 
@@ -1147,7 +1379,10 @@ function buildAnswerQualityRecord(answer: string, setup?: InterviewSetup) {
   };
 }
 
-function summarizeAnswerQuality(transcript: TranscriptItem[], setup?: InterviewSetup) {
+function summarizeAnswerQuality(
+  transcript: TranscriptItem[],
+  setup?: InterviewSetup,
+) {
   const records = transcript
     .filter((item) => item.role === "candidate")
     .map((item) => buildAnswerQualityRecord(item.text, setup));
@@ -1157,13 +1392,19 @@ function summarizeAnswerQuality(transcript: TranscriptItem[], setup?: InterviewS
       acc[item.quality] += 1;
       return acc;
     },
-    { weak: 0, average: 0, strong: 0, excellent: 0 } as Record<WorkZoAnswerQuality, number>,
+    { weak: 0, average: 0, strong: 0, excellent: 0 } as Record<
+      WorkZoAnswerQuality,
+      number
+    >,
   );
 
   return { records, summary };
 }
 
-function persistCandidatePatterns(memory: RecruiterMemoryState, setup: InterviewSetup) {
+function persistCandidatePatterns(
+  memory: RecruiterMemoryState,
+  setup: InterviewSetup,
+) {
   if (typeof window === "undefined") return;
 
   try {
@@ -1180,7 +1421,10 @@ function persistCandidatePatterns(memory: RecruiterMemoryState, setup: Interview
     }));
 
     const merged = [...incoming, ...existing].reduce((acc, item) => {
-      const key = typeof item.id === "string" ? item.id : normalizeClaimText(String(item.pattern || ""));
+      const key =
+        typeof item.id === "string"
+          ? item.id
+          : normalizeClaimText(String(item.pattern || ""));
       if (!key) return acc;
 
       const current = acc.get(key);
@@ -1197,9 +1441,17 @@ function persistCandidatePatterns(memory: RecruiterMemoryState, setup: Interview
       return acc;
     }, new Map<string, Record<string, unknown>>());
 
-    window.localStorage.setItem(WORKZO_CANDIDATE_PATTERNS_KEY, JSON.stringify(Array.from(merged.values()).slice(0, 40)));
+    window.localStorage.setItem(
+      WORKZO_CANDIDATE_PATTERNS_KEY,
+      JSON.stringify(Array.from(merged.values()).slice(0, 40)),
+    );
   } catch (error) {
-    trackWorkZoErrorEvent("candidate_pattern_persist_failed", error, { role: setup.targetRole }, "low");
+    trackWorkZoErrorEvent(
+      "candidate_pattern_persist_failed",
+      error,
+      { role: setup.targetRole },
+      "low",
+    );
   }
 }
 
@@ -1207,12 +1459,20 @@ function readActiveInterviewSnapshot() {
   if (typeof window === "undefined") return null;
 
   try {
-    const raw = window.localStorage.getItem(WORKZO_ACTIVE_INTERVIEW_KEY) || window.localStorage.getItem(WORKZO_INTERVIEW_SNAPSHOT_KEY);
+    const raw =
+      window.localStorage.getItem(WORKZO_ACTIVE_INTERVIEW_KEY) ||
+      window.localStorage.getItem(WORKZO_INTERVIEW_SNAPSHOT_KEY);
     if (!raw) return null;
 
     const snapshot = JSON.parse(raw) as Partial<WorkZoInterviewSnapshot>;
     if (!snapshot || snapshot.version !== 1) return null;
-    if (!Array.isArray(snapshot.transcript) || !snapshot.transcript.some((item) => item.role === "recruiter" || item.role === "candidate")) return null;
+    if (
+      !Array.isArray(snapshot.transcript) ||
+      !snapshot.transcript.some(
+        (item) => item.role === "recruiter" || item.role === "candidate",
+      )
+    )
+      return null;
     if (snapshot.status === "ended") return null;
 
     return snapshot as WorkZoInterviewSnapshot;
@@ -1230,7 +1490,12 @@ function writeActiveInterviewSnapshot(snapshot: WorkZoInterviewSnapshot) {
     window.localStorage.setItem(WORKZO_ACTIVE_INTERVIEW_KEY, value);
     window.localStorage.setItem(WORKZO_INTERVIEW_SNAPSHOT_KEY, value);
   } catch (error) {
-    trackWorkZoErrorEvent("state_recovery_write_failed", error, { role: snapshot.setup.targetRole }, "medium");
+    trackWorkZoErrorEvent(
+      "state_recovery_write_failed",
+      error,
+      { role: snapshot.setup.targetRole },
+      "medium",
+    );
   }
 }
 
@@ -1241,7 +1506,6 @@ function clearActiveInterviewSnapshot() {
     window.localStorage.removeItem(WORKZO_ACTIVE_INTERVIEW_KEY);
   } catch {}
 }
-
 
 function countCandidateAnswers(transcript: TranscriptItem[]) {
   return transcript.filter((item) => item.role === "candidate").length;
@@ -1265,10 +1529,14 @@ function getLastCandidateAnswer(transcript: TranscriptItem[]) {
 
 function getRecoveryProgressLabel(snapshot: WorkZoInterviewSnapshot) {
   const answers = countCandidateAnswers(snapshot.transcript);
-  const questions = snapshot.transcript.filter((item) => item.role === "recruiter").length;
+  const questions = snapshot.transcript.filter(
+    (item) => item.role === "recruiter",
+  ).length;
 
-  if (answers > 0) return `${answers} answer${answers === 1 ? "" : "s"} completed`;
-  if (questions > 0) return `${questions} recruiter question${questions === 1 ? "" : "s"} saved`;
+  if (answers > 0)
+    return `${answers} answer${answers === 1 ? "" : "s"} completed`;
+  if (questions > 0)
+    return `${questions} recruiter question${questions === 1 ? "" : "s"} saved`;
   return `${snapshot.transcript.length} transcript item${snapshot.transcript.length === 1 ? "" : "s"}`;
 }
 
@@ -1286,7 +1554,10 @@ function getRecoverySavedLabel(snapshot: WorkZoInterviewSnapshot) {
   return `Saved ${diffHours} hr ago`;
 }
 
-function recruiterStatusLabel(signal: RecruiterSignalState, scoreReady: boolean) {
+function recruiterStatusLabel(
+  signal: RecruiterSignalState,
+  scoreReady: boolean,
+) {
   if (!scoreReady) return "Ready";
   if (signal.mood === "Impressed") return "Impressed";
   if (signal.mood === "Engaged") return "Interested";
@@ -1295,12 +1566,19 @@ function recruiterStatusLabel(signal: RecruiterSignalState, scoreReady: boolean)
   return "Neutral";
 }
 
-function recruiterStatusTone(signal: RecruiterSignalState, scoreReady: boolean) {
+function recruiterStatusTone(
+  signal: RecruiterSignalState,
+  scoreReady: boolean,
+) {
   if (!scoreReady) return "border-blue-300/20 bg-blue-400/10 text-blue-200";
-  if (signal.mood === "Impressed") return "border-emerald-300/20 bg-emerald-400/10 text-emerald-200";
-  if (signal.mood === "Engaged") return "border-blue-300/20 bg-blue-400/10 text-blue-200";
-  if (signal.mood === "Concerned") return "border-amber-300/20 bg-amber-400/10 text-amber-200";
-  if (signal.mood === "Doubtful") return "border-red-300/20 bg-red-400/10 text-red-200";
+  if (signal.mood === "Impressed")
+    return "border-emerald-300/20 bg-emerald-400/10 text-emerald-200";
+  if (signal.mood === "Engaged")
+    return "border-blue-300/20 bg-blue-400/10 text-blue-200";
+  if (signal.mood === "Concerned")
+    return "border-amber-300/20 bg-amber-400/10 text-amber-200";
+  if (signal.mood === "Doubtful")
+    return "border-red-300/20 bg-red-400/10 text-red-200";
   return "border-slate-300/20 bg-slate-400/10 text-slate-200";
 }
 
@@ -1310,7 +1588,11 @@ function buildLiveRecruiterThoughts(
   scoreReady: boolean,
 ) {
   if (!scoreReady) {
-    return ["Waiting for first answer", "Will check evidence", "Will listen for impact"];
+    return [
+      "Waiting for first answer",
+      "Will check evidence",
+      "Will listen for impact",
+    ];
   }
 
   const thoughts: string[] = [];
@@ -1338,7 +1620,10 @@ function buildLiveRecruiterThoughts(
 // start talking too early and lose their first words.
 function playListeningChime() {
   try {
-    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
     if (!Ctx) return;
     const ctx = new Ctx();
     const oscillator = ctx.createOscillator();
@@ -1353,7 +1638,9 @@ function playListeningChime() {
     oscillator.start();
     oscillator.stop(ctx.currentTime + 0.14);
     oscillator.onended = () => {
-      try { ctx.close(); } catch {}
+      try {
+        ctx.close();
+      } catch {}
     };
   } catch {
     // Non-critical — silently skip if audio context isn't available.
@@ -1365,9 +1652,14 @@ function playListeningChime() {
 // like "hey can you" or "to you can you hear me" mid-interview. Strips known
 // filler/audio-check phrases out and checks what's actually left.
 function isLowContentAnswerFragment(value: string): boolean {
-  const clean = value.toLowerCase().replace(/[^a-zà-ÿ0-9\s']/gi, " ").replace(/\s+/g, " ").trim();
+  const clean = value
+    .toLowerCase()
+    .replace(/[^a-zà-ÿ0-9\s']/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!clean) return true;
-  const filler = /\b(hey+|hi+|hello+|okay+|ok+|yes+|no+|yeah+|sure+|right+|um+|uh+|to you|can you|hear me|do you|are you|there|please|sorry|wait|thanks?|thank you)\b/gi;
+  const filler =
+    /\b(hey+|hi+|hello+|okay+|ok+|yes+|no+|yeah+|sure+|right+|um+|uh+|to you|can you|hear me|do you|are you|there|please|sorry|wait|thanks?|thank you)\b/gi;
   const stripped = clean.replace(filler, " ").replace(/\s+/g, " ").trim();
   const strippedWordCount = stripped.split(/\s+/).filter(Boolean).length;
   return strippedWordCount <= 2;
@@ -1383,9 +1675,9 @@ function getRecognitionConstructor() {
   );
 }
 
-
 function recruiterLooksMale(setup: InterviewSetup) {
-  const value = `${setup.recruiterId} ${setup.recruiterName} ${setup.recruiterTitle}`.toLowerCase();
+  const value =
+    `${setup.recruiterId} ${setup.recruiterName} ${setup.recruiterTitle}`.toLowerCase();
 
   return (
     value.includes("daniel") ||
@@ -1403,7 +1695,8 @@ function recruiterLooksMale(setup: InterviewSetup) {
   );
 }
 function getAvailableVoices(): Promise<SpeechSynthesisVoice[]> {
-  if (typeof window === "undefined" || !window.speechSynthesis) return Promise.resolve([]);
+  if (typeof window === "undefined" || !window.speechSynthesis)
+    return Promise.resolve([]);
 
   const currentVoices = window.speechSynthesis.getVoices();
   if (currentVoices.length) return Promise.resolve(currentVoices);
@@ -1420,7 +1713,10 @@ function getAvailableVoices(): Promise<SpeechSynthesisVoice[]> {
   });
 }
 
-function preferredVoiceForRecruiter(voices: SpeechSynthesisVoice[], setup: InterviewSetup) {
+function preferredVoiceForRecruiter(
+  voices: SpeechSynthesisVoice[],
+  setup: InterviewSetup,
+) {
   return getFallbackVoiceForLanguage(voices, setup);
 }
 
@@ -1435,7 +1731,8 @@ function estimateTotalYearsFromDateRanges(cvText: string): number | null {
   // Matches "2018 - 2020", "2018-2020", "2018 to 2020", "2018 – present",
   // "06/2016 - 12/2018", etc. Captures the two 4-digit years (or "present"/
   // "current"/"now"/"heute"/"présent"/"aktuell" for the open-ended case).
-  const rangePattern = /\b(?:\d{1,2}[/.])?(\d{4})\s*[-–—]\s*(?:\d{1,2}[/.])?(\d{4}|present|current|now|heute|présent|aktuell|actuellement)\b/gi;
+  const rangePattern =
+    /\b(?:\d{1,2}[/.])?(\d{4})\s*[-–—]\s*(?:\d{1,2}[/.])?(\d{4}|present|current|now|heute|présent|aktuell|actuellement)\b/gi;
 
   const ranges: Array<[number, number]> = [];
   let match: RegExpExecArray | null;
@@ -1443,7 +1740,12 @@ function estimateTotalYearsFromDateRanges(cvText: string): number | null {
     const start = Number(match[1]);
     const endRaw = match[2].toLowerCase();
     const end = /^\d{4}$/.test(endRaw) ? Number(endRaw) : currentYear;
-    if (start >= 1970 && start <= currentYear && end >= start && end <= currentYear + 1) {
+    if (
+      start >= 1970 &&
+      start <= currentYear &&
+      end >= start &&
+      end <= currentYear + 1
+    ) {
       ranges.push([start, end]);
     }
   }
@@ -1463,7 +1765,10 @@ function estimateTotalYearsFromDateRanges(cvText: string): number | null {
     }
   }
 
-  const totalYears = merged.reduce((sum, [start, end]) => sum + (end - start), 0);
+  const totalYears = merged.reduce(
+    (sum, [start, end]) => sum + (end - start),
+    0,
+  );
   return totalYears > 0 ? totalYears : null;
 }
 
@@ -1507,15 +1812,21 @@ function extractYearsClaim(answer: string) {
 
   // Check compound numbers ("twenty five") before single words ("twenty"),
   // since "twenty" alone would otherwise match first inside "twenty five".
-  const sortedWords = Object.entries(words).sort((a, b) => b[0].length - a[0].length);
+  const sortedWords = Object.entries(words).sort(
+    (a, b) => b[0].length - a[0].length,
+  );
 
   for (const [word, value] of sortedWords) {
-    if (new RegExp(`\\b${word.replace(" ", "[\\s-]+")}\\s+(?:years?|yrs?)\\b`).test(lower)) return value;
+    if (
+      new RegExp(
+        `\\b${word.replace(" ", "[\\s-]+")}\\s+(?:years?|yrs?)\\b`,
+      ).test(lower)
+    )
+      return value;
   }
 
   return null;
 }
-
 
 function normalizedEvidenceText(setup: InterviewSetup) {
   return `${setup.cvText || ""} ${setup.jobDescription || ""}`
@@ -1553,7 +1864,8 @@ function evidenceIncludesClaim(evidence: string, claim: string) {
   const compactEvidence = evidence.replace(/[^a-z0-9]/g, "");
   const compactClaim = normalized.replace(/[^a-z0-9]/g, "");
 
-  if (compactClaim.length >= 4 && compactEvidence.includes(compactClaim)) return true;
+  if (compactClaim.length >= 4 && compactEvidence.includes(compactClaim))
+    return true;
 
   const words = normalized
     .split(" ")
@@ -1576,13 +1888,18 @@ function extractCompanyClaims(answer: string) {
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(answer))) {
       const value = match[1]
-        .replace(/\b(as|where|for|with|and|but|during|from|in|on|when|while)\b.*$/i, "")
+        .replace(
+          /\b(as|where|for|with|and|but|during|from|in|on|when|while)\b.*$/i,
+          "",
+        )
         .trim();
 
       if (
         value &&
         value.length >= 3 &&
-        !/\b(years?|months?|experience|role|position|sales|executive|manager|engineer|analyst|support|customer|software|saas)\b/i.test(value)
+        !/\b(years?|months?|experience|role|position|sales|executive|manager|engineer|analyst|support|customer|software|saas)\b/i.test(
+          value,
+        )
       ) {
         claims.add(value);
       }
@@ -1633,7 +1950,9 @@ function extractRoleClaims(answer: string) {
       if (
         role &&
         role.length >= 4 &&
-        /\b(executive|manager|engineer|analyst|developer|consultant|specialist|lead|support|sales|marketing|product|designer|recruiter|success)\b/i.test(role)
+        /\b(executive|manager|engineer|analyst|developer|consultant|specialist|lead|support|sales|marketing|product|designer|recruiter|success)\b/i.test(
+          role,
+        )
       ) {
         roles.add(role);
       }
@@ -1642,7 +1961,6 @@ function extractRoleClaims(answer: string) {
 
   return Array.from(roles);
 }
-
 
 function normalizeClaimForEvidence(value: string) {
   return safeText(value)
@@ -1661,11 +1979,11 @@ function claimRootAlias(value: string) {
   const normalized = normalizeClaimForEvidence(value);
   if (!normalized) return "";
 
-  // Common STT / accent distortions seen in live voice:
-  // Zoho Corp -> Zoho car/core/call/corps, CSS Corp -> CSS core/car.
-  if (/^zoho/.test(normalized)) return "zoho";
-  if (/^css/.test(normalized)) return "css";
-  if (/^manageengine/.test(normalized)) return "manageengine";
+  // STT distortions: strip common company suffixes so "Acme Corp" and "Acme"
+  // both normalize to the same root token for matching.
+  // This is generic — it works for any company name, not specific ones.
+  const withoutSuffix = normalized.replace(/(?:corp|gmbh|ltd|inc|llc|co|group|ag|ug|kg|solutions|technologies|technology|systems|services|software|digital|global|international)$/, "").trim();
+  if (withoutSuffix && withoutSuffix.length >= 3) return withoutSuffix;
 
   return normalized;
 }
@@ -1685,17 +2003,28 @@ function claimMatchesVerifiedFact(claim: string, facts: string[]) {
     if (factNorm.length >= 4 && claimNorm.includes(factNorm)) return true;
 
     // If both names share a strong first token, treat it as supported. This
-    // prevents false challenges when STT hears "Zoho car/core" instead of
-    // "Zoho Corp", while still avoiding random two-letter matches.
-    const claimFirst = safeText(claim).toLowerCase().split(/\s+/)[0]?.replace(/[^a-z0-9]/g, "") || "";
-    const factFirst = safeText(fact).toLowerCase().split(/\s+/)[0]?.replace(/[^a-z0-9]/g, "") || "";
+    // prevents false challenges when STT mishears any employer suffix,
+    // while still avoiding random two-letter matches.
+    const claimFirst =
+      safeText(claim)
+        .toLowerCase()
+        .split(/\s+/)[0]
+        ?.replace(/[^a-z0-9]/g, "") || "";
+    const factFirst =
+      safeText(fact)
+        .toLowerCase()
+        .split(/\s+/)[0]
+        ?.replace(/[^a-z0-9]/g, "") || "";
     return claimFirst.length >= 4 && claimFirst === factFirst;
   });
 }
 
 function verifiedResumeFactBlock(setup: InterviewSetup) {
   const cvFacts = extractCvFactMemory(setup);
-  const profile = setup.resumeProfile as Record<string, unknown> | null | undefined;
+  const profile = setup.resumeProfile as
+    | Record<string, unknown>
+    | null
+    | undefined;
   const experience = Array.isArray(profile?.experience)
     ? (profile.experience as Array<Record<string, unknown>>)
         .map((job) => {
@@ -1710,13 +2039,21 @@ function verifiedResumeFactBlock(setup: InterviewSetup) {
 
   return [
     "VERIFIED RESUME FACTS — AUTHORITATIVE:",
-    cvFacts.companies.length ? `Verified companies/employers: ${cvFacts.companies.join(", ")}.` : "Verified companies/employers: none extracted.",
-    cvFacts.roles.length ? `Verified roles/titles: ${cvFacts.roles.join(", ")}.` : "Verified roles/titles: none extracted.",
-    experience.length ? `Verified experience timeline: ${experience.join(" | ")}.` : "Verified experience timeline: none extracted.",
-    cvFacts.skills.length ? `Verified skills/signals: ${cvFacts.skills.join(", ")}.` : "Verified skills/signals: none extracted.",
-    "MANDATORY RULE: Never say you do not see, cannot verify, or cannot confirm a company, employer, role, years-of-experience claim, education entry, project, or skill if it is listed above or appears as a close speech-to-text variant of a listed fact.",
-    "Speech-to-text variants are allowed: for example, Zoho car/core/corps means Zoho Corp; CSS core means CSS Corp. Treat those as pronunciation/transcription issues and continue normally.",
-    "If the candidate says a verified company or role, ask about responsibilities, ownership, examples, challenges, metrics, and outcomes instead of challenging whether it exists.",
+    cvFacts.companies.length
+      ? `Verified companies/employers: ${cvFacts.companies.join(", ")}.`
+      : "Verified companies/employers: none extracted.",
+    cvFacts.roles.length
+      ? `Verified roles/titles: ${cvFacts.roles.join(", ")}.`
+      : "Verified roles/titles: none extracted.",
+    experience.length
+      ? `Verified experience timeline: ${experience.join(" | ")}.`
+      : "Verified experience timeline: none extracted.",
+    cvFacts.skills.length
+      ? `Verified skills/signals: ${cvFacts.skills.join(", ")}.`
+      : "Verified skills/signals: none extracted.",
+    "MANDATORY RULE: Never say you do not see, cannot verify, cannot confirm, do not see enough detail, not listed, not reflected in the CV, or need to pause for a company, employer, role, years-of-experience claim, education entry, project, achievement, responsibility, or skill if it is listed above or appears as a close speech-to-text variant of a listed fact.",
+    "Speech-to-text variants are common — if the candidate names a company that sounds like a verified employer, treat it as that employer and continue normally.",
+    "If the candidate says a verified company or role, ask about responsibilities, ownership, examples, challenges, metrics, and outcomes instead of challenging whether it exists or whether there is enough CV detail.",
   ].join("\n");
 }
 
@@ -1755,7 +2092,10 @@ function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
 
   const yearsClaim = extractYearsClaim(answer);
   if (yearsClaim) {
-    const directDigit = new RegExp(`\\b${yearsClaim}\\s*(?:\\+?\\s*)?(?:years?|yrs?)\\b`, "i");
+    const directDigit = new RegExp(
+      `\\b${yearsClaim}\\s*(?:\\+?\\s*)?(?:years?|yrs?)\\b`,
+      "i",
+    );
     const wordMap: Record<number, string> = {
       1: "one",
       2: "two",
@@ -1790,9 +2130,13 @@ function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
     };
 
     const word = wordMap[yearsClaim];
-    const directWord = word ? new RegExp(`\\b${word}\\s+(?:years?|yrs?)\\b`, "i") : null;
+    const directWord = word
+      ? new RegExp(`\\b${word}\\s+(?:years?|yrs?)\\b`, "i")
+      : null;
 
-    const literalMatch = directDigit.test(cvEvidence) || Boolean(directWord && directWord.test(cvEvidence));
+    const literalMatch =
+      directDigit.test(cvEvidence) ||
+      Boolean(directWord && directWord.test(cvEvidence));
 
     if (!literalMatch) {
       // Fall back to summing employment date ranges found in the CV
@@ -1806,7 +2150,9 @@ function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
       // captured as clean ranges (internships, freelance gaps, rounding),
       // so treat the claim as supported if it's within ~1.5 years of the
       // CV's own date-range total, rather than requiring an exact match.
-      const rangeSupportsClaim = totalYearsFromRanges !== null && Math.abs(totalYearsFromRanges - yearsClaim) <= 1.5;
+      const rangeSupportsClaim =
+        totalYearsFromRanges !== null &&
+        Math.abs(totalYearsFromRanges - yearsClaim) <= 1.5;
 
       if (!rangeSupportsClaim) {
         return `${yearsClaim} years of experience is not clearly stated in the CV text`;
@@ -1836,11 +2182,8 @@ function buildUnsupportedClaimChallenge(answer: string, setup: InterviewSetup) {
     return `Quick check — ${reason}. Could you walk me through the roles or dates that add up to that, so I can follow along?`;
   }
 
-  return `I need to pause there. ${reason} Before we continue, can you clarify whether this was official employment, freelance work, volunteer experience, transferable experience, or just an example scenario? I want to evaluate only experience that can be supported.`;
+  return `I want to make sure I understood that correctly. ${reason} Could you briefly clarify where this fits in your background, and then give me one concrete example from that experience?`;
 }
-
-
-
 
 function selectedLanguageCode(setup: InterviewSetup) {
   return normalizeInterviewLanguage(setup.language).code;
@@ -1910,7 +2253,7 @@ function buildLocalizedGreeting(setup: InterviewSetup) {
     case "ta-IN":
       return `வணக்கம் ${name}. இன்று நேர்காணலில் சேர்ந்ததற்கு நன்றி. எப்படி இருக்கிறீர்கள்?`;
     default:
-      return `Hi ${name}. I'm ${setup.recruiterName || 'Sarah'}, ${setup.recruiterTitle || 'Senior Talent Partner'}. Thanks for joining today — how are you doing?`;
+      return `Hi ${name}. I'm ${setup.recruiterName || "Sarah"}, ${setup.recruiterTitle || "Senior Talent Partner"}. Thanks for joining today — how are you doing?`;
   }
 }
 
@@ -1983,18 +2326,28 @@ function isGreetingOrLanguageCheck(answer: string) {
   const lower = answer.toLowerCase().trim();
   return (
     answer.trim().split(/\s+/).filter(Boolean).length <= 12 &&
-    /\b(hello|hi|hey|how are you|can you hear me|do you hear me|namaste|नमस्ते|hallo|bonjour|hola|ciao|olá|ola|வணக்கம்)\b/i.test(lower)
+    /\b(hello|hi|hey|how are you|can you hear me|do you hear me|namaste|नमस्ते|hallo|bonjour|hola|ciao|olá|ola|வணக்கம்)\b/i.test(
+      lower,
+    )
   );
 }
 
 function isConfusedOrNeedsRepeat(answer: string) {
-  return /\b(i don'?t understand|not understand|repeat|again|confused|समझ नहीं|समझ नही|samajh|नहीं समझ|nicht verstanden|nochmal|répéter|repete|no entiendo|non capisco)\b/i.test(answer);
+  return /\b(i don'?t understand|not understand|repeat|again|confused|समझ नहीं|समझ नही|samajh|नहीं समझ|nicht verstanden|nochmal|répéter|repete|no entiendo|non capisco)\b/i.test(
+    answer,
+  );
 }
 
-function earlyInterviewReply(answer: string, questionIndex: number, setup: InterviewSetup) {
+function earlyInterviewReply(
+  answer: string,
+  questionIndex: number,
+  setup: InterviewSetup,
+) {
   if (questionIndex <= 1) return buildLocalizedIntroQuestion(setup);
-  if (questionIndex <= 2 && isConfusedOrNeedsRepeat(answer)) return buildLocalizedGentleClarification(setup);
-  if (questionIndex <= 2 && isGreetingOrLanguageCheck(answer)) return buildLocalizedIntroQuestion(setup);
+  if (questionIndex <= 2 && isConfusedOrNeedsRepeat(answer))
+    return buildLocalizedGentleClarification(setup);
+  if (questionIndex <= 2 && isGreetingOrLanguageCheck(answer))
+    return buildLocalizedIntroQuestion(setup);
   return "";
 }
 
@@ -2015,143 +2368,247 @@ function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
   if (!text || language.code === "en-US") return text;
 
   if (language.code === "de-DE") {
-    if (/^Yes, I can hear you/i.test(text)) return "Ja, ich kann dich hören. Lass uns richtig beginnen. Gib mir bitte einen kurzen Überblick über deinen Hintergrund und warum diese Rolle für dich relevant ist.";
-    if (/I’m following you, but I need more detail/i.test(text)) return "Ich folge dir, aber ich brauche mehr Details, bevor ich die Passung beurteilen kann. Gib mir eine konkrete Situation, was du persönlich getan hast und was sich danach verändert hat.";
-    if (/The answer still sounds team-level/i.test(text)) return "Die Antwort klingt noch zu sehr nach Teamleistung. Was genau hast du persönlich entschieden, gebaut, gelöst oder verantwortet?";
-    if (/measurable impact|Now add measurable/i.test(text)) return "Die Geschichte ist klar. Jetzt brauche ich messbare Wirkung. Was hat sich nach deiner Arbeit verändert — Zeitersparnis, weniger Fehler, bessere Qualität, Kundenzufriedenheit oder ein Geschäftsergebnis?";
-    if (/I need to pause there/i.test(text)) return "Ich muss hier kurz stoppen. Diese Aussage kann ich aus deinem CV nicht klar verifizieren. Kannst du erklären, ob das offizielle Berufserfahrung, freiberufliche Arbeit, freiwillige Erfahrung, übertragbare Erfahrung oder nur ein Beispielszenario war?";
+    if (/^Yes, I can hear you/i.test(text))
+      return "Ja, ich kann dich hören. Lass uns richtig beginnen. Gib mir bitte einen kurzen Überblick über deinen Hintergrund und warum diese Rolle für dich relevant ist.";
+    if (/I’m following you, but I need more detail/i.test(text))
+      return "Ich folge dir, aber ich brauche mehr Details, bevor ich die Passung beurteilen kann. Gib mir eine konkrete Situation, was du persönlich getan hast und was sich danach verändert hat.";
+    if (/The answer still sounds team-level/i.test(text))
+      return "Die Antwort klingt noch zu sehr nach Teamleistung. Was genau hast du persönlich entschieden, gebaut, gelöst oder verantwortet?";
+    if (/measurable impact|Now add measurable/i.test(text))
+      return "Die Geschichte ist klar. Jetzt brauche ich messbare Wirkung. Was hat sich nach deiner Arbeit verändert — Zeitersparnis, weniger Fehler, bessere Qualität, Kundenzufriedenheit oder ein Geschäftsergebnis?";
+    if (/I need to pause there/i.test(text))
+      return "Ich muss hier kurz stoppen. Diese Aussage kann ich aus deinem CV nicht klar verifizieren. Kannst du erklären, ob das offizielle Berufserfahrung, freiberufliche Arbeit, freiwillige Erfahrung, übertragbare Erfahrung oder nur ein Beispielszenario war?";
   }
 
   if (language.code === "nl-NL") {
-    if (/^Yes, I can hear you/i.test(text)) return "Ja, ik kan je horen. Laten we goed beginnen. Geef me kort een overzicht van je achtergrond en waarom deze rol relevant voor je is.";
-    if (/I’m following you, but I need more detail/i.test(text)) return "Ik volg je, maar ik heb meer details nodig voordat ik de fit kan beoordelen. Geef één concrete situatie, wat jij persoonlijk deed en wat er daarna veranderde.";
-    if (/The answer still sounds team-level/i.test(text)) return "Het antwoord klinkt nog te veel als teamniveau. Wat heb jij persoonlijk besloten, gebouwd, opgelost of geleverd?";
-    if (/measurable impact|Now add measurable/i.test(text)) return "Het verhaal is duidelijk. Nu wil ik meetbare impact. Wat veranderde er na jouw werk — tijdwinst, minder fouten, betere kwaliteit, klanttevredenheid of een bedrijfsresultaat?";
+    if (/^Yes, I can hear you/i.test(text))
+      return "Ja, ik kan je horen. Laten we goed beginnen. Geef me kort een overzicht van je achtergrond en waarom deze rol relevant voor je is.";
+    if (/I’m following you, but I need more detail/i.test(text))
+      return "Ik volg je, maar ik heb meer details nodig voordat ik de fit kan beoordelen. Geef één concrete situatie, wat jij persoonlijk deed en wat er daarna veranderde.";
+    if (/The answer still sounds team-level/i.test(text))
+      return "Het antwoord klinkt nog te veel als teamniveau. Wat heb jij persoonlijk besloten, gebouwd, opgelost of geleverd?";
+    if (/measurable impact|Now add measurable/i.test(text))
+      return "Het verhaal is duidelijk. Nu wil ik meetbare impact. Wat veranderde er na jouw werk — tijdwinst, minder fouten, betere kwaliteit, klanttevredenheid of een bedrijfsresultaat?";
   }
 
   if (language.code === "fr-FR") {
-    if (/^Yes, I can hear you/i.test(text)) return "Oui, je t’entends. Commençons correctement. Présente brièvement ton parcours et explique pourquoi ce poste est pertinent pour toi.";
-    if (/I’m following you, but I need more detail/i.test(text)) return "Je te suis, mais j’ai besoin de plus de détails pour évaluer la pertinence. Donne-moi une situation concrète, ce que tu as fait personnellement et ce qui a changé ensuite.";
-    if (/The answer still sounds team-level/i.test(text)) return "La réponse semble encore trop collective. Qu’as-tu personnellement décidé, construit, résolu ou livré ?";
-    if (/measurable impact|Now add measurable/i.test(text)) return "L’histoire est claire. Maintenant, ajoute un impact mesurable. Qu’est-ce qui a changé après ton travail ?";
+    if (/^Yes, I can hear you/i.test(text))
+      return "Oui, je t’entends. Commençons correctement. Présente brièvement ton parcours et explique pourquoi ce poste est pertinent pour toi.";
+    if (/I’m following you, but I need more detail/i.test(text))
+      return "Je te suis, mais j’ai besoin de plus de détails pour évaluer la pertinence. Donne-moi une situation concrète, ce que tu as fait personnellement et ce qui a changé ensuite.";
+    if (/The answer still sounds team-level/i.test(text))
+      return "La réponse semble encore trop collective. Qu’as-tu personnellement décidé, construit, résolu ou livré ?";
+    if (/measurable impact|Now add measurable/i.test(text))
+      return "L’histoire est claire. Maintenant, ajoute un impact mesurable. Qu’est-ce qui a changé après ton travail ?";
   }
 
   if (language.code === "es-ES") {
-    if (/^Yes, I can hear you/i.test(text)) return "Sí, puedo escucharte. Empecemos bien. Dame un breve resumen de tu trayectoria y por qué este puesto es relevante para ti.";
-    if (/I’m following you, but I need more detail/i.test(text)) return "Te sigo, pero necesito más detalle para evaluar el encaje. Dame una situación concreta, lo que hiciste personalmente y qué cambió después.";
-    if (/The answer still sounds team-level/i.test(text)) return "La respuesta todavía suena demasiado a trabajo de equipo. ¿Qué decidiste, construiste, resolviste o entregaste tú personalmente?";
-    if (/measurable impact|Now add measurable/i.test(text)) return "La historia está clara. Ahora añade impacto medible. ¿Qué cambió después de tu trabajo?";
+    if (/^Yes, I can hear you/i.test(text))
+      return "Sí, puedo escucharte. Empecemos bien. Dame un breve resumen de tu trayectoria y por qué este puesto es relevante para ti.";
+    if (/I’m following you, but I need more detail/i.test(text))
+      return "Te sigo, pero necesito más detalle para evaluar el encaje. Dame una situación concreta, lo que hiciste personalmente y qué cambió después.";
+    if (/The answer still sounds team-level/i.test(text))
+      return "La respuesta todavía suena demasiado a trabajo de equipo. ¿Qué decidiste, construiste, resolviste o entregaste tú personalmente?";
+    if (/measurable impact|Now add measurable/i.test(text))
+      return "La historia está clara. Ahora añade impacto medible. ¿Qué cambió después de tu trabajo?";
   }
 
   if (language.code === "it-IT") {
-    if (/^Yes, I can hear you/i.test(text)) return "Sì, ti sento. Iniziamo bene. Raccontami brevemente il tuo percorso e perché questo ruolo è rilevante per te.";
-    if (/I’m following you, but I need more detail/i.test(text)) return "Ti seguo, ma ho bisogno di più dettagli per valutare l’idoneità. Dammi una situazione concreta, cosa hai fatto personalmente e cosa è cambiato dopo.";
-    if (/The answer still sounds team-level/i.test(text)) return "La risposta sembra ancora troppo a livello di team. Cosa hai deciso, costruito, risolto o consegnato personalmente?";
-    if (/measurable impact|Now add measurable/i.test(text)) return "La storia è chiara. Ora aggiungi un impatto misurabile. Cosa è cambiato dopo il tuo lavoro?";
+    if (/^Yes, I can hear you/i.test(text))
+      return "Sì, ti sento. Iniziamo bene. Raccontami brevemente il tuo percorso e perché questo ruolo è rilevante per te.";
+    if (/I’m following you, but I need more detail/i.test(text))
+      return "Ti seguo, ma ho bisogno di più dettagli per valutare l’idoneità. Dammi una situazione concreta, cosa hai fatto personalmente e cosa è cambiato dopo.";
+    if (/The answer still sounds team-level/i.test(text))
+      return "La risposta sembra ancora troppo a livello di team. Cosa hai deciso, costruito, risolto o consegnato personalmente?";
+    if (/measurable impact|Now add measurable/i.test(text))
+      return "La storia è chiara. Ora aggiungi un impatto misurabile. Cosa è cambiato dopo il tuo lavoro?";
   }
 
   if (language.code === "pt-PT") {
-    if (/^Yes, I can hear you/i.test(text)) return "Sim, consigo ouvir-te. Vamos começar corretamente. Dá-me um breve resumo do teu percurso e explica porque esta função é relevante para ti.";
-    if (/I’m following you, but I need more detail/i.test(text)) return "Estou a acompanhar, mas preciso de mais detalhes antes de avaliar o encaixe. Dá-me uma situação concreta, o que fizeste pessoalmente e o que mudou depois.";
-    if (/The answer still sounds team-level/i.test(text)) return "A resposta ainda soa demasiado ao nível da equipa. O que decidiste, construíste, resolveste ou entregaste pessoalmente?";
-    if (/measurable impact|Now add measurable/i.test(text)) return "A história está clara. Agora adiciona impacto mensurável. O que mudou depois do teu trabalho?";
+    if (/^Yes, I can hear you/i.test(text))
+      return "Sim, consigo ouvir-te. Vamos começar corretamente. Dá-me um breve resumo do teu percurso e explica porque esta função é relevante para ti.";
+    if (/I’m following you, but I need more detail/i.test(text))
+      return "Estou a acompanhar, mas preciso de mais detalhes antes de avaliar o encaixe. Dá-me uma situação concreta, o que fizeste pessoalmente e o que mudou depois.";
+    if (/The answer still sounds team-level/i.test(text))
+      return "A resposta ainda soa demasiado ao nível da equipa. O que decidiste, construíste, resolveste ou entregaste pessoalmente?";
+    if (/measurable impact|Now add measurable/i.test(text))
+      return "A história está clara. Agora adiciona impacto mensurável. O que mudou depois do teu trabalho?";
   }
 
   if (language.code === "zh-CN") {
-    if (/^Yes, I can hear you/i.test(text)) return "好的，我能听到你。让我们正式开始。请简要介绍一下你的背景，以及为什么这个职位对你来说是合适的。";
-    if (/I'm following you, but I need more detail/i.test(text)) return "我在听，但在评估匹配度之前，我需要更多细节。请给我一个具体的情境——你个人做了什么，以及之后发生了什么变化。";
-    if (/The answer still sounds team-level/i.test(text)) return "这个回答听起来还是停留在团队层面。你个人具体决定、构建、解决或交付了什么？";
-    if (/measurable impact|Now add measurable/i.test(text)) return "故事很清晰。现在请加上可量化的影响。你的工作之后发生了什么变化？";
+    if (/^Yes, I can hear you/i.test(text))
+      return "好的，我能听到你。让我们正式开始。请简要介绍一下你的背景，以及为什么这个职位对你来说是合适的。";
+    if (/I'm following you, but I need more detail/i.test(text))
+      return "我在听，但在评估匹配度之前，我需要更多细节。请给我一个具体的情境——你个人做了什么，以及之后发生了什么变化。";
+    if (/The answer still sounds team-level/i.test(text))
+      return "这个回答听起来还是停留在团队层面。你个人具体决定、构建、解决或交付了什么？";
+    if (/measurable impact|Now add measurable/i.test(text))
+      return "故事很清晰。现在请加上可量化的影响。你的工作之后发生了什么变化？";
   }
 
   if (language.code === "ar-SA") {
-    if (/^Yes, I can hear you/i.test(text)) return "نعم، أسمعك. لنبدأ بشكل صحيح. أخبرني باختصار عن خلفيتك ولماذا هذا الدور مناسب لك.";
-    if (/I'm following you, but I need more detail/i.test(text)) return "أتابعك، لكنني أحتاج إلى مزيد من التفاصيل. أعطني موقفًا محددًا، وما الذي فعلته شخصيًا، وما الذي تغير بعد ذلك.";
-    if (/The answer still sounds team-level/i.test(text)) return "الإجابة لا تزال تبدو على مستوى الفريق. ماذا قررت أو بنيت أو حللت أو قدمت بشكل شخصي؟";
-    if (/measurable impact|Now add measurable/i.test(text)) return "القصة واضحة. الآن أضف تأثيرًا قابلًا للقياس. ماذا تغير بعد عملك؟";
+    if (/^Yes, I can hear you/i.test(text))
+      return "نعم، أسمعك. لنبدأ بشكل صحيح. أخبرني باختصار عن خلفيتك ولماذا هذا الدور مناسب لك.";
+    if (/I'm following you, but I need more detail/i.test(text))
+      return "أتابعك، لكنني أحتاج إلى مزيد من التفاصيل. أعطني موقفًا محددًا، وما الذي فعلته شخصيًا، وما الذي تغير بعد ذلك.";
+    if (/The answer still sounds team-level/i.test(text))
+      return "الإجابة لا تزال تبدو على مستوى الفريق. ماذا قررت أو بنيت أو حللت أو قدمت بشكل شخصي؟";
+    if (/measurable impact|Now add measurable/i.test(text))
+      return "القصة واضحة. الآن أضف تأثيرًا قابلًا للقياس. ماذا تغير بعد عملك؟";
   }
 
   if (language.code === "pl-PL") {
-    if (/^Yes, I can hear you/i.test(text)) return "Tak, słyszę cię. Zacznijmy właściwie. Opowiedz mi krótko o swoim doświadczeniu i dlaczego ta rola jest dla ciebie odpowiednia.";
-    if (/I'm following you, but I need more detail/i.test(text)) return "Rozumiem cię, ale potrzebuję więcej szczegółów. Podaj mi konkretną sytuację, co ty osobiście zrobiłeś i co się potem zmieniło.";
-    if (/The answer still sounds team-level/i.test(text)) return "Odpowiedź nadal brzmi jak praca zespołowa. Co ty osobiście zdecydowałeś, zbudowałeś, rozwiązałeś lub dostarczyłeś?";
-    if (/measurable impact|Now add measurable/i.test(text)) return "Historia jest jasna. Teraz dodaj mierzalny wpływ. Co zmieniło się po twojej pracy?";
+    if (/^Yes, I can hear you/i.test(text))
+      return "Tak, słyszę cię. Zacznijmy właściwie. Opowiedz mi krótko o swoim doświadczeniu i dlaczego ta rola jest dla ciebie odpowiednia.";
+    if (/I'm following you, but I need more detail/i.test(text))
+      return "Rozumiem cię, ale potrzebuję więcej szczegółów. Podaj mi konkretną sytuację, co ty osobiście zrobiłeś i co się potem zmieniło.";
+    if (/The answer still sounds team-level/i.test(text))
+      return "Odpowiedź nadal brzmi jak praca zespołowa. Co ty osobiście zdecydowałeś, zbudowałeś, rozwiązałeś lub dostarczyłeś?";
+    if (/measurable impact|Now add measurable/i.test(text))
+      return "Historia jest jasna. Teraz dodaj mierzalny wpływ. Co zmieniło się po twojej pracy?";
   }
 
   if (language.code === "hi-IN") {
-    if (/^Yes, I can hear you/i.test(text)) return "हाँ, मैं आपको सुन पा रही हूँ। चलिए सही तरीके से शुरू करते हैं। कृपया अपने बारे में संक्षेप में बताइए और यह भूमिका आपके लिए क्यों उपयुक्त है।";
-    if (/I’m following you, but I need more detail/i.test(text)) return "मैं समझ रही हूँ, लेकिन बेहतर आकलन के लिए मुझे और विवरण चाहिए। एक वास्तविक स्थिति बताइए, आपने व्यक्तिगत रूप से क्या किया और उसके बाद क्या बदला।";
-    if (/The answer still sounds team-level/i.test(text)) return "यह उत्तर अभी भी टीम-स्तर का लग रहा है। आपने व्यक्तिगत रूप से क्या निर्णय लिया, बनाया, हल किया या डिलीवर किया?";
-    if (/measurable impact|Now add measurable|Give me one concrete metric/i.test(text)) return "उदाहरण समझ आया। अब मापने योग्य प्रभाव बताइए — समय, टिकट, गुणवत्ता, ग्राहक संतुष्टि, लागत या परिणाम में क्या बदलाव आया?";
-    if (/I need to pause there/i.test(text)) return "मुझे यहाँ थोड़ी देर रुकना होगा। यह दावा आपके CV से स्पष्ट रूप से सत्यापित नहीं हो रहा है। कृपया बताएं कि यह आधिकारिक नौकरी, freelance काम, volunteer अनुभव, transferable experience या सिर्फ example scenario था?";
-    if (/Thank you for being honest/i.test(text)) return "ईमानदारी के लिए धन्यवाद। चलिए अब केवल आपके CV में दिख रहे verified experience पर आगे बढ़ते हैं। किसी एक वास्तविक project, customer issue या responsibility के बारे में बताइए।";
+    if (/^Yes, I can hear you/i.test(text))
+      return "हाँ, मैं आपको सुन पा रही हूँ। चलिए सही तरीके से शुरू करते हैं। कृपया अपने बारे में संक्षेप में बताइए और यह भूमिका आपके लिए क्यों उपयुक्त है।";
+    if (/I’m following you, but I need more detail/i.test(text))
+      return "मैं समझ रही हूँ, लेकिन बेहतर आकलन के लिए मुझे और विवरण चाहिए। एक वास्तविक स्थिति बताइए, आपने व्यक्तिगत रूप से क्या किया और उसके बाद क्या बदला।";
+    if (/The answer still sounds team-level/i.test(text))
+      return "यह उत्तर अभी भी टीम-स्तर का लग रहा है। आपने व्यक्तिगत रूप से क्या निर्णय लिया, बनाया, हल किया या डिलीवर किया?";
+    if (
+      /measurable impact|Now add measurable|Give me one concrete metric/i.test(
+        text,
+      )
+    )
+      return "उदाहरण समझ आया। अब मापने योग्य प्रभाव बताइए — समय, टिकट, गुणवत्ता, ग्राहक संतुष्टि, लागत या परिणाम में क्या बदलाव आया?";
+    if (/I need to pause there/i.test(text))
+      return "मुझे यहाँ थोड़ी देर रुकना होगा। यह दावा आपके CV से स्पष्ट रूप से सत्यापित नहीं हो रहा है। कृपया बताएं कि यह आधिकारिक नौकरी, freelance काम, volunteer अनुभव, transferable experience या सिर्फ example scenario था?";
+    if (/Thank you for being honest/i.test(text))
+      return "ईमानदारी के लिए धन्यवाद। चलिए अब केवल आपके CV में दिख रहे verified experience पर आगे बढ़ते हैं। किसी एक वास्तविक project, customer issue या responsibility के बारे में बताइए।";
   }
 
   if (language.code === "ta-IN") {
-    if (/^Yes, I can hear you/i.test(text)) return "ஆம், உங்களை கேட்க முடிகிறது. சரியாக தொடங்கலாம். உங்கள் பின்னணி மற்றும் இந்த பொறுப்பு ஏன் உங்களுக்கு பொருத்தமானது என்பதைச் சுருக்கமாக சொல்லுங்கள்.";
-    if (/I’m following you, but I need more detail/i.test(text)) return "நான் புரிந்துகொள்கிறேன், ஆனால் பொருத்தத்தை மதிப்பிட மேலும் விவரம் தேவை. ஒரு குறிப்பிட்ட சூழ்நிலை, நீங்கள் தனிப்பட்ட முறையில் செய்தது, அதன் பிறகு மாறியது என்ன என்பதைச் சொல்லுங்கள்.";
-    if (/The answer still sounds team-level/i.test(text)) return "இந்த பதில் இன்னும் குழு அளவில் இருக்கிறது. நீங்கள் தனிப்பட்ட முறையில் என்ன முடிவு செய்தீர்கள், உருவாக்கினீர்கள், சரிசெய்தீர்கள் அல்லது வழங்கினீர்கள்?";
-    if (/measurable impact|Now add measurable|Give me one concrete metric/i.test(text)) return "உதாரணம் தெளிவாக உள்ளது. இப்போது அளவிடக்கூடிய தாக்கத்தைச் சொல்லுங்கள் — நேரம், தரம், வாடிக்கையாளர் திருப்தி, செலவு அல்லது முடிவில் என்ன மாறியது?";
+    if (/^Yes, I can hear you/i.test(text))
+      return "ஆம், உங்களை கேட்க முடிகிறது. சரியாக தொடங்கலாம். உங்கள் பின்னணி மற்றும் இந்த பொறுப்பு ஏன் உங்களுக்கு பொருத்தமானது என்பதைச் சுருக்கமாக சொல்லுங்கள்.";
+    if (/I’m following you, but I need more detail/i.test(text))
+      return "நான் புரிந்துகொள்கிறேன், ஆனால் பொருத்தத்தை மதிப்பிட மேலும் விவரம் தேவை. ஒரு குறிப்பிட்ட சூழ்நிலை, நீங்கள் தனிப்பட்ட முறையில் செய்தது, அதன் பிறகு மாறியது என்ன என்பதைச் சொல்லுங்கள்.";
+    if (/The answer still sounds team-level/i.test(text))
+      return "இந்த பதில் இன்னும் குழு அளவில் இருக்கிறது. நீங்கள் தனிப்பட்ட முறையில் என்ன முடிவு செய்தீர்கள், உருவாக்கினீர்கள், சரிசெய்தீர்கள் அல்லது வழங்கினீர்கள்?";
+    if (
+      /measurable impact|Now add measurable|Give me one concrete metric/i.test(
+        text,
+      )
+    )
+      return "உதாரணம் தெளிவாக உள்ளது. இப்போது அளவிடக்கூடிய தாக்கத்தைச் சொல்லுங்கள் — நேரம், தரம், வாடிக்கையாளர் திருப்தி, செலவு அல்லது முடிவில் என்ன மாறியது?";
   }
-
 
   // ── Languages added to complete full coverage ───────────────────────────────
 
   if (language.code === "ja-JP") {
-    if (/^Yes, I can hear you/i.test(text)) return "はい、はっきり聞こえます。では始めましょう。あなたの経歴と、なぜこのポジションに関心があるのかを簡単にお聞かせください。";
-    if (/I'm following you, but I need more detail/i.test(text)) return "お話はわかりますが、適合性を評価するためにもう少し詳細が必要です。具体的な状況、あなたが個人として何をしたか、その後何が変わったかを教えてください。";
-    if (/The answer still sounds team-level/i.test(text)) return "その回答はまだチームレベルに聞こえます。あなたが個人として決定・構築・解決・提供したものは何ですか？";
-    if (/measurable impact|Now add measurable|Give me one concrete metric/i.test(text)) return "ストーリーは明確です。次に測定可能な成果を教えてください。あなたの取り組みの後に何が変わりましたか？";
-    if (/I need to pause there/i.test(text)) return "少し確認させてください。それはご経歴から明確に確認できない点があります。公式な職歴なのか、フリーランス、ボランティア、転用可能な経験、それとも例として挙げたシナリオなのかを教えていただけますか？";
+    if (/^Yes, I can hear you/i.test(text))
+      return "はい、はっきり聞こえます。では始めましょう。あなたの経歴と、なぜこのポジションに関心があるのかを簡単にお聞かせください。";
+    if (/I'm following you, but I need more detail/i.test(text))
+      return "お話はわかりますが、適合性を評価するためにもう少し詳細が必要です。具体的な状況、あなたが個人として何をしたか、その後何が変わったかを教えてください。";
+    if (/The answer still sounds team-level/i.test(text))
+      return "その回答はまだチームレベルに聞こえます。あなたが個人として決定・構築・解決・提供したものは何ですか？";
+    if (
+      /measurable impact|Now add measurable|Give me one concrete metric/i.test(
+        text,
+      )
+    )
+      return "ストーリーは明確です。次に測定可能な成果を教えてください。あなたの取り組みの後に何が変わりましたか？";
+    if (/I need to pause there/i.test(text))
+      return "少し確認させてください。それはご経歴から明確に確認できない点があります。公式な職歴なのか、フリーランス、ボランティア、転用可能な経験、それとも例として挙げたシナリオなのかを教えていただけますか？";
   }
 
   if (language.code === "ko-KR") {
-    if (/^Yes, I can hear you/i.test(text)) return "네, 잘 들립니다. 시작해 보겠습니다. 본인의 배경과 이 포지션에 관심을 갖게 된 이유를 간략히 말씀해 주시겠어요?";
-    if (/I'm following you, but I need more detail/i.test(text)) return "이해는 되지만, 적합성을 평가하기 위해 좀 더 구체적인 내용이 필요합니다. 구체적인 상황, 본인이 직접 한 일, 그리고 그 이후 무엇이 달라졌는지 말씀해 주세요.";
-    if (/The answer still sounds team-level/i.test(text)) return "답변이 아직 팀 수준으로 들립니다. 본인이 직접 결정하거나, 구축하거나, 해결하거나, 전달한 것이 무엇인지 말씀해 주세요.";
-    if (/measurable impact|Now add measurable|Give me one concrete metric/i.test(text)) return "이야기는 명확합니다. 이제 측정 가능한 성과를 알려 주세요. 본인의 업무 이후 무엇이 변화했나요?";
-    if (/I need to pause there/i.test(text)) return "잠깐 확인이 필요합니다. 해당 내용을 이력서에서 명확히 확인하기 어렵습니다. 공식 경력인지, 프리랜서, 자원봉사, 전이 가능한 경험인지, 아니면 예시 시나리오인지 설명해 주시겠어요?";
+    if (/^Yes, I can hear you/i.test(text))
+      return "네, 잘 들립니다. 시작해 보겠습니다. 본인의 배경과 이 포지션에 관심을 갖게 된 이유를 간략히 말씀해 주시겠어요?";
+    if (/I'm following you, but I need more detail/i.test(text))
+      return "이해는 되지만, 적합성을 평가하기 위해 좀 더 구체적인 내용이 필요합니다. 구체적인 상황, 본인이 직접 한 일, 그리고 그 이후 무엇이 달라졌는지 말씀해 주세요.";
+    if (/The answer still sounds team-level/i.test(text))
+      return "답변이 아직 팀 수준으로 들립니다. 본인이 직접 결정하거나, 구축하거나, 해결하거나, 전달한 것이 무엇인지 말씀해 주세요.";
+    if (
+      /measurable impact|Now add measurable|Give me one concrete metric/i.test(
+        text,
+      )
+    )
+      return "이야기는 명확합니다. 이제 측정 가능한 성과를 알려 주세요. 본인의 업무 이후 무엇이 변화했나요?";
+    if (/I need to pause there/i.test(text))
+      return "잠깐 확인이 필요합니다. 해당 내용을 이력서에서 명확히 확인하기 어렵습니다. 공식 경력인지, 프리랜서, 자원봉사, 전이 가능한 경험인지, 아니면 예시 시나리오인지 설명해 주시겠어요?";
   }
 
   if (language.code === "ru-RU") {
-    if (/^Yes, I can hear you/i.test(text)) return "Да, я вас хорошо слышу. Давайте начнём. Расскажите кратко о своём опыте и о том, почему вас интересует эта позиция.";
-    if (/I'm following you, but I need more detail/i.test(text)) return "Я понимаю вас, но для оценки соответствия мне нужно больше деталей. Приведите конкретную ситуацию: что именно вы сделали лично и что изменилось после этого.";
-    if (/The answer still sounds team-level/i.test(text)) return "Ответ всё ещё звучит на уровне команды. Что конкретно вы лично решили, создали, решили или реализовали?";
-    if (/measurable impact|Now add measurable|Give me one concrete metric/i.test(text)) return "История понятна. Теперь добавьте измеримый результат. Что изменилось после вашей работы — время, качество, удовлетворённость клиентов, стоимость или бизнес-показатель?";
-    if (/I need to pause there/i.test(text)) return "Мне нужно уточнить. Это утверждение я не могу чётко подтвердить по вашему резюме. Поясните: это было официальное трудоустройство, фриланс, волонтёрство, переносимый опыт или просто пример?";
+    if (/^Yes, I can hear you/i.test(text))
+      return "Да, я вас хорошо слышу. Давайте начнём. Расскажите кратко о своём опыте и о том, почему вас интересует эта позиция.";
+    if (/I'm following you, but I need more detail/i.test(text))
+      return "Я понимаю вас, но для оценки соответствия мне нужно больше деталей. Приведите конкретную ситуацию: что именно вы сделали лично и что изменилось после этого.";
+    if (/The answer still sounds team-level/i.test(text))
+      return "Ответ всё ещё звучит на уровне команды. Что конкретно вы лично решили, создали, решили или реализовали?";
+    if (
+      /measurable impact|Now add measurable|Give me one concrete metric/i.test(
+        text,
+      )
+    )
+      return "История понятна. Теперь добавьте измеримый результат. Что изменилось после вашей работы — время, качество, удовлетворённость клиентов, стоимость или бизнес-показатель?";
+    if (/I need to pause there/i.test(text))
+      return "Мне нужно уточнить. Это утверждение я не могу чётко подтвердить по вашему резюме. Поясните: это было официальное трудоустройство, фриланс, волонтёрство, переносимый опыт или просто пример?";
   }
 
   if (language.code === "tr-TR") {
-    if (/^Yes, I can hear you/i.test(text)) return "Evet, sizi net duyuyorum. Başlayalım. Deneyiminizi ve bu pozisyona neden ilgi duyduğunuzu kısaca anlatır mısınız?";
-    if (/I'm following you, but I need more detail/i.test(text)) return "Sizi anlıyorum, ancak uyumu değerlendirmek için daha fazla ayrıntıya ihtiyacım var. Somut bir durum, kişisel olarak ne yaptığınız ve ardından ne değiştiği hakkında bilgi verir misiniz?";
-    if (/The answer still sounds team-level/i.test(text)) return "Yanıt hâlâ ekip düzeyinde geliyor. Kişisel olarak neye karar verdiniz, ne inşa ettiniz, ne çözdünüz veya ne teslim ettiniz?";
-    if (/measurable impact|Now add measurable|Give me one concrete metric/i.test(text)) return "Hikâye net. Şimdi ölçülebilir bir etki ekleyin. Çalışmanızdan sonra ne değişti — zaman, kalite, müşteri memnuniyeti, maliyet veya bir iş sonucu?";
-    if (/I need to pause there/i.test(text)) return "Burada durmam gerekiyor. Bunu CV'nizden net olarak doğrulayamıyorum. Bunun resmi istihdam, serbest çalışma, gönüllülük, aktarılabilir deneyim mi yoksa yalnızca bir örnek senaryo mu olduğunu açıklar mısınız?";
+    if (/^Yes, I can hear you/i.test(text))
+      return "Evet, sizi net duyuyorum. Başlayalım. Deneyiminizi ve bu pozisyona neden ilgi duyduğunuzu kısaca anlatır mısınız?";
+    if (/I'm following you, but I need more detail/i.test(text))
+      return "Sizi anlıyorum, ancak uyumu değerlendirmek için daha fazla ayrıntıya ihtiyacım var. Somut bir durum, kişisel olarak ne yaptığınız ve ardından ne değiştiği hakkında bilgi verir misiniz?";
+    if (/The answer still sounds team-level/i.test(text))
+      return "Yanıt hâlâ ekip düzeyinde geliyor. Kişisel olarak neye karar verdiniz, ne inşa ettiniz, ne çözdünüz veya ne teslim ettiniz?";
+    if (
+      /measurable impact|Now add measurable|Give me one concrete metric/i.test(
+        text,
+      )
+    )
+      return "Hikâye net. Şimdi ölçülebilir bir etki ekleyin. Çalışmanızdan sonra ne değişti — zaman, kalite, müşteri memnuniyeti, maliyet veya bir iş sonucu?";
+    if (/I need to pause there/i.test(text))
+      return "Burada durmam gerekiyor. Bunu CV'nizden net olarak doğrulayamıyorum. Bunun resmi istihdam, serbest çalışma, gönüllülük, aktarılabilir deneyim mi yoksa yalnızca bir örnek senaryo mu olduğunu açıklar mısınız?";
   }
 
   if (language.code === "zh-CN") {
-    if (/I need to pause there/i.test(text)) return "我需要在这里确认一下。我无法从您的简历中清楚地核实这一点。请说明这是正式工作经历、自由职业、志愿者经验、可迁移经验，还是仅仅是一个示例场景？";
-    if (/Give me one concrete metric/i.test(text)) return "故事很清晰。现在请加上可量化的影响——节省的时间、减少的错误、客户满意度、成本或业务成果。";
+    if (/I need to pause there/i.test(text))
+      return "我需要在这里确认一下。我无法从您的简历中清楚地核实这一点。请说明这是正式工作经历、自由职业、志愿者经验、可迁移经验，还是仅仅是一个示例场景？";
+    if (/Give me one concrete metric/i.test(text))
+      return "故事很清晰。现在请加上可量化的影响——节省的时间、减少的错误、客户满意度、成本或业务成果。";
   }
 
   if (language.code === "ar-SA") {
-    if (/I'm following you, but I need more detail/i.test(text)) return "أتابعك، لكنني أحتاج إلى مزيد من التفاصيل لتقييم المطابقة. أعطني موقفًا محددًا — ما الذي فعلته شخصيًا وما الذي تغير بعد ذلك.";
-    if (/The answer still sounds team-level/i.test(text)) return "الإجابة لا تزال تبدو على مستوى الفريق. ماذا قررت أو بنيت أو حللت أو قدمت بشكل شخصي؟";
-    if (/measurable impact|Give me one concrete metric/i.test(text)) return "القصة واضحة. الآن أضف تأثيرًا قابلًا للقياس — وقت موفر، أخطاء مخففة، رضا العملاء، تكلفة أو نتيجة أعمال.";
-    if (/I need to pause there/i.test(text)) return "أحتاج إلى التوقف هنا. لا يمكنني التحقق من ذلك بوضوح من سيرتك الذاتية. هل يمكنك توضيح ما إذا كان هذا توظيفًا رسميًا أم عملًا حرًا أم تطوعًا أم خبرة قابلة للنقل أم مجرد سيناريو مثال؟";
+    if (/I'm following you, but I need more detail/i.test(text))
+      return "أتابعك، لكنني أحتاج إلى مزيد من التفاصيل لتقييم المطابقة. أعطني موقفًا محددًا — ما الذي فعلته شخصيًا وما الذي تغير بعد ذلك.";
+    if (/The answer still sounds team-level/i.test(text))
+      return "الإجابة لا تزال تبدو على مستوى الفريق. ماذا قررت أو بنيت أو حللت أو قدمت بشكل شخصي؟";
+    if (/measurable impact|Give me one concrete metric/i.test(text))
+      return "القصة واضحة. الآن أضف تأثيرًا قابلًا للقياس — وقت موفر، أخطاء مخففة، رضا العملاء، تكلفة أو نتيجة أعمال.";
+    if (/I need to pause there/i.test(text))
+      return "أحتاج إلى التوقف هنا. لا يمكنني التحقق من ذلك بوضوح من سيرتك الذاتية. هل يمكنك توضيح ما إذا كان هذا توظيفًا رسميًا أم عملًا حرًا أم تطوعًا أم خبرة قابلة للنقل أم مجرد سيناريو مثال؟";
   }
 
   if (language.code === "pl-PL") {
-    if (/I'm following you, but I need more detail/i.test(text)) return "Rozumiem cię, ale potrzebuję więcej szczegółów, aby ocenić dopasowanie. Podaj konkretną sytuację — co ty osobiście zrobiłeś i co się po tym zmieniło.";
-    if (/The answer still sounds team-level/i.test(text)) return "Odpowiedź nadal brzmi jak praca zespołowa. Co ty osobiście zdecydowałeś, zbudowałeś, rozwiązałeś lub dostarczyłeś?";
-    if (/measurable impact|Give me one concrete metric/i.test(text)) return "Historia jest jasna. Teraz dodaj mierzalny wpływ — zaoszczędzony czas, zmniejszone błędy, satysfakcja klientów, koszt lub wynik biznesowy.";
-    if (/I need to pause there/i.test(text)) return "Muszę się tu zatrzymać. Nie mogę tego wyraźnie zweryfikować na podstawie twojego CV. Czy możesz wyjaśnić, czy to było oficjalne zatrudnienie, praca freelancerska, wolontariat, przenoszalne doświadczenie, czy tylko przykładowy scenariusz?";
+    if (/I'm following you, but I need more detail/i.test(text))
+      return "Rozumiem cię, ale potrzebuję więcej szczegółów, aby ocenić dopasowanie. Podaj konkretną sytuację — co ty osobiście zrobiłeś i co się po tym zmieniło.";
+    if (/The answer still sounds team-level/i.test(text))
+      return "Odpowiedź nadal brzmi jak praca zespołowa. Co ty osobiście zdecydowałeś, zbudowałeś, rozwiązałeś lub dostarczyłeś?";
+    if (/measurable impact|Give me one concrete metric/i.test(text))
+      return "Historia jest jasna. Teraz dodaj mierzalny wpływ — zaoszczędzony czas, zmniejszone błędy, satysfakcja klientów, koszt lub wynik biznesowy.";
+    if (/I need to pause there/i.test(text))
+      return "Muszę się tu zatrzymać. Nie mogę tego wyraźnie zweryfikować na podstawie twojego CV. Czy możesz wyjaśnić, czy to było oficjalne zatrudnienie, praca freelancerska, wolontariat, przenoszalne doświadczenie, czy tylko przykładowy scenariusz?";
   }
   return text;
 }
 
-
-function buildRecruiterReply(answer: string, questionIndex: number, setup: InterviewSetup, memory: RecruiterMemoryState = defaultRecruiterMemory) {
+function buildRecruiterReply(
+  answer: string,
+  questionIndex: number,
+  setup: InterviewSetup,
+  memory: RecruiterMemoryState = defaultRecruiterMemory,
+) {
   const lower = answer.toLowerCase();
   const wordCount = answer.trim().split(/\s+/).filter(Boolean).length;
 
@@ -2170,17 +2627,26 @@ function buildRecruiterReply(answer: string, questionIndex: number, setup: Inter
     return buildUnsupportedClaimChallenge(answer, setup);
   }
 
-  if (/\b(can you hear me|do you hear me|hello|hi|how are you)\b/i.test(lower) && wordCount <= 10) {
+  if (
+    /\b(can you hear me|do you hear me|hello|hi|how are you)\b/i.test(lower) &&
+    wordCount <= 10
+  ) {
     return "Yes, I can hear you. Let’s begin properly. Give me a short overview of your background and why this role is relevant for you.";
   }
 
-  if (/\b(can you hear me|do you hear me|hello|hi|how are you)\b/i.test(lower) && wordCount <= 10) {
+  if (
+    /\b(can you hear me|do you hear me|hello|hi|how are you)\b/i.test(lower) &&
+    wordCount <= 10
+  ) {
     return "Yes, I can hear you. Let’s begin properly. Give me a short overview of your background and why this role is relevant for you.";
   }
 
   const intelligenceV2 = buildWorkZoRecruiterReplyV2({
     answer,
-    currentQuestion: recruiterQuestions[Math.min(questionIndex, recruiterQuestions.length - 1)] || "",
+    currentQuestion:
+      recruiterQuestions[
+        Math.min(questionIndex, recruiterQuestions.length - 1)
+      ] || "",
     setup,
     memory,
     currentTrust: memory.trustTimeline.at(-1)?.trust,
@@ -2190,9 +2656,14 @@ function buildRecruiterReply(answer: string, questionIndex: number, setup: Inter
     return intelligenceV2.spokenReply;
   }
 
-  const runtimeMemory = typeof window !== "undefined"
-    ? ((window as unknown as { __workzoDisruptionMemory?: WorkZoDisruptionMemory }).__workzoDisruptionMemory || createWorkZoDisruptionMemory())
-    : createWorkZoDisruptionMemory();
+  const runtimeMemory =
+    typeof window !== "undefined"
+      ? (
+          window as unknown as {
+            __workzoDisruptionMemory?: WorkZoDisruptionMemory;
+          }
+        ).__workzoDisruptionMemory || createWorkZoDisruptionMemory()
+      : createWorkZoDisruptionMemory();
   const disruption = analyzeWorkZoActiveDisruption({
     answer,
     setup: setup as unknown as Record<string, unknown>,
@@ -2200,7 +2671,12 @@ function buildRecruiterReply(answer: string, questionIndex: number, setup: Inter
     questionIndex,
   });
   if (typeof window !== "undefined") {
-    (window as unknown as { __workzoDisruptionMemory?: WorkZoDisruptionMemory }).__workzoDisruptionMemory = updateWorkZoDisruptionMemory(runtimeMemory, answer);
+    (
+      window as unknown as { __workzoDisruptionMemory?: WorkZoDisruptionMemory }
+    ).__workzoDisruptionMemory = updateWorkZoDisruptionMemory(
+      runtimeMemory,
+      answer,
+    );
   }
   if (disruption.shouldDisrupt) {
     return disruption.line;
@@ -2210,7 +2686,11 @@ function buildRecruiterReply(answer: string, questionIndex: number, setup: Inter
     return "I’m following you, but I need more detail before I can judge the fit. Give me one specific situation, what you personally did, and what changed after that.";
   }
 
-  if (!/\b(i|my|me|personally|owned|built|handled|created|led|resolved|analyzed|improved|reduced|increased)\b/i.test(answer)) {
+  if (
+    !/\b(i|my|me|personally|owned|built|handled|created|led|resolved|analyzed|improved|reduced|increased)\b/i.test(
+      answer,
+    )
+  ) {
     return "The answer still sounds team-level. What exactly did you personally own or do? Give me your action, not just the team result.";
   }
 
@@ -2222,13 +2702,16 @@ function buildRecruiterReply(answer: string, questionIndex: number, setup: Inter
     return "That gives me the story. What was the visible outcome — customer satisfaction, fewer escalations, faster resolution, better quality, or a clearer handover?";
   }
 
-  if (!/\b(result|impact|outcome|after|so|therefore|which led|improved|reduced|increased|saved)\b/i.test(answer)) {
+  if (
+    !/\b(result|impact|outcome|after|so|therefore|which led|improved|reduced|increased|saved)\b/i.test(
+      answer,
+    )
+  ) {
     return "You explained the action, but I still need the result. What was different after you handled it?";
   }
 
   return buildMemoryAwareFollowUp(answer, questionIndex, setup, memory);
 }
-
 
 function scoreClamp(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
@@ -2260,7 +2743,14 @@ function hasAdmissionSignal(answer: string) {
 
 function hasUnsupportedClaimSignal(answer: string, setup?: InterviewSetup) {
   if (setup) return Boolean(extractUnsupportedClaimReason(answer, setup));
-  return /\b(tesla|google|microsoft|amazon|meta|apple|salesforce|sap|oracle|accenture|bearingpoint)\b/i.test(answer) || /\b(1|2|3|4|5|6|7|8|9|10|11|12|13|14|15)\s*\+?\s*(years?|yrs?)\b/i.test(answer);
+  return (
+    /\b(tesla|google|microsoft|amazon|meta|apple|salesforce|sap|oracle|accenture|bearingpoint)\b/i.test(
+      answer,
+    ) ||
+    /\b(1|2|3|4|5|6|7|8|9|10|11|12|13|14|15)\s*\+?\s*(years?|yrs?)\b/i.test(
+      answer,
+    )
+  );
 }
 
 function analyzeAnswerSignals(answer: string, setup?: InterviewSetup) {
@@ -2298,21 +2788,65 @@ function analyzeAnswerSignals(answer: string, setup?: InterviewSetup) {
   else if (!outcome) concern = "Outcome is not clear.";
   else concern = "Good answer. Recruiter is ready to go deeper.";
 
-  return { wordCount, metric, ownership, outcome, admission, unsupported, short, long, vague, delta, concern };
+  return {
+    wordCount,
+    metric,
+    ownership,
+    outcome,
+    admission,
+    unsupported,
+    short,
+    long,
+    vague,
+    delta,
+    concern,
+  };
 }
 
-function updateRecruiterSignalState(previous: RecruiterSignalState, answer: string, setup?: InterviewSetup): RecruiterSignalState {
+function updateRecruiterSignalState(
+  previous: RecruiterSignalState,
+  answer: string,
+  setup?: InterviewSetup,
+): RecruiterSignalState {
   const signal = analyzeAnswerSignals(answer, setup);
-  const trustDelta = signal.admission ? -12 : signal.unsupported ? -20 : signal.metric && signal.ownership ? 4 : signal.short || signal.vague ? -4 : 1;
-  const interestDelta = signal.unsupported ? -12 : signal.metric && signal.outcome ? 5 : signal.short || signal.vague ? -5 : signal.ownership ? 2 : -1;
+  const trustDelta = signal.admission
+    ? -12
+    : signal.unsupported
+      ? -20
+      : signal.metric && signal.ownership
+        ? 4
+        : signal.short || signal.vague
+          ? -4
+          : 1;
+  const interestDelta = signal.unsupported
+    ? -12
+    : signal.metric && signal.outcome
+      ? 5
+      : signal.short || signal.vague
+        ? -5
+        : signal.ownership
+          ? 2
+          : -1;
 
   const trust = scoreClamp(previous.trust + trustDelta);
   const interest = scoreClamp(previous.interest + interestDelta);
-  const clarity = scoreClamp(previous.clarity + (signal.vague || signal.short ? -5 : signal.wordCount > 30 ? 3 : 0));
-  const confidence = scoreClamp(previous.confidence + (signal.ownership ? 3 : -2));
-  const relevance = scoreClamp(previous.relevance + (signal.metric || signal.outcome ? 2 : signal.short ? -2 : 0));
-  const communication = scoreClamp(previous.communication + (signal.outcome ? 3 : signal.vague ? -3 : 1));
-  const overall = scoreClamp((trust + interest + clarity + confidence + relevance + communication) / 6);
+  const clarity = scoreClamp(
+    previous.clarity +
+      (signal.vague || signal.short ? -5 : signal.wordCount > 30 ? 3 : 0),
+  );
+  const confidence = scoreClamp(
+    previous.confidence + (signal.ownership ? 3 : -2),
+  );
+  const relevance = scoreClamp(
+    previous.relevance +
+      (signal.metric || signal.outcome ? 2 : signal.short ? -2 : 0),
+  );
+  const communication = scoreClamp(
+    previous.communication + (signal.outcome ? 3 : signal.vague ? -3 : 1),
+  );
+  const overall = scoreClamp(
+    (trust + interest + clarity + confidence + relevance + communication) / 6,
+  );
 
   let mood: RecruiterSignalState["mood"] = "Neutral";
   if (trust >= 78 && interest >= 78) mood = "Impressed";
@@ -2340,8 +2874,6 @@ function recruiterMoodColor(mood: RecruiterSignalState["mood"]) {
   if (mood === "Doubtful") return "text-red-300";
   return "text-slate-300";
 }
-
-
 
 const defaultRecruiterSignal: RecruiterSignalState = {
   overall: 78,
@@ -2382,22 +2914,41 @@ const defaultRecruiterMemory: RecruiterMemoryState = {
   trustTimeline: [],
 };
 
-function detectCompanyInterviewStyle(setup: InterviewSetup): CompanyInterviewStyle {
-  const text = `${setup.targetCompany || ""} ${setup.jobDescription || ""} ${setup.targetRole || ""}`.toLowerCase();
+function detectCompanyInterviewStyle(
+  setup: InterviewSetup,
+): CompanyInterviewStyle {
+  const text =
+    `${setup.targetCompany || ""} ${setup.jobDescription || ""} ${setup.targetRole || ""}`.toLowerCase();
 
-  if (/\b(startup|founder|seed|series a|series b|fast-paced|0 to 1|ownership|early stage)\b/i.test(text)) {
+  if (
+    /\b(startup|founder|seed|series a|series b|fast-paced|0 to 1|ownership|early stage)\b/i.test(
+      text,
+    )
+  ) {
     return "Startup";
   }
 
-  if (/\b(big tech|scale|distributed systems|millions|large-scale|platform|faang|google|amazon|microsoft|meta|apple)\b/i.test(text)) {
+  if (
+    /\b(big tech|scale|distributed systems|millions|large-scale|platform|faang|google|amazon|microsoft|meta|apple)\b/i.test(
+      text,
+    )
+  ) {
     return "Big Tech";
   }
 
-  if (/\b(consulting|consultant|client-facing|stakeholder|strategy|transformation|advisory|project delivery)\b/i.test(text)) {
+  if (
+    /\b(consulting|consultant|client-facing|stakeholder|strategy|transformation|advisory|project delivery)\b/i.test(
+      text,
+    )
+  ) {
     return "Consulting";
   }
 
-  if (/\b(corporate|enterprise|process|compliance|governance|cross-functional|matrix|structured)\b/i.test(text)) {
+  if (
+    /\b(corporate|enterprise|process|compliance|governance|cross-functional|matrix|structured)\b/i.test(
+      text,
+    )
+  ) {
     return "Corporate";
   }
 
@@ -2405,7 +2956,8 @@ function detectCompanyInterviewStyle(setup: InterviewSetup): CompanyInterviewSty
 }
 
 function recruiterPersonalityInstructions(setup: InterviewSetup) {
-  const key = `${setup.recruiterId} ${setup.recruiterName} ${setup.recruiterTitle}`.toLowerCase();
+  const key =
+    `${setup.recruiterId} ${setup.recruiterName} ${setup.recruiterTitle}`.toLowerCase();
 
   if (key.includes("alex") || key.includes("faang")) {
     return "Act like Alex Chen: a FAANG hiring manager. Probe technical depth, exact trade-offs, metrics, assumptions, decision quality, and structured reasoning. Stay calm, analytical, and demanding.";
@@ -2419,7 +2971,11 @@ function recruiterPersonalityInstructions(setup: InterviewSetup) {
     return "Act like James Harrington: a consulting partner. Force structure, situation, stakes, options, recommendation, stakeholder impact, and concise executive communication.";
   }
 
-  if (key.includes("marcus") || key.includes("noah") || key.includes("sales_director")) {
+  if (
+    key.includes("marcus") ||
+    key.includes("noah") ||
+    key.includes("sales_director")
+  ) {
     return "Act like Noah Jones: a sales director. Push for revenue impact, quota, deal size, conversion, pipeline, customer impact, and exact commercial numbers.";
   }
 
@@ -2443,7 +2999,11 @@ function recruiterPersonalityInstructions(setup: InterviewSetup) {
     return "Act like Priya: startup recruiter. Probe ownership, speed, ambiguity, initiative, customer impact, and whether the candidate can operate without perfect structure.";
   }
 
-  if (key.includes("markus") || key.includes("corporate") || key.includes("german")) {
+  if (
+    key.includes("markus") ||
+    key.includes("corporate") ||
+    key.includes("german")
+  ) {
     return "Act like Markus: structured corporate interviewer. Probe process, precision, collaboration, stakeholder communication, reliability, and evidence. Be measured and formal.";
   }
 
@@ -2472,57 +3032,198 @@ function companyStyleInstructions(style: CompanyInterviewStyle) {
 function normalizeInterviewLanguage(value?: string) {
   const raw = safeText(value, "en-US").toLowerCase();
 
-  if (raw.includes("german") || raw.includes("deutsch") || raw === "de" || raw === "de-de") {
-    return { code: "de-DE", label: "German", instruction: "Conduct the entire interview in German. Use professional, natural German throughout — questions, follow-ups, and feedback." };
+  if (
+    raw.includes("german") ||
+    raw.includes("deutsch") ||
+    raw === "de" ||
+    raw === "de-de"
+  ) {
+    return {
+      code: "de-DE",
+      label: "German",
+      instruction:
+        "Conduct the entire interview in German. Use professional, natural German throughout — questions, follow-ups, and feedback.",
+    };
   }
-  if (raw.includes("dutch") || raw.includes("nederlands") || raw === "nl" || raw === "nl-nl") {
-    return { code: "nl-NL", label: "Dutch", instruction: "Conduct the entire interview in Dutch. Use professional, natural Dutch throughout." };
+  if (
+    raw.includes("dutch") ||
+    raw.includes("nederlands") ||
+    raw === "nl" ||
+    raw === "nl-nl"
+  ) {
+    return {
+      code: "nl-NL",
+      label: "Dutch",
+      instruction:
+        "Conduct the entire interview in Dutch. Use professional, natural Dutch throughout.",
+    };
   }
-  if (raw.includes("french") || raw.includes("français") || raw.includes("francais") || raw === "fr" || raw === "fr-fr") {
-    return { code: "fr-FR", label: "French", instruction: "Conduct the entire interview in French. Use professional, natural French throughout." };
+  if (
+    raw.includes("french") ||
+    raw.includes("français") ||
+    raw.includes("francais") ||
+    raw === "fr" ||
+    raw === "fr-fr"
+  ) {
+    return {
+      code: "fr-FR",
+      label: "French",
+      instruction:
+        "Conduct the entire interview in French. Use professional, natural French throughout.",
+    };
   }
-  if (raw.includes("spanish") || raw.includes("español") || raw.includes("espanol") || raw === "es" || raw === "es-es") {
-    return { code: "es-ES", label: "Spanish", instruction: "Conduct the entire interview in Spanish. Use professional, natural Spanish throughout." };
+  if (
+    raw.includes("spanish") ||
+    raw.includes("español") ||
+    raw.includes("espanol") ||
+    raw === "es" ||
+    raw === "es-es"
+  ) {
+    return {
+      code: "es-ES",
+      label: "Spanish",
+      instruction:
+        "Conduct the entire interview in Spanish. Use professional, natural Spanish throughout.",
+    };
   }
-  if (raw.includes("italian") || raw.includes("italiano") || raw === "it" || raw === "it-it") {
-    return { code: "it-IT", label: "Italian", instruction: "Conduct the entire interview in Italian. Use professional, natural Italian throughout." };
+  if (
+    raw.includes("italian") ||
+    raw.includes("italiano") ||
+    raw === "it" ||
+    raw === "it-it"
+  ) {
+    return {
+      code: "it-IT",
+      label: "Italian",
+      instruction:
+        "Conduct the entire interview in Italian. Use professional, natural Italian throughout.",
+    };
   }
-  if (raw.includes("portuguese") || raw.includes("portugu") || raw === "pt" || raw === "pt-pt" || raw === "pt-br") {
-    return { code: "pt-PT", label: "Portuguese", instruction: "Conduct the entire interview in Portuguese. Use professional, natural Portuguese throughout." };
+  if (
+    raw.includes("portuguese") ||
+    raw.includes("portugu") ||
+    raw === "pt" ||
+    raw === "pt-pt" ||
+    raw === "pt-br"
+  ) {
+    return {
+      code: "pt-PT",
+      label: "Portuguese",
+      instruction:
+        "Conduct the entire interview in Portuguese. Use professional, natural Portuguese throughout.",
+    };
   }
-  if (raw.includes("chinese") || raw.includes("mandarin") || raw.includes("zh") || raw.includes("中文")) {
-    return { code: "zh-CN", label: "Chinese", instruction: "Conduct the entire interview in Mandarin Chinese (普通话). Use professional, natural Chinese throughout." };
+  if (
+    raw.includes("chinese") ||
+    raw.includes("mandarin") ||
+    raw.includes("zh") ||
+    raw.includes("中文")
+  ) {
+    return {
+      code: "zh-CN",
+      label: "Chinese",
+      instruction:
+        "Conduct the entire interview in Mandarin Chinese (普通话). Use professional, natural Chinese throughout.",
+    };
   }
-  if (raw.includes("arabic") || raw.includes("عربية") || raw === "ar" || raw === "ar-sa") {
-    return { code: "ar-SA", label: "Arabic", instruction: "Conduct the entire interview in Arabic. Use professional, natural Arabic throughout." };
+  if (
+    raw.includes("arabic") ||
+    raw.includes("عربية") ||
+    raw === "ar" ||
+    raw === "ar-sa"
+  ) {
+    return {
+      code: "ar-SA",
+      label: "Arabic",
+      instruction:
+        "Conduct the entire interview in Arabic. Use professional, natural Arabic throughout.",
+    };
   }
-  if (raw.includes("polish") || raw.includes("polski") || raw === "pl" || raw === "pl-pl") {
-    return { code: "pl-PL", label: "Polish", instruction: "Conduct the entire interview in Polish. Use professional, natural Polish throughout." };
+  if (
+    raw.includes("polish") ||
+    raw.includes("polski") ||
+    raw === "pl" ||
+    raw === "pl-pl"
+  ) {
+    return {
+      code: "pl-PL",
+      label: "Polish",
+      instruction:
+        "Conduct the entire interview in Polish. Use professional, natural Polish throughout.",
+    };
   }
   if (raw.includes("japanese") || raw === "ja" || raw === "ja-jp") {
-    return { code: "ja-JP", label: "Japanese", instruction: "Conduct the entire interview in Japanese. Use professional, natural Japanese (keigo where appropriate) throughout." };
+    return {
+      code: "ja-JP",
+      label: "Japanese",
+      instruction:
+        "Conduct the entire interview in Japanese. Use professional, natural Japanese (keigo where appropriate) throughout.",
+    };
   }
   if (raw.includes("korean") || raw === "ko" || raw === "ko-kr") {
-    return { code: "ko-KR", label: "Korean", instruction: "Conduct the entire interview in Korean. Use professional, natural Korean throughout." };
+    return {
+      code: "ko-KR",
+      label: "Korean",
+      instruction:
+        "Conduct the entire interview in Korean. Use professional, natural Korean throughout.",
+    };
   }
-  if (raw.includes("russian") || raw.includes("русский") || raw === "ru" || raw === "ru-ru") {
-    return { code: "ru-RU", label: "Russian", instruction: "Conduct the entire interview in Russian. Use professional, natural Russian throughout." };
+  if (
+    raw.includes("russian") ||
+    raw.includes("русский") ||
+    raw === "ru" ||
+    raw === "ru-ru"
+  ) {
+    return {
+      code: "ru-RU",
+      label: "Russian",
+      instruction:
+        "Conduct the entire interview in Russian. Use professional, natural Russian throughout.",
+    };
   }
-  if (raw.includes("turkish") || raw.includes("türkçe") || raw === "tr" || raw === "tr-tr") {
-    return { code: "tr-TR", label: "Turkish", instruction: "Conduct the entire interview in Turkish. Use professional, natural Turkish throughout." };
+  if (
+    raw.includes("turkish") ||
+    raw.includes("türkçe") ||
+    raw === "tr" ||
+    raw === "tr-tr"
+  ) {
+    return {
+      code: "tr-TR",
+      label: "Turkish",
+      instruction:
+        "Conduct the entire interview in Turkish. Use professional, natural Turkish throughout.",
+    };
   }
   if (raw.includes("hindi") || raw === "hi" || raw === "hi-in") {
-    return { code: "hi-IN", label: "Hindi", instruction: "Conduct the entire interview in Hindi using natural, professional Hindi. Do not answer in English unless the candidate explicitly asks for English." };
+    return {
+      code: "hi-IN",
+      label: "Hindi",
+      instruction:
+        "Conduct the entire interview in Hindi using natural, professional Hindi. Do not answer in English unless the candidate explicitly asks for English.",
+    };
   }
   if (raw.includes("tamil") || raw === "ta" || raw === "ta-in") {
-    return { code: "ta-IN", label: "Tamil", instruction: "Conduct the entire interview in Tamil using natural, professional Tamil. Do not answer in English unless the candidate explicitly asks for English." };
+    return {
+      code: "ta-IN",
+      label: "Tamil",
+      instruction:
+        "Conduct the entire interview in Tamil using natural, professional Tamil. Do not answer in English unless the candidate explicitly asks for English.",
+    };
   }
   if (raw.includes("auto")) {
-    return { code: "en-US", label: "Auto", instruction: "Use the candidate's selected or detected language. If unsure, default to English." };
+    return {
+      code: "en-US",
+      label: "Auto",
+      instruction:
+        "Use the candidate's selected or detected language. If unsure, default to English.",
+    };
   }
-  return { code: "en-US", label: "English", instruction: "Conduct the interview in English." };
+  return {
+    code: "en-US",
+    label: "English",
+    instruction: "Conduct the interview in English.",
+  };
 }
-
 
 function getSpeechRecognitionLang(setup: InterviewSetup) {
   return normalizeInterviewLanguage(setup.language).code;
@@ -2532,16 +3233,23 @@ function getSpeechSynthesisLang(setup: InterviewSetup) {
   return normalizeInterviewLanguage(setup.language).code;
 }
 
-function getFallbackVoiceForLanguage(voices: SpeechSynthesisVoice[], setup: InterviewSetup) {
+function getFallbackVoiceForLanguage(
+  voices: SpeechSynthesisVoice[],
+  setup: InterviewSetup,
+) {
   const language = normalizeInterviewLanguage(setup.language);
   const wantsMale = recruiterLooksMale(setup);
   const languageVoices = voices.filter((voice) =>
-    voice.lang?.toLowerCase().startsWith(language.code.split("-")[0].toLowerCase()),
+    voice.lang
+      ?.toLowerCase()
+      .startsWith(language.code.split("-")[0].toLowerCase()),
   );
 
   const preferredPool = languageVoices.length ? languageVoices : voices;
-  const femaleNames = /aria|jenny|samantha|zira|susan|victoria|karen|moira|tessa|female|helena|hortense|lucie|paulina|sabina/i;
-  const maleNames = /david|mark|guy|george|daniel|alex|fred|tom|male|thomas|paul|jorge|luciano/i;
+  const femaleNames =
+    /aria|jenny|samantha|zira|susan|victoria|karen|moira|tessa|female|helena|hortense|lucie|paulina|sabina/i;
+  const maleNames =
+    /david|mark|guy|george|daniel|alex|fred|tom|male|thomas|paul|jorge|luciano/i;
 
   if (wantsMale) {
     return (
@@ -2569,8 +3277,6 @@ function enforceSelectedLanguagePrefix(setup: InterviewSetup) {
     "Do not default to English unless the selected language is English or the candidate explicitly asks to switch.",
   ].join(" ");
 }
-
-
 
 function localizedUnsupportedClaimChallenge(setup: InterviewSetup) {
   const language = normalizeInterviewLanguage(setup.language);
@@ -2607,22 +3313,33 @@ function buildContextQualityNotice(setup: InterviewSetup) {
   const hasCv = Boolean(safeText(setup.cvText));
   const hasJd = Boolean(safeText(setup.jobDescription));
 
-  if (hasCv && hasJd) return "CV and job description are available. Use both as verified context.";
-  if (hasCv) return "CV context is available, but the job description is missing or incomplete. Ask role-relevant follow-ups, but do not invent JD requirements.";
-  if (hasJd) return "Job description is available, but CV context is missing or incomplete. Ask the candidate to verify their background before assuming experience.";
+  if (hasCv && hasJd)
+    return "CV and job description are available. Use both as verified context.";
+  if (hasCv)
+    return "CV context is available, but the job description is missing or incomplete. Ask role-relevant follow-ups, but do not invent JD requirements.";
+  if (hasJd)
+    return "Job description is available, but CV context is missing or incomplete. Ask the candidate to verify their background before assuming experience.";
   return "CV and job description context are missing or incomplete. Keep the interview useful, but clearly ask the candidate to provide missing context when needed.";
 }
 
 function uniqueLimited(values: string[], limit = 8) {
-  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).slice(0, limit);
+  return Array.from(
+    new Set(values.map((value) => value.trim()).filter(Boolean)),
+  ).slice(0, limit);
 }
 
 function extractCapitalizedPhrases(text: string) {
-  const matches = text.match(/\b[A-Z][A-Za-z0-9&.+#'/-]*(?:\s+[A-Z][A-Za-z0-9&.+#'/-]*){0,4}\b/g) || [];
+  const matches =
+    text.match(
+      /\b[A-Z][A-Za-z0-9&.+#'/-]*(?:\s+[A-Z][A-Za-z0-9&.+#'/-]*){0,4}\b/g,
+    ) || [];
   return uniqueLimited(
-    matches.filter((item) =>
-      item.length >= 3 &&
-      !/^(The|And|For|From|With|This|That|WorkZo|AI|CV|JD|Resume)$/i.test(item),
+    matches.filter(
+      (item) =>
+        item.length >= 3 &&
+        !/^(The|And|For|From|With|This|That|WorkZo|AI|CV|JD|Resume)$/i.test(
+          item,
+        ),
     ),
     10,
   );
@@ -2636,9 +3353,30 @@ function extractCapitalizedPhrases(text: string) {
 // asks for. Works for any CV — no hardcoded company/person names.
 
 const MONTH_NAMES: Record<string, number> = {
-  jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2, apr: 3, april: 3,
-  may: 4, jun: 5, june: 5, jul: 6, july: 6, aug: 7, august: 7, sep: 8, sept: 8,
-  september: 8, oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11,
+  jan: 0,
+  january: 0,
+  feb: 1,
+  february: 1,
+  mar: 2,
+  march: 2,
+  apr: 3,
+  april: 3,
+  may: 4,
+  jun: 5,
+  june: 5,
+  jul: 6,
+  july: 6,
+  aug: 7,
+  august: 7,
+  sep: 8,
+  sept: 8,
+  september: 8,
+  oct: 9,
+  october: 9,
+  nov: 10,
+  november: 10,
+  dec: 11,
+  december: 11,
 };
 
 type DateRange = { start: number; end: number; label: string };
@@ -2658,27 +3396,37 @@ function parseDateRange(value: string): DateRange | null {
   const nowMonths = now.getFullYear() * 12 + now.getMonth();
 
   // Find all "Month Year" or "MM/YYYY" or bare "YYYY" tokens in order.
-  const tokenRe = /\b(?:(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)[a-z]*\.?\s*)?(\d{1,2}\/)?(\d{4})\b/gi;
+  const tokenRe =
+    /\b(?:(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)[a-z]*\.?\s*)?(\d{1,2}\/)?(\d{4})\b/gi;
   const points: number[] = [];
   let match: RegExpExecArray | null;
   while ((match = tokenRe.exec(lower))) {
     const monthName = match[1];
     const monthNum = match[2];
     const year = Number(match[3]);
-    if (!Number.isFinite(year) || year < 1950 || year > now.getFullYear() + 1) continue;
+    if (!Number.isFinite(year) || year < 1950 || year > now.getFullYear() + 1)
+      continue;
 
     let month = 0;
-    if (monthName && MONTH_NAMES[monthName] !== undefined) month = MONTH_NAMES[monthName];
-    else if (monthNum) month = Math.max(0, Math.min(11, Number(monthNum.replace("/", "")) - 1));
+    if (monthName && MONTH_NAMES[monthName] !== undefined)
+      month = MONTH_NAMES[monthName];
+    else if (monthNum)
+      month = Math.max(0, Math.min(11, Number(monthNum.replace("/", "")) - 1));
 
     points.push(year * 12 + month);
   }
 
   if (!points.length) return null;
 
-  const isPresent = /\b(present|current|heute|now|aktuell|ongoing)\b/i.test(lower);
+  const isPresent = /\b(present|current|heute|now|aktuell|ongoing)\b/i.test(
+    lower,
+  );
   const start = Math.min(...points);
-  const end = isPresent ? nowMonths : points.length > 1 ? Math.max(...points) : start;
+  const end = isPresent
+    ? nowMonths
+    : points.length > 1
+      ? Math.max(...points)
+      : start;
 
   return { start, end: Math.max(start, end), label: text };
 }
@@ -2686,7 +3434,20 @@ function parseDateRange(value: string): DateRange | null {
 function formatMonthIndex(months: number) {
   const year = Math.floor(months / 12);
   const month = ((months % 12) + 12) % 12;
-  const monthLabel = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][month];
+  const monthLabel = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ][month];
   return `${monthLabel} ${year}`;
 }
 
@@ -2717,7 +3478,9 @@ function extractCvCredibilityFlags(setup: InterviewSetup): CvCredibilityFlag[] {
   if (!profile || typeof profile !== "object") return flags;
 
   // ── Overlapping experience entries ────────────────────────────────────────
-  const experience = Array.isArray(profile.experience) ? profile.experience : [];
+  const experience = Array.isArray(profile.experience)
+    ? profile.experience
+    : [];
   const expRanges = experience
     .map((job) => ({
       label: [job.title, job.company].filter(Boolean).join(" at ") || "a role",
@@ -2755,17 +3518,26 @@ function extractCvCredibilityFlags(setup: InterviewSetup): CvCredibilityFlag[] {
     }))
     .filter((item) => item.degree);
 
-  const seenDegrees = new Map<string, { institution: string; range: DateRange | null }>();
+  const seenDegrees = new Map<
+    string,
+    { institution: string; range: DateRange | null }
+  >();
   for (const item of eduRanges) {
-    const key = item.degree.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const key = item.degree
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
     if (!key) continue;
 
     const existing = seenDegrees.get(key);
     if (existing) {
-      const sameInstitution = existing.institution.toLowerCase() === item.institution.toLowerCase();
+      const sameInstitution =
+        existing.institution.toLowerCase() === item.institution.toLowerCase();
       const overlaps =
         existing.range && item.range
-          ? Math.min(existing.range.end, item.range.end) - Math.max(existing.range.start, item.range.start) >= 0
+          ? Math.min(existing.range.end, item.range.end) -
+              Math.max(existing.range.start, item.range.start) >=
+            0
           : false;
 
       if (!sameInstitution && overlaps) {
@@ -2775,23 +3547,37 @@ function extractCvCredibilityFlags(setup: InterviewSetup): CvCredibilityFlag[] {
         });
       }
     } else {
-      seenDegrees.set(key, { institution: item.institution, range: item.range });
+      seenDegrees.set(key, {
+        institution: item.institution,
+        range: item.range,
+      });
     }
   }
 
   // ── Seniority gap vs. job description ─────────────────────────────────────
   const jd = safeText(setup.jobDescription).toLowerCase();
   if (jd) {
-    const SENIOR_JD_RE = /\b(senior|lead|principal|head of|manager|director|staff)\b/i;
+    const SENIOR_JD_RE =
+      /\b(senior|lead|principal|head of|manager|director|staff)\b/i;
     const jdWantsSenior = SENIOR_JD_RE.test(jd);
 
     const titles = experience.map((job) => safeText(job.title)).filter(Boolean);
     const cvHasSeniorTitle = titles.some((title) => SENIOR_JD_RE.test(title));
     const cvOnlyJuniorTitles =
       titles.length > 0 &&
-      titles.every((title) => /\b(intern|junior|trainee|assistant|graduate|working student|entry[- ]level)\b/i.test(title) || !SENIOR_JD_RE.test(title));
+      titles.every(
+        (title) =>
+          /\b(intern|junior|trainee|assistant|graduate|working student|entry[- ]level)\b/i.test(
+            title,
+          ) || !SENIOR_JD_RE.test(title),
+      );
 
-    if (jdWantsSenior && !cvHasSeniorTitle && cvOnlyJuniorTitles && titles.length) {
+    if (
+      jdWantsSenior &&
+      !cvHasSeniorTitle &&
+      cvOnlyJuniorTitles &&
+      titles.length
+    ) {
       flags.push({
         topic: "cv_seniority_gap",
         note: `The job description suggests a senior/lead-level role, but the CV's titles (${titles.slice(0, 3).join(", ")}) read as junior or individual-contributor level.`,
@@ -2809,11 +3595,18 @@ function extractCvFactMemory(setup: InterviewSetup) {
   // Prefer reading companies and roles directly from the structured resumeProfile.
   // extractCompanyClaims() uses regex that requires a preposition ("at|with|for|in Company")
   // but the structured CV text uses bullet format "- Title • Company • Dates" which has
-  // no preposition. This caused "Zoho Corp" to be missed and replaced with lowercase "zoho",
-  // making the VAPI model falsely challenge valid company claims.
-  const profile = setup.resumeProfile as Record<string, unknown> | null | undefined;
-  const profileExperience = Array.isArray((profile as Record<string, unknown> | null)?.experience)
-    ? ((profile as Record<string, unknown>).experience as Array<Record<string, unknown>>)
+  // no preposition. This caused employer names to be missed or incorrectly normalised,
+  // making the model falsely challenge valid company claims.
+  const profile = setup.resumeProfile as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  const profileExperience = Array.isArray(
+    (profile as Record<string, unknown> | null)?.experience,
+  )
+    ? ((profile as Record<string, unknown>).experience as Array<
+        Record<string, unknown>
+      >)
     : [];
 
   const profileCompanies = profileExperience
@@ -2822,8 +3615,12 @@ function extractCvFactMemory(setup: InterviewSetup) {
   const profileRoles = profileExperience
     .map((exp) => safeText(exp.title))
     .filter((r) => r.length >= 2);
-  const profileSkills = Array.isArray((profile as Record<string, unknown> | null)?.skills)
-    ? ((profile as Record<string, unknown>).skills as string[]).map((item) => safeText(item)).filter((s) => s.length >= 2)
+  const profileSkills = Array.isArray(
+    (profile as Record<string, unknown> | null)?.skills,
+  )
+    ? ((profile as Record<string, unknown>).skills as string[])
+        .map((item) => safeText(item))
+        .filter((s) => s.length >= 2)
     : [];
 
   // Fall back to regex extraction only when no structured profile is available
@@ -2836,19 +3633,55 @@ function extractCvFactMemory(setup: InterviewSetup) {
     10,
   );
 
-  const namedPhrases = extractCapitalizedPhrases(cv).filter((item) => !companies.some((c) => c.toLowerCase() === item.toLowerCase()) && !roles.some((r) => r.toLowerCase() === item.toLowerCase())).slice(0, 8);
-  const years = Array.from(new Set((cv.match(/\b\d{1,2}\s*\+?\s*(?:years?|yrs?)\b/gi) || []).map((item) => item.trim()))).slice(0, 6);
+  const namedPhrases = extractCapitalizedPhrases(cv)
+    .filter(
+      (item) =>
+        !companies.some((c) => c.toLowerCase() === item.toLowerCase()) &&
+        !roles.some((r) => r.toLowerCase() === item.toLowerCase()),
+    )
+    .slice(0, 8);
+  const years = Array.from(
+    new Set(
+      (cv.match(/\b\d{1,2}\s*\+?\s*(?:years?|yrs?)\b/gi) || []).map((item) =>
+        item.trim(),
+      ),
+    ),
+  ).slice(0, 6);
   const metrics = extractMetricSnippets(cv).slice(0, 8);
   const skills = uniqueLimited(
     profileSkills.length
       ? profileSkills.slice(0, 14)
       : [
-          "sql", "python", "excel", "power bi", "tableau", "crm", "salesforce", "zendesk", "freshdesk", "jira", "customer support", "technical support", "data analysis", "stakeholder management", "project management", "api", "saas",
+          "sql",
+          "python",
+          "excel",
+          "power bi",
+          "tableau",
+          "crm",
+          "salesforce",
+          "zendesk",
+          "freshdesk",
+          "jira",
+          "customer support",
+          "technical support",
+          "data analysis",
+          "stakeholder management",
+          "project management",
+          "api",
+          "saas",
         ].filter((skill) => evidence.includes(skill)),
     14,
   );
 
-  return { companies, roles, namedPhrases, years, metrics, skills, hasCv: Boolean(cv) };
+  return {
+    companies,
+    roles,
+    namedPhrases,
+    years,
+    metrics,
+    skills,
+    hasCv: Boolean(cv),
+  };
 }
 
 function extractJdFactMemory(setup: InterviewSetup) {
@@ -2856,7 +3689,29 @@ function extractJdFactMemory(setup: InterviewSetup) {
   const lower = jd.toLowerCase();
   const requiredSignals = uniqueLimited(
     [
-      "communication", "stakeholder", "customer", "sales", "support", "crm", "sql", "python", "excel", "analytics", "reporting", "leadership", "ownership", "collaboration", "problem solving", "project management", "agile", "api", "saas", "documentation", "english", "german", "dutch",
+      "communication",
+      "stakeholder",
+      "customer",
+      "sales",
+      "support",
+      "crm",
+      "sql",
+      "python",
+      "excel",
+      "analytics",
+      "reporting",
+      "leadership",
+      "ownership",
+      "collaboration",
+      "problem solving",
+      "project management",
+      "agile",
+      "api",
+      "saas",
+      "documentation",
+      "english",
+      "german",
+      "dutch",
     ].filter((skill) => lower.includes(skill)),
     14,
   );
@@ -2865,7 +3720,11 @@ function extractJdFactMemory(setup: InterviewSetup) {
       .split(/[\n.;]/)
       .map((line) => line.trim())
       .filter((line) => line.length >= 24 && line.length <= 150)
-      .filter((line) => /responsib|manage|support|analy|build|create|lead|communicat|collaborat|improv|deliver|customer|stakeholder/i.test(line)),
+      .filter((line) =>
+        /responsib|manage|support|analy|build|create|lead|communicat|collaborat|improv|deliver|customer|stakeholder/i.test(
+          line,
+        ),
+      ),
     6,
   );
 
@@ -2880,12 +3739,24 @@ function buildFactualMemoryBrief(setup: InterviewSetup) {
   return [
     verifiedResumeFactBlock(setup),
     buildContextQualityNotice(setup),
-    cvFacts.companies.length ? `CV companies: ${cvFacts.companies.join(", ")}.` : "CV companies: none clearly extracted.",
-    cvFacts.roles.length ? `CV roles: ${cvFacts.roles.join(", ")}.` : "CV roles: none clearly extracted.",
-    cvFacts.skills.length ? `CV skills/signals: ${cvFacts.skills.join(", ")}.` : "CV skills/signals: none clearly extracted.",
-    cvFacts.metrics.length ? `CV metrics/results: ${cvFacts.metrics.join(", ")}.` : "CV metrics/results: none clearly extracted.",
-    jdFacts.requiredSignals.length ? `JD requirements/signals: ${jdFacts.requiredSignals.join(", ")}.` : "JD requirements/signals: none clearly extracted.",
-    jdFacts.responsibilities.length ? `JD responsibilities: ${jdFacts.responsibilities.slice(0, 3).join(" | ")}.` : "JD responsibilities: none clearly extracted.",
+    cvFacts.companies.length
+      ? `CV companies: ${cvFacts.companies.join(", ")}.`
+      : "CV companies: none clearly extracted.",
+    cvFacts.roles.length
+      ? `CV roles: ${cvFacts.roles.join(", ")}.`
+      : "CV roles: none clearly extracted.",
+    cvFacts.skills.length
+      ? `CV skills/signals: ${cvFacts.skills.join(", ")}.`
+      : "CV skills/signals: none clearly extracted.",
+    cvFacts.metrics.length
+      ? `CV metrics/results: ${cvFacts.metrics.join(", ")}.`
+      : "CV metrics/results: none clearly extracted.",
+    jdFacts.requiredSignals.length
+      ? `JD requirements/signals: ${jdFacts.requiredSignals.join(", ")}.`
+      : "JD requirements/signals: none clearly extracted.",
+    jdFacts.responsibilities.length
+      ? `JD responsibilities: ${jdFacts.responsibilities.slice(0, 3).join(" | ")}.`
+      : "JD responsibilities: none clearly extracted.",
     ...(credibilityFlags.length
       ? [
           "Possible CV inconsistencies worth a curious, non-accusatory follow-up (verify before judging):",
@@ -2895,9 +3766,18 @@ function buildFactualMemoryBrief(setup: InterviewSetup) {
   ].join("\n");
 }
 
-function buildCredibilityFollowUp(setup: InterviewSetup, memory: RecruiterMemoryState) {
+function buildCredibilityFollowUp(
+  setup: InterviewSetup,
+  memory: RecruiterMemoryState,
+) {
   const flags = extractCvCredibilityFlags(setup);
-  const flag = flags.find((item) => !wasTopicCovered(memory, `${item.topic}_${normalizeClaimText(item.note)}`));
+  const flag = flags.find(
+    (item) =>
+      !wasTopicCovered(
+        memory,
+        `${item.topic}_${normalizeClaimText(item.note)}`,
+      ),
+  );
   if (!flag) return "";
 
   if (flag.topic === "cv_overlapping_dates") {
@@ -2915,21 +3795,40 @@ function buildCredibilityFollowUp(setup: InterviewSetup, memory: RecruiterMemory
   return "";
 }
 
-function detectCredibilityTopic(setup: InterviewSetup, memory: RecruiterMemoryState) {
+function detectCredibilityTopic(
+  setup: InterviewSetup,
+  memory: RecruiterMemoryState,
+) {
   const flags = extractCvCredibilityFlags(setup);
-  const flag = flags.find((item) => !wasTopicCovered(memory, `${item.topic}_${normalizeClaimText(item.note)}`));
+  const flag = flags.find(
+    (item) =>
+      !wasTopicCovered(
+        memory,
+        `${item.topic}_${normalizeClaimText(item.note)}`,
+      ),
+  );
   return flag ? `${flag.topic}_${normalizeClaimText(flag.note)}` : "";
 }
 
-function buildFactAwareFollowUp(setup: InterviewSetup, memory: RecruiterMemoryState) {
+function buildFactAwareFollowUp(
+  setup: InterviewSetup,
+  memory: RecruiterMemoryState,
+) {
   const credibilityFollowUp = buildCredibilityFollowUp(setup, memory);
   if (credibilityFollowUp) return credibilityFollowUp;
 
   const cvFacts = extractCvFactMemory(setup);
   const jdFacts = extractJdFactMemory(setup);
-  const company = cvFacts.companies.find((item) => !wasTopicCovered(memory, `cv_company_${normalizeClaimText(item)}`));
-  const skill = jdFacts.requiredSignals.find((item) => !wasTopicCovered(memory, `jd_skill_${normalizeClaimText(item)}`));
-  const role = cvFacts.roles.find((item) => !wasTopicCovered(memory, `cv_role_${normalizeClaimText(item)}`));
+  const company = cvFacts.companies.find(
+    (item) =>
+      !wasTopicCovered(memory, `cv_company_${normalizeClaimText(item)}`),
+  );
+  const skill = jdFacts.requiredSignals.find(
+    (item) => !wasTopicCovered(memory, `jd_skill_${normalizeClaimText(item)}`),
+  );
+  const role = cvFacts.roles.find(
+    (item) => !wasTopicCovered(memory, `cv_role_${normalizeClaimText(item)}`),
+  );
 
   if (company && skill) {
     return `Your CV mentions ${company}, and the job description appears to value ${skill}. Give me one verified example from ${company} that shows ${skill}, including your action and result.`;
@@ -2954,29 +3853,60 @@ function buildFactAwareFollowUp(setup: InterviewSetup, memory: RecruiterMemorySt
   return "";
 }
 
-function detectNextFactTopic(setup: InterviewSetup, memory: RecruiterMemoryState) {
+function detectNextFactTopic(
+  setup: InterviewSetup,
+  memory: RecruiterMemoryState,
+) {
   const cvFacts = extractCvFactMemory(setup);
   const jdFacts = extractJdFactMemory(setup);
-  const company = cvFacts.companies.find((item) => !wasTopicCovered(memory, `cv_company_${normalizeClaimText(item)}`));
+  const company = cvFacts.companies.find(
+    (item) =>
+      !wasTopicCovered(memory, `cv_company_${normalizeClaimText(item)}`),
+  );
   if (company) return `cv_company_${normalizeClaimText(company)}`;
-  const skill = jdFacts.requiredSignals.find((item) => !wasTopicCovered(memory, `jd_skill_${normalizeClaimText(item)}`));
+  const skill = jdFacts.requiredSignals.find(
+    (item) => !wasTopicCovered(memory, `jd_skill_${normalizeClaimText(item)}`),
+  );
   if (skill) return `jd_skill_${normalizeClaimText(skill)}`;
-  const role = cvFacts.roles.find((item) => !wasTopicCovered(memory, `cv_role_${normalizeClaimText(item)}`));
+  const role = cvFacts.roles.find(
+    (item) => !wasTopicCovered(memory, `cv_role_${normalizeClaimText(item)}`),
+  );
   if (role) return `cv_role_${normalizeClaimText(role)}`;
   return "";
 }
-
 
 function detectAnswerTopics(answer: string) {
   const topics = new Set<string>();
   const lower = answer.toLowerCase();
 
-  if (/\b(router|range extender|upsell|cross sell|sell|sold|sales|conversion|customer buy|purchase)\b/i.test(lower)) topics.add("sales_conversion");
-  if (/\b(objection|hesitant|not willing|scam|trust|convince|rapport|worried|force)\b/i.test(lower)) topics.add("objection_handling");
-  if (/\b(crm|ticket|pipeline|follow up|tracking|previous technician|pending|organized)\b/i.test(lower)) topics.add("crm_tracking");
-  if (/\b(python|sql|script|query|database|service desk)\b/i.test(lower)) topics.add("technical_learning");
-  if (/\b(priority|critical|deadline|multiple|manage|queue|sla)\b/i.test(lower)) topics.add("prioritization");
-  if (/\b(customer handling|rapport|patient|step by step|not tech savvy|satisfied|support)\b/i.test(lower)) topics.add("customer_handling");
+  if (
+    /\b(router|range extender|upsell|cross sell|sell|sold|sales|conversion|customer buy|purchase)\b/i.test(
+      lower,
+    )
+  )
+    topics.add("sales_conversion");
+  if (
+    /\b(objection|hesitant|not willing|scam|trust|convince|rapport|worried|force)\b/i.test(
+      lower,
+    )
+  )
+    topics.add("objection_handling");
+  if (
+    /\b(crm|ticket|pipeline|follow up|tracking|previous technician|pending|organized)\b/i.test(
+      lower,
+    )
+  )
+    topics.add("crm_tracking");
+  if (/\b(python|sql|script|query|database|service desk)\b/i.test(lower))
+    topics.add("technical_learning");
+  if (/\b(priority|critical|deadline|multiple|manage|queue|sla)\b/i.test(lower))
+    topics.add("prioritization");
+  if (
+    /\b(customer handling|rapport|patient|step by step|not tech savvy|satisfied|support)\b/i.test(
+      lower,
+    )
+  )
+    topics.add("customer_handling");
   if (hasMetricSignal(answer)) topics.add("metrics");
   if (hasOwnershipSignal(answer)) topics.add("ownership");
   if (hasOutcomeSignal(answer)) topics.add("outcome");
@@ -2985,14 +3915,20 @@ function detectAnswerTopics(answer: string) {
 }
 
 function extractMetricSnippets(answer: string) {
-  const matches = answer.match(/\b(?:\d+\s*(?:out of|\/)\s*\d+|\d+\s*%|\d+\s*(?:customers?|routers?|tickets?|months?|years?)|twice|once|every\s+\w+)\b/gi);
+  const matches = answer.match(
+    /\b(?:\d+\s*(?:out of|\/)\s*\d+|\d+\s*%|\d+\s*(?:customers?|routers?|tickets?|months?|years?)|twice|once|every\s+\w+)\b/gi,
+  );
   return matches ? matches.slice(0, 4) : [];
 }
 
 function detectStrengthSnippets(answer: string) {
   const strengths: string[] = [];
 
-  if (/\b(customer handling|rapport|convincing|patient|step by step)\b/i.test(answer)) {
+  if (
+    /\b(customer handling|rapport|convincing|patient|step by step)\b/i.test(
+      answer,
+    )
+  ) {
     strengths.push("customer handling");
   }
 
@@ -3011,7 +3947,10 @@ function detectStrengthSnippets(answer: string) {
   return strengths;
 }
 
-function rememberAskedTopic(memory: RecruiterMemoryState, topic: string): RecruiterMemoryState {
+function rememberAskedTopic(
+  memory: RecruiterMemoryState,
+  topic: string,
+): RecruiterMemoryState {
   if (memory.askedTopics.includes(topic)) return memory;
   return {
     ...memory,
@@ -3020,28 +3959,44 @@ function rememberAskedTopic(memory: RecruiterMemoryState, topic: string): Recrui
 }
 
 function wasTopicCovered(memory: RecruiterMemoryState, topic: string) {
-  return memory.askedTopics.includes(topic) || memory.answeredTopics.includes(topic);
+  return (
+    memory.askedTopics.includes(topic) || memory.answeredTopics.includes(topic)
+  );
 }
 
-function buildClosingChallenge(setup: InterviewSetup, memory: RecruiterMemoryState) {
+function buildClosingChallenge(
+  setup: InterviewSetup,
+  memory: RecruiterMemoryState,
+) {
   const strengths = memory.strengthsMentioned.length
     ? memory.strengthsMentioned.slice(0, 2).join(" and ")
     : "your strongest relevant experience";
 
-  return `Before we finish, I want one final concise answer. Why should we choose you for this ${setup.targetRole} role over another candidate, using ${strengths} and one verified result?`;
+  return `Before we wrap up, I want one final answer from you. Why should we choose you for this ${setup.targetRole} role over another candidate — using ${strengths} and one specific result? After that, do you have any questions for me about the role or next steps?`;
 }
 
 function cleanRecruiterFinalText(text: string, setup: InterviewSetup) {
   const firstName = safeFirstName(setup.candidateName);
 
-  return cleanVisibleTranscriptText(text)
-    .replace(/\bMichel,?\s*/gi, "")
-    .replace(/\bthe first few time,?\s*/gi, "")
-    // Hard-block the old robotic metric prompt if any legacy assistant still emits it.
-    .replace(/Give me one concrete metric or proof point:\s*time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result\.?/gi, "That gives me some useful context. Let me go one level deeper: what did you personally decide or change, and what happened after that?")
-    .replace(/\bwe'll be in touch soon.*$/i, `we'll be in touch soon. Have a great day, ${firstName}.`)
-    .replace(/\bthanks for your time.*$/i, `Thank you for your time, ${firstName}. We'll be in touch soon. Have a great day.`)
-    .trim();
+  return (
+    cleanVisibleTranscriptText(text)
+      .replace(/\bMichel,?\s*/gi, "")
+      .replace(/\bthe first few time,?\s*/gi, "")
+      // Hard-block the old robotic metric prompt if any legacy assistant still emits it.
+      .replace(
+        /Give me one concrete metric or proof point:\s*time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result\.?/gi,
+        "That gives me some useful context. Let me go one level deeper: what did you personally decide or change, and what happened after that?",
+      )
+      .replace(
+        /\bwe'll be in touch soon.*$/i,
+        `we'll be in touch soon. Have a great day, ${firstName}.`,
+      )
+      .replace(
+        /\bthanks for your time.*$/i,
+        `Thank you for your time, ${firstName}. We'll be in touch soon. Have a great day.`,
+      )
+      .trim()
+  );
 }
 
 function updateRecruiterMemoryState(
@@ -3053,11 +4008,16 @@ function updateRecruiterMemoryState(
   const analysis = analyzeAnswerSignals(answer, setup);
   const unsupportedReason = extractUnsupportedClaimReason(answer, setup);
 
-  const vagueAnswers = previous.vagueAnswers + (analysis.vague || analysis.short ? 1 : 0);
+  const vagueAnswers =
+    previous.vagueAnswers + (analysis.vague || analysis.short ? 1 : 0);
   const missingMetrics = previous.missingMetrics + (!analysis.metric ? 1 : 0);
-  const missingOwnership = previous.missingOwnership + (!analysis.ownership ? 1 : 0);
-  const unsupportedClaims = previous.unsupportedClaims + (unsupportedReason ? 1 : 0);
-  const strongAnswers = previous.strongAnswers + (analysis.metric && analysis.ownership && analysis.outcome ? 1 : 0);
+  const missingOwnership =
+    previous.missingOwnership + (!analysis.ownership ? 1 : 0);
+  const unsupportedClaims =
+    previous.unsupportedClaims + (unsupportedReason ? 1 : 0);
+  const strongAnswers =
+    previous.strongAnswers +
+    (analysis.metric && analysis.ownership && analysis.outcome ? 1 : 0);
 
   const patterns = new Set(previous.patterns);
   const answeredTopics = new Set(previous.answeredTopics);
@@ -3068,25 +4028,51 @@ function updateRecruiterMemoryState(
   ).slice(-10);
 
   const strengthsMentioned = Array.from(
-    new Set([...previous.strengthsMentioned, ...detectStrengthSnippets(answer)]),
+    new Set([
+      ...previous.strengthsMentioned,
+      ...detectStrengthSnippets(answer),
+    ]),
   ).slice(-8);
 
-  if (vagueAnswers >= 2) patterns.add("Candidate has given multiple vague or short answers.");
-  if (missingMetrics >= 2) patterns.add("Candidate repeatedly avoids measurable impact.");
-  if (missingOwnership >= 2) patterns.add("Personal ownership is not consistently clear.");
-  if (unsupportedClaims >= 1) patterns.add("Unsupported claim detected; recruiter trust should recover only with verified details.");
-  if (strongAnswers >= 2) patterns.add("Candidate is starting to provide stronger evidence-based answers.");
+  if (vagueAnswers >= 2)
+    patterns.add("Candidate has given multiple vague or short answers.");
+  if (missingMetrics >= 2)
+    patterns.add("Candidate repeatedly avoids measurable impact.");
+  if (missingOwnership >= 2)
+    patterns.add("Personal ownership is not consistently clear.");
+  if (unsupportedClaims >= 1)
+    patterns.add(
+      "Unsupported claim detected; recruiter trust should recover only with verified details.",
+    );
+  if (strongAnswers >= 2)
+    patterns.add(
+      "Candidate is starting to provide stronger evidence-based answers.",
+    );
 
   let liveNote = signal.concern;
   if (unsupportedReason) liveNote = unsupportedReason;
-  else if (missingMetrics >= 2) liveNote = "Pattern detected: metrics are missing across answers.";
-  else if (missingOwnership >= 2) liveNote = "Pattern detected: personal ownership needs to be clearer.";
-  else if (vagueAnswers >= 2) liveNote = "Pattern detected: answers are still too broad.";
-  else if (strongAnswers >= 2) liveNote = "Positive pattern: stronger evidence and ownership are emerging.";
+  else if (missingMetrics >= 2)
+    liveNote = "Pattern detected: metrics are missing across answers.";
+  else if (missingOwnership >= 2)
+    liveNote = "Pattern detected: personal ownership needs to be clearer.";
+  else if (vagueAnswers >= 2)
+    liveNote = "Pattern detected: answers are still too broad.";
+  else if (strongAnswers >= 2)
+    liveNote =
+      "Positive pattern: stronger evidence and ownership are emerging.";
 
   const nextQuestionCount = previous.askedTopics.length;
-  const needsClosingChallenge = nextQuestionCount >= 10 && !previous.closingAsked;
-  const readyForResults = nextQuestionCount >= 12 || previous.readyForResults;
+  const needsClosingChallenge =
+    nextQuestionCount >= 10 && !previous.closingAsked;
+  // readyForResults gates the end-of-interview transition.
+  // A raw question count alone is not enough — the recruiter must have
+  // issued a closing invitation ("do you have any questions") AND the
+  // candidate must have replied. The count-only fallback is raised to 20
+  // so a natural conversation is never cut short mid-exchange.
+  const readyForResults =
+    (previous.closingAsked && nextQuestionCount >= 8) ||
+    nextQuestionCount >= 20 ||
+    previous.readyForResults;
 
   return {
     vagueAnswers,
@@ -3102,7 +4088,10 @@ function updateRecruiterMemoryState(
     metricsMentioned,
     strengthsMentioned,
     needsClosingChallenge,
-    closingAsked: previous.closingAsked,
+    // Mark closingAsked once the recruiter has actually issued the closing
+    // invitation. This gates readyForResults so the interview only ends
+    // after the candidate has had a chance to ask their own questions.
+    closingAsked: previous.closingAsked || needsClosingChallenge,
     readyForResults,
     trustTimeline: [
       ...previous.trustTimeline,
@@ -3132,7 +4121,10 @@ function buildMemoryAwareFollowUp(
 
   const intelligenceV2 = buildWorkZoRecruiterReplyV2({
     answer,
-    currentQuestion: recruiterQuestions[Math.min(questionIndex, recruiterQuestions.length - 1)] || "",
+    currentQuestion:
+      recruiterQuestions[
+        Math.min(questionIndex, recruiterQuestions.length - 1)
+      ] || "",
     setup,
     memory,
     currentTrust: memory.trustTimeline.at(-1)?.trust,
@@ -3149,25 +4141,38 @@ function buildMemoryAwareFollowUp(
     return buildClosingChallenge(setup, memory);
   }
 
-  if (memory.unsupportedClaims > 0 && !analysis.metric && !wasTopicCovered(memory, "trust_recovery")) {
+  if (
+    memory.unsupportedClaims > 0 &&
+    !analysis.metric &&
+    !wasTopicCovered(memory, "trust_recovery")
+  ) {
     return memory.unsupportedClaims > 1
       ? "I still don't have a verified example. Tell me about one specific situation from your CV, what you did, and what changed as a result."
       : "I need to rebuild confidence here. Give me one verified example from your CV, with a specific result or measurable outcome.";
   }
 
-  if (memory.missingMetrics >= 2 && !wasTopicCovered(memory, "metrics_recovery")) {
+  if (
+    memory.missingMetrics >= 2 &&
+    !wasTopicCovered(memory, "metrics_recovery")
+  ) {
     return memory.missingMetrics > 3
       ? "Let's try a different angle — pick any task you did regularly. Roughly how often, how long, or by how much did it change something?"
       : "You’ve given useful context. Do you have any rough scale for it — volume handled, response time, customer rating, tickets, or frequency? A rough number is enough.";
   }
 
-  if (memory.missingOwnership >= 2 && !wasTopicCovered(memory, "ownership_recovery")) {
+  if (
+    memory.missingOwnership >= 2 &&
+    !wasTopicCovered(memory, "ownership_recovery")
+  ) {
     return memory.missingOwnership > 3
       ? "Tell me about a moment where you, specifically, made a call or took an action without being told to. What was it?"
       : "I still need clearer ownership. In that example, what did you personally decide, build, fix, lead, or deliver?";
   }
 
-  if (memory.vagueAnswers >= 2 && !wasTopicCovered(memory, "specificity_recovery")) {
+  if (
+    memory.vagueAnswers >= 2 &&
+    !wasTopicCovered(memory, "specificity_recovery")
+  ) {
     return memory.vagueAnswers > 3
       ? "Pick just one moment — a single conversation, ticket, or task. What happened, step by step?"
       : "Let me stop you there and make this specific. Give me one real situation, one action you personally took, and one result.";
@@ -3176,23 +4181,28 @@ function buildMemoryAwareFollowUp(
   const topicPlan = [
     {
       topic: "sales_conversion",
-      question: "You mentioned sales-related work. Walk me through one conversion from customer issue to product recommendation, step by step.",
+      question:
+        "You mentioned sales-related work. Walk me through one conversion from customer issue to product recommendation, step by step.",
     },
     {
       topic: "objection_handling",
-      question: "Now let's move to objection handling. Tell me about a customer who hesitated to buy and how you handled that conversation.",
+      question:
+        "Now let's move to objection handling. Tell me about a customer who hesitated to buy and how you handled that conversation.",
     },
     {
       topic: "crm_tracking",
-      question: "In sales, follow-up discipline matters. How have you tracked customers, tickets, or follow-ups in a system, even if it was not a formal sales CRM?",
+      question:
+        "In sales, follow-up discipline matters. How have you tracked customers, tickets, or follow-ups in a system, even if it was not a formal sales CRM?",
     },
     {
       topic: "prioritization",
-      question: "Sales roles involve multiple leads and urgent follow-ups. How do you prioritize when several customers or tasks need attention at once?",
+      question:
+        "Sales roles involve multiple leads and urgent follow-ups. How do you prioritize when several customers or tasks need attention at once?",
     },
     {
       topic: "technical_learning",
-      question: "You mentioned learning tools quickly. Give one example of a tool or technical skill you learned fast and how it helped your work.",
+      question:
+        "You mentioned learning tools quickly. Give one example of a tool or technical skill you learned fast and how it helped your work.",
     },
     {
       topic: "motivation",
@@ -3235,7 +4245,10 @@ function buildMemoryAwareFollowUp(
   return buildClosingChallenge(setup, memory);
 }
 
-function buildInterviewVerdict(score: RecruiterSignalState | null, memory: RecruiterMemoryState) {
+function buildInterviewVerdict(
+  score: RecruiterSignalState | null,
+  memory: RecruiterMemoryState,
+) {
   if (!score) {
     return {
       decision: "Not enough signal",
@@ -3246,51 +4259,68 @@ function buildInterviewVerdict(score: RecruiterSignalState | null, memory: Recru
   if (memory.unsupportedClaims > 0 && score.trust < 62) {
     return {
       decision: "Would not proceed yet",
-      reason: "Unsupported or inconsistent claims reduced recruiter trust. Candidate should clarify verified experience.",
+      reason:
+        "Unsupported or inconsistent claims reduced recruiter trust. Candidate should clarify verified experience.",
     };
   }
 
   if (score.overall >= 78 && memory.strongAnswers >= 2) {
     return {
       decision: "Would proceed",
-      reason: "Candidate gave enough evidence, ownership, and role-relevant examples to continue.",
+      reason:
+        "Candidate gave enough evidence, ownership, and role-relevant examples to continue.",
     };
   }
 
   if (score.overall >= 65) {
     return {
       decision: "Maybe / needs another round",
-      reason: "Candidate shows potential, but the recruiter still needs stronger proof, metrics, or clearer ownership.",
+      reason:
+        "Candidate shows potential, but the recruiter still needs stronger proof, metrics, or clearer ownership.",
     };
   }
 
   return {
     decision: "Would not proceed yet",
-    reason: "Answers need more structure, evidence, measurable impact, and verified details.",
+    reason:
+      "Answers need more structure, evidence, measurable impact, and verified details.",
   };
 }
 
-function findWeakestInterviewMoment(transcript: TranscriptItem[], memory: RecruiterMemoryState) {
-  const candidateAnswers = transcript.filter((item) => item.role === "candidate");
+function findWeakestInterviewMoment(
+  transcript: TranscriptItem[],
+  memory: RecruiterMemoryState,
+) {
+  const candidateAnswers = transcript.filter(
+    (item) => item.role === "candidate",
+  );
 
   if (!candidateAnswers.length) {
     return {
       answer: "",
       problem: "No candidate answer was captured.",
-      advice: "Run a complete interview to receive a meaningful weakest-answer review.",
+      advice:
+        "Run a complete interview to receive a meaningful weakest-answer review.",
     };
   }
 
   const weakest =
-    candidateAnswers.find((item) => /tesla|google|microsoft|amazon|meta|apple|fake|lied|not true|fifteen|15 years/i.test(item.text)) ||
+    candidateAnswers.find((item) =>
+      /tesla|google|microsoft|amazon|meta|apple|fake|lied|not true|fifteen|15 years/i.test(
+        item.text,
+      ),
+    ) ||
     candidateAnswers.find((item) => item.text.split(/\s+/).length < 18) ||
     candidateAnswers.find((item) => !hasMetricSignal(item.text)) ||
     candidateAnswers[0];
 
   let problem = "This answer needs more evidence.";
-  if (extractUnsupportedClaimReason(weakest.text, setupRefSafeFallback())) problem = "This answer contains a claim that may not be verified.";
-  else if (weakest.text.split(/\s+/).length < 18) problem = "This answer is too short to judge.";
-  else if (!hasMetricSignal(weakest.text)) problem = "This answer lacks measurable impact.";
+  if (extractUnsupportedClaimReason(weakest.text, setupRefSafeFallback()))
+    problem = "This answer contains a claim that may not be verified.";
+  else if (weakest.text.split(/\s+/).length < 18)
+    problem = "This answer is too short to judge.";
+  else if (!hasMetricSignal(weakest.text))
+    problem = "This answer lacks measurable impact.";
 
   return {
     answer: weakest.text,
@@ -3315,7 +4345,6 @@ function setupRefSafeFallback(): InterviewSetup {
   };
 }
 
-
 function removeRepeatedSpeechChunks(value: string) {
   const cleaned = value.replace(/\s+/g, " ").trim();
   if (!cleaned) return "";
@@ -3333,9 +4362,16 @@ function removeRepeatedSpeechChunks(value: string) {
 
   // Remove repeated short phrase at the end, but only when the repeated phrase
   // is long enough to be accidental duplication, not natural emphasis.
-  for (let size = Math.min(14, Math.floor(words.length / 2)); size >= 4; size -= 1) {
+  for (
+    let size = Math.min(14, Math.floor(words.length / 2));
+    size >= 4;
+    size -= 1
+  ) {
     const tail = words.slice(-size).join(" ").toLowerCase();
-    const beforeTail = words.slice(-size * 2, -size).join(" ").toLowerCase();
+    const beforeTail = words
+      .slice(-size * 2, -size)
+      .join(" ")
+      .toLowerCase();
     if (tail && tail === beforeTail) {
       return words.slice(0, -size).join(" ").trim();
     }
@@ -3345,18 +4381,21 @@ function removeRepeatedSpeechChunks(value: string) {
 }
 
 function cleanVisibleTranscriptText(text: string) {
-  return removeRepeatedSpeechChunks(text)
-    .replace(/\s+/g, " ")
-    .replace(/\bhigh\s+/i, "Hi ")
-    // Founder-specific STT corrections removed — do not add personal names here
-    .replace(/\bHi,?\s+surrender\b/gi, "Hi there")
-    .replace(/\bsurrender\b/gi, "there")
-    .replace(/\s+([,.!?])/g, "$1")
-    .trim();
+  return (
+    removeRepeatedSpeechChunks(text)
+      .replace(/\s+/g, " ")
+      .replace(/\bhigh\s+/i, "Hi ")
+      // Founder-specific STT corrections removed — do not add personal names here
+      .replace(/\bHi,?\s+surrender\b/gi, "Hi there")
+      .replace(/\bsurrender\b/gi, "there")
+      .replace(/\s+([,.!?])/g, "$1")
+      .trim()
+  );
 }
 
 function countFillerWords(text: string): number {
-  const fillerPattern = /\b(um+|uh+|er+|hmm+|like[,\s]|you know[,\s]|basically[,\s]|literally[,\s]|sort of[,\s]|kind of[,\s])\b/gi;
+  const fillerPattern =
+    /\b(um+|uh+|er+|hmm+|like[,\s]|you know[,\s]|basically[,\s]|literally[,\s]|sort of[,\s]|kind of[,\s])\b/gi;
   return (text.match(fillerPattern) || []).length;
 }
 
@@ -3428,7 +4467,12 @@ function safeGreetingName(name: string) {
   if (!firstName) return "there";
   // Global guard: never greet with auth visibility labels, CV section headers,
   // job titles, technologies, skills, or extracted project/company words.
-  if (/^(public|private|candidate|user|there|unknown|anonymous|guest|resume|cv|profile|summary|contact|skills?|experience|education|projects?|languages?|surrender|data|science|technical|business|customer|senior|junior|lead|head|chief|intern|graduate|bootcamp|school|university|college|institute|marketing|finance|product|digital|growth|success|manager|engineer|analyst|specialist|consultant|developer|coordinator|director|assistant|associate|officer|partner|talent|recruiter|hiring|support|tools?|programming|python|sql|javascript|typescript|java|cloud|gcp|aws|azure|machine|learning|tableau|matplotlib|seaborn|tensorflow|sklearn|langchain|api|nlp|rag|system|integration)$/i.test(firstName)) return "there";
+  if (
+    /^(public|private|candidate|user|there|unknown|anonymous|guest|resume|cv|profile|summary|contact|skills?|experience|education|projects?|languages?|surrender|data|science|technical|business|customer|senior|junior|lead|head|chief|intern|graduate|bootcamp|school|university|college|institute|marketing|finance|product|digital|growth|success|manager|engineer|analyst|specialist|consultant|developer|coordinator|director|assistant|associate|officer|partner|talent|recruiter|hiring|support|tools?|programming|python|sql|javascript|typescript|java|cloud|gcp|aws|azure|machine|learning|tableau|matplotlib|seaborn|tensorflow|sklearn|langchain|api|nlp|rag|system|integration)$/i.test(
+      firstName,
+    )
+  )
+    return "there";
   if (!/^[A-Za-zÀ-ÖØ-öø-ÿ' .-]{2,24}$/.test(firstName)) return "there";
   return firstName;
 }
@@ -3443,17 +4487,22 @@ function isProgressWorthyRecruiterTurn(text: string) {
   if (!cleaned) return false;
 
   // Do not count greetings or small-talk as interview progress.
-  if (/\b(how are you|good morning|good afternoon|good evening|hello|hi[, ]|let'?s begin)\b/i.test(cleaned) && cleaned.length < 120) {
+  if (
+    /\b(how are you|good morning|good afternoon|good evening|hello|hi[, ]|let'?s begin)\b/i.test(
+      cleaned,
+    ) &&
+    cleaned.length < 120
+  ) {
     return false;
   }
 
   return (
     /\?$/.test(cleaned) ||
-    /\b(tell me|walk me through|give me|describe|explain|what|why|how|can you|could you|share an example|specific example|measurable impact|hardest part|improve if)\b/i.test(cleaned)
+    /\b(tell me|walk me through|give me|describe|explain|what|why|how|can you|could you|share an example|specific example|measurable impact|hardest part|improve if)\b/i.test(
+      cleaned,
+    )
   );
 }
-
-
 
 function getWorkZoLiveCopilotInsight(input: {
   status: string;
@@ -3469,17 +4518,32 @@ function getWorkZoLiveCopilotInsight(input: {
   const answer = input.interimText.trim();
   const lower = answer.toLowerCase();
   const wordCount = answer.split(/\s+/).filter(Boolean).length;
-  const hasMetric = /\d|%|percent|customers?|tickets?|hours?|days?|weeks?|months?|saved|reduced|increased|improved|revenue|cost|time|quality|sla|csat|nps/i.test(answer);
-  const hasOwnership = /\b(i|my|me|personally|owned|built|handled|created|led|resolved|analyzed|analysed|improved|reduced|increased|implemented|designed|managed|coordinated|delivered)\b/i.test(answer);
-  const hasOutcome = /\b(result|impact|outcome|after|therefore|which led|so that|improved|reduced|increased|saved|achieved|delivered|helped|enabled)\b/i.test(answer);
-  const tooGeneric = /\b(things|stuff|many|some|good|nice|various|etc|responsible for|worked on)\b/i.test(lower);
+  const hasMetric =
+    /\d|%|percent|customers?|tickets?|hours?|days?|weeks?|months?|saved|reduced|increased|improved|revenue|cost|time|quality|sla|csat|nps/i.test(
+      answer,
+    );
+  const hasOwnership =
+    /\b(i|my|me|personally|owned|built|handled|created|led|resolved|analyzed|analysed|improved|reduced|increased|implemented|designed|managed|coordinated|delivered)\b/i.test(
+      answer,
+    );
+  const hasOutcome =
+    /\b(result|impact|outcome|after|therefore|which led|so that|improved|reduced|increased|saved|achieved|delivered|helped|enabled)\b/i.test(
+      answer,
+    );
+  const tooGeneric =
+    /\b(things|stuff|many|some|good|nice|various|etc|responsible for|worked on)\b/i.test(
+      lower,
+    );
 
   if (input.status === "idle" || input.status === "ended") {
     return {
       headline: "Before you start",
-      sayNext: "Keep each answer simple: situation, your action, proof, result.",
-      recruiterConcern: "The recruiter will look for ownership, evidence, and role relevance.",
-      liveTip: "Use one real example from your CV instead of a generic summary.",
+      sayNext:
+        "Keep each answer simple: situation, your action, proof, result.",
+      recruiterConcern:
+        "The recruiter will look for ownership, evidence, and role relevance.",
+      liveTip:
+        "Use one real example from your CV instead of a generic summary.",
       tone: "neutral",
     };
   }
@@ -3487,8 +4551,11 @@ function getWorkZoLiveCopilotInsight(input: {
   if (input.status === "recruiter-speaking") {
     return {
       headline: "Listen for the hidden test",
-      sayNext: "Identify what the recruiter is really testing before answering.",
-      recruiterConcern: input.currentQuestion || "The recruiter is setting up the next evaluation point.",
+      sayNext:
+        "Identify what the recruiter is really testing before answering.",
+      recruiterConcern:
+        input.currentQuestion ||
+        "The recruiter is setting up the next evaluation point.",
       liveTip: "Prepare a 45-60 second answer with one measurable proof point.",
       tone: "listening",
     };
@@ -3498,8 +4565,11 @@ function getWorkZoLiveCopilotInsight(input: {
     if (!answer) {
       return {
         headline: "Answer structure",
-        sayNext: "Start with: “In my previous role, I handled…” then give one specific example.",
-        recruiterConcern: input.recruiterConcern || "Waiting for evidence, ownership, and clear relevance.",
+        sayNext:
+          "Start with: “In my previous role, I handled…” then give one specific example.",
+        recruiterConcern:
+          input.recruiterConcern ||
+          "Waiting for evidence, ownership, and clear relevance.",
         liveTip: "Avoid starting too broad. Give one real situation first.",
         tone: "ready",
       };
@@ -3508,7 +4578,8 @@ function getWorkZoLiveCopilotInsight(input: {
     if (wordCount < 18) {
       return {
         headline: "Too short",
-        sayNext: "Add one specific situation, your personal action, and what changed after it.",
+        sayNext:
+          "Add one specific situation, your personal action, and what changed after it.",
         recruiterConcern: "The recruiter cannot judge fit from a short answer.",
         liveTip: "Extend this answer with one concrete detail from your CV.",
         tone: "warning",
@@ -3519,8 +4590,10 @@ function getWorkZoLiveCopilotInsight(input: {
       return {
         headline: "Ownership unclear",
         sayNext: "Use “I” and explain exactly what you personally did.",
-        recruiterConcern: "The answer sounds team-level instead of candidate-level.",
-        liveTip: "Replace “we worked on” with “I handled / I built / I resolved…”.",
+        recruiterConcern:
+          "The answer sounds team-level instead of candidate-level.",
+        liveTip:
+          "Replace “we worked on” with “I handled / I built / I resolved…”.",
         tone: "warning",
       };
     }
@@ -3528,8 +4601,10 @@ function getWorkZoLiveCopilotInsight(input: {
     if (!hasMetric) {
       return {
         headline: "Missing proof",
-        sayNext: "Add a number: tickets, users, time saved, quality improvement, SLA, revenue, or before/after result.",
-        recruiterConcern: "The recruiter may not trust the impact without evidence.",
+        sayNext:
+          "Add a number: tickets, users, time saved, quality improvement, SLA, revenue, or before/after result.",
+        recruiterConcern:
+          "The recruiter may not trust the impact without evidence.",
         liveTip: "Even an approximate metric is better than no proof.",
         tone: "warning",
       };
@@ -3538,8 +4613,10 @@ function getWorkZoLiveCopilotInsight(input: {
     if (!hasOutcome) {
       return {
         headline: "Outcome missing",
-        sayNext: "Finish with the result: what improved, who benefited, and how you know it worked.",
-        recruiterConcern: "The answer explains activity but not business impact.",
+        sayNext:
+          "Finish with the result: what improved, who benefited, and how you know it worked.",
+        recruiterConcern:
+          "The answer explains activity but not business impact.",
         liveTip: "Close the answer with one clear result sentence.",
         tone: "warning",
       };
@@ -3548,7 +4625,8 @@ function getWorkZoLiveCopilotInsight(input: {
     if (tooGeneric) {
       return {
         headline: "Make it sharper",
-        sayNext: "Replace vague words with one exact task, tool, customer issue, or result.",
+        sayNext:
+          "Replace vague words with one exact task, tool, customer issue, or result.",
         recruiterConcern: "The answer may sound rehearsed or generic.",
         liveTip: "Use a named project, system, process, or measurable outcome.",
         tone: "warning",
@@ -3558,7 +4636,8 @@ function getWorkZoLiveCopilotInsight(input: {
     return {
       headline: "Strong answer forming",
       sayNext: "Now close confidently with the result and what you learned.",
-      recruiterConcern: "The recruiter is likely checking depth and consistency.",
+      recruiterConcern:
+        "The recruiter is likely checking depth and consistency.",
       liveTip: "Do not keep adding details. Finish with a clear outcome.",
       tone: "positive",
     };
@@ -3566,22 +4645,23 @@ function getWorkZoLiveCopilotInsight(input: {
 
   return {
     headline: "Processing answer",
-    sayNext: "Get ready for the follow-up — prepare a specific, evidence-based response.",
-    recruiterConcern: input.recruiterConcern || "The recruiter is evaluating your last answer.",
+    sayNext:
+      "Get ready for the follow-up — prepare a specific, evidence-based response.",
+    recruiterConcern:
+      input.recruiterConcern || "The recruiter is evaluating your last answer.",
     liveTip: "Think of one metric or outcome you can add to your next answer.",
     tone: "neutral",
   };
 }
 
-
 export default function InterviewPage() {
-
-
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const marker = "__workzoConsoleNoiseFilterInstalled";
-    const scopedWindow = window as unknown as Window & { [key: string]: unknown };
+    const scopedWindow = window as unknown as Window & {
+      [key: string]: unknown;
+    };
 
     if (scopedWindow[marker]) return;
     scopedWindow[marker] = true;
@@ -3601,9 +4681,17 @@ export default function InterviewPage() {
         })
         .join(" ");
 
+      // Suppress all Krisp/Daily noise-cancellation runtime messages.
+      // These are emitted by the Daily.js WebRTC layer and are not actionable
+      // — they indicate transient CPU load or processor lifecycle events, not
+      // bugs in WorkZo code. Matching case-insensitively on "krisp" catches
+      // all variants: "Error unloading krisp processor", "Krisp error: system
+      // overload", "WASM_OR_WORKER_NOT_READY", etc.
       const harmlessKrispNoise =
-        message.includes("Error unloading krisp processor") ||
-        message.includes("WASM_OR_WORKER_NOT_READY");
+        /krisp/i.test(message) ||
+        message.includes("WASM_OR_WORKER_NOT_READY") ||
+        message.includes("daily-js version") ||
+        /processor.*not.*ready/i.test(message);
 
       const harmlessMeetingEnded =
         /meeting ended/i.test(message) ||
@@ -3638,32 +4726,61 @@ export default function InterviewPage() {
   const [status, setStatus] = useState<InterviewStatus>("idle");
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [premiumVoiceEnabled, setPremiumVoiceEnabled] = useState(true);
-  const [premiumVoiceStatus, setPremiumVoiceStatus] = useState<PremiumVoiceStatus>("idle");
+  const [premiumVoiceStatus, setPremiumVoiceStatus] =
+    useState<PremiumVoiceStatus>("idle");
   const [premiumVoiceError, setPremiumVoiceError] = useState("");
-  const [recruiterSignal, setRecruiterSignal] = useState<RecruiterSignalState>(defaultRecruiterSignal);
-  const [recruiterMemory, setRecruiterMemory] = useState<RecruiterMemoryState>(defaultRecruiterMemory);
+  const [recruiterSignal, setRecruiterSignal] = useState<RecruiterSignalState>(
+    defaultRecruiterSignal,
+  );
+  const [recruiterMemory, setRecruiterMemory] = useState<RecruiterMemoryState>(
+    defaultRecruiterMemory,
+  );
   const [scoreFlash, setScoreFlash] = useState<"up" | "down" | null>(null);
   const [scoreReady, setScoreReady] = useState(false);
   const scoreItems = useMemo(
     () => [
-      { label: "Confidence", value: scoreReady ? `${recruiterSignal.confidence}/100` : "Pending", icon: ShieldCheck, tone: "emerald" },
-      { label: "Clarity", value: scoreReady ? `${recruiterSignal.clarity}/100` : "Pending", icon: Sparkles, tone: "blue" },
-      { label: "Relevance", value: scoreReady ? `${recruiterSignal.relevance}/100` : "Pending", icon: Star, tone: "violet" },
-      { label: "Communication", value: scoreReady ? `${recruiterSignal.communication}/100` : "Pending", icon: User, tone: "orange" },
+      {
+        label: "Confidence",
+        value: scoreReady ? `${recruiterSignal.confidence}/100` : "Pending",
+        icon: ShieldCheck,
+        tone: "emerald",
+      },
+      {
+        label: "Clarity",
+        value: scoreReady ? `${recruiterSignal.clarity}/100` : "Pending",
+        icon: Sparkles,
+        tone: "blue",
+      },
+      {
+        label: "Relevance",
+        value: scoreReady ? `${recruiterSignal.relevance}/100` : "Pending",
+        icon: Star,
+        tone: "violet",
+      },
+      {
+        label: "Communication",
+        value: scoreReady ? `${recruiterSignal.communication}/100` : "Pending",
+        icon: User,
+        tone: "orange",
+      },
     ],
     [recruiterSignal, scoreReady],
   );
-const [questionIndex, setQuestionIndex] = useState(0);
+  const [questionIndex, setQuestionIndex] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [interimText, setInterimText] = useState("");
-  const [transcript, setTranscript] = useState<TranscriptItem[]>(initialTranscript);
+  const [transcript, setTranscript] =
+    useState<TranscriptItem[]>(initialTranscript);
   const liveCopilotInsight = useMemo(
     () =>
       getWorkZoLiveCopilotInsight({
         status,
         transcriptCount: transcript.length,
         questionIndex,
-        currentQuestion: recruiterQuestions[Math.min(questionIndex, recruiterQuestions.length - 1)] || "",
+        currentQuestion:
+          recruiterQuestions[
+            Math.min(questionIndex, recruiterQuestions.length - 1)
+          ] || "",
         interimText,
         recruiterConcern: recruiterSignal.concern,
         recruiterMood: recruiterSignal.mood,
@@ -3674,7 +4791,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
   );
 
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [serverPlan, setServerPlan] = useState<"free" | "premium" | "premium_pro">("free");
+  const [serverPlan, setServerPlan] = useState<
+    "free" | "premium" | "premium_pro"
+  >("free");
   const [planLoading, setPlanLoading] = useState(true);
   // Technical mode — premium/premium_pro only
   const [technicalMode, setTechnicalMode] = useState(false);
@@ -3690,19 +4809,41 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const [showCopilot, setShowCopilot] = useState(true);
   const [waitingRoomActive, setWaitingRoomActive] = useState(false);
   const [waitingRoomStep, setWaitingRoomStep] = useState(0);
-  const waitingRoomSteps = useMemo(() => buildWorkZoWaitingRoomSteps(setup as unknown as Record<string, unknown>), [setup]);
-  const simulationPersona = useMemo(() => getWorkZoSimulationPersona(setup as unknown as Record<string, unknown>), [setup]);
+  const waitingRoomSteps = useMemo(
+    () =>
+      buildWorkZoWaitingRoomSteps(setup as unknown as Record<string, unknown>),
+    [setup],
+  );
+  const simulationPersona = useMemo(
+    () =>
+      getWorkZoSimulationPersona(setup as unknown as Record<string, unknown>),
+    [setup],
+  );
   const [autoScrollTranscript, setAutoScrollTranscript] = useState(true);
-  const [interviewStyle, setInterviewStyle] = useState<"Supportive" | "Realistic" | "Challenging" | "Brutal">("Realistic");
+  const [interviewStyle, setInterviewStyle] = useState<
+    "Supportive" | "Realistic" | "Challenging" | "Brutal"
+  >("Realistic");
   const [voiceSpeed, setVoiceSpeed] = useState(0.84);
-  const [copilotAggressiveness, setCopilotAggressiveness] = useState<"Low" | "Medium" | "High">("Medium");
-  const [recoverySnapshot, setRecoverySnapshot] = useState<WorkZoInterviewSnapshot | null>(null);
+  const [copilotAggressiveness, setCopilotAggressiveness] = useState<
+    "Low" | "Medium" | "High"
+  >("Medium");
+  const [recoverySnapshot, setRecoverySnapshot] =
+    useState<WorkZoInterviewSnapshot | null>(null);
   // Orphaned engines now wired
-  const [emotionalMemory, setEmotionalMemory] = useState<WorkZoEmotionalMemory>(createWorkZoEmotionalMemory());
-  const [recruiterVisualState, setRecruiterVisualState] = useState<WorkZoRecruiterVisualState>("waiting");
+  const [emotionalMemory, setEmotionalMemory] = useState<WorkZoEmotionalMemory>(
+    createWorkZoEmotionalMemory(),
+  );
+  const [recruiterVisualState, setRecruiterVisualState] =
+    useState<WorkZoRecruiterVisualState>("waiting");
   const [fillerWordCount, setFillerWordCount] = useState(0);
-  const [shareableMoment, setShareableMoment] = useState<{ title: string; text: string; category: string } | null>(null);
-  const emotionalMemoryRef = useRef<WorkZoEmotionalMemory>(createWorkZoEmotionalMemory());
+  const [shareableMoment, setShareableMoment] = useState<{
+    title: string;
+    text: string;
+    category: string;
+  } | null>(null);
+  const emotionalMemoryRef = useRef<WorkZoEmotionalMemory>(
+    createWorkZoEmotionalMemory(),
+  );
   const [recoveryNoticeDismissed, setRecoveryNoticeDismissed] = useState(false);
   const [recoveredSessionReady, setRecoveredSessionReady] = useState(false);
   const [premiumUnlocked, setPremiumUnlocked] = useState(false);
@@ -3711,7 +4852,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
   // Filler word running count for current answer
   const [fillerCount, setFillerCount] = useState(0);
   // Company simulation mode
-  const [companyMode, setCompanyMode] = useState<"global" | "google" | "mckinsey" | "startup" | "corporate">("global");
+  const [companyMode, setCompanyMode] = useState<
+    "global" | "google" | "mckinsey" | "startup" | "corporate"
+  >("global");
 
   useEffect(() => {
     setPremiumUnlocked(isWorkZoPremiumUnlocked(serverPlan));
@@ -3732,35 +4875,45 @@ const [questionIndex, setQuestionIndex] = useState(0);
       })
       .catch(() => active && setServerPlan("free"))
       .finally(() => active && setPlanLoading(false));
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const handlePremiumGateClick = useCallback((feature: string) => {
-    trackWorkZoInterviewEvent("premium_gate_clicked", {
-      feature,
-      role: setup.targetRole,
-      recruiter: setup.recruiterName,
-    });
-  }, [setup.recruiterName, setup.targetRole]);
+  const handlePremiumGateClick = useCallback(
+    (feature: string) => {
+      trackWorkZoInterviewEvent("premium_gate_clicked", {
+        feature,
+        role: setup.targetRole,
+        recruiter: setup.recruiterName,
+      });
+    },
+    [setup.recruiterName, setup.targetRole],
+  );
 
-  const applyRecruiterFromSettings = useCallback((recruiterId: string) => {
-    const profile = recruiterProfiles[recruiterId] || recruiterProfiles.friendly_hr;
+  const applyRecruiterFromSettings = useCallback(
+    (recruiterId: string) => {
+      const profile =
+        recruiterProfiles[recruiterId] || recruiterProfiles.friendly_hr;
 
-    setSetup((previous) => ({
-      ...previous,
-      recruiterId,
-      recruiterName: profile.name,
-      recruiterTitle: profile.title,
-      recruiterImage: profile.image,
-    }));
+      setSetup((previous) => ({
+        ...previous,
+        recruiterId,
+        recruiterName: profile.name,
+        recruiterTitle: profile.title,
+        recruiterImage: profile.image,
+      }));
 
-    trackWorkZoInterviewEvent("interview_recruiter_changed", {
-      recruiter: profile.name,
-      role: setup.targetRole,
-      premium: recruiterId === "startup_recruiter" || recruiterId === "german_corporate",
-    });
-  }, [setup.targetRole]);
-
+      trackWorkZoInterviewEvent("interview_recruiter_changed", {
+        recruiter: profile.name,
+        role: setup.targetRole,
+        premium:
+          recruiterId === "startup_recruiter" ||
+          recruiterId === "german_corporate",
+      });
+    },
+    [setup.targetRole],
+  );
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const listeningRef = useRef(false);
@@ -3782,7 +4935,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
       currentAudioRef.current = null;
     }
     if (typeof window !== "undefined") {
-      try { window.speechSynthesis?.cancel(); } catch {}
+      try {
+        window.speechSynthesis?.cancel();
+      } catch {}
     }
     if (status === "recruiter-speaking") {
       setStatus("listening");
@@ -3821,7 +4976,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
   const vapiQuestionSignatureRef = useRef("");
   const lastInterimTextRef = useRef("");
   const lastInterimUpdateAtRef = useRef(0);
-  const lastAssistantTranscriptRef = useRef('');
+  const lastAssistantTranscriptRef = useRef("");
   // Tracks when the last RECRUITER transcript entry was added (raw ms, not
   // the formatted display string). Used to merge same-speaker fragments
   // that arrive in quick succession with no candidate turn between them —
@@ -3837,22 +4992,43 @@ const [questionIndex, setQuestionIndex] = useState(0);
   // distinguishes "Vapi splitting one reply into chunks" from "two
   // unrelated replies that happened to land back to back."
   const lastRecruiterMessageAtRef = useRef(0);
-  const lastUserTranscriptRef = useRef('');
+  const lastUserTranscriptRef = useRef("");
 
-  const hasStartedInterview = transcript.some((item) => item.role === "recruiter");
-  const visibleTranscriptItems = getVisibleTranscriptItems(transcript).filter((item) => !(item.role === "system" && item.id === "initial-ready"));
-  const transcriptMessageCount = visibleTranscriptItems.filter((item) => item.role !== "system").length + (interimText ? 1 : 0);
-  const visibleQuestionNumber = hasStartedInterview ? Math.max(1, Math.min(questionIndex, 12)) : 0;
-  const progress = hasStartedInterview ? Math.round((visibleQuestionNumber / 12) * 100) : 0;
+  const hasStartedInterview = transcript.some(
+    (item) => item.role === "recruiter",
+  );
+  const visibleTranscriptItems = getVisibleTranscriptItems(transcript).filter(
+    (item) => !(item.role === "system" && item.id === "initial-ready"),
+  );
+  const transcriptMessageCount =
+    visibleTranscriptItems.filter((item) => item.role !== "system").length +
+    (interimText ? 1 : 0);
+  const visibleQuestionNumber = hasStartedInterview
+    ? Math.max(1, Math.min(questionIndex, 20))
+    : 0;
+  const progress = hasStartedInterview
+    ? Math.round((visibleQuestionNumber / 20) * 100)
+    : 0;
   const interviewComplete: boolean =
-    visibleQuestionNumber >= 12 || recruiterMemory.readyForResults;
+    visibleQuestionNumber >= 20 || recruiterMemory.readyForResults;
   const headerTitle = setup.targetCompany
     ? `${setup.targetRole} – ${setup.targetCompany}`
     : setup.targetRole;
-  const recruiterImagePosition = recruiterObjectPosition(setup.recruiterId, setup.recruiterName);
-  const liveRecruiterThoughts = buildLiveRecruiterThoughts(recruiterSignal, recruiterMemory, scoreReady);
+  const recruiterImagePosition = recruiterObjectPosition(
+    setup.recruiterId,
+    setup.recruiterName,
+  );
+  const liveRecruiterThoughts = buildLiveRecruiterThoughts(
+    recruiterSignal,
+    recruiterMemory,
+    scoreReady,
+  );
   const recruiterStatus = recruiterStatusLabel(recruiterSignal, scoreReady);
-  const hasRecoveredSessionReady = recoveredSessionReady && transcript.some((item) => item.role === "recruiter" || item.role === "candidate");
+  const hasRecoveredSessionReady =
+    recoveredSessionReady &&
+    transcript.some(
+      (item) => item.role === "recruiter" || item.role === "candidate",
+    );
 
   useEffect(() => {
     const nextSetup = buildSetupFromStorage();
@@ -3861,10 +5037,17 @@ const [questionIndex, setQuestionIndex] = useState(0);
     setSetupLoaded(true);
 
     // Map stored companyStyle into simulation mode for companySimulationEngine
-    const storedStyle = String((nextSetup as Record<string, unknown>).companyStyle || "").toLowerCase();
+    const storedStyle = String(
+      (nextSetup as Record<string, unknown>).companyStyle || "",
+    ).toLowerCase();
     if (storedStyle.includes("startup")) setCompanyMode("startup");
     else if (storedStyle.includes("corporate")) setCompanyMode("corporate");
-    else if (storedStyle.includes("consulting") || storedStyle.includes("big tech") || storedStyle.includes("technical")) setCompanyMode("mckinsey");
+    else if (
+      storedStyle.includes("consulting") ||
+      storedStyle.includes("big tech") ||
+      storedStyle.includes("technical")
+    )
+      setCompanyMode("mckinsey");
     else setCompanyMode("global");
 
     trackWorkZoInterviewEvent("interview_room_viewed", {
@@ -3877,12 +5060,16 @@ const [questionIndex, setQuestionIndex] = useState(0);
     if (snapshot) {
       setRecoverySnapshot(snapshot);
       recoverySnapshotRef.current = snapshot;
-      trackWorkZoFailureEvent("state_recovery_available", {
-        role: snapshot.setup.targetRole,
-        recruiter: snapshot.setup.recruiterName,
-        transcriptItems: snapshot.transcript.length,
-        questionIndex: snapshot.questionIndex,
-      }, "low");
+      trackWorkZoFailureEvent(
+        "state_recovery_available",
+        {
+          role: snapshot.setup.targetRole,
+          recruiter: snapshot.setup.recruiterName,
+          transcriptItems: snapshot.transcript.length,
+          questionIndex: snapshot.questionIndex,
+        },
+        "low",
+      );
     }
 
     const handleStorage = () => {
@@ -3938,8 +5125,11 @@ const [questionIndex, setQuestionIndex] = useState(0);
   }, [questionIndex]);
 
   useEffect(() => {
-    const activeTranscript = transcript.filter((item) => item.role === "recruiter" || item.role === "candidate");
-    const shouldPersist = status !== "idle" && status !== "ended" && activeTranscript.length > 0;
+    const activeTranscript = transcript.filter(
+      (item) => item.role === "recruiter" || item.role === "candidate",
+    );
+    const shouldPersist =
+      status !== "idle" && status !== "ended" && activeTranscript.length > 0;
 
     if (!shouldPersist) return;
 
@@ -3956,12 +5146,28 @@ const [questionIndex, setQuestionIndex] = useState(0);
       recruiterMemory,
       transcript,
     });
-  }, [elapsed, questionIndex, recruiterMemory, recruiterSignal, scoreReady, setup, status, transcript]);
+  }, [
+    elapsed,
+    questionIndex,
+    recruiterMemory,
+    recruiterSignal,
+    scoreReady,
+    setup,
+    status,
+    transcript,
+  ]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
-      const activeTranscript = transcript.filter((item) => item.role === "recruiter" || item.role === "candidate");
-      if (status === "idle" || status === "ended" || activeTranscript.length === 0) return;
+      const activeTranscript = transcript.filter(
+        (item) => item.role === "recruiter" || item.role === "candidate",
+      );
+      if (
+        status === "idle" ||
+        status === "ended" ||
+        activeTranscript.length === 0
+      )
+        return;
 
       writeActiveInterviewSnapshot({
         version: 1,
@@ -3977,16 +5183,30 @@ const [questionIndex, setQuestionIndex] = useState(0);
         transcript,
       });
 
-      pushWorkZoLocalEvent(WORKZO_FAILURE_EVENTS_KEY, "page_refresh_during_interview", {
-        role: setup.targetRole,
-        recruiter: setup.recruiterName,
-        transcriptItems: activeTranscript.length,
-      }, 500);
+      pushWorkZoLocalEvent(
+        WORKZO_FAILURE_EVENTS_KEY,
+        "page_refresh_during_interview",
+        {
+          role: setup.targetRole,
+          recruiter: setup.recruiterName,
+          transcriptItems: activeTranscript.length,
+        },
+        500,
+      );
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [elapsed, questionIndex, recruiterMemory, recruiterSignal, scoreReady, setup, status, transcript]);
+  }, [
+    elapsed,
+    questionIndex,
+    recruiterMemory,
+    recruiterSignal,
+    scoreReady,
+    setup,
+    status,
+    transcript,
+  ]);
 
   useEffect(() => {
     if (status === "idle") return;
@@ -3999,139 +5219,177 @@ const [questionIndex, setQuestionIndex] = useState(0);
   }, [status]);
 
   useEffect(() => {
-    if (autoScrollTranscript) transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (autoScrollTranscript)
+      transcriptEndRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
   }, [transcript, interimText, autoScrollTranscript]);
 
-  const persistInterviewSessionToDb = useCallback(async (statusValue: "active" | "completed" | "paused" = "active") => {
-    const sessionId = interviewSessionIdRef.current;
-    try {
-      const response = await fetch("/api/db/interview-session", {
+  const persistInterviewSessionToDb = useCallback(
+    async (statusValue: "active" | "completed" | "paused" = "active") => {
+      const sessionId = interviewSessionIdRef.current;
+      try {
+        const response = await fetch("/api/db/interview-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            sessionId,
+            setup: setupRef.current,
+            status: statusValue === "completed" ? "completed" : "active",
+            mode: serverPlan === "premium_pro" ? "pro" : "standard",
+            questionIndex: questionIndexRef.current,
+            elapsedSeconds: elapsedRef.current,
+            trustScore: recruiterSignalRef.current.trust,
+            interestScore: recruiterSignalRef.current.interest,
+            recruiterMemory: recruiterMemoryRef.current,
+            recoverySnapshot: recoverySnapshotRef.current || {},
+            completedAt:
+              statusValue === "completed" ? new Date().toISOString() : null,
+          }),
+        });
+        if (response.status === 403) {
+          const data = await response.json().catch(() => null);
+          if (data?.error === "interview_limit_reached") {
+            return {
+              sessionId,
+              blocked: true as const,
+              used: data.used,
+              limit: data.limit,
+              plan: data.plan,
+            };
+          }
+        }
+      } catch {
+        // Network failure shouldn't block the interview — the server-side
+        // limit is a backstop, not the only line of defense (client-side
+        // check still runs first). Fail open here, not closed.
+      }
+      return { sessionId, blocked: false as const };
+    },
+    [serverPlan],
+  );
+
+  const persistInterviewMessageToDb = useCallback(
+    (item: Omit<TranscriptItem, "id" | "time">, messageIndex: number) => {
+      if (item.role === "system") return;
+      fetch("/api/db/interview-message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          sessionId,
-          setup: setupRef.current,
-          status: statusValue === "completed" ? "completed" : "active",
-          mode: serverPlan === "premium_pro" ? "pro" : "standard",
-          questionIndex: questionIndexRef.current,
-          elapsedSeconds: elapsedRef.current,
-          trustScore: recruiterSignalRef.current.trust,
-          interestScore: recruiterSignalRef.current.interest,
-          recruiterMemory: recruiterMemoryRef.current,
-          recoverySnapshot: recoverySnapshotRef.current || {},
-          completedAt: statusValue === "completed" ? new Date().toISOString() : null,
+          sessionId: interviewSessionIdRef.current,
+          role: item.role,
+          speaker: item.speaker,
+          text: item.text,
+          messageIndex,
+          metadata: { source: "interview_room" },
         }),
-      });
-      if (response.status === 403) {
-        const data = await response.json().catch(() => null);
-        if (data?.error === "interview_limit_reached") {
-          return { sessionId, blocked: true as const, used: data.used, limit: data.limit, plan: data.plan };
+      }).catch(() => undefined);
+    },
+    [],
+  );
+
+  const persistInterviewResultToDb = useCallback(
+    (session: Record<string, any>) => {
+      fetch("/api/db/interview-result", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          sessionId: interviewSessionIdRef.current,
+          overallScore:
+            session.score?.overall ?? session.summary?.trust ?? null,
+          trustScore: session.score?.trust ?? null,
+          evidenceQuality: session.answerQuality?.evidenceScore ?? null,
+          contradictionRisk: session.memory?.unsupportedClaims ?? null,
+          strengths: session.verdict?.strengths || [],
+          improvements: session.verdict?.improvements || [],
+          weakAnswers: session.weakestMoment ? [session.weakestMoment] : [],
+          contradictions: session.memory?.patterns || [],
+          evidenceRequests: session.answerQuality?.evidenceRequests || [],
+          rawResult: session,
+        }),
+      }).catch(() => undefined);
+    },
+    [],
+  );
+
+  const addTranscript = useCallback(
+    (item: Omit<TranscriptItem, "id" | "time">) => {
+      const cleanedText = cleanVisibleTranscriptText(item.text);
+
+      // Keep visible transcript clean. System connection messages should not appear here.
+      if (item.role === "system") return;
+
+      // Ignore short STT fragments like "Swinging" that AI voice may emit before final text.
+      if (item.role === "candidate" && isTinyVisibleSpeechFragment(cleanedText))
+        return;
+
+      const cleanedItem = {
+        ...item,
+        text: cleanedText,
+      };
+
+      persistInterviewMessageToDb(cleanedItem, transcript.length);
+      setTranscript((current) => {
+        const previous = current[current.length - 1];
+        const now = Date.now();
+        const msSincePreviousRecruiterMessage =
+          cleanedItem.role === "recruiter" && previous?.role === "recruiter"
+            ? now - lastRecruiterMessageAtRef.current
+            : undefined;
+
+        if (cleanedItem.role === "recruiter") {
+          lastRecruiterMessageAtRef.current = now;
         }
-      }
-    } catch {
-      // Network failure shouldn't block the interview — the server-side
-      // limit is a backstop, not the only line of defense (client-side
-      // check still runs first). Fail open here, not closed.
-    }
-    return { sessionId, blocked: false as const };
-  }, [serverPlan]);
 
-  const persistInterviewMessageToDb = useCallback((item: Omit<TranscriptItem, "id" | "time">, messageIndex: number) => {
-    if (item.role === "system") return;
-    fetch("/api/db/interview-message", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        sessionId: interviewSessionIdRef.current,
-        role: item.role,
-        speaker: item.speaker,
-        text: item.text,
-        messageIndex,
-        metadata: { source: "interview_room" },
-      }),
-    }).catch(() => undefined);
-  }, []);
+        // Check if a candidate turn happened between the previous recruiter
+        // message and this one — if so, these are separate exchanges, never merge.
+        const lastRecruiterIndex =
+          cleanedItem.role === "recruiter"
+            ? current.map((e) => e.role).lastIndexOf("recruiter")
+            : -1;
+        const hasCandidateSinceLastRecruiter =
+          lastRecruiterIndex >= 0 &&
+          current
+            .slice(lastRecruiterIndex + 1)
+            .some((e) => e.role === "candidate");
 
-  const persistInterviewResultToDb = useCallback((session: Record<string, any>) => {
-    fetch("/api/db/interview-result", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        sessionId: interviewSessionIdRef.current,
-        overallScore: session.score?.overall ?? session.summary?.trust ?? null,
-        trustScore: session.score?.trust ?? null,
-        evidenceQuality: session.answerQuality?.evidenceScore ?? null,
-        contradictionRisk: session.memory?.unsupportedClaims ?? null,
-        strengths: session.verdict?.strengths || [],
-        improvements: session.verdict?.improvements || [],
-        weakAnswers: session.weakestMoment ? [session.weakestMoment] : [],
-        contradictions: session.memory?.patterns || [],
-        evidenceRequests: session.answerQuality?.evidenceRequests || [],
-        rawResult: session,
-      }),
-    }).catch(() => undefined);
-  }, []);
+        if (
+          shouldMergeVisibleTranscript(
+            previous,
+            cleanedItem,
+            msSincePreviousRecruiterMessage,
+            hasCandidateSinceLastRecruiter,
+          )
+        ) {
+          return current.map((entry, index) =>
+            index === current.length - 1
+              ? {
+                  ...entry,
+                  text: cleanVisibleTranscriptText(
+                    `${entry.text} ${cleanedItem.text}`,
+                  ),
+                  time: formatTranscriptTime(new Date()),
+                }
+              : entry,
+          );
+        }
 
-  const addTranscript = useCallback((item: Omit<TranscriptItem, "id" | "time">) => {
-    const cleanedText = cleanVisibleTranscriptText(item.text);
-
-    // Keep visible transcript clean. System connection messages should not appear here.
-    if (item.role === "system") return;
-
-    // Ignore short STT fragments like "Swinging" that AI voice may emit before final text.
-    if (item.role === "candidate" && isTinyVisibleSpeechFragment(cleanedText)) return;
-
-    const cleanedItem = {
-      ...item,
-      text: cleanedText,
-    };
-
-    persistInterviewMessageToDb(cleanedItem, transcript.length);
-    setTranscript((current) => {
-      const previous = current[current.length - 1];
-      const now = Date.now();
-      const msSincePreviousRecruiterMessage =
-        cleanedItem.role === "recruiter" && previous?.role === "recruiter"
-          ? now - lastRecruiterMessageAtRef.current
-          : undefined;
-
-      if (cleanedItem.role === "recruiter") {
-        lastRecruiterMessageAtRef.current = now;
-      }
-
-      // Check if a candidate turn happened between the previous recruiter
-      // message and this one — if so, these are separate exchanges, never merge.
-      const lastRecruiterIndex = cleanedItem.role === "recruiter"
-        ? current.map((e) => e.role).lastIndexOf("recruiter")
-        : -1;
-      const hasCandidateSinceLastRecruiter = lastRecruiterIndex >= 0 &&
-        current.slice(lastRecruiterIndex + 1).some((e) => e.role === "candidate");
-
-      if (shouldMergeVisibleTranscript(previous, cleanedItem, msSincePreviousRecruiterMessage, hasCandidateSinceLastRecruiter)) {
-        return current.map((entry, index) =>
-          index === current.length - 1
-            ? {
-                ...entry,
-                text: cleanVisibleTranscriptText(`${entry.text} ${cleanedItem.text}`),
-                time: formatTranscriptTime(new Date()),
-              }
-            : entry,
-        );
-      }
-
-      return [
-        ...current,
-        {
-          ...cleanedItem,
-          id: createClientId(),
-          time: formatTranscriptTime(new Date()),
-        },
-      ].slice(-80);
-    });
-  }, [persistInterviewMessageToDb, transcript.length]);
+        return [
+          ...current,
+          {
+            ...cleanedItem,
+            id: createClientId(),
+            time: formatTranscriptTime(new Date()),
+          },
+        ].slice(-80);
+      });
+    },
+    [persistInterviewMessageToDb, transcript.length],
+  );
 
   const stopListening = useCallback(() => {
     listeningRef.current = false;
@@ -4156,10 +5414,16 @@ const [questionIndex, setQuestionIndex] = useState(0);
   }, []);
 
   const isValidOpeningOrSmallTalkAnswer = useCallback((value: string) => {
-    const clean = value.toLowerCase().replace(/[^a-zÀ-ÿ0-9\s']/gi, " ").replace(/\s+/g, " ").trim();
+    const clean = value
+      .toLowerCase()
+      .replace(/[^a-zÀ-ÿ0-9\s']/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
     if (!clean) return false;
 
-    return /\b(i'?m good|im good|i am good|doing good|doing well|i'?m fine|im fine|i am fine|fine|good|great|okay|ok|not bad|all good|how are you|how about you|thank you|thanks|yes i can hear|i can hear|can hear you|hello|hi|hey|hallo|bonjour|hola|namaste)\b/i.test(clean);
+    return /\b(i'?m good|im good|i am good|doing good|doing well|i'?m fine|im fine|i am fine|fine|good|great|okay|ok|not bad|all good|how are you|how about you|thank you|thanks|yes i can hear|i can hear|can hear you|hello|hi|hey|hallo|bonjour|hola|namaste)\b/i.test(
+      clean,
+    );
   }, []);
 
   // Keep a ref mirror of the transcript so closures (recorder.onstop, async
@@ -4184,14 +5448,26 @@ const [questionIndex, setQuestionIndex] = useState(0);
       const callStartedAt = Date.now();
       const fallback = (reason: string) => {
         const durationMs = Date.now() - callStartedAt;
-        console.error(`[interview] LLM reply NOT used this turn — using rule-engine fallback. reason="${reason}" durationMs=${durationMs}`);
-        trackWorkZoErrorEvent("interview_reply_fallback", reason, {
-          role: currentSetup.targetRole,
-          recruiter: currentSetup.recruiterName,
-          questionIndex: questionIndexRef.current,
-          durationMs,
-        }, "medium");
-        return buildRecruiterReply(answer, questionIndexRef.current, currentSetup, recruiterMemoryRef.current);
+        console.error(
+          `[interview] LLM reply NOT used this turn — using rule-engine fallback. reason="${reason}" durationMs=${durationMs}`,
+        );
+        trackWorkZoErrorEvent(
+          "interview_reply_fallback",
+          reason,
+          {
+            role: currentSetup.targetRole,
+            recruiter: currentSetup.recruiterName,
+            questionIndex: questionIndexRef.current,
+            durationMs,
+          },
+          "medium",
+        );
+        return buildRecruiterReply(
+          answer,
+          questionIndexRef.current,
+          currentSetup,
+          recruiterMemoryRef.current,
+        );
       };
 
       // Free users get GPT-4o intelligence — only session count is limited.
@@ -4199,7 +5475,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
       try {
         const signalAnalysis = analyzeAnswerSignals(answer, currentSetup);
-        const unsupportedReason = extractUnsupportedClaimReason(answer, currentSetup);
+        const unsupportedReason = extractUnsupportedClaimReason(
+          answer,
+          currentSetup,
+        );
 
         const response = await fetch("/api/interview/reply", {
           method: "POST",
@@ -4214,7 +5493,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
           // Combined with the role-knowledge prompt trim (only the matching
           // role block is sent now, not all ~7), this should hit far less
           // often, but the cap itself needed more headroom regardless.
-          signal: AbortSignal.timeout(18000),
+          signal: AbortSignal.timeout(28000),
           body: JSON.stringify({
             answer,
             // BUG FIXED: currentQuestion was never sent at all, so the server
@@ -4224,25 +5503,43 @@ const [questionIndex, setQuestionIndex] = useState(0);
             // addressing the question" — they were being compared against
             // the wrong question. This sends the actual last thing the
             // recruiter said, which is the real active question.
-            currentQuestion: [...transcriptRef.current].reverse().find((item) => item.role === "recruiter")?.text || "",
+            currentQuestion:
+              [...transcriptRef.current]
+                .reverse()
+                .find((item) => item.role === "recruiter")?.text || "",
             // Only the last 10 turns are sent — GPT-4o needs recent thread
             // context, not the entire interview transcript. Sending the full
             // history made every request's input larger (and slower) as the
             // interview progressed, compounding the latency problem.
-            transcript: transcriptRef.current.slice(-10).map((item) => ({ role: item.role, speaker: item.speaker, text: item.text })),
+            transcript: transcriptRef.current
+              .slice(-10)
+              .map((item) => ({
+                role: item.role,
+                speaker: item.speaker,
+                text: item.text,
+              })),
             cvText: currentSetup.cvText,
             jobDescription: currentSetup.jobDescription,
             targetRole: currentSetup.targetRole,
-            targetCompany: currentSetup.targetCompany || currentSetup.companyName,
+            targetCompany:
+              currentSetup.targetCompany || currentSetup.companyName,
             candidateName: currentSetup.candidateName,
             recruiterName: currentSetup.recruiterName,
             recruiterTitle: currentSetup.recruiterTitle,
             language: currentSetup.language,
-            pressureStyle: recruiterProfiles[currentSetup.recruiterId]?.pressureStyle || recruiterProfiles[currentSetup.recruiterName]?.pressureStyle,
+            // Send structured profile so /api/interview/reply can build an explicit
+            // verified-employers list — preventing false "I cannot verify [employer]" challenges
+            resumeProfile: currentSetup.resumeProfile || null,
+            pressureStyle:
+              recruiterProfiles[currentSetup.recruiterId]?.pressureStyle ||
+              recruiterProfiles[currentSetup.recruiterName]?.pressureStyle,
             questionIndex: questionIndexRef.current,
             // Technical mode: send code snapshot so the recruiter can react to it
             ...(codeSnapshotRef.current.trim()
-              ? { codeSnapshot: codeSnapshotRef.current, codeLanguage: codeLanguageRef.current }
+              ? {
+                  codeSnapshot: codeSnapshotRef.current,
+                  codeLanguage: codeLanguageRef.current,
+                }
               : {}),
             signals: {
               contradiction: undefined,
@@ -4260,27 +5557,45 @@ const [questionIndex, setQuestionIndex] = useState(0);
         const data = await response.json().catch(() => null);
         const durationMs = Date.now() - callStartedAt;
 
-        if (response.ok && data?.success && typeof data.reply === "string" && data.reply.trim()) {
+        if (
+          response.ok &&
+          data?.success &&
+          typeof data.reply === "string" &&
+          data.reply.trim()
+        ) {
           if (data.recruiterMemoryV2) {
             recruiterMemoryV2Ref.current = data.recruiterMemoryV2;
           }
-          if (data.provider && data.provider !== "unified_engine" && data.provider !== "opening_guard") {
+          if (
+            data.provider &&
+            data.provider !== "unified_engine" &&
+            data.provider !== "opening_guard"
+          ) {
             // The server itself fell back to its rule engine — still real text,
             // but worth knowing about. Not a hard failure, so no fallback() call.
-            console.warn(`[interview] Server used "${data.provider}" instead of GPT-4o this turn. durationMs=${durationMs}`);
+            console.warn(
+              `[interview] Server used "${data.provider}" instead of GPT-4o this turn. durationMs=${durationMs}`,
+            );
           } else {
             console.log(`[interview] LLM reply used. durationMs=${durationMs}`);
           }
           const serverReply = data.reply.trim();
           // Client-side language guard: if the reply starts with English opener phrases
           // and the interview is in a non-English language, enforce the language locally
-          const enforcedReply = enforceRuntimeLanguageForReply(currentSetup, serverReply);
+          const enforcedReply = enforceRuntimeLanguageForReply(
+            currentSetup,
+            serverReply,
+          );
           return enforcedReply;
         }
 
         return fallback(`http_${response.status}_${data?.error || "no_reply"}`);
       } catch (error) {
-        return fallback(error instanceof Error ? `${error.name}: ${error.message}` : "unknown_error");
+        return fallback(
+          error instanceof Error
+            ? `${error.name}: ${error.message}`
+            : "unknown_error",
+        );
       }
     },
     [serverPlan],
@@ -4316,7 +5631,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
       });
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
         const recorder = new MediaRecorder(stream);
         const chunks: BlobPart[] = [];
         recorder.ondataavailable = (event) => {
@@ -4324,21 +5641,29 @@ const [questionIndex, setQuestionIndex] = useState(0);
         };
         recorder.onstop = async () => {
           stream.getTracks().forEach((track) => track.stop());
-          const audioBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+          const audioBlob = new Blob(chunks, {
+            type: recorder.mimeType || "audio/webm",
+          });
           const formData = new FormData();
           formData.append("audio", audioBlob, "candidate-answer.webm");
           // Send BCP-47 code to Whisper for best STT accuracy (not the label string)
           const sttLangCode = selectedLanguageIsoCode(setupRef.current);
           formData.append("language", sttLangCode || "en");
 
-          const response = await fetch("/api/transcribe", { method: "POST", body: formData, credentials: "include" });
+          const response = await fetch("/api/transcribe", {
+            method: "POST",
+            body: formData,
+            credentials: "include",
+          });
           const data = await response.json().catch(() => ({}));
           const answer = String(data?.text || "").trim();
 
           // Corruption detected by server-side Whisper output check
           if (data?.corrupted) {
             const lang = normalizeInterviewLanguage(setupRef.current.language);
-            const clarificationMsg = buildLocalizedGentleClarification(setupRef.current);
+            const clarificationMsg = buildLocalizedGentleClarification(
+              setupRef.current,
+            );
             speakRecruiter(clarificationMsg);
             setStatus("listening");
             return;
@@ -4354,7 +5679,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
           const reaction = getWorkZoLiveReaction(answer);
           setRecruiterVisualState(reaction.visualState);
           setLiveReactionText(reaction.text);
-          const nextEmoMem = updateWorkZoEmotionalMemory(emotionalMemoryRef.current, answer);
+          const nextEmoMem = updateWorkZoEmotionalMemory(
+            emotionalMemoryRef.current,
+            answer,
+          );
           emotionalMemoryRef.current = nextEmoMem;
           setEmotionalMemory(nextEmoMem);
           setStatus("thinking");
@@ -4362,16 +5690,21 @@ const [questionIndex, setQuestionIndex] = useState(0);
           const interruptDecision = decideWorkZoInterruption(answer);
           if (interruptDecision.shouldInterrupt) {
             const wc = answer.trim().split(/\s+/).filter(Boolean).length;
-            console.warn(`[interview] decideWorkZoInterruption fired (recorder fallback) — reason=${interruptDecision.reason} wordCount=${wc} answerLength=${answer.length} answer="${answer}"`);
+            console.warn(
+              `[interview] decideWorkZoInterruption fired (recorder fallback) — reason=${interruptDecision.reason} wordCount=${wc} answerLength=${answer.length} answer="${answer}"`,
+            );
           }
           const baseReply = interruptDecision.shouldInterrupt
             ? interruptDecision.line
             : await getRecruiterReply(answer);
-          const reply = enforceRuntimeLanguageForReply(setupRef.current, baseReply);
+          const reply = enforceRuntimeLanguageForReply(
+            setupRef.current,
+            baseReply,
+          );
           // 150ms: state settles fast enough, silence already provides the pause.
           window.setTimeout(() => {
             if (stopRequestedRef.current) return;
-            setQuestionIndex((value) => Math.min(value + 1, 12));
+            setQuestionIndex((value) => Math.min(value + 1, 20));
             speakRecruiter(reply);
           }, 150);
         };
@@ -4400,7 +5733,11 @@ const [questionIndex, setQuestionIndex] = useState(0);
         let graceUsed = false;
         let graceDeadline: number | null = null;
 
-        const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        const audioContext = new (
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext })
+            .webkitAudioContext
+        )();
         const sourceNode = audioContext.createMediaStreamSource(stream);
         const analyser = audioContext.createAnalyser();
         analyser.fftSize = 2048;
@@ -4438,9 +5775,15 @@ const [questionIndex, setQuestionIndex] = useState(0);
           }
 
           const silentFor = Date.now() - lastSpeechAt;
-          const silenceThresholdHit = elapsedSinceStart > MIN_RECORDING_MS && silentFor > SILENCE_STOP_MS;
+          const silenceThresholdHit =
+            elapsedSinceStart > MIN_RECORDING_MS && silentFor > SILENCE_STOP_MS;
 
-          if (silenceThresholdHit && !graceUsed && speechDetectedMs > 0 && speechDetectedMs < GRACE_SPEECH_MS_THRESHOLD) {
+          if (
+            silenceThresholdHit &&
+            !graceUsed &&
+            speechDetectedMs > 0 &&
+            speechDetectedMs < GRACE_SPEECH_MS_THRESHOLD
+          ) {
             graceUsed = true;
             graceDeadline = Date.now() + GRACE_EXTENSION_MS;
           }
@@ -4461,10 +5804,15 @@ const [questionIndex, setQuestionIndex] = useState(0);
           }
         }, 150);
       } catch (error) {
-        trackWorkZoErrorEvent("server_transcription_fallback_failed", error, {
-          role: setupRef.current.targetRole,
-          recruiter: setupRef.current.recruiterName,
-        }, "medium");
+        trackWorkZoErrorEvent(
+          "server_transcription_fallback_failed",
+          error,
+          {
+            role: setupRef.current.targetRole,
+            recruiter: setupRef.current.recruiterName,
+          },
+          "medium",
+        );
         setStatus("listening");
       }
       return;
@@ -4504,8 +5852,15 @@ const [questionIndex, setQuestionIndex] = useState(0);
     function resetSilenceTimer() {
       if (silenceTimer) clearTimeout(silenceTimer);
       silenceTimer = setTimeout(() => {
-        const wordsSoFar = answerBufferRef.current.trim().split(/\s+/).filter(Boolean).length;
-        if (!graceUsed && wordsSoFar > 0 && wordsSoFar <= GRACE_WORD_THRESHOLD) {
+        const wordsSoFar = answerBufferRef.current
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean).length;
+        if (
+          !graceUsed &&
+          wordsSoFar > 0 &&
+          wordsSoFar <= GRACE_WORD_THRESHOLD
+        ) {
           graceUsed = true;
           silenceTimer = setTimeout(() => {
             if (recognitionRef.current && listeningRef.current) {
@@ -4532,7 +5887,11 @@ const [questionIndex, setQuestionIndex] = useState(0);
       let finalText = "";
       let interim = "";
 
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+      for (
+        let index = event.resultIndex;
+        index < event.results.length;
+        index += 1
+      ) {
         const result = event.results[index];
         const text = result[0]?.transcript || "";
         if (result.isFinal) finalText += text;
@@ -4548,10 +5907,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
         lastInterimUpdateAtRef.current = Date.now();
         setInterimText(cleanInterim);
         // Live filler word counter — updates copilot panel in real time
-        setFillerCount(countFillerWords(`${answerBufferRef.current} ${cleanInterim}`.trim()));
+        setFillerCount(
+          countFillerWords(`${answerBufferRef.current} ${cleanInterim}`.trim()),
+        );
       }
       if (finalText.trim()) {
-        answerBufferRef.current = `${answerBufferRef.current} ${finalText}`.trim();
+        answerBufferRef.current =
+          `${answerBufferRef.current} ${finalText}`.trim();
         setFillerCount(countFillerWords(answerBufferRef.current));
       }
     };
@@ -4559,10 +5921,15 @@ const [questionIndex, setQuestionIndex] = useState(0);
     recognition.onerror = (event) => {
       listeningRef.current = false;
       setInterimText("");
-      trackWorkZoErrorEvent("speech_recognition_error", event?.error || event?.message || "Speech recognition error", {
-        role: setupRef.current.targetRole,
-        recruiter: setupRef.current.recruiterName,
-      }, "medium");
+      trackWorkZoErrorEvent(
+        "speech_recognition_error",
+        event?.error || event?.message || "Speech recognition error",
+        {
+          role: setupRef.current.targetRole,
+          recruiter: setupRef.current.recruiterName,
+        },
+        "medium",
+      );
       if (!stopRequestedRef.current) setStatus("listening");
     };
 
@@ -4603,21 +5970,37 @@ const [questionIndex, setQuestionIndex] = useState(0);
       // confirmed from live testing where "okay okay" was submitted as the
       // answer to "tell me about your background." An audio-check phrase is
       // only a legitimate non-answer during the opening handshake.
-      const isAudioCheck = questionIndexRef.current <= 1 && /^(can you hear|hello|hi|hey|test|check|is this|are you|okay|ok|yes|no|good|fine|great|thanks|thank you)/i.test(answer);
-      const isOpeningSmallTalk = questionIndexRef.current <= 1 && isValidOpeningOrSmallTalkAnswer(answer);
+      const isAudioCheck =
+        questionIndexRef.current <= 1 &&
+        /^(can you hear|hello|hi|hey|test|check|is this|are you|okay|ok|yes|no|good|fine|great|thanks|thank you)/i.test(
+          answer,
+        );
+      const isOpeningSmallTalk =
+        questionIndexRef.current <= 1 &&
+        isValidOpeningOrSmallTalkAnswer(answer);
       // Catches things like "hey can you" or "to you can you hear me" —
       // technically 3+ words so the raw word-count check alone misses them,
       // but they carry no real content at any point past the opening turn.
-      const isLowContentFragment = questionIndexRef.current > 1 && isLowContentAnswerFragment(answer);
+      const isLowContentFragment =
+        questionIndexRef.current > 1 && isLowContentAnswerFragment(answer);
 
-      if ((wordCount < 3 && !isAudioCheck && !isOpeningSmallTalk) || isLowContentFragment) {
+      if (
+        (wordCount < 3 && !isAudioCheck && !isOpeningSmallTalk) ||
+        isLowContentFragment
+      ) {
         setStatus("listening");
         if (isLowContentFragment) {
           // Speak the acknowledgment instead of silently re-listening —
           // silent re-prompting is exactly what reads as "it's not
           // listening to me." A quick spoken nudge confirms it heard
           // something, just not enough to go on.
-          window.setTimeout(() => speakRecruiter("Sorry, I didn't quite catch that — go ahead and continue."), 150);
+          window.setTimeout(
+            () =>
+              speakRecruiter(
+                "Sorry, I didn't quite catch that — go ahead and continue.",
+              ),
+            150,
+          );
         } else {
           window.setTimeout(() => startListening(), 200);
         }
@@ -4637,7 +6020,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
       const reaction = getWorkZoLiveReaction(answer);
       setRecruiterVisualState(reaction.visualState);
       setLiveReactionText(reaction.text);
-      const nextEmoMem = updateWorkZoEmotionalMemory(emotionalMemoryRef.current, answer);
+      const nextEmoMem = updateWorkZoEmotionalMemory(
+        emotionalMemoryRef.current,
+        answer,
+      );
       emotionalMemoryRef.current = nextEmoMem;
       setEmotionalMemory(nextEmoMem);
       setStatus("thinking");
@@ -4646,7 +6032,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
       const interruptDecision = decideWorkZoInterruption(answer);
       if (interruptDecision.shouldInterrupt) {
         const wc = answer.trim().split(/\s+/).filter(Boolean).length;
-        console.warn(`[interview] decideWorkZoInterruption fired — reason=${interruptDecision.reason} wordCount=${wc} answerLength=${answer.length} answer="${answer}"`);
+        console.warn(
+          `[interview] decideWorkZoInterruption fired — reason=${interruptDecision.reason} wordCount=${wc} answerLength=${answer.length} answer="${answer}"`,
+        );
       }
       const baseReply = interruptDecision.shouldInterrupt
         ? interruptDecision.line
@@ -4659,20 +6047,40 @@ const [questionIndex, setQuestionIndex] = useState(0);
       // the LLM integration — this was also the exact condition (missingMetrics >= 2)
       // behind the "repeats the same sentence" bug found earlier in testing.
       const isFreeRuleEnginePath = false; // Free gets premium intelligence
-      const simStyle = companyMode === "google" ? "analytical" : companyMode === "mckinsey" ? "pressure" : companyMode === "startup" ? "pressure" : "supportive";
-      const adaptiveFollowUp = isFreeRuleEnginePath && !interruptDecision.shouldInterrupt && nextEmoMem.missingMetrics >= 2
-        ? buildAdaptiveFollowUpQuestion({ style: simStyle, targetRole: setupRef.current.targetRole, weaknessSignals: nextEmoMem.weakMoments, previousAnswer: answer })
-        : null;
+      const simStyle =
+        companyMode === "google"
+          ? "analytical"
+          : companyMode === "mckinsey"
+            ? "pressure"
+            : companyMode === "startup"
+              ? "pressure"
+              : "supportive";
+      const adaptiveFollowUp =
+        isFreeRuleEnginePath &&
+        !interruptDecision.shouldInterrupt &&
+        nextEmoMem.missingMetrics >= 2
+          ? buildAdaptiveFollowUpQuestion({
+              style: simStyle,
+              targetRole: setupRef.current.targetRole,
+              weaknessSignals: nextEmoMem.weakMoments,
+              previousAnswer: answer,
+            })
+          : null;
 
-      const reply = enforceRuntimeLanguageForReply(setupRef.current, adaptiveFollowUp || baseReply);
+      const reply = enforceRuntimeLanguageForReply(
+        setupRef.current,
+        adaptiveFollowUp || baseReply,
+      );
 
       // 150ms is enough for state to settle before speaking.
       // The natural pause already happened in the silence detection timer.
       // The old 650ms added perceived lag without adding realism.
       window.setTimeout(() => {
         if (stopRequestedRef.current) return;
-        setQuestionIndex((value) => Math.min(value + 1, 12));
-        setRecruiterVisualState(interruptDecision.shouldInterrupt ? "interrupting" : "listening");
+        setQuestionIndex((value) => Math.min(value + 1, 20));
+        setRecruiterVisualState(
+          interruptDecision.shouldInterrupt ? "interrupting" : "listening",
+        );
         speakRecruiter(reply);
       }, 150);
     };
@@ -4682,10 +6090,15 @@ const [questionIndex, setQuestionIndex] = useState(0);
     try {
       recognition.start();
     } catch (error) {
-      trackWorkZoErrorEvent("speech_recognition_start_failed", error, {
-        role: setupRef.current.targetRole,
-        recruiter: setupRef.current.recruiterName,
-      }, "medium");
+      trackWorkZoErrorEvent(
+        "speech_recognition_start_failed",
+        error,
+        {
+          role: setupRef.current.targetRole,
+          recruiter: setupRef.current.recruiterName,
+        },
+        "medium",
+      );
       setStatus("listening");
     }
   }, [addTranscript]);
@@ -4762,8 +6175,16 @@ const [questionIndex, setQuestionIndex] = useState(0);
             currentAudioRef.current = audio;
             setStatus("recruiter-speaking");
             await new Promise<void>((resolve) => {
-              audio.onended = () => { URL.revokeObjectURL(audioUrl); currentAudioRef.current = null; resolve(); };
-              audio.onerror = () => { URL.revokeObjectURL(audioUrl); currentAudioRef.current = null; resolve(); };
+              audio.onended = () => {
+                URL.revokeObjectURL(audioUrl);
+                currentAudioRef.current = null;
+                resolve();
+              };
+              audio.onerror = () => {
+                URL.revokeObjectURL(audioUrl);
+                currentAudioRef.current = null;
+                resolve();
+              };
               audio.play().catch(() => resolve());
             });
             window.setTimeout(() => startListening(), 50);
@@ -4800,7 +6221,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
             audio.onended = () => {
               URL.revokeObjectURL(audioUrl);
               currentAudioRef.current = null;
-              if (!stopRequestedRef.current) window.setTimeout(() => startListening(), 50);
+              if (!stopRequestedRef.current)
+                window.setTimeout(() => startListening(), 50);
             };
             audio.onerror = () => {
               URL.revokeObjectURL(audioUrl);
@@ -4825,9 +6247,12 @@ const [questionIndex, setQuestionIndex] = useState(0);
         const utterance = new SpeechSynthesisUtterance(text);
         const wantsMale = recruiterLooksMale(activeSetup);
 
-        utterance.rate = wantsMale ? Math.max(0.70, voiceSpeed - 0.08) : Math.max(0.72, voiceSpeed - 0.04);
+        utterance.rate = wantsMale
+          ? Math.max(0.7, voiceSpeed - 0.08)
+          : Math.max(0.72, voiceSpeed - 0.04);
         utterance.pitch = wantsMale ? 0.86 : 1.08;
-        utterance.lang = normalizeInterviewLanguage(activeSetup.language).code || "en-US";
+        utterance.lang =
+          normalizeInterviewLanguage(activeSetup.language).code || "en-US";
 
         const preferred = preferredVoiceForRecruiter(voices, activeSetup);
         if (preferred) utterance.voice = preferred;
@@ -4853,86 +6278,124 @@ const [questionIndex, setQuestionIndex] = useState(0);
         startListening();
       }
     },
-    [addTranscript, audioEnabled, premiumVoiceStatus, startListening, voiceSpeed],
+    [
+      addTranscript,
+      audioEnabled,
+      premiumVoiceStatus,
+      startListening,
+      voiceSpeed,
+    ],
   );
 
+  const applyRecruiterSignalUpdate = useCallback(
+    (answer: string) => {
+      setRecruiterSignal((current) => {
+        const baseline = scoreReady ? current : defaultRecruiterSignal;
+        const next = updateRecruiterSignalState(
+          baseline,
+          answer,
+          setupRef.current,
+        );
+        const direction = next.overall >= baseline.overall ? "up" : "down";
 
-  const applyRecruiterSignalUpdate = useCallback((answer: string) => {
-    setRecruiterSignal((current) => {
-      const baseline = scoreReady ? current : defaultRecruiterSignal;
-      const next = updateRecruiterSignalState(baseline, answer, setupRef.current);
-      const direction = next.overall >= baseline.overall ? "up" : "down";
+        setRecruiterMemory((memory) => {
+          const updated = updateRecruiterMemoryState(
+            memory,
+            answer,
+            setupRef.current,
+            next,
+          );
+          recruiterMemoryRef.current = updated;
+          return updated;
+        });
 
-      setRecruiterMemory((memory) => {
-        const updated = updateRecruiterMemoryState(memory, answer, setupRef.current, next);
-        recruiterMemoryRef.current = updated;
-        return updated;
-      });
+        // ── Wire orphaned engines ─────────────────────────────────────────────
+        // 1. Recruiter visual state + emotional memory
+        const reaction = getWorkZoLiveReaction(answer);
+        setRecruiterVisualState(reaction.visualState);
+        setEmotionalMemory((prev) => {
+          const updated = updateWorkZoEmotionalMemory(prev, answer);
+          emotionalMemoryRef.current = updated;
+          return updated;
+        });
 
-      // ── Wire orphaned engines ─────────────────────────────────────────────
-      // 1. Recruiter visual state + emotional memory
-      const reaction = getWorkZoLiveReaction(answer);
-      setRecruiterVisualState(reaction.visualState);
-      setEmotionalMemory((prev) => {
-        const updated = updateWorkZoEmotionalMemory(prev, answer);
-        emotionalMemoryRef.current = updated;
-        return updated;
-      });
+        // 2. Filler word counter
+        const fillers = (
+          answer.match(
+            /\b(um+|uh+|like|you know|sort of|kind of|basically|literally|right\?|so\.\.\.)\b/gi,
+          ) || []
+        ).length;
+        if (fillers > 0) setFillerWordCount((c) => c + fillers);
 
-      // 2. Filler word counter
-      const fillers = (answer.match(/\b(um+|uh+|like|you know|sort of|kind of|basically|literally|right\?|so\.\.\.)\b/gi) || []).length;
-      if (fillers > 0) setFillerWordCount((c) => c + fillers);
-
-      // 3. Shareable moment detection
-      const contradiction = extractUnsupportedClaimReason(answer, setupRef.current);
-      const moment = detectShareableMoment({
-        wowMoment: contradiction ? { shouldTrigger: true, line: contradiction, emotionalTag: "contradiction" } : undefined,
-        trust: next.trust,
-        pressure: next.overall < 50 ? 80 : 20,
-        contradiction: contradiction || undefined,
-      });
-      if (moment.shouldHighlight) {
-        setShareableMoment({ title: moment.shareTitle, text: moment.shareText, category: moment.category });
-      }
-
-      // Push a real-time fact-check signal into the live Vapi call. The
-      // deterministic check above is more reliable than asking the voice
-      // LLM to notice contradictions purely from its system prompt — this
-      // gives it an explicit verdict to act on for its very next reply,
-      // instead of relying on it to catch the mismatch unprompted.
-      if (contradiction) {
-        try {
-          vapiClientRef.current?.send?.({
-            type: "add-message",
-            message: {
-              role: "system",
-              content: `FACT-CHECK ALERT: The candidate's last answer appears to contain a claim that is not supported by the verified resume facts or job description. Specifically: ${contradiction} First check the VERIFIED RESUME FACTS already provided in cvSummary/cvText. If the claim is a close speech-to-text variant of a verified fact, do NOT challenge it; correct it mentally and continue. Only if it is genuinely absent, ask one brief clarification.`,
-            },
+        // 3. Shareable moment detection
+        const contradiction = extractUnsupportedClaimReason(
+          answer,
+          setupRef.current,
+        );
+        const moment = detectShareableMoment({
+          wowMoment: contradiction
+            ? {
+                shouldTrigger: true,
+                line: contradiction,
+                emotionalTag: "contradiction",
+              }
+            : undefined,
+          trust: next.trust,
+          pressure: next.overall < 50 ? 80 : 20,
+          contradiction: contradiction || undefined,
+        });
+        if (moment.shouldHighlight) {
+          setShareableMoment({
+            title: moment.shareTitle,
+            text: moment.shareText,
+            category: moment.category,
           });
-        } catch {
-          // If the SDK version doesn't support send(), the prompt-level
-          // instructions remain the only safeguard — fail silently.
         }
-      }
 
-      setScoreReady(true);
+        // Push a real-time fact-check signal into the live Vapi call. The
+        // deterministic check above is more reliable than asking the voice
+        // LLM to notice contradictions purely from its system prompt — this
+        // gives it an explicit verdict to act on for its very next reply,
+        // instead of relying on it to catch the mismatch unprompted.
+        if (contradiction) {
+          try {
+            vapiClientRef.current?.send?.({
+              type: "add-message",
+              message: {
+                role: "system",
+                content: `FACT-CHECK ALERT: The candidate's last answer appears to contain a claim that is not supported by the verified resume facts or job description. Specifically: ${contradiction} First check the VERIFIED RESUME FACTS already provided in cvSummary/cvText. If the claim is a close speech-to-text variant of a verified fact, do NOT challenge it; correct it mentally and continue. Only if it is genuinely absent, ask one brief clarification.`,
+              },
+            });
+          } catch {
+            // If the SDK version doesn't support send(), the prompt-level
+            // instructions remain the only safeguard — fail silently.
+          }
+        }
 
-      const answerQuality = classifyAnswerQuality(answer, setupRef.current);
-      trackWorkZoFailureEvent("answer_quality_detected", {
-        role: setupRef.current.targetRole,
-        recruiter: setupRef.current.recruiterName,
-        quality: answerQuality,
-        trust: next.trust,
-        interest: next.interest,
-        concern: next.concern,
-      }, answerQuality === "weak" ? "medium" : "low");
+        setScoreReady(true);
 
-      setScoreFlash(direction);
-      window.setTimeout(() => setScoreFlash(null), 900);
+        const answerQuality = classifyAnswerQuality(answer, setupRef.current);
+        trackWorkZoFailureEvent(
+          "answer_quality_detected",
+          {
+            role: setupRef.current.targetRole,
+            recruiter: setupRef.current.recruiterName,
+            quality: answerQuality,
+            trust: next.trust,
+            interest: next.interest,
+            concern: next.concern,
+          },
+          answerQuality === "weak" ? "medium" : "low",
+        );
 
-      return next;
-    });
-  }, [scoreReady]);
+        setScoreFlash(direction);
+        window.setTimeout(() => setScoreFlash(null), 900);
+
+        return next;
+      });
+    },
+    [scoreReady],
+  );
 
   const stopPremiumVoice = useCallback(() => {
     vapiConnectedRef.current = false;
@@ -4968,7 +6431,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
     const reaction = getWorkZoLiveReaction(answer);
     setRecruiterVisualState(reaction.visualState);
     setLiveReactionText(reaction.text);
-    const nextEmoMem = updateWorkZoEmotionalMemory(emotionalMemoryRef.current, answer);
+    const nextEmoMem = updateWorkZoEmotionalMemory(
+      emotionalMemoryRef.current,
+      answer,
+    );
     emotionalMemoryRef.current = nextEmoMem;
     setEmotionalMemory(nextEmoMem);
 
@@ -5004,7 +6470,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
     [speakRecruiter],
   );
 
-  
   function openUpgradeModal(feature: string) {
     setUpgradeModalFeature(feature);
   }
@@ -5028,7 +6493,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
   const startPremiumVoice = useCallback(
     async (activeSetup: InterviewSetup) => {
-    // Vapi = voice interviews for Premium+. Tavus = video for Pro only. Never mix these checks.
+      // Vapi = voice interviews for Premium+. Tavus = video for Pro only. Never mix these checks.
       if (vapiStartingRef.current || vapiConnectedRef.current) return true;
 
       // Reset stale client/call state first, then mark this new AI voice start attempt.
@@ -5042,7 +6507,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
         return false;
       }
 
-      const config = getWorkZoVapiConfig(activeSetup.recruiterId, activeSetup.recruiterName);
+      const config = getWorkZoVapiConfig(
+        activeSetup.recruiterId,
+        activeSetup.recruiterName,
+      );
       console.info("WORKZO VAPI CONFIG", {
         enabled: config.enabled,
         assistantIdExists: Boolean(config.assistantId),
@@ -5061,9 +6529,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
         // which piece is missing.
         const missingPieces = [
           !config.publicKey ? "NEXT_PUBLIC_VAPI_PUBLIC_KEY" : null,
-          !config.assistantId ? `the Vapi assistant ID for this recruiter (${config.recruiterKey})` : null,
+          !config.assistantId
+            ? `the Vapi assistant ID for this recruiter (${config.recruiterKey})`
+            : null,
         ].filter(Boolean);
-        console.warn(`[interview] Vapi not configured — using fallback voice. Missing: ${missingPieces.join(", ") || "unknown (check NEXT_PUBLIC_WORKZO_VOICE_PROVIDER)"}`);
+        console.warn(
+          `[interview] Vapi not configured — using fallback voice. Missing: ${missingPieces.join(", ") || "unknown (check NEXT_PUBLIC_WORKZO_VOICE_PROVIDER)"}`,
+        );
         addTranscript({
           role: "system",
           speaker: "System",
@@ -5087,7 +6559,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
         vapiClientRef.current = client;
 
         const releaseToFallback = (error: unknown) => {
-          if (stopRequestedRef.current || vapiFallbackStartedRef.current) return;
+          if (stopRequestedRef.current || vapiFallbackStartedRef.current)
+            return;
 
           const normalizedMessage = normalizeErrorMessage(error);
           const lowerMessage = normalizedMessage.toLowerCase();
@@ -5105,27 +6578,42 @@ const [questionIndex, setQuestionIndex] = useState(0);
           // Krisp/Daily processor warnings are common in localhost/dev and do
           // not always mean the Vapi call failed. Also ignore the Daily
           // "meeting ended" event if WorkZo intentionally stopped the call.
-          if (isKrispProcessorNoise || (isDailyMeetingCleanup && vapiIntentionalStopRef.current)) return;
+          if (
+            isKrispProcessorNoise ||
+            (isDailyMeetingCleanup && vapiIntentionalStopRef.current)
+          )
+            return;
 
-          console.warn("WORKZO VAPI CONNECTION FAILED — switching to browser fallback", {
-            message: normalizedMessage,
-            role: activeSetup.targetRole,
-            recruiter: activeSetup.recruiterName,
-            language: activeSetup.language,
-            assistantId: config.assistantId,
-            recruiterKey: config.recruiterKey,
-          });
+          console.warn(
+            "WORKZO VAPI CONNECTION FAILED — switching to browser fallback",
+            {
+              message: normalizedMessage,
+              role: activeSetup.targetRole,
+              recruiter: activeSetup.recruiterName,
+              language: activeSetup.language,
+              assistantId: config.assistantId,
+              recruiterKey: config.recruiterKey,
+            },
+          );
           classifyVoiceError(error);
-          trackWorkZoErrorEvent("vapi_connection_failed", error, {
-            role: activeSetup.targetRole,
-            recruiter: activeSetup.recruiterName,
-            language: activeSetup.language,
-            assistantId: config.assistantId,
-          }, "high");
+          trackWorkZoErrorEvent(
+            "vapi_connection_failed",
+            error,
+            {
+              role: activeSetup.targetRole,
+              recruiter: activeSetup.recruiterName,
+              language: activeSetup.language,
+              assistantId: config.assistantId,
+            },
+            "high",
+          );
           setPremiumVoiceStatus("failed");
-          setPremiumVoiceError("Live voice is unavailable. Continuing with standard voice.");
+          setPremiumVoiceError(
+            "Live voice is unavailable. Continuing with standard voice.",
+          );
           stopPremiumVoice();
-          if (!vapiFallbackStartedRef.current) void startBrowserFallbackInterview(activeSetup);
+          if (!vapiFallbackStartedRef.current)
+            void startBrowserFallbackInterview(activeSetup);
         };
 
         client.on?.("call-start", () => {
@@ -5144,7 +6632,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
         client.on?.("call-end", () => {
           vapiConnectedRef.current = false;
           vapiStartingRef.current = false;
-          setPremiumVoiceStatus((current) => (current === "connected" ? "idle" : current));
+          setPremiumVoiceStatus((current) =>
+            current === "connected" ? "idle" : current,
+          );
           if (!stopRequestedRef.current) setStatus("idle");
         });
 
@@ -5156,7 +6646,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
           if (!transcriptMessage.isFinal) {
             if (transcriptMessage.role === "user") {
-              const interim = cleanVisibleTranscriptText(transcriptMessage.text);
+              const interim = cleanVisibleTranscriptText(
+                transcriptMessage.text,
+              );
               const now = Date.now();
 
               if (
@@ -5180,15 +6672,24 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
           if (transcriptMessage.role === "user") {
             if (isTinyVisibleSpeechFragment(finalText)) return;
-            if (vapiFinalUserTextRef.current === finalText || lastUserTranscriptRef.current === finalText) return;
+            if (
+              vapiFinalUserTextRef.current === finalText ||
+              lastUserTranscriptRef.current === finalText
+            )
+              return;
             vapiFinalUserTextRef.current = finalText;
             lastUserTranscriptRef.current = finalText;
 
             // Live interruption check — surfaced visually via recruiter visual state
-            const liveInterrupt = shouldInterruptLive({ transcript: finalText, duration: 0 });
+            const liveInterrupt = shouldInterruptLive({
+              transcript: finalText,
+              duration: 0,
+            });
             if (liveInterrupt.interrupt) {
               setRecruiterVisualState("interrupting");
-              setLiveReactionText(liveInterrupt.message || "Let me stop you there.");
+              setLiveReactionText(
+                liveInterrupt.message || "Let me stop you there.",
+              );
             }
 
             addTranscript({
@@ -5219,7 +6720,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
           }
 
           if (transcriptMessage.role === "assistant") {
-            const recruiterText = cleanRecruiterFinalText(finalText, activeSetup);
+            const recruiterText = cleanRecruiterFinalText(
+              finalText,
+              activeSetup,
+            );
             if (lastAssistantTranscriptRef.current === recruiterText) return;
             lastAssistantTranscriptRef.current = recruiterText;
 
@@ -5227,7 +6731,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
               const signature = recruiterText.toLowerCase().slice(0, 140);
               if (vapiQuestionSignatureRef.current !== signature) {
                 vapiQuestionSignatureRef.current = signature;
-                setQuestionIndex((value) => Math.min(value + 1, 12));
+                setQuestionIndex((value) => Math.min(value + 1, 20));
               }
             }
 
@@ -5239,9 +6743,14 @@ const [questionIndex, setQuestionIndex] = useState(0);
           }
         });
 
-        const selectedLanguage = normalizeInterviewLanguage(activeSetup.language);
-        const isEnglishInterview = selectedLanguage.code.toLowerCase().startsWith("en");
-        const unsupportedClaimChallenge = localizedUnsupportedClaimChallenge(activeSetup);
+        const selectedLanguage = normalizeInterviewLanguage(
+          activeSetup.language,
+        );
+        const isEnglishInterview = selectedLanguage.code
+          .toLowerCase()
+          .startsWith("en");
+        const unsupportedClaimChallenge =
+          localizedUnsupportedClaimChallenge(activeSetup);
 
         // Build variableValues — ONLY include fields that the Vapi assistant
         // template references as {{variables}}. Sending large instruction blobs
@@ -5262,38 +6771,63 @@ const [questionIndex, setQuestionIndex] = useState(0);
           companyStyle: detectCompanyInterviewStyle(activeSetup),
           companyName: activeSetup.targetCompany || "the company",
           recruiterPersonality: recruiterPersonalityInstructions(activeSetup),
-          companyStyleInstructions: companyStyleInstructions(detectCompanyInterviewStyle(activeSetup)),
-          // Keep cv and jd summaries short to stay under Vapi payload limit
+          companyStyleInstructions: companyStyleInstructions(
+            detectCompanyInterviewStyle(activeSetup),
+          ),
+          // Pass structured profile so VAPI gets exact company names directly from
+          // resumeProfile.experience[].company — not from regex on cvText which
+          // strips company names when they appear after a job title on the same line.
+          resumeProfile: activeSetup.resumeProfile || null,
+          // Global CV/JD grounding fix:
+          // Pass verified factual memory + the fullest available CV/JD context to
+          // buildWorkZoVapiVariableValues(). That helper performs final compacting
+          // and adds fuzzy company-name handling, so the assistant does not miss
+          // any employer name because of transcript STT noise.
           cvText: [
             enforceSelectedLanguagePrefix(activeSetup),
             buildFactualMemoryBrief(activeSetup),
-            "Raw CV excerpt (secondary only — verified facts above are authoritative):",
-            (activeSetup.cvText || "").slice(0, 900),
+            "FULL RAW CV CONTEXT (secondary; verified facts above are authoritative):",
+            activeSetup.cvText ||
+              activeSetup.rawCvText ||
+              activeSetup.resumeText ||
+              activeSetup.candidateCv ||
+              "",
           ].join("\n"),
           jobDescription: [
             buildLanguageInstruction(activeSetup),
-            "JD context:",
-            (activeSetup.jobDescription || "").slice(0, 1200),
+            "FULL JOB DESCRIPTION CONTEXT:",
+            activeSetup.jobDescription || activeSetup.jdText || "",
           ].join("\n"),
           // Core grounding rules — kept concise
-          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} You are WorkZo AI's recruiter. The VERIFIED RESUME FACTS in cvSummary/cvText are authoritative. Never say you do not see or cannot verify an employer, role, timeline, education, project, or skill already listed there, including close speech-to-text variants such as Zoho car/core for Zoho Corp or CSS core for CSS Corp. For verified facts, ask about responsibilities, ownership, challenges, metrics, and outcomes. Challenge only claims that are truly absent from verified facts and raw CV context. Ask one question per turn. ${unsupportedClaimChallenge}`,
-          strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} VERIFIED RESUME FACTS are authoritative. Never challenge companies/roles/years listed there. Treat speech-to-text variants of listed employers as supported. Challenge only genuinely unsupported new claims. Ask one concise follow-up at a time.`,
-          recruiterMustChallengeUnsupportedClaims: "only_if_absent_from_verified_resume_facts",
+          workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} You are WorkZo AI's recruiter. The VERIFIED RESUME FACTS in cvSummary/cvText are authoritative. Never say you do not see, cannot verify, do not see enough detail, not listed, not reflected in the CV, or need to pause for an employer, role, timeline, education, project, skill, achievement, responsibility, or years-of-experience already listed there, including close speech-to-text variants of any listed employer name. For verified facts, ask positively about responsibilities, ownership, challenges, metrics, JD fit, and outcomes. If the answer is short, say "I see that listed; walk me through the responsibilities and results there" rather than challenging the CV. Challenge only claims that are truly absent from verified facts and raw CV context. Ask one question per turn. ${unsupportedClaimChallenge}`,
+          strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} VERIFIED RESUME FACTS are authoritative. Never challenge companies/roles/years listed there and never say the CV lacks detail for verified facts. Treat speech-to-text variants of listed employers as supported. Challenge only genuinely unsupported new claims. Ask one concise follow-up at a time.`,
+          recruiterMustChallengeUnsupportedClaims:
+            "only_if_absent_from_verified_resume_facts",
           antiHallucinationMode: "verified_resume_authoritative",
         });
 
         vapiTimeoutRef.current = window.setTimeout(() => {
-          if (!vapiConnectedRef.current && !stopRequestedRef.current && !vapiFallbackStartedRef.current) {
+          if (
+            !vapiConnectedRef.current &&
+            !stopRequestedRef.current &&
+            !vapiFallbackStartedRef.current
+          ) {
             console.warn("WORKZO VAPI STILL CONNECTING", {
               role: activeSetup.targetRole,
               recruiter: activeSetup.recruiterName,
             });
-            trackWorkZoFailureEvent("vapi_connection_slow", {
-              role: activeSetup.targetRole,
-              recruiter: activeSetup.recruiterName,
-            }, "medium");
+            trackWorkZoFailureEvent(
+              "vapi_connection_slow",
+              {
+                role: activeSetup.targetRole,
+                recruiter: activeSetup.recruiterName,
+              },
+              "medium",
+            );
             setPremiumVoiceStatus("connecting");
-            setPremiumVoiceError("Live voice is still connecting. Please wait — WorkZo will not switch to fallback unless the call truly fails.");
+            setPremiumVoiceError(
+              "Live voice is still connecting. Please wait — WorkZo will not switch to fallback unless the call truly fails.",
+            );
 
             // Localhost/dev, cold starts, and Daily room creation can take
             // longer than 30 seconds. The previous code stopped Vapi at ~30s,
@@ -5301,20 +6835,31 @@ const [questionIndex, setQuestionIndex] = useState(0);
             // and forced the fallback voice. Keep the Vapi call alive much
             // longer, and only fall back after a genuine extended timeout.
             window.setTimeout(() => {
-              if (!vapiConnectedRef.current && !stopRequestedRef.current && !vapiFallbackStartedRef.current) {
+              if (
+                !vapiConnectedRef.current &&
+                !stopRequestedRef.current &&
+                !vapiFallbackStartedRef.current
+              ) {
                 console.warn("WORKZO VAPI EXTENDED CONNECTION TIMEOUT", {
                   role: activeSetup.targetRole,
                   recruiter: activeSetup.recruiterName,
                 });
-                trackWorkZoFailureEvent("vapi_connection_extended_timeout", {
-                  role: activeSetup.targetRole,
-                  recruiter: activeSetup.recruiterName,
-                }, "high");
+                trackWorkZoFailureEvent(
+                  "vapi_connection_extended_timeout",
+                  {
+                    role: activeSetup.targetRole,
+                    recruiter: activeSetup.recruiterName,
+                  },
+                  "high",
+                );
                 setPremiumVoiceStatus("failed");
-                setPremiumVoiceError("Live voice could not connect after an extended wait. Switching to standard voice.");
+                setPremiumVoiceError(
+                  "Live voice could not connect after an extended wait. Switching to standard voice.",
+                );
                 vapiIntentionalStopRef.current = true;
                 stopPremiumVoice();
-                if (!vapiFallbackStartedRef.current) void startBrowserFallbackInterview(activeSetup);
+                if (!vapiFallbackStartedRef.current)
+                  void startBrowserFallbackInterview(activeSetup);
               }
             }, 60000);
           }
@@ -5333,15 +6878,21 @@ const [questionIndex, setQuestionIndex] = useState(0);
         };
 
         // Debug log: verify what CV data VAPI actually receives
-        // Check browser console for "WORKZO VAPI CV CONTEXT" to confirm companies list
+        // Diagnostic: log everything that reaches the Vapi call
         const cvFactsForLog = extractCvFactMemory(activeSetup);
+        const _rpExp = (activeSetup.resumeProfile as any)?.experience || [];
         console.info("WORKZO VAPI CV CONTEXT", {
           candidateName: activeSetup.candidateName,
-          cvCompanies: cvFactsForLog.companies,
-          cvRoles: cvFactsForLog.roles,
-          cvSkills: cvFactsForLog.skills.slice(0, 5),
           hasResumeProfile: Boolean(activeSetup.resumeProfile),
+          resumeProfileExperienceCount: _rpExp.length,
+          resumeProfileCompanies: _rpExp.map((e: any) => e.company).filter(Boolean),
+          cvFactCompanies: cvFactsForLog.companies,
+          cvFactRoles: cvFactsForLog.roles,
           cvTextLength: (activeSetup.cvText || "").length,
+          rawCvTextLength: ((activeSetup as any).rawCvText || activeSetup.cvText || "").length,
+          variableValueKeys: Object.keys(variableValues),
+          cvSummaryFirst300: String((variableValues as any).cvSummary || "").slice(0, 300),
+          interviewStyleFirst300: String((variableValues as any).interviewStyle || "").slice(0, 300),
         });
         console.info("WORKZO VAPI LANGUAGE LOCK", {
           interviewLanguage: selectedLanguage.label,
@@ -5354,30 +6905,49 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
         return true;
       } catch (error) {
-        console.warn("WORKZO VAPI START FAILED — switching to browser fallback", {
-          message: normalizeErrorMessage(error),
-          role: activeSetup.targetRole,
-          recruiter: activeSetup.recruiterName,
-          language: activeSetup.language,
-          assistantId: config.assistantId,
-          recruiterKey: config.recruiterKey,
-        });
+        console.warn(
+          "WORKZO VAPI START FAILED — switching to browser fallback",
+          {
+            message: normalizeErrorMessage(error),
+            role: activeSetup.targetRole,
+            recruiter: activeSetup.recruiterName,
+            language: activeSetup.language,
+            assistantId: config.assistantId,
+            recruiterKey: config.recruiterKey,
+          },
+        );
         classifyVoiceError(error);
-        trackWorkZoErrorEvent("voice_connect_failed", error, {
-          role: activeSetup.targetRole,
-          recruiter: activeSetup.recruiterName,
-          language: activeSetup.language,
-          assistantId: config.assistantId,
-        }, "high");
+        trackWorkZoErrorEvent(
+          "voice_connect_failed",
+          error,
+          {
+            role: activeSetup.targetRole,
+            recruiter: activeSetup.recruiterName,
+            language: activeSetup.language,
+            assistantId: config.assistantId,
+          },
+          "high",
+        );
         vapiStartingRef.current = false;
         setPremiumVoiceStatus("failed");
-        setPremiumVoiceError("Live voice is unavailable. Continuing with standard voice.");
+        setPremiumVoiceError(
+          "Live voice is unavailable. Continuing with standard voice.",
+        );
         stopPremiumVoice();
-        if (!vapiFallbackStartedRef.current) void startBrowserFallbackInterview(activeSetup);
+        if (!vapiFallbackStartedRef.current)
+          void startBrowserFallbackInterview(activeSetup);
         return false;
       }
     },
-    [addTranscript, analyzeVapiUserAnswer, applyRecruiterSignalUpdate, audioEnabled, premiumVoiceEnabled, startBrowserFallbackInterview, stopPremiumVoice],
+    [
+      addTranscript,
+      analyzeVapiUserAnswer,
+      applyRecruiterSignalUpdate,
+      audioEnabled,
+      premiumVoiceEnabled,
+      startBrowserFallbackInterview,
+      stopPremiumVoice,
+    ],
   );
 
   useEffect(() => {
@@ -5385,7 +6955,6 @@ const [questionIndex, setQuestionIndex] = useState(0);
       stopPremiumVoice();
     };
   }, [stopPremiumVoice]);
-
 
   const startInterview = useCallback(async () => {
     stopRequestedRef.current = false;
@@ -5402,14 +6971,16 @@ const [questionIndex, setQuestionIndex] = useState(0);
     const currentPlan = serverPlan;
     const interviewCheck = checkWorkZoInterviewAllowed(currentPlan);
     if (!interviewCheck.allowed) {
-      const gateFeature = currentPlan === "premium" ? "premium_pro_interview" : "interview_limit";
+      const gateFeature =
+        currentPlan === "premium" ? "premium_pro_interview" : "interview_limit";
       openUpgradeModal(gateFeature);
       addTranscript({
         role: "system",
         speaker: "System",
-        text: currentPlan === "premium"
-          ? `You have used all ${interviewCheck.limit} interviews this month. Upgrade to Premium Pro for unlimited voice interviews.`
-          : `You have used all ${interviewCheck.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
+        text:
+          currentPlan === "premium"
+            ? `You have used all ${interviewCheck.limit} interviews this month. Upgrade to Premium Pro for unlimited voice interviews.`
+            : `You have used all ${interviewCheck.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
       });
       return;
     }
@@ -5436,14 +7007,20 @@ const [questionIndex, setQuestionIndex] = useState(0);
       setElapsed(restoredSnapshot.elapsed);
       setQuestionIndex(restoredSnapshot.questionIndex);
       setInterimText("");
-      const candidateAnswers = countCandidateAnswers(restoredSnapshot.transcript);
+      const candidateAnswers = countCandidateAnswers(
+        restoredSnapshot.transcript,
+      );
 
-      trackWorkZoFailureEvent("interview_recovered_and_resumed", {
-        role: restoredSnapshot.setup.targetRole,
-        recruiter: restoredSnapshot.setup.recruiterName,
-        transcriptItems: restoredSnapshot.transcript.length,
-        questionIndex: restoredSnapshot.questionIndex,
-      }, "low");
+      trackWorkZoFailureEvent(
+        "interview_recovered_and_resumed",
+        {
+          role: restoredSnapshot.setup.targetRole,
+          recruiter: restoredSnapshot.setup.recruiterName,
+          transcriptItems: restoredSnapshot.transcript.length,
+          questionIndex: restoredSnapshot.questionIndex,
+        },
+        "low",
+      );
 
       setRecoveredSessionReady(false);
       recoveredSessionRef.current = null;
@@ -5462,15 +7039,22 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
       const nextQuestionIndex = Math.max(
         restoredSnapshot.questionIndex,
-        Math.min(12, candidateAnswers + 1),
+        Math.min(20, candidateAnswers + 1),
       );
 
       questionIndexRef.current = nextQuestionIndex;
       setQuestionIndex(nextQuestionIndex);
 
       const currentPlanForRestore = serverPlan;
-      const restoreVapiEligible = currentPlanForRestore === "free" || currentPlanForRestore === "premium" || currentPlanForRestore === "premium_pro";
-      if (restoreVapiEligible && premiumVoiceEnabledRef.current && audioEnabledRef.current) {
+      const restoreVapiEligible =
+        currentPlanForRestore === "free" ||
+        currentPlanForRestore === "premium" ||
+        currentPlanForRestore === "premium_pro";
+      if (
+        restoreVapiEligible &&
+        premiumVoiceEnabledRef.current &&
+        audioEnabledRef.current
+      ) {
         const reconnectedPremiumVoice = await startPremiumVoice(restoredSetup);
 
         if (reconnectedPremiumVoice) {
@@ -5506,22 +7090,40 @@ const [questionIndex, setQuestionIndex] = useState(0);
     setSetup(freshSetup);
     setupRef.current = freshSetup;
     if (typeof window !== "undefined") {
-      (window as unknown as { __workzoDisruptionMemory?: WorkZoDisruptionMemory }).__workzoDisruptionMemory = createWorkZoDisruptionMemory();
+      (
+        window as unknown as {
+          __workzoDisruptionMemory?: WorkZoDisruptionMemory;
+        }
+      ).__workzoDisruptionMemory = createWorkZoDisruptionMemory();
     }
 
     setWaitingRoomActive(true);
     setWaitingRoomStep(0);
-    for (let stepIndex = 0; stepIndex < buildWorkZoWaitingRoomSteps(freshSetup as unknown as Record<string, unknown>).length; stepIndex += 1) {
+    for (
+      let stepIndex = 0;
+      stepIndex <
+      buildWorkZoWaitingRoomSteps(
+        freshSetup as unknown as Record<string, unknown>,
+      ).length;
+      stepIndex += 1
+    ) {
       setWaitingRoomStep(stepIndex);
-      await new Promise((resolve) => window.setTimeout(resolve, stepIndex === 0 ? 320 : 620));
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, stepIndex === 0 ? 320 : 620),
+      );
     }
     setWaitingRoomActive(false);
 
     if (recoverySnapshotRef.current) {
-      trackWorkZoFailureEvent("active_interview_replaced", {
-        previousRole: recoverySnapshotRef.current.setup.targetRole,
-        previousTranscriptItems: recoverySnapshotRef.current.transcript.length,
-      }, "low");
+      trackWorkZoFailureEvent(
+        "active_interview_replaced",
+        {
+          previousRole: recoverySnapshotRef.current.setup.targetRole,
+          previousTranscriptItems:
+            recoverySnapshotRef.current.transcript.length,
+        },
+        "low",
+      );
     }
 
     clearActiveInterviewSnapshot();
@@ -5538,14 +7140,16 @@ const [questionIndex, setQuestionIndex] = useState(0);
       // authenticated user and DB-resolved plan. Stop the interview from
       // actually starting.
       const blockedPlan = sessionPersistResult.plan || serverPlan;
-      const gateFeature = blockedPlan === "premium" ? "premium_pro_interview" : "interview_limit";
+      const gateFeature =
+        blockedPlan === "premium" ? "premium_pro_interview" : "interview_limit";
       openUpgradeModal(gateFeature);
       addTranscript({
         role: "system",
         speaker: "System",
-        text: blockedPlan === "premium"
-          ? `You've used all ${sessionPersistResult.limit} interviews this month. Upgrade to Premium Pro for unlimited voice interviews.`
-          : `You've used all ${sessionPersistResult.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
+        text:
+          blockedPlan === "premium"
+            ? `You've used all ${sessionPersistResult.limit} interviews this month. Upgrade to Premium Pro for unlimited voice interviews.`
+            : `You've used all ${sessionPersistResult.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
       });
       setStatus("idle");
       return;
@@ -5589,9 +7193,16 @@ const [questionIndex, setQuestionIndex] = useState(0);
     // Premium:      Vapi voice → browser fallback on failure
     // Premium Pro:  Vapi voice → browser fallback on failure  (Tavus handled separately)
     // currentPlan already declared above for the limit check — reuse it
-    const isVapiEligible = currentPlan === "free" || currentPlan === "premium" || currentPlan === "premium_pro";
+    const isVapiEligible =
+      currentPlan === "free" ||
+      currentPlan === "premium" ||
+      currentPlan === "premium_pro";
 
-    if (isVapiEligible && premiumVoiceEnabledRef.current && audioEnabledRef.current) {
+    if (
+      isVapiEligible &&
+      premiumVoiceEnabledRef.current &&
+      audioEnabledRef.current
+    ) {
       const startedPremiumVoice = await startPremiumVoice(freshSetup);
 
       if (startedPremiumVoice) {
@@ -5631,16 +7242,29 @@ const [questionIndex, setQuestionIndex] = useState(0);
       const finalTranscript = transcript;
 
       const finalScore = scoreReady ? recruiterSignal : null;
-      const verdict = buildInterviewVerdict(finalScore, recruiterMemoryRef.current);
-      const weakestMoment = findWeakestInterviewMoment(finalTranscript, recruiterMemoryRef.current);
-      const answerQuality = summarizeAnswerQuality(finalTranscript, setupRef.current);
+      const verdict = buildInterviewVerdict(
+        finalScore,
+        recruiterMemoryRef.current,
+      );
+      const weakestMoment = findWeakestInterviewMoment(
+        finalTranscript,
+        recruiterMemoryRef.current,
+      );
+      const answerQuality = summarizeAnswerQuality(
+        finalTranscript,
+        setupRef.current,
+      );
 
       persistCandidatePatterns(recruiterMemoryRef.current, setupRef.current);
 
       // Calculate speaking pace (WPM)
       const candidateWords = finalTranscript
         .filter((item) => item.role === "candidate")
-        .reduce((acc, item) => acc + item.text.trim().split(/\s+/).filter(Boolean).length, 0);
+        .reduce(
+          (acc, item) =>
+            acc + item.text.trim().split(/\s+/).filter(Boolean).length,
+          0,
+        );
       const durationMins = elapsed > 0 ? elapsed / 60 : 1;
       const averageWpm = Math.round(candidateWords / durationMins);
 
@@ -5679,7 +7303,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
       };
 
       try {
-        const existingRaw = window.localStorage.getItem("workzo_interview_results");
+        const existingRaw = window.localStorage.getItem(
+          "workzo_interview_results",
+        );
         const existing = existingRaw ? JSON.parse(existingRaw) : [];
         const list = Array.isArray(existing) ? existing : [];
 
@@ -5687,7 +7313,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
           "workzo_interview_results",
           JSON.stringify([session, ...list].slice(0, 20)),
         );
-        window.localStorage.setItem("workzo_latest_interview_result", JSON.stringify(session));
+        window.localStorage.setItem(
+          "workzo_latest_interview_result",
+          JSON.stringify(session),
+        );
         persistInterviewSessionToDb("completed");
         persistInterviewResultToDb(session as unknown as Record<string, any>);
         clearActiveInterviewSnapshot();
@@ -5696,7 +7325,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
         const shareable = detectShareableMoment({
           trust: session.score?.trust ?? 0,
           pressure: recruiterMemoryRef.current.unsupportedClaims > 0 ? 80 : 40,
-          contradiction: session.memory.patterns.find((p) => p.toLowerCase().includes("unsupported")) || "",
+          contradiction:
+            session.memory.patterns.find((p) =>
+              p.toLowerCase().includes("unsupported"),
+            ) || "",
         });
         if (shareable.shouldHighlight) {
           setShareableMoment({
@@ -5704,7 +7336,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
             text: shareable.shareText,
             category: shareable.category,
           });
-          window.localStorage.setItem("workzo_shareable_moment", JSON.stringify(shareable));
+          window.localStorage.setItem(
+            "workzo_shareable_moment",
+            JSON.stringify(shareable),
+          );
         }
 
         trackWorkZoInterviewEvent("interview_completed", {
@@ -5715,7 +7350,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
           score: session.score?.overall ?? null,
           trust: session.score?.trust ?? null,
           verdict: session.verdict?.decision ?? "",
-          answers: session.transcript.filter((item) => item.role === "candidate").length,
+          answers: session.transcript.filter(
+            (item) => item.role === "candidate",
+          ).length,
         });
 
         trackWorkZoInterviewEvent("interview_saved", {
@@ -5726,23 +7363,42 @@ const [questionIndex, setQuestionIndex] = useState(0);
           score: session.score?.overall ?? null,
           trust: session.score?.trust ?? null,
           verdict: session.verdict?.decision ?? "",
-          answers: session.transcript.filter((item) => item.role === "candidate").length,
+          answers: session.transcript.filter(
+            (item) => item.role === "candidate",
+          ).length,
         });
       } catch (error) {
-        trackWorkZoErrorEvent("interview_save_failed", error, {
-          role: setupRef.current.targetRole,
-          recruiter: setupRef.current.recruiterName,
-        }, "high");
+        trackWorkZoErrorEvent(
+          "interview_save_failed",
+          error,
+          {
+            role: setupRef.current.targetRole,
+            recruiter: setupRef.current.recruiterName,
+          },
+          "high",
+        );
       }
     },
-    [elapsed, recruiterSignal, recruiterMemory, scoreReady, transcript, persistInterviewResultToDb, persistInterviewSessionToDb],
+    [
+      elapsed,
+      recruiterSignal,
+      recruiterMemory,
+      scoreReady,
+      transcript,
+      persistInterviewResultToDb,
+      persistInterviewSessionToDb,
+    ],
   );
 
   const endInterview = useCallback(() => {
-    window.setTimeout(() => { window.location.href = "/results"; }, 250);
+    window.setTimeout(() => {
+      window.location.href = "/results";
+    }, 250);
 
     listeningRef.current = false;
-    try { recognitionRef.current?.stop?.(); } catch {}
+    try {
+      recognitionRef.current?.stop?.();
+    } catch {}
     if (typeof window !== "undefined") window.speechSynthesis.cancel();
 
     setStatus("ended");
@@ -5795,7 +7451,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
   // generous number of extra turns, force the same graceful wrap-up rather
   // than risk running forever.
   const turnsPastCapRef = useRef(0);
-  const TURNS_PAST_CAP_BEFORE_FORCED_CLOSE = 6;
+  const TURNS_PAST_CAP_BEFORE_FORCED_CLOSE = 10;
 
   useEffect(() => {
     if (closingHandledRef.current) return;
@@ -5804,53 +7460,73 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
     const last = transcript[transcript.length - 1];
 
-    if (
-      last.role === "recruiter" &&
-      /do you have any questions|any questions for me|questions about the role|questions for me before we wrap/i.test(last.text)
-    ) {
-      closingInvitationSeenRef.current = true;
-      return;
+    if (last.role === "recruiter") {
+      // Detect any natural closing or wrap-up language from the recruiter.
+      // This covers both the structured browser-engine closing invitation
+      // ("do you have any questions") and the freeform Vapi recruiter phrases
+      // ("that covers everything", "thank you for your time", "we'll be in
+      // touch", "best of luck", etc.). Broad matching ensures the closing
+      // exchange is detected regardless of how each recruiter persona words it.
+      const isClosingInvitation =
+        /do you have any questions|any questions for me|questions about the role|questions for me before we wrap/i.test(last.text);
+      const isNaturalWrapUp =
+        /thank you for your time|thanks for your time|that('s| is) all (from my|on my) side|that covers everything|we'?ll (be in touch|follow up|reach out|get back|email|call)|best of luck|good luck with|look forward to (speaking|talking|connecting)|have a (great|good|wonderful) day|take care|bye/i.test(last.text);
+
+      if (isClosingInvitation || isNaturalWrapUp) {
+        closingInvitationSeenRef.current = true;
+        return;
+      }
     }
 
-    const candidateExchangeAfterInvitation = closingInvitationSeenRef.current && last.role === "candidate";
+    const candidateExchangeAfterInvitation =
+      closingInvitationSeenRef.current && last.role === "candidate";
     const forcedCloseDueToStuckLoop =
       !closingInvitationSeenRef.current &&
       last.role === "candidate" &&
-      questionIndexRef.current >= 12 &&
+      questionIndexRef.current >= 18 &&
       (turnsPastCapRef.current += 1) >= TURNS_PAST_CAP_BEFORE_FORCED_CLOSE;
 
     if (candidateExchangeAfterInvitation || forcedCloseDueToStuckLoop) {
       closingHandledRef.current = true;
       closingInvitationSeenRef.current = false;
 
-      // Stop the normal listen/reply loop from continuing — this must come
-      // before speaking the closing line, since speakRecruiter's TTS-
-      // completion callbacks check this flag before re-arming the mic.
+      // Stop the normal listen/reply loop before speaking the closing line —
+      // speakRecruiter's TTS completion callbacks check this flag before
+      // re-arming the mic, so this must come first.
       stopRequestedRef.current = true;
       stopListening();
 
-      const closingLine =
-        "That covers everything from my side — thank you so much for your time today. We'll follow up with next steps soon. Take care!";
+      // Build a personalised closing line using the recruiter's name and
+      // the candidate's first name. Always spoken — never a silent navigation.
+      const recruiterFirstName = (setupRef.current.recruiterName || "").split(" ")[0] || "I";
+      const candidateFirst = safeFirstName(setupRef.current.candidateName);
+      const closingLine = candidateFirst
+        ? `That brings us to the end of our session, ${candidateFirst}. Thank you so much for your time today — it was great learning more about your background. We'll be in touch soon with next steps. Take care!`
+        : `That brings us to the end of our session. Thank you so much for your time today — it was a pleasure. We'll be in touch soon with next steps. Take care!`;
+
+      addTranscript({
+        role: "recruiter",
+        speaker: `${setupRef.current.recruiterName} · ${setupRef.current.recruiterTitle}`,
+        text: closingLine,
+      });
 
       if (audioEnabledRef.current && status !== "recruiter-speaking") {
         speakRecruiter(closingLine);
+        // Wait for TTS to finish before navigating — closing line is ~15 words,
+        // roughly 6–8 seconds at normal speech pace.
+        window.setTimeout(() => { endInterview(); }, 9000);
       } else {
-        addTranscript({
-          role: "recruiter",
-          speaker: `${setupRef.current.recruiterName} · ${setupRef.current.recruiterTitle}`,
-          text: closingLine,
-        });
+        window.setTimeout(() => { endInterview(); }, 4000);
       }
-
-      // Generous fixed delay so the closing line has time to actually be
-      // read/heard before navigating away — imprecise (no clean "TTS truly
-      // finished" signal at this call site) but errs toward not cutting the
-      // candidate's experience short.
-      window.setTimeout(() => {
-        endInterview();
-      }, 6000);
     }
-  }, [transcript, status, speakRecruiter, addTranscript, endInterview, stopListening]);
+  }, [
+    transcript,
+    status,
+    speakRecruiter,
+    addTranscript,
+    endInterview,
+    stopListening,
+  ]);
 
   const toggleMic = useCallback(() => {
     if (status === "listening" && listeningRef.current) {
@@ -5900,12 +7576,16 @@ const [questionIndex, setQuestionIndex] = useState(0);
     setRecoverySnapshot(null);
     setRecoveryNoticeDismissed(false);
 
-    trackWorkZoFailureEvent("state_recovery_used", {
-      role: snapshot.setup.targetRole,
-      recruiter: snapshot.setup.recruiterName,
-      transcriptItems: snapshot.transcript.length,
-      questionIndex: snapshot.questionIndex,
-    }, "low");
+    trackWorkZoFailureEvent(
+      "state_recovery_used",
+      {
+        role: snapshot.setup.targetRole,
+        recruiter: snapshot.setup.recruiterName,
+        transcriptItems: snapshot.transcript.length,
+        questionIndex: snapshot.questionIndex,
+      },
+      "low",
+    );
 
     // Do not auto-start after restore. Auto-start was forcing the restored session
     // into browser TTS fallback on some devices. The user can tap Start to reconnect
@@ -5925,10 +7605,14 @@ const [questionIndex, setQuestionIndex] = useState(0);
     setRecoverySnapshot(null);
     setRecoveryNoticeDismissed(true);
 
-    trackWorkZoFailureEvent("state_recovery_discarded", {
-      role: snapshot?.setup.targetRole || setupRef.current.targetRole,
-      transcriptItems: snapshot?.transcript.length || 0,
-    }, "low");
+    trackWorkZoFailureEvent(
+      "state_recovery_discarded",
+      {
+        role: snapshot?.setup.targetRole || setupRef.current.targetRole,
+        transcriptItems: snapshot?.transcript.length || 0,
+      },
+      "low",
+    );
   }, [recoverySnapshot]);
 
   const formattedElapsed = useMemo(() => {
@@ -5939,7 +7623,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
   if (!setupLoaded) {
     return (
-    <main className="min-h-screen overflow-x-hidden bg-[#050b14] text-white">
+      <main className="min-h-screen overflow-x-hidden bg-[#050b14] text-white">
         <div className="grid min-h-screen place-items-center px-5">
           <section className="w-full max-w-md rounded-lg border border-white/10 bg-white/[0.03] p-6 shadow-2xl">
             <div className="flex items-center gap-4">
@@ -5947,8 +7631,12 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 <Mic className="h-7 w-7 text-blue-200" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">Preparing interview room</p>
-                <h1 className="mt-1 text-2xl font-black">Preparing your interview room…</h1>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">
+                  Preparing interview room
+                </p>
+                <h1 className="mt-1 text-2xl font-black">
+                  Preparing your interview room…
+                </h1>
               </div>
             </div>
 
@@ -5959,7 +7647,8 @@ const [questionIndex, setQuestionIndex] = useState(0);
             </div>
 
             <p className="mt-5 text-base leading-6 text-white leading-7 font-medium">
-              Setting up your recruiter, CV context, and interview configuration.
+              Setting up your recruiter, CV context, and interview
+              configuration.
             </p>
           </section>
         </div>
@@ -5969,7 +7658,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#050b14] text-white lg:h-screen lg:overflow-hidden">
-<section className="grid min-h-screen grid-rows-[64px_1fr] lg:h-full lg:min-h-0 lg:grid-rows-[70px_1fr]">
+      <section className="grid min-h-screen grid-rows-[64px_1fr] lg:h-full lg:min-h-0 lg:grid-rows-[70px_1fr]">
         <header className="flex items-center justify-between gap-2 border-b border-white/10 px-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-2 sm:gap-5">
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
@@ -6009,10 +7698,11 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 </p>
               </div>
               <span className="hidden h-2.5 w-2.5 rounded-full bg-emerald-400 sm:block" />
-              <span className={`hidden rounded-full border px-2.5 py-1 text-xs font-black uppercase sm:block ${recruiterStatusTone(recruiterSignal, scoreReady)}`}>
+              <span
+                className={`hidden rounded-full border px-2.5 py-1 text-xs font-black uppercase sm:block ${recruiterStatusTone(recruiterSignal, scoreReady)}`}
+              >
                 {recruiterStatus}
               </span>
-
             </div>
           </div>
 
@@ -6045,7 +7735,7 @@ const [questionIndex, setQuestionIndex] = useState(0);
               >
                 <PhoneOff className="h-4 w-4" />
                 <PremiumUsageBadge compact />
-              End
+                End
               </button>
             )}
 
@@ -6053,340 +7743,528 @@ const [questionIndex, setQuestionIndex] = useState(0);
               onClick={() => setAudioEnabled((value) => !value)}
               className="hidden h-10 w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.03] sm:grid"
             >
-              <Volume2 className={`h-5 w-5 ${audioEnabled ? "" : "text-slate-200"}`} />
+              <Volume2
+                className={`h-5 w-5 ${audioEnabled ? "" : "text-slate-200"}`}
+              />
             </button>
             <div className="relative hidden sm:block">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSettingsOpen((value) => !value);
-                    setMoreOpen(false);
-                  }}
-                  className="grid h-10 w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.08]"
-                  aria-label="Interview settings"
-                >
-                  <Settings className="h-5 w-5" />
-                </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSettingsOpen((value) => !value);
+                  setMoreOpen(false);
+                }}
+                className="grid h-10 w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.08]"
+                aria-label="Interview settings"
+              >
+                <Settings className="h-5 w-5" />
+              </button>
 
-                {settingsOpen ? (
-                  <div className="absolute right-0 top-12 z-50 max-h-[min(620px,calc(100vh-108px))] w-[320px] overflow-y-auto rounded-lg workzo-hide-scrollbar border border-white/10 bg-[#091323]/95 p-4 shadow-2xl backdrop-blur-xl">
-                    <div className="mb-3">
-                      <p className="text-sm font-black text-white">Interview Settings</p>
-                      <p className="mt-1 text-xs text-slate-400">Adjust only this interview room.</p>
-                    </div>
+              {settingsOpen ? (
+                <div className="absolute right-0 top-12 z-50 max-h-[min(620px,calc(100vh-108px))] w-[320px] overflow-y-auto rounded-lg workzo-hide-scrollbar border border-white/10 bg-[#091323]/95 p-4 shadow-2xl backdrop-blur-xl">
+                  <div className="mb-3">
+                    <p className="text-sm font-black text-white">
+                      Interview Settings
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Adjust only this interview room.
+                    </p>
+                  </div>
 
-                    <div className="space-y-3">
-                      {/* Technical Mode toggle — premium only */}
-                      {premiumUnlocked && (
-                        <section>
-                          <div className="mb-2 flex items-center justify-between gap-2">
-                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-violet-200">Technical Mode</p>
-                            <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-200">Premium</span>
+                  <div className="space-y-3">
+                    {/* Technical Mode toggle — premium only */}
+                    {premiumUnlocked && (
+                      <section>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-violet-200">
+                            Technical Mode
+                          </p>
+                          <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-200">
+                            Premium
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setTechnicalMode((v) => !v)}
+                          className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left transition ${
+                            technicalMode
+                              ? "border-violet-400/30 bg-violet-500/10"
+                              : "border-white/10 bg-white/[0.03]"
+                          }`}
+                        >
+                          <div>
+                            <p className="text-xs font-black text-white">
+                              💻 Code workspace
+                            </p>
+                            <p className="mt-0.5 text-[10px] leading-4 text-slate-400">
+                              Show a live code editor. The recruiter reacts to
+                              your code.
+                            </p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setTechnicalMode((v) => !v)}
-                            className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left transition ${
+                          <span
+                            className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${
                               technicalMode
-                                ? "border-violet-400/30 bg-violet-500/10"
-                                : "border-white/10 bg-white/[0.03]"
+                                ? "bg-violet-400/20 text-violet-200"
+                                : "bg-white/10 text-slate-500"
                             }`}
                           >
-                            <div>
-                              <p className="text-xs font-black text-white">💻 Code workspace</p>
-                              <p className="mt-0.5 text-[10px] leading-4 text-slate-400">
-                                Show a live code editor. The recruiter reacts to your code.
-                              </p>
-                            </div>
-                            <span className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${
-                              technicalMode ? "bg-violet-400/20 text-violet-200" : "bg-white/10 text-slate-500"
-                            }`}>
-                              {technicalMode ? "On" : "Off"}
-                            </span>
-                          </button>
-                        </section>
-                      )}
-                      <section>
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Recruiter</p>
-                          {!premiumUnlocked ? (
-                            <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black text-amber-200">Premium available</span>
-                          ) : null}
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {([
-                            { id: "friendly_hr", name: "Sarah Chen", label: "Talent Partner", premium: false },
-                            { id: "analytical_hiring_manager", name: "Daniel Reed", label: "Hiring Manager", premium: false },
-                            { id: "startup_recruiter", name: "Priya Raman", label: "Startup Lead", premium: true },
-                            { id: "german_corporate", name: "Markus Weber", label: "Corporate Lead", premium: true },
-                          ] as const).map((recruiter) => {
-                            const locked = recruiter.premium && !premiumUnlocked;
-                            const selected = setup.recruiterName === recruiter.name || setup.recruiterId === recruiter.id;
-
-                            return (
-                              <button
-                                key={recruiter.id}
-                                type="button"
-                                onClick={() => {
-                                  if (locked) {
-                                    handlePremiumGateClick(`recruiter_${recruiter.name.toLowerCase()}`);
-                                    return;
-                                  }
-
-                                  applyRecruiterFromSettings(recruiter.id);
-                                }}
-                                className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
-                                  selected
-                                    ? "border-blue-400/60 bg-blue-500/15 text-white"
-                                    : locked
-                                      ? "border-amber-300/20 bg-amber-400/[0.06] text-amber-100/80"
-                                      : "border-white/10 bg-white/[0.03] text-slate-300"
-                                }`}
-                              >
-                                <span className="flex items-center justify-between gap-2">
-                                  <span>{recruiter.name}</span>
-                                  {locked ? <span className="text-[10px] text-amber-200">PRO</span> : null}
-                                </span>
-                                <span className="mt-0.5 block text-[11px] font-semibold text-slate-200">{recruiter.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                            {technicalMode ? "On" : "Off"}
+                          </span>
+                        </button>
                       </section>
-
-                      <section>
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Interview Atmosphere</p>
-                          {!premiumUnlocked ? (
-                            <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black text-amber-200">Premium pressure</span>
-                          ) : null}
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {(["Supportive", "Realistic", "Challenging", "Brutal"] as const).map((style) => {
-                            const locked = (style === "Challenging" || style === "Brutal") && !premiumUnlocked;
-
-                            return (
-                              <button
-                                key={style}
-                                type="button"
-                                onClick={() => {
-                                  if (locked) {
-                                    handlePremiumGateClick(`atmosphere_${style.toLowerCase()}`);
-                                    return;
-                                  }
-
-                                  setInterviewStyle(style);
-                                }}
-                                className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
-                                  interviewStyle === style
-                                    ? "border-violet-400/60 bg-violet-500/15 text-white"
-                                    : locked
-                                      ? "border-amber-300/20 bg-amber-400/[0.06] text-amber-100/80"
-                                      : "border-white/10 bg-white/[0.03] text-slate-300"
-                                }`}
-                              >
-                                <span className="flex items-center justify-between gap-2">
-                                  <span>{style}</span>
-                                  {locked ? <span className="text-[10px] text-amber-200">PRO</span> : null}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                    )}
+                    <section>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                          Recruiter
+                        </p>
                         {!premiumUnlocked ? (
-                          <p className="mt-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.06] p-2 text-xs leading-5 text-amber-100/80">
-                            Free interviews include Sarah, Daniel, Supportive, and Realistic. Premium unlocks Priya, Markus, Challenging, and Brutal interview pressure.
+                          <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black text-amber-200">
+                            Premium available
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(
+                          [
+                            {
+                              id: "friendly_hr",
+                              name: "Sarah Chen",
+                              label: "Talent Partner",
+                              premium: false,
+                            },
+                            {
+                              id: "analytical_hiring_manager",
+                              name: "Daniel Reed",
+                              label: "Hiring Manager",
+                              premium: false,
+                            },
+                            {
+                              id: "startup_recruiter",
+                              name: "Priya Raman",
+                              label: "Startup Lead",
+                              premium: true,
+                            },
+                            {
+                              id: "german_corporate",
+                              name: "Markus Weber",
+                              label: "Corporate Lead",
+                              premium: true,
+                            },
+                          ] as const
+                        ).map((recruiter) => {
+                          const locked = recruiter.premium && !premiumUnlocked;
+                          const selected =
+                            setup.recruiterName === recruiter.name ||
+                            setup.recruiterId === recruiter.id;
+
+                          return (
+                            <button
+                              key={recruiter.id}
+                              type="button"
+                              onClick={() => {
+                                if (locked) {
+                                  handlePremiumGateClick(
+                                    `recruiter_${recruiter.name.toLowerCase()}`,
+                                  );
+                                  return;
+                                }
+
+                                applyRecruiterFromSettings(recruiter.id);
+                              }}
+                              className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
+                                selected
+                                  ? "border-blue-400/60 bg-blue-500/15 text-white"
+                                  : locked
+                                    ? "border-amber-300/20 bg-amber-400/[0.06] text-amber-100/80"
+                                    : "border-white/10 bg-white/[0.03] text-slate-300"
+                              }`}
+                            >
+                              <span className="flex items-center justify-between gap-2">
+                                <span>{recruiter.name}</span>
+                                {locked ? (
+                                  <span className="text-[10px] text-amber-200">
+                                    PRO
+                                  </span>
+                                ) : null}
+                              </span>
+                              <span className="mt-0.5 block text-[11px] font-semibold text-slate-200">
+                                {recruiter.label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+
+                    <section>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                          Interview Atmosphere
+                        </p>
+                        {!premiumUnlocked ? (
+                          <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black text-amber-200">
+                            Premium pressure
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(
+                          [
+                            "Supportive",
+                            "Realistic",
+                            "Challenging",
+                            "Brutal",
+                          ] as const
+                        ).map((style) => {
+                          const locked =
+                            (style === "Challenging" || style === "Brutal") &&
+                            !premiumUnlocked;
+
+                          return (
+                            <button
+                              key={style}
+                              type="button"
+                              onClick={() => {
+                                if (locked) {
+                                  handlePremiumGateClick(
+                                    `atmosphere_${style.toLowerCase()}`,
+                                  );
+                                  return;
+                                }
+
+                                setInterviewStyle(style);
+                              }}
+                              className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
+                                interviewStyle === style
+                                  ? "border-violet-400/60 bg-violet-500/15 text-white"
+                                  : locked
+                                    ? "border-amber-300/20 bg-amber-400/[0.06] text-amber-100/80"
+                                    : "border-white/10 bg-white/[0.03] text-slate-300"
+                              }`}
+                            >
+                              <span className="flex items-center justify-between gap-2">
+                                <span>{style}</span>
+                                {locked ? (
+                                  <span className="text-[10px] text-amber-200">
+                                    PRO
+                                  </span>
+                                ) : null}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {!premiumUnlocked ? (
+                        <p className="mt-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.06] p-2 text-xs leading-5 text-amber-100/80">
+                          Free interviews include Sarah, Daniel, Supportive, and
+                          Realistic. Premium unlocks Priya, Markus, Challenging,
+                          and Brutal interview pressure.
+                        </p>
+                      ) : null}
+                    </section>
+
+                    <section className="space-y-3">
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                        Voice Settings
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setAudioEnabled((value) => !value)}
+                        className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
+                      >
+                        <span>Voice On/Off</span>
+                        <span className="text-slate-400">
+                          {audioEnabled ? "On" : "Off"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPremiumVoiceEnabled((value) => !value)
+                        }
+                        className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
+                      >
+                        <span>Live AI voice</span>
+                        <span className="text-slate-400">
+                          {premiumVoiceEnabled ? "On" : "Off"}
+                        </span>
+                      </button>
+                      <label className="block rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span>Voice Speed</span>
+                          <span className="text-slate-400">
+                            {voiceSpeed.toFixed(2)}x
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.70"
+                          max="1.00"
+                          step="0.03"
+                          value={voiceSpeed}
+                          onChange={(event) =>
+                            setVoiceSpeed(Number(event.target.value))
+                          }
+                          className="w-full"
+                        />
+                      </label>
+                    </section>
+
+                    <section className="space-y-2">
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                        Transcript
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowTranscript((value) => !value)}
+                        className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm workzo-transcript-panel"
+                      >
+                        <span>
+                          {showTranscript
+                            ? "Hide Transcript"
+                            : "Show Live Transcript"}
+                        </span>
+                        <span className="text-slate-400">
+                          {showTranscript ? "On" : "Off"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAutoScrollTranscript((value) => !value)
+                        }
+                        className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm workzo-transcript-body"
+                      >
+                        <span>Auto-scroll Transcript</span>
+                        <span className="text-slate-400">
+                          {autoScrollTranscript ? "On" : "Off"}
+                        </span>
+                      </button>
+                    </section>
+
+                    <section
+                      style={{ display: showCopilot ? undefined : "none" }}
+                      className="rounded-lg border border-white/10 bg-[#0b1527] p-3.5 overflow-visible"
+                    >
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-base font-black text-blue-300">
+                          Live Copilot
+                        </h2>
+                        <button
+                          type="button"
+                          onClick={() => setShowCopilot((value) => !value)}
+                          className="relative h-6 w-11 rounded-full bg-blue-500"
+                          aria-label="Toggle Live Copilot"
+                        >
+                          <span className="absolute right-1 top-1 h-4 w-4 rounded-full bg-white" />
+                        </button>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-[1fr_auto] gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                            Recruiter mood
+                          </p>
+                          <p
+                            className={`mt-0.5 text-base font-black ${recruiterMoodColor(recruiterSignal.mood)}`}
+                          >
+                            {scoreReady ? recruiterSignal.mood : "Waiting"}
+                          </p>
+                        </div>
+                        <div className="text-right text-[11px] text-slate-300">
+                          <p>
+                            Trust{" "}
+                            <span className="font-bold text-white">
+                              {scoreReady ? recruiterSignal.trust : "—"}
+                            </span>
+                          </p>
+                          <p>
+                            Interest{" "}
+                            <span className="font-bold text-white">
+                              {scoreReady ? recruiterSignal.interest : "—"}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 rounded-xl border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
+                          Say next
+                        </p>
+                        <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-100">
+                          {scoreReady
+                            ? recruiterSignal.trust < 60
+                              ? "Clarify the claim, then give one verified example."
+                              : "Give one specific example with a clear result."
+                            : "Answer with one clear, role-relevant example."}
+                        </p>
+                      </div>
+
+                      <div className="mt-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-200">
+                          Recruiter concern
+                        </p>
+                        <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-100">
+                          {scoreReady
+                            ? recruiterMemory.liveNote ||
+                              recruiterSignal.concern
+                            : "Waiting for evidence, ownership, and measurable impact."}
+                        </p>
+                        {recruiterMemory.patterns.length ? (
+                          <p className="mt-1 line-clamp-1 text-[11px] text-amber-100/80">
+                            Patterns detected:{" "}
+                            {
+                              recruiterMemory.patterns[
+                                recruiterMemory.patterns.length - 1
+                              ]
+                            }
                           </p>
                         ) : null}
-                      </section>
+                      </div>
 
-                      <section className="space-y-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Voice Settings</p>
+                      <div className="mt-2 rounded-xl border border-blue-300/15 bg-blue-400/[0.07] px-3 py-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-200">
+                          Live recruiter thoughts
+                        </p>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {liveRecruiterThoughts.map((thought) => (
+                            <span
+                              key={thought}
+                              className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-slate-200"
+                            >
+                              {thought}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="space-y-2">
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                        Interview Controls
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
-                          onClick={() => setAudioEnabled((value) => !value)}
-                          className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
+                          onClick={stopListening}
+                          className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200"
                         >
-                          <span>Voice On/Off</span>
-                          <span className="text-slate-400">{audioEnabled ? "On" : "Off"}</span>
+                          Pause
                         </button>
                         <button
                           type="button"
-                          onClick={() => setPremiumVoiceEnabled((value) => !value)}
-                          className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
+                          onClick={() =>
+                            speakRecruiter(
+                              recruiterQuestions[Math.max(0, questionIndex)],
+                            )
+                          }
+                          className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200"
                         >
-                          <span>Live AI voice</span>
-                          <span className="text-slate-400">{premiumVoiceEnabled ? "On" : "Off"}</span>
+                          Restart question
                         </button>
-                        <label className="block rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm">
-                          <div className="mb-2 flex items-center justify-between">
-                            <span>Voice Speed</span>
-                            <span className="text-slate-400">{voiceSpeed.toFixed(2)}x</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="0.70"
-                            max="1.00"
-                            step="0.03"
-                            value={voiceSpeed}
-                            onChange={(event) => setVoiceSpeed(Number(event.target.value))}
-                            className="w-full"
-                          />
-                        </label>
-                      </section>
+                      </div>
+                    </section>
 
-                      <section className="space-y-2">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Transcript</p>
-                        <button type="button" onClick={() => setShowTranscript((value) => !value)} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm workzo-transcript-panel">
-                          <span>{showTranscript ? "Hide Transcript" : "Show Live Transcript"}</span>
-                          <span className="text-slate-400">{showTranscript ? "On" : "Off"}</span>
+                    <section>
+                      <p className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                        Accessibility
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200"
+                        >
+                          Larger text
                         </button>
-                        <button type="button" onClick={() => setAutoScrollTranscript((value) => !value)} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm workzo-transcript-body">
-                          <span>Auto-scroll Transcript</span>
-                          <span className="text-slate-400">{autoScrollTranscript ? "On" : "Off"}</span>
+                        <button
+                          type="button"
+                          className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200"
+                        >
+                          High contrast
                         </button>
-                      </section>
-
-                      <section
-              style={{ display: showCopilot ? undefined : "none" }}
-              className="rounded-lg border border-white/10 bg-[#0b1527] p-3.5 overflow-visible"
-            >
-              <div className="flex items-center justify-between">
-<h2 className="text-base font-black text-blue-300">Live Copilot</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowCopilot((value) => !value)}
-                  className="relative h-6 w-11 rounded-full bg-blue-500"
-                  aria-label="Toggle Live Copilot"
-                >
-                  <span className="absolute right-1 top-1 h-4 w-4 rounded-full bg-white" />
-                </button>
-              </div>
-
-              <div className="mt-2 grid grid-cols-[1fr_auto] gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-                    Recruiter mood
-                  </p>
-                  <p className={`mt-0.5 text-base font-black ${recruiterMoodColor(recruiterSignal.mood)}`}>
-                    {scoreReady ? recruiterSignal.mood : "Waiting"}
-                  </p>
+                      </div>
+                    </section>
+                  </div>
                 </div>
-                <div className="text-right text-[11px] text-slate-300">
-                  <p>Trust <span className="font-bold text-white">{scoreReady ? recruiterSignal.trust : "—"}</span></p>
-                  <p>Interest <span className="font-bold text-white">{scoreReady ? recruiterSignal.interest : "—"}</span></p>
-                </div>
-              </div>
+              ) : null}
+            </div>
 
-              <div className="mt-2 rounded-xl border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">Say next</p>
-                <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-100">
-                  {scoreReady
-                    ? recruiterSignal.trust < 60
-                      ? "Clarify the claim, then give one verified example."
-                      : "Give one specific example with a clear result."
-                    : "Answer with one clear, role-relevant example."}
-                </p>
-              </div>
+            <div className="relative hidden md:block">
+              <button
+                type="button"
+                onClick={() => {
+                  setMoreOpen((value) => !value);
+                  setSettingsOpen(false);
+                }}
+                className="grid h-10 w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.08]"
+                aria-label="More interview actions"
+              >
+                <MoreVertical className="h-5 w-5" />
+              </button>
 
-              <div className="mt-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-200">Recruiter concern</p>
-                <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-100">
-                  {scoreReady ? recruiterMemory.liveNote || recruiterSignal.concern : "Waiting for evidence, ownership, and measurable impact."}
-                </p>
-                {recruiterMemory.patterns.length ? (
-                  <p className="mt-1 line-clamp-1 text-[11px] text-amber-100/80">
-                    Patterns detected: {recruiterMemory.patterns[recruiterMemory.patterns.length - 1]}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="mt-2 rounded-xl border border-blue-300/15 bg-blue-400/[0.07] px-3 py-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-200">Live recruiter thoughts</p>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {liveRecruiterThoughts.map((thought) => (
-                    <span key={thought} className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-slate-200">
-                      {thought}
-                    </span>
+              {moreOpen ? (
+                <div className="absolute right-0 top-12 z-50 w-52 rounded-lg border border-white/10 bg-[#091323]/95 p-2 shadow-2xl backdrop-blur-xl">
+                  {[
+                    "Take Notes",
+                    "Report Issue",
+                    "Help Center",
+                    "Exit Interview",
+                  ].map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={
+                        item === "Exit Interview" ? endInterview : undefined
+                      }
+                      className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-200 hover:bg-white/[0.06]"
+                    >
+                      {item}
+                      <ChevronRight className="h-4 w-4 text-slate-200" />
+                    </button>
                   ))}
                 </div>
-              </div>
-            </section>
-
-                      <section className="space-y-2">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Interview Controls</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button type="button" onClick={stopListening} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200">Pause</button>
-                          <button type="button" onClick={() => speakRecruiter(recruiterQuestions[Math.max(0, questionIndex)])} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200">Restart question</button>
-                        </div>
-                      </section>
-
-                      <section>
-                        <p className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Accessibility</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button type="button" className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200">Larger text</button>
-                          <button type="button" className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200">High contrast</button>
-                        </div>
-                      </section>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="relative hidden md:block">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMoreOpen((value) => !value);
-                    setSettingsOpen(false);
-                  }}
-                  className="grid h-10 w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.08]"
-                  aria-label="More interview actions"
-                >
-                  <MoreVertical className="h-5 w-5" />
-                </button>
-
-                {moreOpen ? (
-                  <div className="absolute right-0 top-12 z-50 w-52 rounded-lg border border-white/10 bg-[#091323]/95 p-2 shadow-2xl backdrop-blur-xl">
-                    {["Take Notes", "Report Issue", "Help Center", "Exit Interview"].map((item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={item === "Exit Interview" ? endInterview : undefined}
-                        className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-200 hover:bg-white/[0.06]"
-                      >
-                        {item}
-                        <ChevronRight className="h-4 w-4 text-slate-200" />
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
+              ) : null}
+            </div>
           </div>
         </header>
 
         {shareableMoment && status !== "idle" ? (
           <div className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-lg border border-violet-300/20 bg-violet-500/[0.08] px-4 py-2.5 lg:mx-4">
             <div className="min-w-0">
-              <p className="text-xs font-black text-violet-200">{shareableMoment.title}</p>
-              <p className="mt-0.5 truncate text-xs text-slate-400">{shareableMoment.text}</p>
+              <p className="text-xs font-black text-violet-200">
+                {shareableMoment.title}
+              </p>
+              <p className="mt-0.5 truncate text-xs text-slate-400">
+                {shareableMoment.text}
+              </p>
             </div>
             <div className="flex shrink-0 gap-2">
               <button
                 type="button"
                 onClick={() => {
                   if (typeof navigator !== "undefined" && navigator.share) {
-                    void navigator.share({ title: shareableMoment.title, text: `${shareableMoment.text} — Practice interview on WorkZo AI` });
+                    void navigator.share({
+                      title: shareableMoment.title,
+                      text: `${shareableMoment.text} — Practice interview on WorkZo AI`,
+                    });
                   } else if (typeof navigator !== "undefined") {
-                    void navigator.clipboard.writeText(`${shareableMoment.text} — Practice interview on WorkZo AI`);
+                    void navigator.clipboard.writeText(
+                      `${shareableMoment.text} — Practice interview on WorkZo AI`,
+                    );
                   }
                 }}
                 className="rounded-xl bg-violet-500 px-3 py-1.5 text-xs font-black text-white hover:bg-violet-400"
               >
                 Share
               </button>
-              <button type="button" onClick={() => setShareableMoment(null)} className="text-slate-400 hover:text-white text-xs px-2">✕</button>
+              <button
+                type="button"
+                onClick={() => setShareableMoment(null)}
+                className="text-slate-400 hover:text-white text-xs px-2"
+              >
+                ✕
+              </button>
             </div>
           </div>
         ) : null}
@@ -6397,10 +8275,15 @@ const [questionIndex, setQuestionIndex] = useState(0);
               <div>
                 <p className="text-sm font-black">Resume previous interview?</p>
                 <p className="mt-1 text-xs leading-5 text-amber-100/80">
-                  Role: {recoverySnapshot.setup.targetRole || "Interview Role"} · Recruiter: {recoverySnapshot.setup.recruiterName || "AI Recruiter"} · {getRecoveryProgressLabel(recoverySnapshot)} · {getRecoverySavedLabel(recoverySnapshot)}
+                  Role: {recoverySnapshot.setup.targetRole || "Interview Role"}{" "}
+                  · Recruiter:{" "}
+                  {recoverySnapshot.setup.recruiterName || "AI Recruiter"} ·{" "}
+                  {getRecoveryProgressLabel(recoverySnapshot)} ·{" "}
+                  {getRecoverySavedLabel(recoverySnapshot)}
                 </p>
                 <p className="mt-1 text-xs leading-5 text-amber-100/70">
-                  Click Resume Interview to restore the transcript, trust score, recruiter memory, and continue from the last saved question.
+                  Click Resume Interview to restore the transcript, trust score,
+                  recruiter memory, and continue from the last saved question.
                 </p>
               </div>
               <div className="flex shrink-0 gap-2">
@@ -6428,7 +8311,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
           <div className="mx-4 mt-3 flex items-start gap-3 rounded-lg border border-blue-400/20 bg-blue-400/[0.06] px-4 py-3">
             <span className="mt-0.5 shrink-0 text-base text-blue-300">💡</span>
             <p className="flex-1 text-xs leading-5 text-blue-200">
-              The recruiter will ask questions — respond as you would in a real interview. Speak naturally, then pause. WorkZo listens automatically.
+              The recruiter will ask questions — respond as you would in a real
+              interview. Speak naturally, then pause. WorkZo listens
+              automatically.
             </p>
             <button
               type="button"
@@ -6444,7 +8329,9 @@ const [questionIndex, setQuestionIndex] = useState(0);
         {/* Technical mode: show code panel between recruiter video and sidebar */}
         {technicalMode && premiumUnlocked && (
           <div className="border-b border-white/[0.06] bg-[#060d18] px-4 pb-3 pt-2">
-            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-violet-400">Code Workspace · Technical Mode</p>
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-violet-400">
+              Code Workspace · Technical Mode
+            </p>
             <div className="h-[340px] lg:h-[420px]">
               <CodePanel onCodeChange={handleCodeChange} />
             </div>
@@ -6470,20 +8357,37 @@ const [questionIndex, setQuestionIndex] = useState(0);
               {waitingRoomActive ? (
                 <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050b14]/80 p-4 backdrop-blur-md">
                   <div className="w-full max-w-xl rounded-xl border border-white/10 bg-[#0b1527]/95 p-5 shadow-2xl">
-                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-200">Interview waiting room</p>
-                    <h2 className="mt-2 text-xl font-black text-white">{simulationPersona.name} is preparing your interview</h2>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">{simulationPersona.openingFrame}</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-200">
+                      Interview waiting room
+                    </p>
+                    <h2 className="mt-2 text-xl font-black text-white">
+                      {simulationPersona.name} is preparing your interview
+                    </h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">
+                      {simulationPersona.openingFrame}
+                    </p>
                     <div className="mt-5 space-y-3">
                       {waitingRoomSteps.map((step, index) => {
                         const active = index === waitingRoomStep;
                         const done = index < waitingRoomStep;
                         return (
-                          <div key={step.label} className={`rounded-lg border p-3 transition ${active ? "border-blue-300/35 bg-blue-500/10" : done ? "border-emerald-300/25 bg-emerald-500/10" : "border-white/10 bg-white/[0.03]"}`}>
+                          <div
+                            key={step.label}
+                            className={`rounded-lg border p-3 transition ${active ? "border-blue-300/35 bg-blue-500/10" : done ? "border-emerald-300/25 bg-emerald-500/10" : "border-white/10 bg-white/[0.03]"}`}
+                          >
                             <div className="flex items-center gap-3">
-                              <span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-black ${done ? "bg-emerald-400 text-slate-950" : active ? "bg-blue-400 text-slate-950 animate-pulse" : "bg-white/10 text-slate-400"}`}>{done ? "✓" : index + 1}</span>
+                              <span
+                                className={`grid h-7 w-7 place-items-center rounded-full text-xs font-black ${done ? "bg-emerald-400 text-slate-950" : active ? "bg-blue-400 text-slate-950 animate-pulse" : "bg-white/10 text-slate-400"}`}
+                              >
+                                {done ? "✓" : index + 1}
+                              </span>
                               <div>
-                                <p className="text-sm font-black text-white">{step.label}</p>
-                                <p className="mt-0.5 text-xs leading-5 text-slate-400">{step.detail}</p>
+                                <p className="text-sm font-black text-white">
+                                  {step.label}
+                                </p>
+                                <p className="mt-0.5 text-xs leading-5 text-slate-400">
+                                  {step.detail}
+                                </p>
                               </div>
                             </div>
                           </div>
@@ -6495,25 +8399,44 @@ const [questionIndex, setQuestionIndex] = useState(0);
               ) : null}
 
               {/* Recruiter visual state overlay — powered by workzoPremiumExperienceEngine */}
-              {recruiterVisualState !== "waiting" && recruiterVisualState !== "listening" && status !== "idle" && (
-                <div className={`absolute left-1/2 top-[28%] -translate-x-1/2 rounded-full border px-4 py-1.5 text-xs font-black backdrop-blur-sm transition-all duration-500 ${
-                  recruiterVisualState === "skeptical" ? "border-amber-300/30 bg-amber-400/20 text-amber-200" :
-                  recruiterVisualState === "interested" ? "border-emerald-300/30 bg-emerald-400/20 text-emerald-200" :
-                  recruiterVisualState === "interrupting" ? "border-red-300/40 bg-red-500/25 text-red-200 animate-pulse" :
-                  recruiterVisualState === "typing_notes" ? "border-blue-300/30 bg-blue-400/20 text-blue-200" :
-                  recruiterVisualState === "thinking" ? "border-slate-300/20 bg-slate-400/15 text-slate-300" :
-                  "border-white/10 bg-black/30 text-slate-300"
-                }`}>
-                  {recruiterVisualState === "skeptical" && "🤔 Sceptical"}
-                  {recruiterVisualState === "interested" && "✓ Interested"}
-                  {recruiterVisualState === "interrupting" && "✋ Hold on"}
-                  {recruiterVisualState === "typing_notes" && "📝 Taking notes"}
-                  {recruiterVisualState === "thinking" && "Thinking..."}
-                </div>
-              )}
+              {recruiterVisualState !== "waiting" &&
+                recruiterVisualState !== "listening" &&
+                status !== "idle" && (
+                  <div
+                    className={`absolute left-1/2 top-[28%] -translate-x-1/2 rounded-full border px-4 py-1.5 text-xs font-black backdrop-blur-sm transition-all duration-500 ${
+                      recruiterVisualState === "skeptical"
+                        ? "border-amber-300/30 bg-amber-400/20 text-amber-200"
+                        : recruiterVisualState === "interested"
+                          ? "border-emerald-300/30 bg-emerald-400/20 text-emerald-200"
+                          : recruiterVisualState === "interrupting"
+                            ? "border-red-300/40 bg-red-500/25 text-red-200 animate-pulse"
+                            : recruiterVisualState === "typing_notes"
+                              ? "border-blue-300/30 bg-blue-400/20 text-blue-200"
+                              : recruiterVisualState === "thinking"
+                                ? "border-slate-300/20 bg-slate-400/15 text-slate-300"
+                                : "border-white/10 bg-black/30 text-slate-300"
+                    }`}
+                  >
+                    {recruiterVisualState === "skeptical" && "🤔 Sceptical"}
+                    {recruiterVisualState === "interested" && "✓ Interested"}
+                    {recruiterVisualState === "interrupting" && "✋ Hold on"}
+                    {recruiterVisualState === "typing_notes" &&
+                      "📝 Taking notes"}
+                    {recruiterVisualState === "thinking" && "Thinking..."}
+                  </div>
+                )}
 
               <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-black/50 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-emerald-300 backdrop-blur-sm">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.9)]" /> {waitingRoomActive ? "CONNECTING" : status === "recruiter-speaking" ? "SPEAKING" : status === "listening" ? "LISTENING" : status === "thinking" ? "THINKING" : "READY"}
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.9)]" />{" "}
+                {waitingRoomActive
+                  ? "CONNECTING"
+                  : status === "recruiter-speaking"
+                    ? "SPEAKING"
+                    : status === "listening"
+                      ? "LISTENING"
+                      : status === "thinking"
+                        ? "THINKING"
+                        : "READY"}
                 {status === "recruiter-speaking" && (
                   <button
                     type="button"
@@ -6527,26 +8450,42 @@ const [questionIndex, setQuestionIndex] = useState(0);
               </div>
 
               {/* Recruiter visual state overlay — emotional reaction ring */}
-              {scoreReady && recruiterVisualState !== "waiting" && recruiterVisualState !== "listening" && (
-                <div className={`absolute inset-0 pointer-events-none transition-all duration-700 ${
-                  recruiterVisualState === "interested" ? "ring-4 ring-inset ring-emerald-400/45" :
-                  recruiterVisualState === "skeptical" ? "ring-4 ring-inset ring-amber-400/45" :
-                  recruiterVisualState === "interrupting" ? "ring-[6px] ring-inset ring-red-500/60" :
-                  recruiterVisualState === "typing_notes" ? "ring-4 ring-inset ring-blue-400/35" :
-                  ""
-                }`} />
-              )}
+              {scoreReady &&
+                recruiterVisualState !== "waiting" &&
+                recruiterVisualState !== "listening" && (
+                  <div
+                    className={`absolute inset-0 pointer-events-none transition-all duration-700 ${
+                      recruiterVisualState === "interested"
+                        ? "ring-4 ring-inset ring-emerald-400/45"
+                        : recruiterVisualState === "skeptical"
+                          ? "ring-4 ring-inset ring-amber-400/45"
+                          : recruiterVisualState === "interrupting"
+                            ? "ring-[6px] ring-inset ring-red-500/60"
+                            : recruiterVisualState === "typing_notes"
+                              ? "ring-4 ring-inset ring-blue-400/35"
+                              : ""
+                    }`}
+                  />
+                )}
               {/* Recruiter reaction bubble */}
-              {scoreReady && liveReactionText && recruiterVisualState !== "waiting" && recruiterVisualState !== "listening" && (
-                <div className={`absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-lg border px-4 py-2 text-xs font-black shadow-2xl backdrop-blur-md z-10 transition-all duration-300 ${
-                  recruiterVisualState === "interested" ? "border-emerald-300/25 bg-emerald-950/80 text-emerald-200" :
-                  recruiterVisualState === "interrupting" ? "border-red-300/25 bg-red-950/85 text-red-200" :
-                  recruiterVisualState === "skeptical" ? "border-amber-300/25 bg-amber-950/80 text-amber-200" :
-                  "border-white/10 bg-black/70 text-slate-200"
-                }`}>
-                  {liveReactionText}
-                </div>
-              )}
+              {scoreReady &&
+                liveReactionText &&
+                recruiterVisualState !== "waiting" &&
+                recruiterVisualState !== "listening" && (
+                  <div
+                    className={`absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-lg border px-4 py-2 text-xs font-black shadow-2xl backdrop-blur-md z-10 transition-all duration-300 ${
+                      recruiterVisualState === "interested"
+                        ? "border-emerald-300/25 bg-emerald-950/80 text-emerald-200"
+                        : recruiterVisualState === "interrupting"
+                          ? "border-red-300/25 bg-red-950/85 text-red-200"
+                          : recruiterVisualState === "skeptical"
+                            ? "border-amber-300/25 bg-amber-950/80 text-amber-200"
+                            : "border-white/10 bg-black/70 text-slate-200"
+                    }`}
+                  >
+                    {liveReactionText}
+                  </div>
+                )}
 
               {premiumVoiceError ? (
                 <div className="absolute right-4 top-5 hidden max-w-[320px] rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100 lg:block">
@@ -6559,9 +8498,15 @@ const [questionIndex, setQuestionIndex] = useState(0);
                   {setup.recruiterName}
                   <CheckCircle2 className="h-5 w-5 fill-blue-500 text-blue-500" />
                 </div>
-                <p className="mt-1 truncate text-xs text-white/80 sm:text-sm">{setup.recruiterTitle}</p>
+                <p className="mt-1 truncate text-xs text-white/80 sm:text-sm">
+                  {setup.recruiterTitle}
+                </p>
                 <p className="mt-2 text-xs font-bold text-emerald-200">
-                  {waitingRoomActive ? "Reviewing your resume" : scoreReady ? recruiterStatus : "Ready for first answer"}
+                  {waitingRoomActive
+                    ? "Reviewing your resume"
+                    : scoreReady
+                      ? recruiterStatus
+                      : "Ready for first answer"}
                 </p>
               </div>
 
@@ -6569,10 +8514,16 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 <button
                   onClick={toggleMic}
                   className={`grid h-12 w-12 place-items-center rounded-full shadow-2xl transition-transform active:scale-95 ${
-                    status === "listening" ? "bg-blue-500 text-white ring-4 ring-blue-400/30" : "bg-white text-slate-950 hover:bg-blue-50"
+                    status === "listening"
+                      ? "bg-blue-500 text-white ring-4 ring-blue-400/30"
+                      : "bg-white text-slate-950 hover:bg-blue-50"
                   }`}
                 >
-                  {status === "listening" ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+                  {status === "listening" ? (
+                    <MicOff className="h-6 w-6" />
+                  ) : (
+                    <Mic className="h-6 w-6" />
+                  )}
                 </button>
                 <button
                   type="button"
@@ -6591,7 +8542,10 @@ const [questionIndex, setQuestionIndex] = useState(0);
               </div>
             </section>
 
-            <section className="border-t border-white/[0.08] bg-[#05090f] flex flex-col lg:flex-1 lg:min-h-0 lg:overflow-hidden" id="workzo-transcript-section">
+            <section
+              className="border-t border-white/[0.08] bg-[#05090f] flex flex-col lg:flex-1 lg:min-h-0 lg:overflow-hidden"
+              id="workzo-transcript-section"
+            >
               <button
                 type="button"
                 onClick={() => {
@@ -6603,7 +8557,12 @@ const [questionIndex, setQuestionIndex] = useState(0);
                       // viewport on phones, since the video panel above it
                       // already consumes most of a typical mobile screen.
                       window.setTimeout(() => {
-                        document.getElementById("workzo-transcript-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        document
+                          .getElementById("workzo-transcript-section")
+                          ?.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start",
+                          });
                       }, 50);
                     }
                     return next;
@@ -6613,29 +8572,44 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 aria-expanded={showTranscript}
               >
                 <div className="flex items-center gap-3">
-                  <h2 className="text-sm font-black text-slate-200">Transcript</h2>
+                  <h2 className="text-sm font-black text-slate-200">
+                    Transcript
+                  </h2>
                   <span className="h-2 w-2 rounded-full bg-red-400" />
-                  <span className="text-base text-white leading-7 font-medium">{transcriptMessageCount} message{transcriptMessageCount === 1 ? "" : "s"}</span>
+                  <span className="text-base text-white leading-7 font-medium">
+                    {transcriptMessageCount} message
+                    {transcriptMessageCount === 1 ? "" : "s"}
+                  </span>
                 </div>
-                <span className="text-[10px] font-black text-slate-500 lg:hidden">{showTranscript ? "▲" : "▼"}</span>
+                <span className="text-[10px] font-black text-slate-500 lg:hidden">
+                  {showTranscript ? "▲" : "▼"}
+                </span>
               </button>
 
-              {showTranscript || (typeof window !== "undefined" && window.innerWidth >= 1024) ? (
+              {showTranscript ||
+              (typeof window !== "undefined" && window.innerWidth >= 1024) ? (
                 <>
                   <div className="hidden h-10 items-center justify-end border-b border-white/10 px-5 sm:flex">
                     <div className="flex items-center gap-3 text-base text-white leading-7 font-medium">
                       Auto-scroll
                       <button
                         type="button"
-                        onClick={() => setAutoScrollTranscript((value) => !value)}
+                        onClick={() =>
+                          setAutoScrollTranscript((value) => !value)
+                        }
                         className={`relative h-5 w-9 rounded-full ${autoScrollTranscript ? "bg-blue-500" : "bg-white/15"}`}
                       >
-                        <span className={`absolute top-1 h-3 w-3 rounded-full bg-white transition ${autoScrollTranscript ? "right-1" : "left-1"}`} />
+                        <span
+                          className={`absolute top-1 h-3 w-3 rounded-full bg-white transition ${autoScrollTranscript ? "right-1" : "left-1"}`}
+                        />
                       </button>
                     </div>
                   </div>
 
-                  <div className="overflow-y-auto px-4 py-1 lg:flex-1 lg:min-h-0 workzo-hide-scrollbar" style={{maxHeight: "100%"}}>
+                  <div
+                    className="overflow-y-auto px-4 py-1 lg:flex-1 lg:min-h-0 workzo-hide-scrollbar"
+                    style={{ maxHeight: "100%" }}
+                  >
                     {visibleTranscriptItems.length || interimText ? (
                       <div className="divide-y divide-white/8">
                         {visibleTranscriptItems.map((line) => (
@@ -6655,15 +8629,21 @@ const [questionIndex, setQuestionIndex] = useState(0);
                             >
                               {line.speaker}
                             </span>
-                            <span className="leading-6 text-slate-100 max-sm:line-clamp-none sm:line-clamp-2">{line.text}</span>
+                            <span className="leading-6 text-slate-100 max-sm:line-clamp-none sm:line-clamp-2">
+                              {line.text}
+                            </span>
                           </div>
                         ))}
 
                         {interimText ? (
                           <div className="grid grid-cols-[80px_150px_1fr] gap-3 py-1 text-sm opacity-70 max-sm:grid-cols-1 max-sm:gap-1">
                             <span className="text-slate-400">listening</span>
-                            <span className="font-semibold text-blue-300">You</span>
-                            <span className="leading-6 text-slate-100">{interimText}</span>
+                            <span className="font-semibold text-blue-300">
+                              You
+                            </span>
+                            <span className="leading-6 text-slate-100">
+                              {interimText}
+                            </span>
                           </div>
                         ) : null}
 
@@ -6671,8 +8651,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
                       </div>
                     ) : (
                       <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-base leading-6 text-white leading-7 font-medium">
-                        <p className="font-bold text-slate-100">Interview transcript will appear here.</p>
-                        <p className="mt-1">The recruiter will ask the first question after you press Start.</p>
+                        <p className="font-bold text-slate-100">
+                          Interview transcript will appear here.
+                        </p>
+                        <p className="mt-1">
+                          The recruiter will ask the first question after you
+                          press Start.
+                        </p>
                         <div ref={transcriptEndRef} />
                       </div>
                     )}
@@ -6680,14 +8665,18 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
                   <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-t border-white/10 px-4 py-1.5 text-xs text-slate-400 sm:px-5">
                     <span>AI-generated transcript — may contain errors.</span>
-                    <button onClick={() => setTranscript([])} className="hover:text-white">
+                    <button
+                      onClick={() => setTranscript([])}
+                      className="hover:text-white"
+                    >
                       Clear Transcript
                     </button>
                   </div>
                 </>
               ) : (
                 <div className="px-4 py-3 text-base text-white sm:px-5 leading-7 font-medium">
-                  Transcript will appear here as the recruiter and candidate speak.
+                  Transcript will appear here as the recruiter and candidate
+                  speak.
                 </div>
               )}
             </section>
@@ -6695,22 +8684,34 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
           <aside className="flex flex-col gap-0 border-l border-white/[0.07] lg:min-h-0">
             <section className="border-b border-white/[0.07] bg-[#05090f] p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Signal</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                Signal
+              </p>
               <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className={`grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full border-[5px] bg-[#03070e] transition-all duration-500 ${scoreFlash === "up" ? "border-emerald-400 shadow-[0_0_0_6px_rgba(52,211,153,0.12)]" : scoreFlash === "down" ? "border-amber-400 shadow-[0_0_0_6px_rgba(251,191,36,0.12)]" : "border-blue-500/60"}`}>
+                <div
+                  className={`grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full border-[5px] bg-[#03070e] transition-all duration-500 ${scoreFlash === "up" ? "border-emerald-400 shadow-[0_0_0_6px_rgba(52,211,153,0.12)]" : scoreFlash === "down" ? "border-amber-400 shadow-[0_0_0_6px_rgba(251,191,36,0.12)]" : "border-blue-500/60"}`}
+                >
                   <div className="text-center">
                     {scoreReady ? (
                       <>
-                        <div className="text-2xl font-black tabular-nums leading-none">{recruiterSignal.overall}</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">/100</div>
+                        <div className="text-2xl font-black tabular-nums leading-none">
+                          {recruiterSignal.overall}
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          /100
+                        </div>
                       </>
                     ) : (
                       <>
-                        <div className="text-2xl font-black text-slate-600">·</div>
+                        <div className="text-2xl font-black text-slate-600">
+                          ·
+                        </div>
                       </>
                     )}
                     {scoreFlash ? (
-                      <div className={`mt-1 text-[10px] font-black uppercase ${scoreFlash === "up" ? "text-emerald-300" : "text-amber-300"}`}>
+                      <div
+                        className={`mt-1 text-[10px] font-black uppercase ${scoreFlash === "up" ? "text-emerald-300" : "text-amber-300"}`}
+                      >
                         {scoreFlash === "up" ? "improved" : "check proof"}
                       </div>
                     ) : null}
@@ -6720,17 +8721,36 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 <div className="w-full min-w-0 flex-1 space-y-1.5">
                   {scoreItems.map((item) => {
                     const Icon = item.icon;
-                    const numVal = scoreReady ? parseInt(String(item.value)) : 0;
+                    const numVal = scoreReady
+                      ? parseInt(String(item.value))
+                      : 0;
                     return (
                       <div key={item.label}>
                         <div className="flex items-center justify-between gap-2 mb-0.5">
-                          <span className={`text-[11px] ${scoreReady ? "text-slate-400" : "text-slate-600"}`}>{item.label}</span>
-                          <span className={`text-[11px] font-black ${scoreReady ? "text-white" : "text-slate-600"}`}>{item.value}</span>
+                          <span
+                            className={`text-[11px] ${scoreReady ? "text-slate-400" : "text-slate-600"}`}
+                          >
+                            {item.label}
+                          </span>
+                          <span
+                            className={`text-[11px] font-black ${scoreReady ? "text-white" : "text-slate-600"}`}
+                          >
+                            {item.value}
+                          </span>
                         </div>
                         <div className="h-1 overflow-hidden rounded-full bg-white/[0.07]">
                           <div
-                            className={`h-full rounded-full transition-all duration-500 ${toneClass(item.tone).split(" ").find(c => c.startsWith("bg-")) || "bg-blue-400"}`}
-                            style={{ width: scoreReady ? `${Math.min(100, numVal)}%` : "0%" }}
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              toneClass(item.tone)
+                                .split(" ")
+                                .find((c) => c.startsWith("bg-")) ||
+                              "bg-blue-400"
+                            }`}
+                            style={{
+                              width: scoreReady
+                                ? `${Math.min(100, numVal)}%`
+                                : "0%",
+                            }}
                           />
                         </div>
                       </div>
@@ -6738,40 +8758,64 @@ const [questionIndex, setQuestionIndex] = useState(0);
                   })}
                 </div>
               </div>
-              
             </section>
 
-            <section style={{ display: showCopilot ? undefined : "none" }} className="flex-1 border-b border-white/[0.07] bg-[#05090f] p-4 overflow-hidden">
+            <section
+              style={{ display: showCopilot ? undefined : "none" }}
+              className="flex-1 border-b border-white/[0.07] bg-[#05090f] p-4 overflow-hidden"
+            >
               <div className="flex items-center justify-between">
-<p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Live Copilot</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                  Live Copilot
+                </p>
                 <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
               </div>
 
               <div className="mt-3 flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Mood</p>
-                  <p className={`mt-1 text-base font-black ${recruiterMoodColor(recruiterSignal.mood)}`}>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                    Mood
+                  </p>
+                  <p
+                    className={`mt-1 text-base font-black ${recruiterMoodColor(recruiterSignal.mood)}`}
+                  >
                     {scoreReady ? recruiterSignal.mood : "Waiting"}
                   </p>
                 </div>
                 <div className="text-right text-xs text-slate-300">
-                  <p>Trust <span className="font-bold text-white">{scoreReady ? recruiterSignal.trust : "—"}</span></p>
-                  <p>Interest <span className="font-bold text-white">{scoreReady ? recruiterSignal.interest : "—"}</span></p>
+                  <p>
+                    Trust{" "}
+                    <span className="font-bold text-white">
+                      {scoreReady ? recruiterSignal.trust : "—"}
+                    </span>
+                  </p>
+                  <p>
+                    Interest{" "}
+                    <span className="font-bold text-white">
+                      {scoreReady ? recruiterSignal.interest : "—"}
+                    </span>
+                  </p>
                 </div>
               </div>
 
               {fillerWordCount > 0 && (
                 <div className="mb-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-1.5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200">Filler words</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200">
+                    Filler words
+                  </p>
                   <p className="mt-0.5 text-[13px] leading-5 text-slate-100">
-                    {fillerWordCount} filler word{fillerWordCount === 1 ? "" : "s"} detected (um, uh, like, you know). Reduce these to sound more confident.
+                    {fillerWordCount} filler word
+                    {fillerWordCount === 1 ? "" : "s"} detected (um, uh, like,
+                    you know). Reduce these to sound more confident.
                   </p>
                 </div>
               )}
 
               <div className="mt-2 space-y-1.5">
                 <div className="rounded-xl border border-emerald-300/15 bg-emerald-500/[0.06] px-3 py-2">
-                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-400">Say next</p>
+                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-400">
+                    Say next
+                  </p>
                   <p className="text-xs leading-4 text-slate-100 line-clamp-2">
                     {scoreReady
                       ? recruiterSignal.trust < 60
@@ -6782,18 +8826,27 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 </div>
 
                 <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2">
-                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Concern</p>
+                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                    Concern
+                  </p>
                   <p className="text-xs leading-4 text-slate-400 line-clamp-2">
-                    {scoreReady ? recruiterSignal.concern : "The recruiter is waiting for evidence, ownership, and impact."}
+                    {scoreReady
+                      ? recruiterSignal.concern
+                      : "The recruiter is waiting for evidence, ownership, and impact."}
                   </p>
                 </div>
 
                 {/* Live filler word counter */}
                 {status === "listening" && fillerCount > 0 && (
                   <div className="rounded-xl border border-red-300/15 bg-red-400/[0.07] px-3 py-1.5">
-                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-red-200">Filler words</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-red-200">
+                      Filler words
+                    </p>
                     <p className="mt-1 text-[13px] leading-5 text-slate-100">
-                      <span className="font-black text-red-300">{fillerCount}</span> detected — avoid um, uh, like, you know.
+                      <span className="font-black text-red-300">
+                        {fillerCount}
+                      </span>{" "}
+                      detected — avoid um, uh, like, you know.
                     </p>
                   </div>
                 )}
@@ -6801,9 +8854,12 @@ const [questionIndex, setQuestionIndex] = useState(0);
                 {/* Emotional memory pattern callbacks */}
                 {emotionalMemory.missingMetrics >= 2 && (
                   <div className="rounded-xl border border-violet-300/15 bg-violet-400/[0.07] px-3 py-1.5">
-                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-violet-200">Pattern detected</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-violet-200">
+                      Pattern detected
+                    </p>
                     <p className="mt-1 text-[13px] leading-5 text-slate-100">
-                      {emotionalMemory.lastCallbackLine || "Multiple answers without measurable proof — add one number."}
+                      {emotionalMemory.lastCallbackLine ||
+                        "Multiple answers without measurable proof — add one number."}
                     </p>
                   </div>
                 )}
@@ -6812,8 +8868,13 @@ const [questionIndex, setQuestionIndex] = useState(0);
 
             <section className="bg-[#05090f] p-4">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Progress</p>
-                <span className="tabular-nums text-sm font-black text-white">{visibleQuestionNumber}<span className="text-slate-500">/12</span></span>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                  Progress
+                </p>
+                <span className="tabular-nums text-sm font-black text-white">
+                  {visibleQuestionNumber}
+                  <span className="text-slate-500">/12</span>
+                </span>
               </div>
               <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.07]">
                 <div
@@ -6841,20 +8902,34 @@ const [questionIndex, setQuestionIndex] = useState(0);
           <div className="fixed bottom-20 left-3 right-3 z-40 rounded-lg border border-blue-300/20 bg-[#07111f]/95 px-4 py-3 shadow-2xl backdrop-blur-xl lg:hidden">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">Live Copilot</p>
-                <p className={`truncate text-sm font-black ${recruiterMoodColor(recruiterSignal.mood)}`}>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">
+                  Live Copilot
+                </p>
+                <p
+                  className={`truncate text-sm font-black ${recruiterMoodColor(recruiterSignal.mood)}`}
+                >
                   {scoreReady ? recruiterSignal.mood : "Waiting"}
                 </p>
               </div>
               <div className="shrink-0 text-right text-xs text-slate-300">
-                <p>Trust <span className="font-black text-white">{scoreReady ? recruiterSignal.trust : "—"}</span></p>
-                <p>Interest <span className="font-black text-white">{scoreReady ? recruiterSignal.interest : "—"}</span></p>
+                <p>
+                  Trust{" "}
+                  <span className="font-black text-white">
+                    {scoreReady ? recruiterSignal.trust : "—"}
+                  </span>
+                </p>
+                <p>
+                  Interest{" "}
+                  <span className="font-black text-white">
+                    {scoreReady ? recruiterSignal.interest : "—"}
+                  </span>
+                </p>
               </div>
             </div>
           </div>
         ) : null}
       </section>
-    
+
       <UpgradeModal
         open={upgradeModalOpen}
         feature={upgradeModalFeature}
@@ -6863,31 +8938,79 @@ const [questionIndex, setQuestionIndex] = useState(0);
       />
 
       {settingsOpen && (
-        <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm lg:hidden" onClick={() => setSettingsOpen(false)}>
-          <section className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-[2rem] border border-white/10 bg-[#07111f] p-5 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm lg:hidden"
+          onClick={() => setSettingsOpen(false)}
+        >
+          <section
+            className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-[2rem] border border-white/10 bg-[#07111f] p-5 text-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/20" />
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200">Interview settings</p>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200">
+                  Interview settings
+                </p>
                 <h2 className="mt-1 text-xl font-black">Mobile controls</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-400">Adjust the most important interview controls without opening the desktop side panel.</p>
+                <p className="mt-1 text-sm leading-6 text-slate-400">
+                  Adjust the most important interview controls without opening
+                  the desktop side panel.
+                </p>
               </div>
-              <button type="button" onClick={() => setSettingsOpen(false)} className="rounded-lg border border-white/10 px-3 py-2 text-sm font-black text-slate-300">Close</button>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(false)}
+                className="rounded-lg border border-white/10 px-3 py-2 text-sm font-black text-slate-300"
+              >
+                Close
+              </button>
             </div>
             <div className="mt-5 grid gap-3">
-              <button type="button" onClick={() => setAudioEnabled((value) => !value)} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
-                <span><span className="block text-sm font-black">Recruiter voice</span><span className="block text-xs text-slate-400">Use spoken recruiter prompts</span></span>
-                <span className={`rounded-full px-3 py-1 text-xs font-black ${audioEnabled ? "bg-emerald-400/15 text-emerald-200" : "bg-white/10 text-slate-400"}`}>{audioEnabled ? "On" : "Off"}</span>
+              <button
+                type="button"
+                onClick={() => setAudioEnabled((value) => !value)}
+                className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-left"
+              >
+                <span>
+                  <span className="block text-sm font-black">
+                    Recruiter voice
+                  </span>
+                  <span className="block text-xs text-slate-400">
+                    Use spoken recruiter prompts
+                  </span>
+                </span>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-black ${audioEnabled ? "bg-emerald-400/15 text-emerald-200" : "bg-white/10 text-slate-400"}`}
+                >
+                  {audioEnabled ? "On" : "Off"}
+                </span>
               </button>
-              <button type="button" onClick={() => setShowTranscript((value) => !value)} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
-                <span><span className="block text-sm font-black">Transcript</span><span className="block text-xs text-slate-400">Show or collapse live transcript</span></span>
-                <span className="rounded-full bg-blue-400/15 px-3 py-1 text-xs font-black text-blue-200">{showTranscript ? "Shown" : "Hidden"}</span>
+              <button
+                type="button"
+                onClick={() => setShowTranscript((value) => !value)}
+                className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-left"
+              >
+                <span>
+                  <span className="block text-sm font-black">Transcript</span>
+                  <span className="block text-xs text-slate-400">
+                    Show or collapse live transcript
+                  </span>
+                </span>
+                <span className="rounded-full bg-blue-400/15 px-3 py-1 text-xs font-black text-blue-200">
+                  {showTranscript ? "Shown" : "Hidden"}
+                </span>
               </button>
-              <Link href="/dashboard" className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-slate-300">Back to dashboard</Link>
+              <Link
+                href="/dashboard"
+                className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-slate-300"
+              >
+                Back to dashboard
+              </Link>
             </div>
           </section>
         </div>
       )}
-</main>
+    </main>
   );
 }

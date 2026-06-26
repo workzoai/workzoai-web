@@ -92,10 +92,10 @@ function isBlockedAnalyticsHost(hostname: string) {
 function shouldSendServerAnalytics() {
   if (typeof window === "undefined") return false;
   if (process.env.NEXT_PUBLIC_WORKZO_DISABLE_ANALYTICS === "true") return false;
-
-  // Keep localhost/dev events local, but do not block production custom domains.
-  if (isBlockedAnalyticsHost(window.location.hostname)) return false;
-
+  // Allow localhost when NEXT_PUBLIC_WORKZO_ANALYTICS_LOCAL=true in .env.local
+  if (isBlockedAnalyticsHost(window.location.hostname)) {
+    return process.env.NEXT_PUBLIC_WORKZO_ANALYTICS_LOCAL === "true";
+  }
   return true;
 }
 

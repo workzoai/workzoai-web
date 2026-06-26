@@ -1224,7 +1224,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
     // but doesn't appear anywhere in the raw CV text, this profile is from a
     // DIFFERENT person's CV. This is the confirmed cross-contamination pattern:
     // the client sends stale cached profile data (e.g. Olivia Wilson's profile)
-    // when a different person's CV (Haritha's) has just been uploaded.
+    // when a different person's CV has just been uploaded.
     // The email is the most reliable identity anchor — it's unique, precise, and
     // always extracted verbatim from the CV text (unlike names which may vary in
     // formatting). Only apply this check when the incoming profile has a valid

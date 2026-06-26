@@ -1,36 +1,34 @@
-import { notFound } from "next/navigation";
-import { headers } from "next/headers";
-import { isLocalhostOnly } from "@/lib/localOnly";
 import FounderAnalyticsClient from "./FounderAnalyticsClient";
 
-type SearchParams = Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+type FounderPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
+};
 
 function firstParam(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
+  return Array.isArray(value) ? value[0] : value || "";
 }
 
-async function isFounderAuthorized(searchParams?: SearchParams): Promise<boolean> {
-  // Always allow local development so the founder page can be opened at localhost.
-  if (process.env.NODE_ENV === "development") return true;
-  if (await isLocalhostOnly()) return true;
+export default async function FounderPage({ searchParams }: FounderPageProps) {
+  const params = await Promise.resolve(searchParams || {});
+  const secret = firstParam(params.secret);
 
-  const params = searchParams ? await Promise.resolve(searchParams) : {};
-  const querySecret = firstParam(params.secret);
-  const envSecret = process.env.FOUNDER_ANALYTICS_SECRET;
+  if (!secret) {
+    return (
+      <main className="min-h-screen bg-[#020712] px-6 py-10 text-white">
+        <div className="mx-auto max-w-3xl rounded-3xl border border-white/10 bg-white/[0.04] p-8">
+          <p className="text-sm font-black uppercase tracking-[0.2em] text-cyan-300">Founder Analytics</p>
+          <h1 className="mt-3 text-3xl font-black">Founder access required</h1>
+          <p className="mt-3 text-slate-300">Open this page with your founder secret in the URL.</p>
+          <code className="mt-5 block rounded-xl border border-white/10 bg-black/30 p-4 text-sm text-cyan-100">
+            /founder?secret=YOUR_SECRET
+          </code>
+        </div>
+      </main>
+    );
+  }
 
-  // If no secret is configured, do not expose the page in production.
-  if (!envSecret) return false;
-  if (querySecret && querySecret === envSecret) return true;
-
-  const h = await headers();
-  const headerSecret = h.get("x-founder-secret");
-  if (headerSecret && headerSecret === envSecret) return true;
-
-  return false;
-}
-
-export default async function FounderAnalyticsPage({ searchParams }: { searchParams?: SearchParams }) {
-  const allowed = await isFounderAuthorized(searchParams);
-  if (!allowed) notFound();
   return <FounderAnalyticsClient />;
 }

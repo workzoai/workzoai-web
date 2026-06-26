@@ -83,7 +83,7 @@ const EDUCATION_WORD_RE =
   /(university|college|school|hochschule|schule|universität|universitat|institute|academy|akademie|faculty|campus|coding school|programmierschule|arts and science|arts & science|tu\s|technical university|bachelor|master|mba|msc|b\.sc|m\.sc|degree|diploma|bootcamp|graduation|education|bildung|ausbildung)/i;
 
 const EXPERIENCE_COMPANY_WORD_RE =
-  /(gmbh|corp|corporation|ltd|limited|llc|inc|company|technologies|technology|solutions|systems|digital|agency|studio|group|consulting|industries|university of .*intern|borcelle|cummins|zoho|css corp|nexora|cloud|secure|cyber|visomax)/i;
+  /(gmbh|corp|corporation|ltd|limited|llc|inc|company|technologies|technology|solutions|systems|digital|agency|studio|group|consulting|industries|university of .*intern|borcelle|cummins|zoho|nexora|cloud|secure|cyber|visomax)/i;
 
 const LOREM_RE = /(lorem ipsum|consectetur adipiscing|sed do eiusmod|dolor sit amet|reallygreatsite|anywhere st|jede straße|jede stadt|superduperseite|borcelle university|arowwai industries|ginyard international|aldenaire|salford & co|sample resume|template cv|available on request)/i;
 

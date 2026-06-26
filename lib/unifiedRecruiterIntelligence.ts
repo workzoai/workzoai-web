@@ -354,6 +354,7 @@ function extractRoleFromJobDescription(jobDescription: string) {
 function buildEvidenceProfile(
   cvTextRaw: string,
   jobDescriptionRaw: string,
+  resumeProfileRaw?: unknown,
 ): CandidateEvidenceProfile {
   const cvText = cleanText(cvTextRaw);
   const jobDescription = cleanText(jobDescriptionRaw);
@@ -368,13 +369,55 @@ function buildEvidenceProfile(
     10,
   );
 
-  const companies = extractMatches(
+  // PRIMARY: read company names directly from resumeProfile.experience — exact and
+  // unambiguous. The regex fallback below misses companies not in the brand allowlist because they
+  // are not in the hardcoded brand allowlist AND don\'t appear after "at|@" in structured
+  // bullet-format CV text ("- Title • Company • Dates" has no preposition before the name).
+  const profileCompanies: string[] = [];
+  const _rp = resumeProfileRaw as Record<string, unknown> | null | undefined;
+  if (_rp && typeof _rp === "object" && Array.isArray(_rp.experience)) {
+    for (const _exp of _rp.experience as Array<Record<string, unknown>>) {
+      const _co = String(_exp.company || "").trim();
+      if (_co.length >= 2 && _co.length <= 70) profileCompanies.push(_co);
+    }
+  }
+
+  // SECONDARY: structural extraction from bullet/pipe-separated CV lines.
+  // Handles "- Title • Company • Dates" format by splitting on separators and
+  // filtering out segments that look like job titles or date ranges.
+  const structuralCompanies: string[] = [];
+  if (!profileCompanies.length) {
+    const _jobTitlePfx = /^(technical support|application engineer|software engineer|data analyst|business analyst|product manager|project manager|qa engineer|marketing|intern|trainee|frontend|backend|customer success|customer support|it support)/i;
+    const _datePfx = /^(19|20)\d{2}|^(present|current|today|heute)/i;
+    for (const _line of cvText.split(/\n|\r/).filter(Boolean)) {
+      const _segs = _line.split(/[•·|]/).map((s) =>
+        s.replace(/^[-*\s]+/, "").replace(/\d{4}.*$/, "").replace(/\s{2,}/g, " ").trim(),
+      );
+      for (const _seg of _segs) {
+        if (_seg.length < 2 || _seg.length > 70) continue;
+        if (/^[0-9\-/ .]+$/.test(_seg)) continue;
+        if (_datePfx.test(_seg)) continue;
+        if (_jobTitlePfx.test(_seg)) continue;
+        if (/^[A-Z]/.test(_seg) && /[a-zA-Z]{2}/.test(_seg)) {
+          structuralCompanies.push(_seg);
+        }
+      }
+    }
+  }
+
+  // TERTIARY: well-known brand regex — supplements the above, does not replace it.
+  const brandCompanies = extractMatches(
     cvText,
     [
       /\b(Zoho|Microsoft|Amazon|Google|Tesla|Apple|Meta|Facebook|eBay|Salesforce|SAP|Oracle|IBM|Infosys|TCS|Wipro|Accenture|Deloitte|Capgemini|Cognizant|Freshworks|HubSpot|ServiceNow|Zendesk|Atlassian|Adobe|Netflix|Uber|Airbnb|Stripe|Shopify)\b/gi,
       /(?:at|@)\s+([A-Z][A-Za-z0-9&.\- ]{2,40})(?:\s|,|\.|\n)/g,
     ],
     10,
+  );
+
+  const companies = unique(
+    [...profileCompanies, ...structuralCompanies, ...brandCompanies],
+    12,
   );
 
   const skills = extractMatches(
@@ -2433,6 +2476,7 @@ function humanTransition(
       buildEvidenceProfile(
         cleanText(input.setup?.cvText),
         cleanText(input.setup?.jobDescription),
+        input.setup?.resumeProfile,
       ),
       memory,
       answer,
@@ -2529,7 +2573,7 @@ function buildFallbackDecision(
     92,
   );
   const intent = inferIntentHeuristically(answer);
-  const cvRead = buildEvidenceProfile(cvText, jobDescription);
+  const cvRead = buildEvidenceProfile(cvText, jobDescription, input.setup?.resumeProfile);
   const recruiterMemory = buildRecruiterMemoryProfile(
     input.transcript,
     cvRead,
@@ -3961,7 +4005,35 @@ This is not a translation task — think, reason, and respond natively in ${toLa
   };
   const _recruiterProfile = _recruiterProfileMap[_rawPersonality] || _recruiterProfileMap["analytical_hiring_manager"];
   const recruiter = `${_recruiterProfile.name} (${_recruiterProfile.role}): ${_recruiterProfile.behaviorPrompt}`;
+  // Build an explicit verified-employers line from the cvText.
+  // The cvText uses "- Title • Company • Dates" format. Without extracting
+  // company names explicitly, the LLM may not parse them as "verified employers"
+  // and can falsely challenge valid claims (e.g. "I cannot verify Zoho Corp").
   const cvText = cleanText(setup.cvText).slice(0, 5500);
+  const verifiedEmployers = (() => {
+    const companies: string[] = [];
+    const seen = new Set<string>();
+    // Match "• Company •" or "| Company |" or "at Company" patterns in the CV text
+    const companyPattern = /[•|]\s*([A-Z][A-Za-z0-9&.\- ]{1,50})\s*[•|]/g;
+    let m: RegExpExecArray | null;
+    const cv = cleanText(setup.cvText).slice(0, 3000);
+    // eslint-disable-next-line no-cond-assign
+    while ((m = companyPattern.exec(cv)) !== null) {
+      const co = m[1].trim();
+      const lower = co.toLowerCase();
+      // Skip date ranges, section headings, job titles
+      if (/^(19|20)\d{2}/.test(co)) continue;
+      if (/^(present|current|today|heute)/i.test(co)) continue;
+      if (/^(technical support|application engineer|software engineer|data analyst|marketing|project)/i.test(co)) continue;
+      if (seen.has(lower)) continue;
+      seen.add(lower);
+      companies.push(co);
+    }
+    return companies;
+  })();
+  const verifiedEmployersLine = verifiedEmployers.length
+    ? `VERIFIED EMPLOYERS (from CV — never challenge these as unverified): ${verifiedEmployers.join(", ")}\n`
+    : "";
   const codeSnapshot = cleanText(setup.codeSnapshot).slice(0, 2000);
   const codeLanguage = cleanText(setup.codeLanguage) || "code";
   const recentTranscript = (input.transcript || [])
@@ -4136,7 +4208,7 @@ ${JSON.stringify(cvRead, null, 2)}
 Selective recruiter memory so far:
 ${JSON.stringify(recruiterMemory, null, 2)}
 
-CV excerpt:
+${verifiedEmployersLine}CV excerpt:
 ${cvText || "No CV text provided."}
 
 Job description excerpt:
@@ -4814,6 +4886,7 @@ function applyNaturalConversationGuard(
     buildEvidenceProfile(
       cleanText(input.setup?.cvText),
       cleanText(input.setup?.jobDescription),
+      input.setup?.resumeProfile,
     );
   const guardedMemory =
     decision.recruiterMemory ||
@@ -4862,6 +4935,7 @@ function applyNaturalConversationGuard(
       buildEvidenceProfile(
         cleanText(input.setup?.cvText),
         cleanText(input.setup?.jobDescription),
+        input.setup?.resumeProfile,
       );
     const memory =
       decision.recruiterMemory ||
@@ -4910,6 +4984,7 @@ function applyNaturalConversationGuard(
       buildEvidenceProfile(
         cleanText(input.setup?.cvText),
         cleanText(input.setup?.jobDescription),
+        input.setup?.resumeProfile,
       );
     const memory =
       decision.recruiterMemory ||
@@ -5020,6 +5095,7 @@ function applyNaturalConversationGuard(
       buildEvidenceProfile(
         cleanText(input.setup?.cvText),
         cleanText(input.setup?.jobDescription),
+        input.setup?.resumeProfile,
       );
     const memory =
       decision.recruiterMemory ||
@@ -5140,6 +5216,7 @@ function applyNaturalConversationGuard(
       buildEvidenceProfile(
         cleanText(input.setup?.cvText),
         cleanText(input.setup?.jobDescription),
+        input.setup?.resumeProfile,
       );
     const memory =
       decision.recruiterMemory ||
@@ -5461,7 +5538,7 @@ function applyBehavioralRealismLayer(
   };
 
   humanImperfection = {
-    ...(humanImperfection || deriveHumanImperfection(input, decision, decision.recruiterMemory || buildRecruiterMemoryProfile(input.transcript, decision.cvRead || buildEvidenceProfile(cleanText(input.setup?.cvText), cleanText(input.setup?.jobDescription)), input.setup?.recruiterMemoryProfile))),
+    ...(humanImperfection || deriveHumanImperfection(input, decision, decision.recruiterMemory || buildRecruiterMemoryProfile(input.transcript, decision.cvRead || buildEvidenceProfile(cleanText(input.setup?.cvText), cleanText(input.setup?.jobDescription), input.setup?.resumeProfile), input.setup?.recruiterMemoryProfile))),
     shouldUse: shouldUseSilence || ramblingWithoutOutcome || Boolean(humanImperfection?.shouldUse),
     mode: shouldUseSilence
       ? "brief_pause"
@@ -5479,7 +5556,7 @@ function applyBehavioralRealismLayer(
   };
 
   cinematicRealism = {
-    ...(cinematicRealism || deriveCinematicRealism(input, decision, decision.socialSignals || deriveSocialSignals(answer, decision, decision.recruiterMemory || buildRecruiterMemoryProfile(input.transcript, decision.cvRead || buildEvidenceProfile(cleanText(input.setup?.cvText), cleanText(input.setup?.jobDescription)), input.setup?.recruiterMemoryProfile)), updatedPressure)),
+    ...(cinematicRealism || deriveCinematicRealism(input, decision, decision.socialSignals || deriveSocialSignals(answer, decision, decision.recruiterMemory || buildRecruiterMemoryProfile(input.transcript, decision.cvRead || buildEvidenceProfile(cleanText(input.setup?.cvText), cleanText(input.setup?.jobDescription), input.setup?.resumeProfile), input.setup?.recruiterMemoryProfile)), updatedPressure)),
     emotionalBeat:
       recruiterState === "recovering_trust"
         ? "recovery"
@@ -5540,6 +5617,7 @@ function applyPhase15TrustPressure(
     buildEvidenceProfile(
       cleanText(input.setup?.cvText),
       cleanText(input.setup?.jobDescription),
+      input.setup?.resumeProfile,
     );
   const memory =
     decision.recruiterMemory ||
@@ -5777,6 +5855,7 @@ export async function decideUnifiedRecruiterResponse(
               buildEvidenceProfile(
                 cleanText(input.setup?.cvText),
                 cleanText(input.setup?.jobDescription),
+                input.setup?.resumeProfile,
               ),
             input.setup?.recruiterMemoryProfile,
           ),
@@ -5806,6 +5885,7 @@ export async function decideUnifiedRecruiterResponse(
     buildEvidenceProfile(
       cleanText(input.setup?.cvText),
       cleanText(input.setup?.jobDescription),
+      input.setup?.resumeProfile,
     );
   const recruiterMemory =
     fallback.recruiterMemory ||

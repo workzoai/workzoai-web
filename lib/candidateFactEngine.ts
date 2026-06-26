@@ -187,7 +187,7 @@ function extractCareerEntryRoleClaim(answer: string) {
   return "";
 }
 
-export function extractCandidateFacts(cvTextInput?: string): CandidateFacts {
+export function extractCandidateFacts(cvTextInput?: string, resumeProfileInput?: unknown): CandidateFacts {
   const cvText = clean(cvTextInput);
   const lines = firstLines(cvText, 30);
   const likelyNames = new Set<string>();
@@ -209,8 +209,46 @@ export function extractCandidateFacts(cvTextInput?: string): CandidateFacts {
     }
   }
 
+  // PRIMARY: read companies and roles directly from resumeProfile.experience.
+  // The hardcoded brand regex and line-scanning approach below misses companies
+  // any employer whose name isn't a
+  // globally famous brand. resumeProfile is the authoritative structured source.
+  const rp = resumeProfileInput as Record<string, unknown> | null | undefined;
+  if (rp && typeof rp === "object" && Array.isArray(rp.experience)) {
+    for (const exp of rp.experience as Array<Record<string, unknown>>) {
+      const co = String(exp.company || "").trim();
+      if (co.length >= 2) companies.add(co);
+      const title = String(exp.title || "").trim();
+      if (title.length >= 2) roles.add(title);
+    }
+  }
+
+  // SECONDARY: structural extraction from "- Title • Company • Dates" format.
+  // Split on bullet/pipe separators; skip segments that look like titles or dates.
+  const _jobTitlePfx = /^(technical support|application engineer|software engineer|data analyst|business analyst|product manager|project manager|qa engineer|marketing|intern|trainee|frontend|backend|customer success|customer support|it support)/i;
+  const _datePfx = /^(19|20)\d{2}|^(present|current|today|heute)/i;
+  for (const _line of cvText.split(/\n|\r/).filter(Boolean)) {
+    const _segs = _line.split(/[•·|]/).map((s) =>
+      s.replace(/^[-*\s]+/, "").replace(/\d{4}.*$/, "").replace(/\s{2,}/g, " ").trim(),
+    );
+    for (const _seg of _segs) {
+      if (_seg.length < 2 || _seg.length > 70) continue;
+      if (/^[0-9\-/ .]+$/.test(_seg)) continue;
+      if (_datePfx.test(_seg)) continue;
+      if (_jobTitlePfx.test(_seg)) continue;
+      // Only accept capitalized multi-character tokens that look like proper names
+      if (/^[A-Z]/.test(_seg) && /[a-zA-Z]{2}/.test(_seg)) {
+        // If it matches a role pattern, add as role; otherwise treat as company candidate
+        const _rm = _seg.match(/\b(technical support engineer|support engineer|product specialist|data analyst|business analyst|data scientist|software engineer|frontend developer|backend developer|full stack developer|customer success manager|customer support specialist|it support|qa engineer|project manager|product manager)\b/i);
+        if (_rm?.[1]) roles.add(_rm[1]);
+        else companies.add(_seg);
+      }
+    }
+  }
+
+  // TERTIARY: well-known brand fallback (supplements structural extraction)
   const knownCompanyPattern =
-    /\b(Zoho|Google|Microsoft|Amazon|WBS Coding School|Accenture|TCS|Infosys|Cognizant|Capgemini|Deloitte|IBM|SAP|Salesforce|Oracle|Meta|Facebook|Apple|Netflix|Adobe|Siemens|Bosch|Mercedes|BMW)\b/gi;
+    /\b(Zoho|Google|Microsoft|Amazon|Accenture|TCS|Infosys|Cognizant|Capgemini|Deloitte|IBM|SAP|Salesforce|Oracle|Meta|Facebook|Apple|Netflix|Adobe|Siemens|Bosch|Mercedes|BMW)\b/gi;
 
   for (const match of cvText.match(knownCompanyPattern) || []) {
     companies.add(match);
@@ -226,10 +264,6 @@ export function extractCandidateFacts(cvTextInput?: string): CandidateFacts {
     .slice(0, 30);
 
   for (const line of companyLines) {
-    const words = line.match(/\b[A-Z][A-Za-z0-9&.\-]{1,}\b/g) || [];
-    const phrase = words.slice(0, 4).join(" ");
-    if (phrase && phrase.length > 2) companies.add(phrase);
-
     const roleMatch = line.match(
       /\b(technical support engineer|support engineer|product specialist|data analyst|business analyst|data scientist|software engineer|frontend developer|backend developer|full stack developer|customer success manager|customer support specialist|it support|qa engineer|project manager|product manager)\b/i
     );
@@ -256,16 +290,25 @@ export function extractCandidateFacts(cvTextInput?: string): CandidateFacts {
     education.add(line.trim());
   }
 
+  const { currentRole, currentCompany } = extractLikelyCurrentRoleAndCompany(cvText);
+  const estimatedYearsExperience = estimateTotalExperienceYears(cvText) || undefined;
+  const rolesArr = unique(Array.from(roles)).slice(0, 12);
+  const careerStage = deriveCareerStage(estimatedYearsExperience || 0, rolesArr);
+
   return {
     fullName: Array.from(likelyNames)[0],
     likelyNames: Array.from(likelyNames).slice(0, 5),
     locations,
     companies: unique(Array.from(companies)).slice(0, 16),
-    roles: unique(Array.from(roles)).slice(0, 12),
+    roles: rolesArr,
     years,
     skills,
     education: unique(Array.from(education)).slice(0, 8),
     rawEvidence: firstLines(cvText, 12),
+    currentRole: currentRole || undefined,
+    currentCompany: currentCompany || undefined,
+    careerStage,
+    estimatedYearsExperience,
   };
 }
 
@@ -365,15 +408,17 @@ export function detectCandidateContradictions({
   cvText,
   previousUserAnswers = [],
   sensitivity = 0.8,
+  resumeProfile,
 }: {
   answer: string;
   cvText: string;
   previousUserAnswers?: string[];
   sensitivity?: number;
+  resumeProfile?: unknown;
 }): MemoryCheck {
   const cleanAnswer = clean(answer);
   const cleanCv = clean(cvText);
-  const facts = extractCandidateFacts(cleanCv);
+  const facts = extractCandidateFacts(cleanCv, resumeProfile);
   const issues: Contradiction[] = [];
   const confidenceSignals: string[] = [];
   const riskSignals: string[] = [];

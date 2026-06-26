@@ -278,6 +278,10 @@ export function checkWorkZoTavusAllowed(plan = getWorkZoCurrentPlan()) {
   };
 }
 
+export function recordWorkZoCvUploaded(metadata: Record<string, unknown> = {}) {
+  void sendUsageEvent("cv_uploaded", { ...metadata, testMode: isWorkZoFounderTestMode() });
+}
+
 export function recordWorkZoInterviewStarted() {
   const next = updateWorkZoUsage((usage) => ({ ...usage, interviewsStarted: usage.interviewsStarted + 1 }));
   void sendUsageEvent("interview_started", { usage: next, testMode: isWorkZoFounderTestMode() });

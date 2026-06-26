@@ -60,9 +60,11 @@ function isBlockedAnalyticsHost(hostname: string) {
 function shouldSkipProductionAnalytics() {
   if (typeof window === "undefined") return true;
   if (process.env.NEXT_PUBLIC_WORKZO_DISABLE_ANALYTICS === "true") return true;
-  // Keep local development private, but allow production and Vercel preview deployments
-  // so founder analytics works during launch/testing.
-  if (isBlockedAnalyticsHost(window.location.hostname)) return true;
+  // Allow localhost when founder debugging is explicitly enabled.
+  // Set NEXT_PUBLIC_WORKZO_ANALYTICS_LOCAL=true in .env.local to send events from localhost.
+  if (isBlockedAnalyticsHost(window.location.hostname)) {
+    return process.env.NEXT_PUBLIC_WORKZO_ANALYTICS_LOCAL !== "true";
+  }
   return false;
 }
 

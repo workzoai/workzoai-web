@@ -81,20 +81,27 @@ function cleanNumber(value: unknown) {
 
 function cleanMetadata(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  try { return JSON.parse(JSON.stringify(value).slice(0, 8000)); } catch { return {}; }
+  try {
+    return JSON.parse(JSON.stringify(value).slice(0, 8000));
+  } catch {
+    return {};
+  }
 }
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 function normalizeEvent(body: AnalyticsBody, request: Request) {
   const headers = request.headers;
   const forwardedFor = headers.get("x-forwarded-for") || "";
-  const ipHashSource = forwardedFor.split(",")[0]?.trim() || headers.get("x-real-ip") || "";
+  const ipHashSource =
+    forwardedFor.split(",")[0]?.trim() || headers.get("x-real-ip") || "";
 
   return {
     event: cleanText(body.event, 120) || "unknown_event",
@@ -115,9 +122,135 @@ function normalizeEvent(body: AnalyticsBody, request: Request) {
     score: cleanNumber(body.score),
     trust: cleanNumber(body.trust),
     pressure: cleanNumber(body.pressure),
-    metadata: { ...cleanMetadata(body.metadata), ipHashSource: ipHashSource ? "present" : "missing" },
+    metadata: {
+      ...cleanMetadata(body.metadata),
+      ipHashSource: ipHashSource ? "present" : "missing",
+    },
     client_timestamp: cleanText(body.timestamp, 80) || null,
   };
+}
+
+const INTERNAL_TEST_ROLE_RE =
+  /^(professional experience|interview role|general role|professional|unknown|supported the marketing team|educationwork experience|work experience|profile summary)$/i;
+const ROLE_FRAGMENT_RE =
+  /^(j|ju|jun|juni|junio|junior|junior s|junior so|junior sof|junior soft|junior softw|junior softwa|junior softwar|junior software d|junior software de|junior software dev|junior software deve|junior software devel|junior software develo|junior software develop)$/i;
+
+function titleCaseRole(value: string) {
+  return value
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word) => {
+      if (/^(it|ai|ui|ux|hr|qa|csm|crm|api|sql|aws|gcp|saas)$/i.test(word))
+        return word.toUpperCase();
+      if (/^(m\/f\/d|m\/w\/d)$/i.test(word)) return word.toLowerCase();
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ")
+    .replace(/\bAnd\b/g, "and")
+    .replace(/\bOf\b/g, "of")
+    .replace(/\bFor\b/g, "for");
+}
+
+function normalizeRoleForAnalytics(value: unknown): string {
+  const raw = cleanText(value, 180)
+    .replace(/[_|]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return "";
+  const lower = raw.toLowerCase();
+  if (raw.length < 6) return "";
+  if (raw.length > 70) return "";
+  if (INTERNAL_TEST_ROLE_RE.test(raw)) return "";
+  if (ROLE_FRAGMENT_RE.test(raw)) return "";
+  if (
+    /\b(conducting research on industry trends|professional summary|profile summary|work experience|education)\b/i.test(
+      raw,
+    )
+  )
+    return "";
+
+  if (/customer success|customer support manager|client success/i.test(raw))
+    return "Customer Success Manager";
+  if (/technical support|it support|service desk|help.?desk/i.test(raw))
+    return "IT Support Specialist";
+  if (/product design engineer|cad designer|mechanical design/i.test(raw))
+    return "Product Design Engineer";
+  if (/production control supervisor/i.test(raw))
+    return "Production Control Supervisor";
+  if (
+    /full.?stack|frontend|backend|software developer|software engineer/i.test(
+      raw,
+    )
+  )
+    return "Software Developer";
+  if (/marketing manager|marketing strategist|marketing specialist/i.test(raw))
+    return "Marketing Manager";
+  if (/cybersecurity|security engineer|soc analyst/i.test(raw))
+    return "Cybersecurity Engineer";
+  if (/data analyst|data scientist|business intelligence/i.test(raw))
+    return "Data Analyst";
+
+  return titleCaseRole(raw);
+}
+
+function normalizeRecruiterForAnalytics(value: unknown): string {
+  const raw = cleanText(value, 160).replace(/\s+/g, " ").trim();
+  const lower = raw.toLowerCase();
+  if (!raw) return "";
+  if (lower.includes("sarah")) return "Sarah Chen";
+  if (lower.includes("daniel")) return "Daniel Reed";
+  if (lower.includes("priya")) return "Priya Raman";
+  if (lower.includes("markus")) return "Markus Weber";
+  return raw;
+}
+
+function normalizedCountBy(values: string[]) {
+  return values.reduce<Record<string, number>>((acc, value) => {
+    const key = value.trim();
+    if (!key) return acc;
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+
+function countUniqueSessionsByNormalizedField(
+  events: DbAnalyticsEvent[],
+  getValue: (item: DbAnalyticsEvent) => string,
+  preferredEventNames: string[] = ["interview_started", "onboarding_viewed", "cv_uploaded"],
+) {
+  const bySession = new Map<string, string>();
+  const ordered = [
+    ...events.filter((item) => preferredEventNames.includes(eventName(item))),
+    ...events,
+  ];
+
+  for (const item of ordered) {
+    const session = item.session_id || item.visitor_id || `${item.created_at}-${eventName(item)}`;
+    if (bySession.has(session)) continue;
+    const value = getValue(item).trim();
+    if (!value) continue;
+    bySession.set(session, value);
+  }
+
+  return normalizedCountBy(Array.from(bySession.values()));
+}
+
+function metadataHasTemplateOrInternalSignals(metadata: Record<string, unknown> | null | undefined) {
+  if (!metadata || typeof metadata !== "object") return false;
+  const values = Object.values(metadata).flatMap((value) => {
+    if (Array.isArray(value)) return value.map((v) => String(v).toLowerCase());
+    if (value && typeof value === "object") return [JSON.stringify(value).toLowerCase()];
+    return [String(value).toLowerCase()];
+  });
+  return values.some((value) =>
+    value.includes("template_or_placeholder_content_detected") ||
+    value.includes("reallygreatsite") ||
+    value.includes("lorem ipsum") ||
+    value.includes("founder_test") ||
+    value.includes("internal_test") ||
+    value.includes("qa_test"),
+  );
 }
 
 function countBy(items: string[]) {
@@ -133,9 +266,14 @@ function pct(part: number, total: number) {
 }
 
 function avg(values: Array<number | null | undefined>) {
-  const clean = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  const clean = values.filter(
+    (value): value is number =>
+      typeof value === "number" && Number.isFinite(value),
+  );
   if (!clean.length) return null;
-  return Math.round(clean.reduce((sum, value) => sum + value, 0) / clean.length);
+  return Math.round(
+    clean.reduce((sum, value) => sum + value, 0) / clean.length,
+  );
 }
 
 function daysAgo(days: number) {
@@ -167,21 +305,55 @@ function planFrom(item: DbAnalyticsEvent): string {
 
 function isInternalAnalyticsEvent(item: DbAnalyticsEvent): boolean {
   const metadata = item.metadata || {};
-  const source = String(metadata.source || metadata.analyticsSource || metadata.userType || metadata.actor || "").toLowerCase();
-  const email = String(metadata.email || metadata.userEmail || "").toLowerCase();
+  const source = String(
+    metadata.source ||
+      metadata.analyticsSource ||
+      metadata.userType ||
+      metadata.actor ||
+      "",
+  ).toLowerCase();
+  const email = String(
+    metadata.email || metadata.userEmail || "",
+  ).toLowerCase();
+  const host = String(item.host || metadata.host || "").toLowerCase();
+  const origin = String(item.origin || metadata.origin || "").toLowerCase();
+  const path = String(item.path || "").toLowerCase();
+  const visitorId = String(item.visitor_id || "").toLowerCase();
+  const sessionId = String(item.session_id || "").toLowerCase();
   const internalEmails = (process.env.FOUNDER_ANALYTICS_INTERNAL_EMAILS || "")
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
 
   return Boolean(
+    metadataHasTemplateOrInternalSignals(metadata) ||
+    item.is_local ||
+    host.includes("localhost") ||
+    host.includes("127.0.0.1") ||
+    origin.includes("localhost") ||
+    origin.includes("127.0.0.1") ||
+    path.startsWith("/dev-tools") ||
+    path.includes("dev-tools") ||
+    visitorId === "unknown_visitor" ||
+    sessionId === "unknown_session" ||
     metadata.devOverrideActive ||
     metadata.isInternalUser ||
     metadata.internalTest ||
     metadata.founderTest ||
     metadata.qaTest ||
-    ["founder", "internal", "qa", "tester", "freelancer", "dev"].includes(source) ||
-    (email && internalEmails.includes(email))
+    metadata.testEvent ||
+    metadata.debug ||
+    [
+      "founder",
+      "internal",
+      "qa",
+      "tester",
+      "freelancer",
+      "dev",
+      "development",
+      "localhost",
+    ].includes(source) ||
+    (email && internalEmails.includes(email)),
   );
 }
 
@@ -196,11 +368,9 @@ function isVoiceFailureEventName(name: string) {
 }
 
 function isVoiceStartEventName(name: string) {
-  return [
-    "voice_started",
-    "vapi_connected",
-    "vapi_connection_slow",
-  ].includes(name);
+  return ["voice_started", "vapi_connected", "vapi_connection_slow"].includes(
+    name,
+  );
 }
 
 function weakSignalsFrom(events: DbAnalyticsEvent[]) {
@@ -215,7 +385,13 @@ function weakSignalsFrom(events: DbAnalyticsEvent[]) {
   const signals: string[] = [];
   for (const item of events) {
     const metadata = item.metadata || {};
-    const raw = metadata.weakSignal || metadata.weakness || metadata.concern || metadata.issue || metadata.reason || "";
+    const raw =
+      metadata.weakSignal ||
+      metadata.weakness ||
+      metadata.concern ||
+      metadata.issue ||
+      metadata.reason ||
+      "";
     if (typeof raw !== "string") continue;
     const cleaned = raw.trim().slice(0, 80);
     if (!cleaned || ignored.has(cleaned.toLowerCase())) continue;
@@ -225,14 +401,36 @@ function weakSignalsFrom(events: DbAnalyticsEvent[]) {
 }
 
 function buildModePerformance(events: DbAnalyticsEvent[]) {
-  const modes = Array.from(new Set(events.map((item) => item.mode || "unknown").filter(Boolean)));
-  return modes.reduce<Record<string, { starts: number; completions: number; voiceFailures: number; results: number; avgTrust: number | null }>>((acc, mode) => {
-    const modeEvents = events.filter((item) => (item.mode || "unknown") === mode);
+  const modes = Array.from(
+    new Set(events.map((item) => item.mode || "unknown").filter(Boolean)),
+  );
+  return modes.reduce<
+    Record<
+      string,
+      {
+        starts: number;
+        completions: number;
+        voiceFailures: number;
+        results: number;
+        avgTrust: number | null;
+      }
+    >
+  >((acc, mode) => {
+    const modeEvents = events.filter(
+      (item) => (item.mode || "unknown") === mode,
+    );
     acc[mode] = {
-      starts: modeEvents.filter((item) => eventName(item) === "interview_started").length,
-      completions: modeEvents.filter((item) => eventName(item) === "interview_completed").length,
-      voiceFailures: modeEvents.filter((item) => isVoiceFailureEventName(eventName(item))).length,
-      results: modeEvents.filter((item) => eventName(item) === "results_viewed").length,
+      starts: modeEvents.filter(
+        (item) => eventName(item) === "interview_started",
+      ).length,
+      completions: modeEvents.filter(
+        (item) => eventName(item) === "interview_completed",
+      ).length,
+      voiceFailures: modeEvents.filter((item) =>
+        isVoiceFailureEventName(eventName(item)),
+      ).length,
+      results: modeEvents.filter((item) => eventName(item) === "results_viewed")
+        .length,
       avgTrust: avg(modeEvents.map((item) => item.trust)),
     };
     return acc;
@@ -246,28 +444,44 @@ function buildModePerformance(events: DbAnalyticsEvent[]) {
 const PLAN_ORDER = ["free", "premium", "premium_pro"] as const;
 
 function buildPlanBreakdown(events: DbAnalyticsEvent[]) {
-  return PLAN_ORDER.reduce<Record<string, {
-    sessions: number;
-    uploads: number;
-    interviewsStarted: number;
-    completedInterviews: number;
-    resultsViewed: number;
-    voiceFailures: number;
-    completionRate: number;
-    avgTrust: number | null;
-  }>>((acc, plan) => {
+  return PLAN_ORDER.reduce<
+    Record<
+      string,
+      {
+        sessions: number;
+        uploads: number;
+        interviewsStarted: number;
+        completedInterviews: number;
+        resultsViewed: number;
+        voiceFailures: number;
+        completionRate: number;
+        avgTrust: number | null;
+      }
+    >
+  >((acc, plan) => {
     const planEvents = events.filter((item) => planFrom(item) === plan);
-    const sessions = new Set(planEvents.map((item) => item.session_id).filter(Boolean)).size;
-    const interviewsStarted = planEvents.filter((item) => eventName(item) === "interview_started").length;
-    const completedInterviews = planEvents.filter((item) => eventName(item) === "interview_completed").length;
+    const sessions = new Set(
+      planEvents.map((item) => item.session_id).filter(Boolean),
+    ).size;
+    const interviewsStarted = planEvents.filter(
+      (item) => eventName(item) === "interview_started",
+    ).length;
+    const completedInterviews = planEvents.filter(
+      (item) => eventName(item) === "interview_completed",
+    ).length;
 
     acc[plan] = {
       sessions,
-      uploads: planEvents.filter((item) => eventName(item) === "cv_uploaded").length,
+      uploads: planEvents.filter((item) => eventName(item) === "cv_uploaded")
+        .length,
       interviewsStarted,
       completedInterviews,
-      resultsViewed: planEvents.filter((item) => eventName(item) === "results_viewed").length,
-      voiceFailures: planEvents.filter((item) => isVoiceFailureEventName(eventName(item))).length,
+      resultsViewed: planEvents.filter(
+        (item) => eventName(item) === "results_viewed",
+      ).length,
+      voiceFailures: planEvents.filter((item) =>
+        isVoiceFailureEventName(eventName(item)),
+      ).length,
       completionRate: pct(completedInterviews, interviewsStarted),
       avgTrust: avg(planEvents.map((item) => item.trust)),
     };
@@ -275,15 +489,26 @@ function buildPlanBreakdown(events: DbAnalyticsEvent[]) {
   }, {});
 }
 
-
-function buildUsageSummary(usageEvents: UsageEvent[] = [], configured = true, reason?: string): UsageSummary {
+function buildUsageSummary(
+  usageEvents: UsageEvent[] = [],
+  configured = true,
+  reason?: string,
+): UsageSummary {
   const withUser = usageEvents.filter((item) => item.user_id);
-  const signedInUsers = new Set(withUser.map((item) => item.user_id).filter(Boolean)).size;
+  const signedInUsers = new Set(
+    withUser.map((item) => item.user_id).filter(Boolean),
+  ).size;
   const activeSignedInUsers7d = new Set(
-    withUser.filter((item) => isAfter(item.created_at, daysAgo(7))).map((item) => item.user_id).filter(Boolean),
+    withUser
+      .filter((item) => isAfter(item.created_at, daysAgo(7)))
+      .map((item) => item.user_id)
+      .filter(Boolean),
   ).size;
   const activeSignedInUsers30d = new Set(
-    withUser.filter((item) => isAfter(item.created_at, daysAgo(30))).map((item) => item.user_id).filter(Boolean),
+    withUser
+      .filter((item) => isAfter(item.created_at, daysAgo(30)))
+      .map((item) => item.user_id)
+      .filter(Boolean),
   ).size;
 
   return {
@@ -292,13 +517,17 @@ function buildUsageSummary(usageEvents: UsageEvent[] = [], configured = true, re
     activeSignedInUsers7d,
     activeSignedInUsers30d,
     totalUsageEvents: usageEvents.length,
-    featureCounts: countBy(usageEvents.map((item) => item.event_name || "unknown_event")),
+    featureCounts: countBy(
+      usageEvents.map((item) => item.event_name || "unknown_event"),
+    ),
     planCounts: countBy(usageEvents.map((item) => item.plan || "free")),
     ...(reason ? { reason } : {}),
   };
 }
 
-async function readUsageSummary(supabase: ReturnType<typeof getSupabaseAdmin>): Promise<UsageSummary> {
+async function readUsageSummary(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+): Promise<UsageSummary> {
   if (!supabase) return buildUsageSummary([], false, "supabase_not_configured");
 
   try {
@@ -306,33 +535,83 @@ async function readUsageSummary(supabase: ReturnType<typeof getSupabaseAdmin>): 
       .from("workzo_usage_events")
       .select("user_id, event_name, plan, metadata, created_at")
       .order("created_at", { ascending: false })
-      .limit(10000);
+      .limit(3000);
 
     if (error) {
-      return buildUsageSummary([], false, error.message || "usage_table_read_failed");
+      return buildUsageSummary(
+        [],
+        false,
+        error.message || "usage_table_read_failed",
+      );
     }
 
     return buildUsageSummary((data || []) as UsageEvent[], true);
   } catch (error) {
-    return buildUsageSummary([], false, error instanceof Error ? error.message : String(error));
+    return buildUsageSummary(
+      [],
+      false,
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 
-function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[], usageSummary: UsageSummary = buildUsageSummary([])) {
+function buildAnalyticsResponse(
+  allEvents: DbAnalyticsEvent[],
+  usageSummary: UsageSummary = buildUsageSummary([]),
+  includeLocal = false,
+) {
   // Exclude founder/internal/QA/freelancer test events from production metrics.
-  // Internal events are still counted separately so the founder can debug the product
-  // without polluting real-user conversion, voice, and completion numbers.
-  const internalEvents = allEvents.filter(isInternalAnalyticsEvent);
-  const events = allEvents.filter((item) => !isInternalAnalyticsEvent(item));
+  // When includeLocal=true (founder viewing from localhost or with ?all=1),
+  // localhost events are INCLUDED so the founder can see their own test sessions.
+  const isInternal = (item: DbAnalyticsEvent) => {
+    if (includeLocal) {
+      // When founder opts in, only filter true internal signals (qa_test, template CVs etc)
+      // but NOT localhost — the founder IS on localhost.
+      const metadata = item.metadata || {};
+      return Boolean(
+        metadataHasTemplateOrInternalSignals(metadata) ||
+        metadata.devOverrideActive ||
+        metadata.isInternalUser ||
+        metadata.internalTest ||
+        metadata.founderTest ||
+        metadata.qaTest ||
+        metadata.testEvent,
+      );
+    }
+    return isInternalAnalyticsEvent(item);
+  };
+  const internalEvents = allEvents.filter(isInternal);
+  const events = allEvents.filter((item) => !isInternal(item));
 
   const counts = countBy(events.map(eventName));
-  const sessions = new Set(events.map((item) => item.session_id).filter(Boolean));
-  const visitors = new Set(events.map((item) => item.visitor_id).filter(Boolean));
-  const activeVisitors7d = new Set(events.filter((item) => isAfter(item.created_at, daysAgo(7))).map((item) => item.visitor_id).filter(Boolean));
-  const activeVisitors30d = new Set(events.filter((item) => isAfter(item.created_at, daysAgo(30))).map((item) => item.visitor_id).filter(Boolean));
-  const uploads = counts.cv_uploaded || 0;
-  const interviewsStarted = counts.interview_started || 0;
-  const answersSubmitted = counts.answer_submitted || 0;
+  const sessions = new Set(
+    events.map((item) => item.session_id).filter(Boolean),
+  );
+  const visitors = new Set(
+    events.map((item) => item.visitor_id).filter(Boolean),
+  );
+  const activeVisitors7d = new Set(
+    events
+      .filter((item) => isAfter(item.created_at, daysAgo(7)))
+      .map((item) => item.visitor_id)
+      .filter(Boolean),
+  );
+  const activeVisitors30d = new Set(
+    events
+      .filter((item) => isAfter(item.created_at, daysAgo(30)))
+      .map((item) => item.visitor_id)
+      .filter(Boolean),
+  );
+
+  // Merge usage_events counts into funnel metrics.
+  // workzo_usage_events receives events from recordWorkZoInterviewStarted() etc —
+  // these are sent from the client regardless of localhost/dev host.
+  // workzo_analytics_events cv_uploaded is blocked on localhost by shouldSkipProductionAnalytics().
+  // Using Math.max means we always surface the real count from whichever table has it.
+  const usageFC = usageSummary.featureCounts || {};
+  const uploads = Math.max(counts.cv_uploaded || 0, usageFC.cv_uploaded || 0);
+  const interviewsStarted = Math.max(counts.interview_started || 0, usageFC.interview_started || 0);
+  const answersSubmitted = Math.max(counts.answer_submitted || 0, usageFC.answer_submitted || 0);
   const voiceStarts = Object.entries(counts)
     .filter(([name]) => isVoiceStartEventName(name))
     .reduce((sum, [, count]) => sum + count, 0);
@@ -341,8 +620,8 @@ function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[], usageSummary: Usa
     .reduce((sum, [, count]) => sum + count, 0);
   const voicePaused = counts.voice_paused || 0;
   const voiceRecovered = counts.voice_recovered || 0;
-  const completedInterviews = counts.interview_completed || 0;
-  const resultsViewed = counts.results_viewed || 0;
+  const completedInterviews = Math.max(counts.interview_completed || 0, usageFC.interview_completed || 0);
+  const resultsViewed = Math.max(counts.results_viewed || 0, usageFC.results_viewed || 0);
   const dropoffFunnel = [
     { stage: "Page views", count: counts.page_view || 0 },
     { stage: "CV uploads", count: uploads },
@@ -352,17 +631,30 @@ function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[], usageSummary: Usa
     { stage: "Results viewed", count: resultsViewed },
   ];
   const weakSignals = weakSignalsFrom(events);
-  const topWeakness = Object.entries(weakSignals).sort((a, b) => b[1] - a[1])[0]?.[0] || "Not enough data yet";
+  const topWeakness =
+    Object.entries(weakSignals).sort((a, b) => b[1] - a[1])[0]?.[0] ||
+    "Not enough data yet";
   const completionRate = pct(completedInterviews, interviewsStarted);
-  const resultRate = pct(resultsViewed, completedInterviews || interviewsStarted);
+  const resultRate = pct(
+    resultsViewed,
+    completedInterviews || interviewsStarted,
+  );
   const answerRate = pct(answersSubmitted, interviewsStarted);
   const voiceFailureRate = pct(voiceFailures, voiceStarts || interviewsStarted);
   let insight = "No analytics collected yet.";
   if (events.length > 0) {
-    if (interviewsStarted === 0) insight = "Visitors are reaching WorkZo, but interview starts are not being tracked yet.";
-    else if (completionRate < 35) insight = "Interview completion is low. Check onboarding friction, voice reliability, and interview room clarity.";
-    else if (voiceFailureRate > 15) insight = "Voice failure rate is high. Prioritize Vapi/fallback reliability before launch.";
-    else insight = "Analytics are live. Track completion rate, voice failures, and result views after each tester session.";
+    if (interviewsStarted === 0)
+      insight =
+        "Visitors are reaching WorkZo, but interview starts are not being tracked yet.";
+    else if (completionRate < 35)
+      insight =
+        "Interview completion is low. Check onboarding friction, voice reliability, and interview room clarity.";
+    else if (voiceFailureRate > 15)
+      insight =
+        "Voice failure rate is high. Prioritize Vapi/fallback reliability before launch.";
+    else
+      insight =
+        "Analytics are live. Track completion rate, voice failures, and result views after each tester session.";
   }
 
   const recentEvents = events.slice(0, 200).map((item) => ({
@@ -415,10 +707,21 @@ function buildAnalyticsResponse(allEvents: DbAnalyticsEvent[], usageSummary: Usa
     completionRate,
     voiceFailureRate,
     counts,
-    recruiters: countBy(events.map((item) => item.recruiter || "").filter(Boolean)),
-    roles: countBy(events.map((item) => item.role || "").filter(Boolean)),
+    recruiters: countUniqueSessionsByNormalizedField(
+      events,
+      (item) => normalizeRecruiterForAnalytics(item.recruiter),
+      ["interview_started", "interview_room_viewed", "interview_completed"],
+    ),
+    roles: countUniqueSessionsByNormalizedField(
+      events,
+      (item) => normalizeRoleForAnalytics(item.role),
+      ["interview_started", "cv_uploaded", "onboarding_viewed"],
+    ),
+    rawRoles: countBy(events.map((item) => item.role || "").filter(Boolean)),
     modes: countBy(events.map((item) => item.mode || "unknown")),
-    trafficSources: countBy(events.map((item) => item.source || "Direct / unknown")),
+    trafficSources: countBy(
+      events.map((item) => item.source || "Direct / unknown"),
+    ),
     weakSignals,
     dropoffFunnel,
     modePerformance: buildModePerformance(events),
@@ -467,17 +770,42 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as AnalyticsBody;
     const supabase = getSupabaseAdmin();
-    if (!supabase) return NextResponse.json({ ok: true, stored: false, reason: "supabase_not_configured" });
+    if (!supabase)
+      return NextResponse.json({
+        ok: true,
+        stored: false,
+        reason: "supabase_not_configured",
+      });
     const event = normalizeEvent(body, request);
-    const { error } = await supabase.from("workzo_analytics_events").insert(event);
+    const { error } = await supabase
+      .from("workzo_analytics_events")
+      .insert(event);
     if (error) {
-      console.error("[WorkZo analytics] insert failed", { message: error.message, details: error.details, hint: error.hint, code: error.code });
-      return NextResponse.json({ ok: true, stored: false, reason: "insert_failed", error: error.message, details: error.details, hint: error.hint, code: error.code });
+      console.error("[WorkZo analytics] insert failed", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      return NextResponse.json({
+        ok: true,
+        stored: false,
+        reason: "insert_failed",
+        error: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
     }
     return NextResponse.json({ ok: true, stored: true });
   } catch (error) {
     console.error("[WorkZo analytics] route failed", error);
-    return NextResponse.json({ ok: true, stored: false, reason: "route_failed", error: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({
+      ok: true,
+      stored: false,
+      reason: "route_failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -498,23 +826,80 @@ function isFounderAuthorized(request: Request): boolean {
 export async function GET(request: Request) {
   try {
     if (!isFounderAuthorized(request)) {
-      return NextResponse.json({ ok: false, reason: "unauthorized" }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, reason: "unauthorized" },
+        { status: 404 },
+      );
     }
     const supabase = getSupabaseAdmin();
-    if (!supabase) return NextResponse.json({ ok: true, configured: false, summary: buildAnalyticsResponse([], buildUsageSummary([], false, "supabase_not_configured")).summary, metrics: buildAnalyticsResponse([], buildUsageSummary([], false, "supabase_not_configured")).metrics, events: [], reason: "supabase_not_configured" });
+    if (!supabase)
+      return NextResponse.json({
+        ok: true,
+        configured: false,
+        summary: buildAnalyticsResponse(
+          [],
+          buildUsageSummary([], false, "supabase_not_configured"),
+        ).summary,
+        metrics: buildAnalyticsResponse(
+          [],
+          buildUsageSummary([], false, "supabase_not_configured"),
+        ).metrics,
+        events: [],
+        reason: "supabase_not_configured",
+      });
     const usageSummary = await readUsageSummary(supabase);
     const { data, error } = await supabase
       .from("workzo_analytics_events")
-      .select("event, visitor_id, session_id, path, source, referrer, host, origin, is_local, device_type, user_agent, role, market, recruiter, mode, score, trust, pressure, metadata, client_timestamp, created_at")
+      .select(
+        "event, visitor_id, session_id, path, source, referrer, host, origin, is_local, device_type, user_agent, role, market, recruiter, mode, score, trust, pressure, metadata, client_timestamp, created_at",
+      )
       .order("created_at", { ascending: false })
-      .limit(10000);
+      .limit(3000);
     if (error) {
-      console.error("[WorkZo analytics] metrics read failed", { message: error.message, details: error.details, hint: error.hint, code: error.code });
-      return NextResponse.json({ ok: true, configured: true, summary: buildAnalyticsResponse([], usageSummary).summary, metrics: buildAnalyticsResponse([], usageSummary).metrics, events: [], reason: "read_failed", error: error.message, details: error.details, hint: error.hint, code: error.code });
+      console.error("[WorkZo analytics] metrics read failed", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      return NextResponse.json({
+        ok: true,
+        configured: true,
+        summary: buildAnalyticsResponse([], usageSummary).summary,
+        metrics: buildAnalyticsResponse([], usageSummary).metrics,
+        events: [],
+        reason: "read_failed",
+        error: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
     }
-    return NextResponse.json(buildAnalyticsResponse((data || []) as DbAnalyticsEvent[], usageSummary));
+    // ?all=1 — include localhost/dev sessions in the founder view.
+    // Useful when the founder is testing locally and wants to see their own sessions.
+    // Only available to authenticated founders (already gated above).
+    const url2 = new URL(request.url);
+    const includeLocal = url2.searchParams.get("all") === "1";
+
+    return NextResponse.json(
+      buildAnalyticsResponse((data || []) as DbAnalyticsEvent[], usageSummary, includeLocal),
+    );
   } catch (error) {
     console.error("[WorkZo analytics] metrics route failed", error);
-    return NextResponse.json({ ok: true, configured: false, summary: buildAnalyticsResponse([], buildUsageSummary([], false, "route_failed")).summary, metrics: buildAnalyticsResponse([], buildUsageSummary([], false, "route_failed")).metrics, events: [], reason: "route_failed", error: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({
+      ok: true,
+      configured: false,
+      summary: buildAnalyticsResponse(
+        [],
+        buildUsageSummary([], false, "route_failed"),
+      ).summary,
+      metrics: buildAnalyticsResponse(
+        [],
+        buildUsageSummary([], false, "route_failed"),
+      ).metrics,
+      events: [],
+      reason: "route_failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }

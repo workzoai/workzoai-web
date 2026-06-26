@@ -65,18 +65,25 @@ export default function AboutPage() {
             Back home
           </Link>
 
-          <div className="mt-12 grid items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
-            {/* Photo */}
-            <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-blue-950/30 lg:mx-0">
-              <div className="relative aspect-[4/5] overflow-hidden rounded-xl bg-slate-900">
-                <Image
-                  src="/about-haritha.jpg"
-                  alt="Haritha Vijayakumar, Founder of WorkZo AI"
-                  fill
-                  priority
-                  className="object-cover object-center"
-                  sizes="(max-width: 1024px) 90vw, 420px"
-                />
+          <div className="mt-12 grid items-center gap-10 lg:grid-cols-[1fr_1.4fr]">
+            {/* Photo — compact, professional headshot style */}
+            <div className="mx-auto w-full max-w-[260px] lg:mx-0 lg:max-w-[280px]">
+              <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-xl shadow-blue-950/40">
+                <div className="relative aspect-[3/4] overflow-hidden bg-slate-900">
+                  <Image
+                    src="/about-haritha.jpg"
+                    alt="Haritha Vijayakumar, Founder of WorkZo AI"
+                    fill
+                    priority
+                    className="object-cover object-top"
+                    sizes="(max-width: 1024px) 260px, 280px"
+                  />
+                </div>
+                {/* Name badge pinned to bottom of photo */}
+                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pb-4 pt-10">
+                  <p className="text-sm font-black text-white leading-tight">Haritha Vijayakumar</p>
+                  <p className="text-xs text-cyan-300 font-semibold mt-0.5">Founder, WorkZo AI</p>
+                </div>
               </div>
             </div>
 
@@ -169,7 +176,6 @@ export default function AboutPage() {
           <div className="mt-8 space-y-0">
             {milestones.map((m, i) => (
               <div key={m.year} className="relative flex gap-6">
-                {/* Timeline line */}
                 <div className="flex flex-col items-center">
                   <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-blue-400/30 bg-blue-500/10">
                     <div className="h-2 w-2 rounded-full bg-blue-400" />

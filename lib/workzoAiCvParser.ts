@@ -252,7 +252,7 @@ function compactDecorativeLine(line: string): string {
     if (sectionMap[compact]) return sectionMap[compact];
 
     // A long all-caps compact that isn't a section keyword is likely a person's
-    // full name run together (e.g. "HARITHAVIJAYAKUMAR" from spaced letters).
+    // full name run together (e.g. "JOHNSMITH" from spaced letters).
     // Try splitting near the midpoint so extractBestCandidateName can recognise
     // a two-word name. Only attempt for lengths typical of two-part names (8–35).
     // Guard: skip anything that looks like a single English word (section header
@@ -887,14 +887,14 @@ function cleanLinkedinUrl(value: string): string {
   // Extract the linkedin.com/in/username portion.
   // LinkedIn usernames: letters, numbers, hyphens only; typically ≤35 chars.
   // PDF line-merging appends the next line's first word directly to the URL
-  // (e.g. "linkedin.com/in/harithavijayakumar30Programming" — "Programming" is the
+  // (e.g. "linkedin.com/in/username123Programming" — "Programming" is the
   // next line). We detect contamination by finding a camelCase boundary after a run
   // of lowercase-then-digits, or by capping at 35 chars.
   const match = value.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/([A-Za-z0-9-]{1,50})\/?/i);
   if (!match) return "";
   const username = match[1];
   // Truncate at the first camelCase boundary that follows at least 5 characters:
-  // "harithavijayakumar30Programming" → stop at "P" after "30"
+  // "username123Programming" → stop at the capital letter after digits
   const clean = username.replace(/^([a-zA-Z0-9-]{5,35}?)([A-Z][a-z]{2,}).*$/, "$1");
   if (!clean) return "";
   const base = value.slice(0, value.indexOf(match[1])) + clean;
@@ -1033,8 +1033,8 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
     basics: {
       // When the AI returns an empty name (it was told to do this when unsure),
       // fall back to the deterministic parser's name rather than leaving it blank.
-      // The deterministic parser correctly finds spaced-caps names (e.g. "HARITHA
-      // VIJAYAKUMAR") even in sidebar-first PDFs where the AI gets confused.
+      // The deterministic parser correctly finds spaced-caps names (e.g. "JOHN
+      // SMITH") even in sidebar-first PDFs where the AI gets confused.
       name: clean(basics.name) || fallback.basics?.name || "",
       headline: cleanHeadline(clean(basics.headline) || experience[0]?.title || fallback.basics?.headline || knownHeadline || ""),
       // Clean email immediately at construction — never let a concatenated email through
@@ -1208,7 +1208,7 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "  This should be read as: 'IT-Support-Spezialist / Technischer Support-Ingenieur'",
             "  Rule: collapse runs of single letters separated by spaces into their intended words.",
             "  Single spaces between letters = one word. Larger gaps (2+ spaces, or a slash) = word/section boundaries.",
-            "  Another example: 'H A R I T H A   V I J A Y A K U M A R' = 'HARITHA VIJAYAKUMAR' (two words separated by larger gap).",
+            "  Another example: 'J O H N   S M I T H' = 'JOHN SMITH' (two words separated by larger gap).",
             "  'W I L S O N' with tight single spaces = 'WILSON' (one word, likely last name).",
             "",
             "PROJECT EXTRACTION RULES:",

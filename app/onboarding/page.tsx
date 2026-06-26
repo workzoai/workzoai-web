@@ -15,7 +15,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { ChangeEvent, useEffect, useId, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { useInterviewStore } from "@/store/interviewStore";
 import { buildAndSaveInterviewSetup, structureResumeProfileFromCv } from "@/lib/workzoCvClient";
@@ -40,6 +40,7 @@ import {
 
 import PrivacyNotice from "@/components/BetaPrivacyNotice";
 import { trackWorkZoLaunchEvent } from "@/lib/workzoLaunchAnalytics";
+import { recordWorkZoCvUploaded } from "@/lib/workzoUsageTracker";
 import { useWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 import { buildWorkZoCompanyBlueprint } from "@/lib/workzoCompanyBlueprint";
@@ -299,7 +300,7 @@ function buildCanonicalCvSetup(input: {
     recruiterPersonality: normalizeRecruiterKey(input.recruiter),
     language: input.language || "English",
     source: "onboarding-canonical-cv-extraction",
-    setupVersion: 7,
+    setupVersion: 10,
     setupId: `setup_${Date.now()}`,
     updatedAt: new Date().toISOString(),
     candidateName: profile.basics.name,
@@ -530,6 +531,7 @@ export default function OnboardingPage() {
   const setup = getStoreSetup(store);
 
   const [uploading, setUploading] = useState(false);
+  const uploadInFlightRef = useRef(false);
   const [uploadError, setUploadError] = useState("");
   const [fileName, setFileName] = useState("");
   const [manualCv, setManualCv] = useState("");
@@ -684,7 +686,10 @@ export default function OnboardingPage() {
   async function persist() {
     const cvText = effectiveCvText.trim();
     const jdText = jobDescription.trim();
-    if (cvText) trackWorkZoLaunchEvent({ event: "cv_uploaded", role, market, recruiter: recruiterLabel(recruiter) });
+    if (cvText) {
+      trackWorkZoLaunchEvent({ event: "cv_uploaded", role, market, recruiter: recruiterLabel(recruiter) });
+      recordWorkZoCvUploaded({ role, market }); // also sends to usage_events (works on localhost)
+    }
     if (jdText) trackWorkZoLaunchEvent({ event: "jd_added", role, market, recruiter: recruiterLabel(recruiter) });
     const rawCvText = normalizeResumeText(cvText);
     const canonicalSetup = rawCvText
@@ -731,6 +736,8 @@ export default function OnboardingPage() {
   async function handleCvUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (uploadInFlightRef.current) return;
+    uploadInFlightRef.current = true;
     setFileName(file.name);
     setUploading(true);
     setUploadError("");
@@ -739,9 +746,17 @@ export default function OnboardingPage() {
       clearCanonicalProfile(); // clear stale profile before re-upload
       const form = new FormData();
       form.append("file", file);
-      const response = await fetch("/api/cv", { method: "POST", body: form, credentials: "include" });
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 65000);
+      const response = await fetch("/api/cv", {
+        method: "POST",
+        body: form,
+        credentials: "include",
+        signal: controller.signal,
+      }).finally(() => window.clearTimeout(timeout));
       const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(data?.error || "CV extraction failed");
+      if (response.status === 401) throw new Error("Please sign in to upload your CV.");
+      if (!response.ok) throw new Error(data?.error === "Unauthorized" ? "Please sign in to upload your CV." : data?.error || "CV extraction failed");
       debugCvPipeline("onboarding.upload.api_response", { keys: data && typeof data === "object" ? Object.keys(data) : [], fileName: file.name, chars: data?.chars || null });
       const extracted = data?.text || data?.cvText || data?.content || data?.resumeText || data?.extractedText || "";
       if (!String(extracted).trim()) throw new Error("PDF uploaded, but no readable CV text was found. Paste the CV text manually.");
@@ -802,9 +817,15 @@ export default function OnboardingPage() {
         })
         .catch(() => { /* keep canonical */ });
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "Could not read this CV. Paste the CV text manually for now.");
+      const rawMsg = error instanceof Error ? error.message : "";
+      const friendlyMsg = rawMsg === "Unauthorized" || rawMsg === "Please sign in to upload your CV."
+        ? "Please sign in to upload your CV."
+        : rawMsg || "Could not read this CV. Paste the CV text manually for now.";
+      setUploadError(friendlyMsg);
     } finally {
+      uploadInFlightRef.current = false;
       setUploading(false);
+      if (event.target) event.target.value = "";
     }
   }
 

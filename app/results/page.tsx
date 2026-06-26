@@ -2034,10 +2034,17 @@ export default function ResultsPage() {
                       <p className="mt-2 text-sm leading-6 text-slate-300">{moment.shareText}</p>
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(e) => {
+                          const btn = e.currentTarget;
+                          if (btn.dataset.sharing === "1") return;
+                          btn.dataset.sharing = "1";
                           const text = `${moment.shareTitle}: "${moment.shareText}" — practiced with WorkZo AI`;
-                          if (navigator.share) { void navigator.share({ title: "WorkZo AI Interview Moment", text }); }
-                          else { void navigator.clipboard.writeText(text); }
+                          const done = () => { btn.dataset.sharing = ""; };
+                          if (navigator.share) {
+                            navigator.share({ title: "WorkZo AI Interview Moment", text }).then(done).catch(done);
+                          } else {
+                            navigator.clipboard.writeText(text).then(done).catch(done);
+                          }
                         }}
                         className="mt-4 inline-flex items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-black text-cyan-200 hover:bg-cyan-400/20"
                       >

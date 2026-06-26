@@ -108,9 +108,25 @@ export async function buildAndSaveInterviewSetup(input: {
     language: input.language || "English",
   });
 
+  // GLOBAL FIX: resumeProfile MUST be carried through to the saved payload.
+  // Previously this object spread baseSetup (which has resumeProfile) but then
+  // never re-declared resumeProfile, so any field in baseSetup would survive —
+  // BUT saveLatestInterviewSetup → sanitizeInterviewSetup was reading
+  // rawCvText from setup fields first, and the spread order meant a stale
+  // rawCvText from baseSetup could shadow the fresh cvText. More critically,
+  // when buildAndSaveInterviewSetup is called WITHOUT a baseSetup (e.g. from
+  // the text-paste flow), resumeProfile was simply absent from the payload
+  // entirely, causing activeSetup.resumeProfile = null on the interview page
+  // and making ALL structured employer extraction fall back to broken regex.
+  const resolvedResumeProfile =
+    input.resumeProfile ||
+    (input.baseSetup as WorkZoInterviewSetup & { resumeProfile?: unknown })?.resumeProfile ||
+    undefined;
+
   const payload: WorkZoInterviewSetup = {
     ...(input.baseSetup || {}),
     cvText,
+    rawCvText: cvText,
     uploadedCvText: cvText,
     resumeText: cvText,
     candidateCv: cvText,
@@ -124,6 +140,7 @@ export async function buildAndSaveInterviewSetup(input: {
     recruiterPersonality:
       input.recruiterPersonality || input.baseSetup?.recruiterPersonality || "analytical_hiring_manager",
     language: input.language || input.baseSetup?.language || "English",
+    resumeProfile: resolvedResumeProfile,
     recruiterMemoryProfile: structured.recruiterMemoryProfile,
     jobMemoryProfile: structured.jobMemoryProfile,
     source: input.baseSetup?.source || "onboarding-canonical-cv-extraction",

@@ -259,6 +259,17 @@ type ReplyRequestBody = {
     trust?: number;
     interest?: number;
   };
+  // Structured resume profile — used to build an explicit verified-employers list
+  // so the LLM never falsely challenges a company that is in the candidate's CV.
+  resumeProfile?: {
+    basics?: { name?: string; headline?: string; email?: string; phone?: string; location?: string; linkedin?: string };
+    experience?: Array<{ title?: string; company?: string; dates?: string; bullets?: string[] }>;
+    education?: Array<{ degree?: string; institution?: string; dates?: string }>;
+    skills?: string[];
+    projects?: Array<{ name?: string; bullets?: string[] }>;
+    languages?: string[];
+    [key: string]: unknown;
+  } | null;
   // V2 persistent memory — enables competency tracking, concern resolution,
   // topic progression, and JD gaps to persist across turns.
   recruiterMemoryV2?: unknown;
@@ -786,7 +797,30 @@ export async function POST(request: Request) {
     // (structured roadmap), JD gaps, candidate goals, metrics, strengths.
     // The memory is returned to the client and sent back next turn —
     // this is what prevents repeated questions across the full interview.
-    const cvText = cleanText(body.cvText, 6000);
+    // Build an explicit verified-employers block from resumeProfile.experience.
+    // Without this, the LLM sees structured CV text but may not parse employer names
+    // as verified facts — causing false challenges against legitimate experience.
+    const verifiedEmployersBlock = (() => {
+      const p = body.resumeProfile;
+      if (!p || typeof p !== "object" || !Array.isArray(p.experience)) return "";
+      const employers = (p.experience as Array<Record<string, unknown>>)
+        .map((e) => String(e.company || "").trim())
+        .filter((c) => c.length >= 2);
+      if (!employers.length) return "";
+      const roles = (p.experience as Array<Record<string, unknown>>)
+        .map((e) => String(e.title || "").trim())
+        .filter((t) => t.length >= 2);
+      const lines = [
+        `VERIFIED EMPLOYERS (from parsed CV — treat any mention of these as verified): ${employers.join(", ")}`,
+        roles.length ? `VERIFIED ROLES: ${roles.join(", ")}` : "",
+      ].filter(Boolean).join("\n");
+      return lines + "\n\n";
+    })();
+
+    const rawCvText = cleanText(body.cvText, 5800);
+    const cvText = verifiedEmployersBlock
+      ? `${verifiedEmployersBlock}${rawCvText}`.slice(0, 6000)
+      : rawCvText;
     const jobDescription = cleanText(body.jobDescription, 4000);
     const targetRole = cleanRoleLabel(body.targetRole);
 

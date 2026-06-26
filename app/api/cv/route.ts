@@ -1348,7 +1348,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
   const jd = normalizeResumeText(String(body.jobDescription || ""));
   const existingProfile = body.resumeProfile || body.profile;
   // Normalize fileName from JSON body — client may send triple-extension names
-  // like "Haritha Vijayakumar.pdf.pdf.pdf" from repeated re-parse cycles.
+  // like "candidate-name.pdf.pdf.pdf" from repeated re-parse cycles.
   if (body.fileName) {
     body = {
       ...body,
@@ -1628,6 +1628,23 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
   });
 }
 
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label}_timeout_after_${ms}ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 export async function POST(request: Request) {
   let resolved;
   try {
@@ -1713,11 +1730,15 @@ export async function POST(request: Request) {
 
       let aiResult;
       try {
-        aiResult = await parseResumeWithAiStructure({
-          cvText: cleanedCv,
-          layoutText: cleanedCv,
-          fileName: safeFileName,
-        });
+        aiResult = await withTimeout(
+          parseResumeWithAiStructure({
+            cvText: cleanedCv,
+            layoutText: cleanedCv,
+            fileName: safeFileName,
+          }),
+          Number(process.env.WORKZO_CV_AI_TIMEOUT_MS || 42000),
+          "ai_cv_parser",
+        );
       } catch (aiError) {
         console.error("api.cv.ai_parser_uncaught_error", aiError);
         const localProfile = repairResumeProfileAfterParsing(
@@ -1778,17 +1799,12 @@ export async function POST(request: Request) {
           score: affindaScore,
           name: affinda.resumeProfile.basics?.name,
         });
-        const mergedAffindaProfile = mergeCvProfile({
-          parsedProfile: affinda.resumeProfile,
-          rawText: cleanedCv,
-          fileName: safeFileName,
-        });
         return buildResponse({
           aiOk: true,
           source: affinda.source,
           error: "",
           rawCvText: cleanedCv,
-          resumeProfile: mergedAffindaProfile as any,
+          resumeProfile: affinda.resumeProfile,
           fileName: safeFileName,
         });
       }
@@ -1812,17 +1828,12 @@ export async function POST(request: Request) {
         name: aiResult.resumeProfile.basics?.name,
       });
 
-      const mergedAiProfile = mergeCvProfile({
-        parsedProfile: aiResult.resumeProfile,
-        rawText: cleanedCv,
-        fileName: safeFileName,
-      });
       return buildResponse({
         aiOk: aiResult.ok,
         source: aiResult.source,
         error: aiResult.error,
         rawCvText: cleanedCv,
-        resumeProfile: mergedAiProfile as any,
+        resumeProfile: aiResult.resumeProfile,
         fileName: safeFileName,
       });
     }

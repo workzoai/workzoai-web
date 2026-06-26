@@ -185,7 +185,7 @@ function parseJsonLoose(raw: string): RewrittenResumeProfile | null {
 
 /** Collapses embedded newlines/extra whitespace in a single field value down
  * to one clean line, and removes an exact duplicate of the whole string
- * appended to itself (e.g. "Zoho Corp\nZoho Corp" → "Zoho Corp"). This is a
+ * appended to itself (e.g. "Company\nCompany" → "Company"). This is a
  * safety net independent of prompt compliance — LLMs occasionally echo a
  * field's value twice within itself, especially when the source CV text had
  * the same string appear in two places due to a multi-column PDF layout. */
@@ -194,7 +194,7 @@ function sanitizeFieldText(value: unknown): string {
   let cleaned = value.replace(/\s*\n+\s*/g, " ").replace(/\s{2,}/g, " ").trim();
   // Detect "X X" or "X. X" where the second half exactly repeats the first
   // half (case-insensitive, ignoring trailing punctuation) — this is the
-  // "Zoho Corp Zoho Corp" / "Zoho Corp. Zoho Corp" duplication pattern.
+  // "Zoho Corp Zoho Corp" / "Company. Company" duplication pattern.
   const half = cleaned.length / 2;
   if (cleaned.length > 3 && Number.isInteger(half)) {
     const firstHalf = cleaned.slice(0, half).trim().replace(/[.,]$/, "");
@@ -204,7 +204,7 @@ function sanitizeFieldText(value: unknown): string {
     }
   }
   // Detect "X X" with a single space/period boundary even when lengths
-  // aren't perfectly even (e.g. "Zoho Corp. Zoho Corp" — 19 vs 9 chars).
+  // aren't perfectly even (e.g. "Company. Company" — duplication pattern).
   const words = cleaned.split(" ");
   for (let splitAt = 1; splitAt < words.length; splitAt++) {
     const left = words.slice(0, splitAt).join(" ").replace(/[.,]$/, "").trim();
@@ -219,8 +219,8 @@ function sanitizeFieldText(value: unknown): string {
 
 /** Removes a sibling field's value if it has been duplicated inside this
  * field — e.g. job.title containing the company name that already lives in
- * job.company ("Technical Support Engineer Zoho Corp" when company is
- * "Zoho Corp" → "Technical Support Engineer"). */
+ * job.company ("Engineer Acme Corp" when company is
+ * "Acme Corp" → "Technical Support Engineer"). */
 function stripSiblingDuplicate(fieldValue: string, siblingValue: string): string {
   if (!fieldValue || !siblingValue || siblingValue.length < 3) return fieldValue;
   const pattern = new RegExp(`\\s*${siblingValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "i");

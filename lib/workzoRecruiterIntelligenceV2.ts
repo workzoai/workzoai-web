@@ -187,7 +187,7 @@ function extractCompanies(value: string) {
   const vals: string[] = [];
   const patterns = [
     /\b(?:at|with|for|from)\s+([A-Z][A-Za-z0-9&.'-]*(?:\s+[A-Z][A-Za-z0-9&.'-]*){0,4})\b/g,
-    /\b(Zoho|Google|Microsoft|Amazon|Meta|Apple|Tesla|Salesforce|SAP|Oracle|IBM|Deloitte|Accenture|TCS|Infosys|Wipro|CSS Corp|ManageEngine|Belkin|Linksys)\b/gi,
+    /\b(Zoho|Google|Microsoft|Amazon|Meta|Apple|Tesla|Salesforce|SAP|Oracle|IBM|Deloitte|Accenture|TCS|Infosys|Wipro|ManageEngine|Belkin|Linksys)\b/gi,
   ];
   for (const pattern of patterns) {
     let match: RegExpExecArray | null;
@@ -329,7 +329,7 @@ function looksLikeRoleTitle(value: string): boolean {
  * extractLikelyCvRole — the single most important function for recruiter quality.
  *
  * Priority order:
- * 1. Structured experience entries (lines like "• Technical Support Engineer • Zoho Corp • 2018")
+ * 1. Structured experience entries (lines like "• Senior Engineer • Acme Corp • 2020")
  * 2. Explicit headline/title fields (headline: X, current role: X)
  * 3. Short role-title-like lines near dates or company names
  *
@@ -340,7 +340,7 @@ export function extractLikelyCvRole(setup: RecruiterIntelligenceSetup): string {
   if (!cv) return "";
 
   // Priority 1: structured bullet-point experience lines
-  // Matches: "• Technical Support Engineer • Zoho Corp • 2018 - 2020"
+  // Matches: "• Senior Engineer • Acme Corp • 2020 - 2022"
   //          "- Product Design Engineer | ABC Company | 2019"
   const structuredLines = Array.from(
     cv.matchAll(/^[\s]*[-•▪◦]\s*([^•|\n]{3,70})(?:[•|][^•|\n]+)?$/gim),
