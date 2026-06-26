@@ -6788,9 +6788,9 @@ export default function InterviewPage() {
             buildFactualMemoryBrief(activeSetup),
             "FULL RAW CV CONTEXT (secondary; verified facts above are authoritative):",
             activeSetup.cvText ||
-              activeSetup.rawCvText ||
-              activeSetup.resumeText ||
-              activeSetup.candidateCv ||
+              (activeSetup as any).rawCvText ||
+              (activeSetup as any).resumeText ||
+              (activeSetup as any).candidateCv ||
               "",
           ].join("\n"),
           jobDescription: [
