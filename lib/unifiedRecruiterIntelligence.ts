@@ -197,6 +197,7 @@ export type UnifiedRecruiterInput = {
   setup?: {
     cvText?: string;
     jobDescription?: string;
+    resumeProfile?: unknown;
     targetRole?: string;
     targetMarket?: string;
     companyStyle?: string;
