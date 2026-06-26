@@ -6796,7 +6796,7 @@ export default function InterviewPage() {
           jobDescription: [
             buildLanguageInstruction(activeSetup),
             "FULL JOB DESCRIPTION CONTEXT:",
-            activeSetup.jobDescription || activeSetup.jdText || "",
+            activeSetup.jobDescription || (activeSetup as any).jdText || "",
           ].join("\n"),
           // Core grounding rules — kept concise
           workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} You are WorkZo AI's recruiter. The VERIFIED RESUME FACTS in cvSummary/cvText are authoritative. Never say you do not see, cannot verify, do not see enough detail, not listed, not reflected in the CV, or need to pause for an employer, role, timeline, education, project, skill, achievement, responsibility, or years-of-experience already listed there, including close speech-to-text variants of any listed employer name. For verified facts, ask positively about responsibilities, ownership, challenges, metrics, JD fit, and outcomes. If the answer is short, say "I see that listed; walk me through the responsibilities and results there" rather than challenging the CV. Challenge only claims that are truly absent from verified facts and raw CV context. Ask one question per turn. ${unsupportedClaimChallenge}`,
