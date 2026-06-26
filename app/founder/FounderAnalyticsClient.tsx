@@ -300,7 +300,7 @@ export default function FounderAnalyticsClient() {
   const funnel = [
     { label: "Visitors", count: visitors },
     { label: "CV uploads", count: uploads, sub: "onboarding step 1" },
-    { label: "JD added", count: n(s.counts?.jd_added), sub: "onboarding step 2" },
+    { label: "JD added", count: n((s.counts as AnyRecord)?.jd_added), sub: "onboarding step 2" },
     { label: "Interview started", count: started },
     { label: "Completed", count: completed },
     { label: "Results viewed", count: results },
