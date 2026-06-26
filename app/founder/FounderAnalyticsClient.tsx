@@ -276,7 +276,7 @@ export default function FounderAnalyticsClient() {
     return () => window.clearInterval(id);
   }, []);
 
-  const s = data.summary || {};
+  const s = (data.summary || {}) as AnyRecord;
   const events = Array.isArray(data.events) ? data.events : [];
 
   // Sparklines from raw events
@@ -417,7 +417,7 @@ export default function FounderAnalyticsClient() {
           <Kpi label="Signed-in users" value={fmt(signedIn)} hint={`${fmt(s.activeSignedInUsers7d)} active 7d · ${fmt(s.activeSignedInUsers30d)} active 30d`} />
           <Kpi label="CV uploads" value={fmt(uploads)} hint="Real production CVs" sparkData={uploadSpark} sparkColor="#22d3ee" />
           <Kpi label="Results viewed" value={fmt(results)} hint={`${completeToResults}% of completions`} sparkData={startSpark} sparkColor="#a78bfa" />
-          <Kpi label="Upgrade intent" value={fmt(s.usageFeatureCounts?.upgrade_clicked)} hint="Upgrade button clicks" tone={n(s.usageFeatureCounts?.upgrade_clicked) > 0 ? "good" : "default"} />
+          <Kpi label="Upgrade intent" value={fmt((s.usageFeatureCounts as AnyRecord)?.upgrade_clicked)} hint="Upgrade button clicks" tone={n((s.usageFeatureCounts as AnyRecord)?.upgrade_clicked) > 0 ? "good" : "default"} />
         </div>
 
         {/* Conversion KPIs */}
