@@ -42,39 +42,132 @@ function getClientIp(request: Request): string {
   );
 }
 
-function buildEmailHtml(roleLabel: string, overallScore: number): string {
+// ── Session data passed from the results page ─────────────────────────────
+type SessionSignals = {
+  fillerWordCount: number;       // total filler words detected
+  ownershipGap: boolean;         // true if candidate missed ownership on 2+ answers
+  metricGap: boolean;            // true if candidate missed metrics on 2+ answers
+  structureGap: boolean;         // true if average structure score < 60
+  biggestBlocker: string;        // e.g. "Lack of measurable impact evidence"
+  worstQuestionIndex: number;    // 1-based index of lowest trust-impact answer
+  shortAnswerCount: number;      // answers under 25 words
+  answersCount: number;          // total answers captured
+};
+
+function buildSessionAwareDays(
+  role: string,
+  score: number,
+  gap: number,
+  signals: SessionSignals,
+): Array<{ day: string; title: string; tip: string }> {
+  const days: Array<{ day: string; title: string; tip: string }> = [];
+
+  // Day 1 — always the most impactful gap first
+  if (signals.ownershipGap) {
+    days.push({
+      day: "Day 1",
+      title: "Own every answer",
+      tip: `The recruiter couldn't tell what you personally did on ${signals.worstQuestionIndex > 0 ? `Question ${signals.worstQuestionIndex} and others` : "several answers"}. Replace every "we" with "I". If you cannot say "I led", "I built", or "I resolved", the recruiter cannot credit you with the outcome. This is the single fastest trust fix.`,
+    });
+  } else if (signals.metricGap) {
+    days.push({
+      day: "Day 1",
+      title: "Add one number to every story",
+      tip: `You gave strong examples but none included a measurable result. Pick your three best stories and add one number each: time saved, customers helped, tickets resolved, revenue impact, or quality improvement. Even rough numbers — "around 30 customers a week" — close the gap fast.`,
+    });
+  } else {
+    days.push({
+      day: "Day 1",
+      title: "Sharpen your strongest answer",
+      tip: `Your top answer already shows good instincts. Make it even stronger: add a number, name exactly what you personally decided or built, and end with the business result. A rehearsed version of your best answer is the fastest way to raise your score.`,
+    });
+  }
+
+  // Day 2 — second biggest gap
+  if (signals.metricGap && signals.ownershipGap) {
+    days.push({
+      day: "Day 2",
+      title: "Add one number",
+      tip: `Pick your strongest story and attach one measurable result: time saved, customers helped, tickets resolved, revenue impacted. Even rough numbers — "around 30%" — are better than none. This alone can move your score ${gap > 10 ? "8–12" : "4–8"} points.`,
+    });
+  } else if (signals.structureGap) {
+    days.push({
+      day: "Day 2",
+      title: "Use the STAR structure",
+      tip: `Several answers wandered before getting to the point. For every story: open with the Situation (one sentence), your Task (what you were responsible for), your Action (what you personally did), and the Result (what changed). Aim for 60–90 seconds per answer.`,
+    });
+  } else if (signals.shortAnswerCount >= 2) {
+    days.push({
+      day: "Day 2",
+      title: "Expand your shortest answers",
+      tip: `${signals.shortAnswerCount} of your answers ended in under 25 words — the recruiter needed more evidence before moving on. For each short answer, add one concrete detail: a customer, a process, a number, or a decision you made. Aim for at least 60–90 seconds per answer.`,
+    });
+  } else {
+    days.push({
+      day: "Day 2",
+      title: "Add one number",
+      tip: `Pick your strongest story and add one measurable result: time saved, customers helped, tickets resolved, revenue impacted. Even rough numbers are better than none. This alone can move your score ${gap > 10 ? "8–12" : "4–8"} points.`,
+    });
+  }
+
+  // Day 3 — filler words if relevant, otherwise consistency
+  if (signals.fillerWordCount >= 5) {
+    days.push({
+      day: "Day 3",
+      title: `Cut the ${signals.fillerWordCount} filler words`,
+      tip: `${signals.fillerWordCount} filler words were detected in this session. Record yourself answering "Tell me about yourself" and count every "um", "like", "basically", and "you know". Recruiters score confidence lower when they hear these. Aim for zero in your opening answer — pauses are better than fillers.`,
+    });
+  } else if (signals.fillerWordCount > 0) {
+    days.push({
+      day: "Day 3",
+      title: "Clean up your delivery",
+      tip: `A few filler words were detected (${signals.fillerWordCount} total). They didn't dominate, but removing them signals more confidence. Record your opening answer once and listen back. Replace every "um" and "like" with a short pause — silence reads as composure, not uncertainty.`,
+    });
+  } else {
+    days.push({
+      day: "Day 3",
+      title: "Prepare for the hardest follow-up",
+      tip: `Your delivery was clean. Now prepare for the challenge that drops most candidates: after any story, assume the recruiter will ask "What was the actual measurable outcome?" and "What exactly did you personally own?" Have both answers ready before they ask.`,
+    });
+  }
+
+  // Day 4 — always the follow-up pressure drill
+  days.push({
+    day: "Day 4",
+    title: "Prepare for the pressure follow-up",
+    tip: `The follow-up the recruiter for ${role} would most likely push on: "${signals.biggestBlocker.toLowerCase().includes("metric") ? "Let's be specific — what exactly changed, by how much, and how do you know your work caused it?" : signals.biggestBlocker.toLowerCase().includes("ownership") ? "What exactly did you personally own — not the team, just you?" : "What was the actual measurable outcome of your work there?"}". Practice answering this cold, with a number and a clear personal contribution, in under 90 seconds.`,
+  });
+
+  // Day 5 — always compare
+  days.push({
+    day: "Day 5",
+    title: "Run a full session and compare",
+    tip: `Do a full WorkZo interview. Compare your trust score to today's ${score}/100. If you applied the four days of work, you should see a 6–15 point improvement. The threshold for most ${role} roles is 78. This time, lead every answer with "I" and end every story with a number.`,
+  });
+
+  return days;
+}
+
+function buildEmailHtml(roleLabel: string, overallScore: number, signals?: Partial<SessionSignals>): string {
   const threshold = 78;
   const gap = Math.max(0, threshold - overallScore);
   const roleShort = roleLabel || "your target role";
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://workzoai.com";
 
-  const days = [
-    {
-      day: "Day 1",
-      title: "Own every answer",
-      tip: 'Replace every "we" with "I" in your three strongest stories. If you cannot say "I led", "I built", or "I resolved", the recruiter cannot credit you with the outcome.',
-    },
-    {
-      day: "Day 2",
-      title: "Add one number",
-      tip: `Pick your strongest story and add one measurable result: time saved, customers helped, tickets resolved, revenue impacted. Even rough numbers — "around 30%" — are better than none. This alone can move your score ${gap > 10 ? "8–12" : "4–8"} points.`,
-    },
-    {
-      day: "Day 3",
-      title: "Kill the filler words",
-      tip: 'Record yourself answering "Tell me about yourself" and count every "um", "like", "basically", and "you know". Recruiters notice these and score confidence lower. Aim for zero in your opening answer.',
-    },
-    {
-      day: "Day 4",
-      title: "Prepare for the hardest follow-up",
-      tip: `The follow-up you are least prepared for is the one that drops your trust score. After any story, assume the recruiter will ask: "What was the actual measurable outcome?" Have the answer ready before they ask.`,
-    },
-    {
-      day: "Day 5",
-      title: "Run a full session and compare",
-      tip: `Do a full WorkZo interview tomorrow. Compare your trust score to today's ${overallScore}/100. If you applied the four days of work, you should see a 6–15 point improvement. The threshold for most ${roleShort} roles is ${threshold}.`,
-    },
-  ];
+  // Build session-aware signals with safe defaults so the email always sends
+  // even if the results page sent no session data (e.g. older code path).
+  const resolvedSignals: SessionSignals = {
+    fillerWordCount: signals?.fillerWordCount ?? 0,
+    ownershipGap: signals?.ownershipGap ?? true,
+    metricGap: signals?.metricGap ?? true,
+    structureGap: signals?.structureGap ?? false,
+    biggestBlocker: signals?.biggestBlocker || "Lack of measurable impact evidence",
+    worstQuestionIndex: signals?.worstQuestionIndex ?? 0,
+    shortAnswerCount: signals?.shortAnswerCount ?? 0,
+    answersCount: signals?.answersCount ?? 0,
+  };
+
+  const days = buildSessionAwareDays(roleShort, overallScore, gap, resolvedSignals);
 
   const dayCards = days
     .map(
@@ -139,10 +232,29 @@ function buildEmailHtml(roleLabel: string, overallScore: number): string {
 </html>`;
 }
 
-function buildEmailText(roleLabel: string, overallScore: number): string {
+function buildEmailText(roleLabel: string, overallScore: number, signals?: Partial<SessionSignals>): string {
   const threshold = 78;
   const gap = Math.max(0, threshold - overallScore);
   const roleShort = roleLabel || "your target role";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://workzoai.com";
+
+  const resolvedSignals: SessionSignals = {
+    fillerWordCount: signals?.fillerWordCount ?? 0,
+    ownershipGap: signals?.ownershipGap ?? true,
+    metricGap: signals?.metricGap ?? true,
+    structureGap: signals?.structureGap ?? false,
+    biggestBlocker: signals?.biggestBlocker || "Lack of measurable impact evidence",
+    worstQuestionIndex: signals?.worstQuestionIndex ?? 0,
+    shortAnswerCount: signals?.shortAnswerCount ?? 0,
+    answersCount: signals?.answersCount ?? 0,
+  };
+
+  const days = buildSessionAwareDays(roleShort, overallScore, gap, resolvedSignals);
+
+  const dayText = days.map(d => `${d.day} — ${d.title}
+${d.tip}`).join("
+
+");
 
   return `Your WorkZo AI Interview Report — ${roleShort}
 
@@ -150,24 +262,11 @@ Score: ${overallScore}/100 ${gap > 0 ? `(+${gap} pts to reach the threshold of $
 
 YOUR 5-DAY IMPROVEMENT PLAN
 
-Day 1 — Own every answer
-Replace every "we" with "I" in your three strongest stories. If you cannot say "I led", "I built", or "I resolved", the recruiter cannot credit you with the outcome.
-
-Day 2 — Add one number
-Pick your strongest story and add one measurable result: time saved, customers helped, tickets resolved, revenue impacted. Even rough numbers are better than none.
-
-Day 3 — Kill the filler words
-Record yourself answering "Tell me about yourself" and count every "um", "like", "basically". Aim for zero in your opening answer.
-
-Day 4 — Prepare for the hardest follow-up
-After any story, assume the recruiter will ask: "What was the actual measurable outcome?" Have the answer ready before they ask.
-
-Day 5 — Run a full session and compare
-Do a full WorkZo interview. Compare your trust score to today's ${overallScore}/100. You should see a 6–15 point improvement.
+${dayText}
 
 ---
 Upgrade to Premium to unlock all recruiter signals and session memory:
-https://workzoai.com/pricing?intent=email-plan&score=${overallScore}
+${appUrl}/pricing?intent=email-plan&score=${overallScore}
 
 WorkZo AI — Cancel anytime
 `;
@@ -183,7 +282,21 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { email?: string; roleLabel?: string; overallScore?: number; source?: string };
+  let body: {
+    email?: string;
+    roleLabel?: string;
+    overallScore?: number;
+    source?: string;
+    // Session signals for personalised 5-day plan
+    fillerWordCount?: number;
+    ownershipGap?: boolean;
+    metricGap?: boolean;
+    structureGap?: boolean;
+    biggestBlocker?: string;
+    worstQuestionIndex?: number;
+    shortAnswerCount?: number;
+    answersCount?: number;
+  };
   try {
     body = await request.json();
   } catch {
@@ -197,6 +310,18 @@ export async function POST(request: Request) {
       ? Math.round(Math.max(0, Math.min(100, body.overallScore)))
       : 0;
 
+  // Session signals — optional, fall back to safe defaults in buildEmailHtml/Text
+  const signals: Partial<SessionSignals> = {
+    fillerWordCount: typeof body.fillerWordCount === "number" ? body.fillerWordCount : undefined,
+    ownershipGap: typeof body.ownershipGap === "boolean" ? body.ownershipGap : undefined,
+    metricGap: typeof body.metricGap === "boolean" ? body.metricGap : undefined,
+    structureGap: typeof body.structureGap === "boolean" ? body.structureGap : undefined,
+    biggestBlocker: typeof body.biggestBlocker === "string" ? body.biggestBlocker.slice(0, 200) : undefined,
+    worstQuestionIndex: typeof body.worstQuestionIndex === "number" ? body.worstQuestionIndex : undefined,
+    shortAnswerCount: typeof body.shortAnswerCount === "number" ? body.shortAnswerCount : undefined,
+    answersCount: typeof body.answersCount === "number" ? body.answersCount : undefined,
+  };
+
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ ok: false, error: "Invalid email address." }, { status: 400 });
   }
@@ -205,8 +330,8 @@ export async function POST(request: Request) {
     const result = await sendWorkZoTransactionalEmail({
       to: email,
       subject: `Your WorkZo report + 5-day plan${roleLabel ? ` — ${roleLabel}` : ""} (score: ${overallScore}/100)`,
-      html: buildEmailHtml(roleLabel, overallScore),
-      text: buildEmailText(roleLabel, overallScore),
+      html: buildEmailHtml(roleLabel, overallScore, signals),
+      text: buildEmailText(roleLabel, overallScore, signals),
     });
 
     if (!result.ok && result.skipped) {

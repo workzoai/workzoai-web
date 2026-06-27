@@ -373,6 +373,10 @@ function isCandidateTurn(turn: TranscriptTurn) {
   return /user|candidate|you|me|applicant/.test(label);
 }
 
+function countWords(text: string) {
+  return (text.match(/\b[\w'+-]+\b/g) || []).length;
+}
+
 function buildPairs(result: StoredResult) {
   const source = Array.isArray(result.transcript)
     ? result.transcript
@@ -412,11 +416,25 @@ function buildPairs(result: StoredResult) {
     }
   }
 
-  return pairs.slice(0, 12);
-}
-
-function countWords(text: string) {
-  return (text.match(/\b[\w'+-]+\b/g) || []).length;
+  // Filter out greeting exchanges and one-word fillers — the opening
+  // "Hi, how are you?" / "Good, thanks. How are you?" exchange is not a
+  // substantive answer and should never be scored or displayed as Q1.
+  const isGreetingAnswer = (answer: string): boolean => {
+    const words = countWords(answer);
+    if (words >= 15) return false;
+    const lower = answer.toLowerCase().trim();
+    const hasWork = /\b(experience|engineer|manager|worked|company|role|project|client|customer|year|month|built|led|managed|created|developed|responsible|team|skill|data|support|software|product|sales|business|technical|degree|university|school|bootcamp)\b/i.test(lower);
+    if (hasWork) return false;
+    return (
+      /^(hi|hey|hello)\b/.test(lower) ||
+      /^(good|great|fine|well|doing well|i'?m (good|well|fine|great|doing well|okay|ok))\b/.test(lower) ||
+      /^(thank|thanks)\b/.test(lower) ||
+      /how (are you|about you|about yourself|do you do)/.test(lower) ||
+      (words <= 8 && /\b(good|great|fine|well|okay|ok|yes|yep|sure|yeah|thanks)\b/.test(lower))
+    );
+  };
+  const substantivePairs = pairs.filter((pair) => !isGreetingAnswer(pair.answer));
+    return substantivePairs.slice(0, 12);
 }
 
 function countFillers(text: string) {
@@ -479,9 +497,27 @@ function analyzeAnswer(question: string, answer: string, index: number): AnswerI
             ? "The recruiter hears action, but needs a clearer final outcome."
             : "The recruiter hears a credible answer with evidence, ownership, and role relevance.";
 
-  const rewrite = answer && !/not captured/i.test(answer)
-    ? "I would answer this with a short STAR structure: explain the situation, define my task, describe the action I personally owned, and close with one measurable result connected to the target role."
-    : "Use a short STAR answer: situation, task, action, measurable result, and one sentence linking it to the role.";
+  // Contextual rewrite tip — reflects what was actually missing in THIS answer,
+  // so the coaching in the "Two moments" section feels specific, not generic.
+  let rewrite: string;
+  if (!answer || /not captured/i.test(answer)) {
+    rewrite = "Use a short STAR answer: situation, task, action, measurable result, and one sentence linking it to the role.";
+  } else if (words < 25) {
+    rewrite = "Expand this answer: add the situation in one sentence, what you personally did, and one result. Aim for 60–90 seconds when spoken aloud.";
+  } else if (!ownershipPresent && !metricPresent) {
+    rewrite = "Rewrite with 'I' as the subject: 'I decided...', 'I built...', 'I resolved...' — then close with one number that shows the impact.";
+  } else if (!metricPresent) {
+    rewrite = "Add one number to close this answer: time saved, customers helped, tickets resolved, revenue impact, or quality improvement. Even a rough estimate works.";
+  } else if (!ownershipPresent) {
+    rewrite = "Clarify your personal contribution: separate what the team did from what you specifically owned, decided, or delivered.";
+  } else if (!resultPresent) {
+    rewrite = "Add a clear outcome sentence: 'As a result...' or 'This led to...' — then name what actually changed.";
+  } else {
+    // This is a strong answer — tip should reinforce what worked, not suggest a rewrite
+    rewrite = metricPresent && ownershipPresent
+      ? "Strong answer. To make it even sharper: lead with the result first, then explain how you got there. Recruiters remember the outcome."
+      : "Good structure here. Keep this answer in your preparation — it shows the pattern that builds recruiter trust.";
+  }
 
   return {
     id: `answer-${index + 1}`,
@@ -1493,7 +1529,19 @@ function RealBlurredInsights({ insights, contradictions, redFlags }: {
 }
 
 // ─── Email capture ─────────────────────────────────────────────────────────────
-function EmailCapture({ roleLabel, overallScore }: { roleLabel: string; overallScore: number }) {
+function EmailCapture({
+  roleLabel,
+  overallScore,
+  insights,
+  fillerWordCount,
+  biggestBlocker,
+}: {
+  roleLabel: string;
+  overallScore: number;
+  insights: AnswerInsight[];
+  fillerWordCount: number;
+  biggestBlocker: string;
+}) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
   const [error, setError] = useState("");
@@ -1506,11 +1554,37 @@ function EmailCapture({ roleLabel, overallScore }: { roleLabel: string; overallS
     }
     setStatus("loading");
     setError("");
+
+    // Compute session signals from actual answer data so the email plan
+    // is personalised to what happened in this specific session.
+    const ownershipMissed = insights.filter(i => !i.ownershipPresent);
+    const metricMissed = insights.filter(i => !i.metricPresent);
+    const shortAnswers = insights.filter(i => i.wordCount < 25);
+    const avgStructure = insights.length
+      ? insights.reduce((s, i) => s + i.structureScore, 0) / insights.length
+      : 60;
+    const worstAnswer = [...insights].sort((a, b) => a.trustImpact - b.trustImpact)[0];
+    const worstIdx = worstAnswer ? insights.indexOf(worstAnswer) + 1 : 0;
+
     try {
       const res = await fetch("/api/email/capture-result", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed, roleLabel, overallScore, source: "results_page" }),
+        body: JSON.stringify({
+          email: trimmed,
+          roleLabel,
+          overallScore,
+          source: "results_page",
+          // Session signals for personalised 5-day plan
+          fillerWordCount,
+          ownershipGap: ownershipMissed.length >= 2,
+          metricGap: metricMissed.length >= 2,
+          structureGap: avgStructure < 60,
+          biggestBlocker,
+          worstQuestionIndex: worstIdx,
+          shortAnswerCount: shortAnswers.length,
+          answersCount: insights.length,
+        }),
       });
       if (!res.ok) throw new Error("Request failed");
       setStatus("sent");
@@ -1972,7 +2046,13 @@ export default function ResultsPage() {
               redFlags={report.redFlags}
             />
 
-            <EmailCapture roleLabel={report.roleLabel} overallScore={report.overallScore} />
+            <EmailCapture
+              roleLabel={report.roleLabel}
+              overallScore={report.overallScore}
+              insights={report.answerInsights}
+              fillerWordCount={report.fillerWordCount}
+              biggestBlocker={report.biggestBlocker}
+            />
           </>
         ) : (
           <>

@@ -2278,35 +2278,35 @@ function buildLocalizedGreeting(setup: InterviewSetup) {
 
   switch (language.code) {
     case "de-DE":
-      return `Hallo ${name}. Danke, dass du heute hier bist. Wie geht es dir?`;
+      return hasRealName ? `Hallo ${name}. Danke, dass du heute hier bist. Wie geht es dir?` : `Hallo. Danke, dass du heute hier bist. Wie geht es dir?`;
     case "nl-NL":
-      return `Hallo ${name}. Bedankt dat je er vandaag bent. Hoe gaat het met je?`;
+      return hasRealName ? `Hallo ${name}. Bedankt dat je er vandaag bent. Hoe gaat het met je?` : `Hallo. Bedankt dat je er vandaag bent. Hoe gaat het met je?`;
     case "fr-FR":
-      return `Bonjour ${name}. Merci d’être là aujourd’hui. Comment allez-vous ?`;
+      return hasRealName ? `Bonjour ${name}. Merci d'être là aujourd'hui. Comment allez-vous ?` : `Bonjour. Merci d'être là aujourd'hui. Comment allez-vous ?`;
     case "es-ES":
-      return `Hola ${name}. Gracias por estar aquí hoy. ¿Cómo estás?`;
+      return hasRealName ? `Hola ${name}. Gracias por estar aquí hoy. ¿Cómo estás?` : `Hola. Gracias por estar aquí hoy. ¿Cómo estás?`;
     case "it-IT":
-      return `Ciao ${name}. Grazie per essere qui oggi. Come stai?`;
+      return hasRealName ? `Ciao ${name}. Grazie per essere qui oggi. Come stai?` : `Ciao. Grazie per essere qui oggi. Come stai?`;
     case "pt-PT":
-      return `Olá ${name}. Obrigado por estares aqui hoje. Como estás?`;
+      return hasRealName ? `Olá ${name}. Obrigado por estares aqui hoje. Como estás?` : `Olá. Obrigado por estares aqui hoje. Como estás?`;
     case "zh-CN":
-      return `${name}，你好。感谢你今天参加面试。你现在感觉怎么样？`;
+      return hasRealName ? `${name}，你好。感谢你今天参加面试。你现在感觉怎么样？` : `你好。感谢你今天参加面试。你现在感觉怎么样？`;
     case "ja-JP":
-      return `${name}さん、本日はありがとうございます。ご気分はいかがですか？`;
+      return hasRealName ? `${name}さん、本日はありがとうございます。ご気分はいかがですか？` : `本日はありがとうございます。ご気分はいかがですか？`;
     case "ko-KR":
-      return `${name}님, 오늘 참석해 주셔서 감사합니다. 지금 기분은 어떠신가요?`;
+      return hasRealName ? `${name}님, 오늘 참석해 주셔서 감사합니다. 지금 기분은 어떠신가요?` : `오늘 참석해 주셔서 감사합니다. 지금 기분은 어떠신가요?`;
     case "ar-SA":
-      return `مرحبًا ${name}. شكرًا لانضمامك اليوم. كيف حالك؟`;
+      return hasRealName ? `مرحبًا ${name}. شكرًا لانضمامك اليوم. كيف حالك؟` : `مرحبًا. شكرًا لانضمامك اليوم. كيف حالك؟`;
     case "pl-PL":
-      return `Cześć ${name}. Dziękuję, że jesteś dzisiaj. Jak się masz?`;
+      return hasRealName ? `Cześć ${name}. Dziękuję, że jesteś dzisiaj. Jak się masz?` : `Cześć. Dziękuję, że jesteś dzisiaj. Jak się masz?`;
     case "ru-RU":
-      return `Здравствуйте, ${name}. Спасибо, что присоединились сегодня. Как вы себя чувствуете?`;
+      return hasRealName ? `Здравствуйте, ${name}. Спасибо, что присоединились сегодня. Как вы себя чувствуете?` : `Здравствуйте. Спасибо, что присоединились сегодня. Как вы себя чувствуете?`;
     case "tr-TR":
-      return `Merhaba ${name}. Bugün katıldığın için teşekkür ederim. Nasılsın?`;
+      return hasRealName ? `Merhaba ${name}. Bugün katıldığın için teşekkür ederim. Nasılsın?` : `Merhaba. Bugün katıldığın için teşekkür ederim. Nasılsın?`;
     case "hi-IN":
-      return `नमस्ते ${name}. आज इंटरव्यू में शामिल होने के लिए धन्यवाद। आप कैसे हैं?`;
+      return hasRealName ? `नमस्ते ${name}. आज इंटरव्यू में शामिल होने के लिए धन्यवाद। आप कैसे हैं?` : `नमस्ते। आज इंटरव्यू में शामिल होने के लिए धन्यवाद। आप कैसे हैं?`;
     case "ta-IN":
-      return `வணக்கம் ${name}. இன்று நேர்காணலில் சேர்ந்ததற்கு நன்றி. எப்படி இருக்கிறீர்கள்?`;
+      return hasRealName ? `வணக்கம் ${name}. இன்று நேர்காணலில் சேர்ந்ததற்கு நன்றி. எப்படி இருக்கிறீர்கள்?` : `வணக்கம். இன்று நேர்காணலில் சேர்ந்ததற்கு நன்றி. எப்படி இருக்கிறீர்கள்?`;
     default:
       return `Hi ${name}. I'm ${setup.recruiterName || "Sarah"}, ${setup.recruiterTitle || "Senior Talent Partner"}. Thanks for joining today — how are you doing?`;
   }
