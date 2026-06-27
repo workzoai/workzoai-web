@@ -690,12 +690,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // ── Plan gate — same as /api/interview ────────────────────────────────────
-  // Free users get full reply intelligence for 2 sessions.
-  // Restore when ready: uncomment below.
-  // if (resolved.plan !== "premium" && resolved.plan !== "premium_pro") {
-  //   return NextResponse.json({ error: "upgrade_required", requiredPlan: "premium", reply: null }, { status: 403 });
-  // }
+  // ── Plan gate ─────────────────────────────────────────────────────────────
+  // Free users get full interview intelligence — 2 sessions/month enforced
+  // by /api/db/interview-session via the Supabase usage tracker.
 
   // ── Rate limit ────────────────────────────────────────────────────────────
   const rateLimitKey = `interview_reply:${resolved.userId}`;

@@ -1853,10 +1853,93 @@ export default function ResultsPage() {
 
         {!isPremium ? (
           <>
+            {/* ── THE WOW MOMENT — personalised signal first, before generic stats ── */}
+            {/* The first thing a free user reads is something specific to their session,
+                not a number. This is what makes it feel real. */}
+            {report.answerInsights.length > 0 && (() => {
+              // Find the most interesting moment: a trust drop, ownership gap, or
+              // filler spike — whichever happened earliest and is most specific.
+              const worstAnswer = [...report.answerInsights].sort((a, b) =>
+                (a.trustImpact ?? 0) - (b.trustImpact ?? 0)
+              )[0];
+              const bestAnswer = [...report.answerInsights].sort((a, b) =>
+                (b.trustImpact ?? 0) - (a.trustImpact ?? 0)
+              )[0];
+              const worstIdx = report.answerInsights.indexOf(worstAnswer) + 1;
+              const bestIdx = report.answerInsights.indexOf(bestAnswer) + 1;
+
+              const worstReason = worstAnswer?.weakness ||
+                (!worstAnswer?.ownershipPresent ? "ownership language was missing" :
+                 !worstAnswer?.metricPresent ? "no measurable outcome was given" :
+                 (worstAnswer?.fillerCount ?? 0) >= 3 ? `${worstAnswer.fillerCount} filler words detected` :
+                 "the answer ended before enough evidence was given");
+
+              const bestReason = bestAnswer?.strength ||
+                (bestAnswer?.metricPresent ? "it included a measurable result" :
+                 bestAnswer?.ownershipPresent ? "you made your personal contribution clear" :
+                 "it had the clearest structure");
+
+              return (
+                <section className="mt-4 rounded-2xl border border-cyan-400/25 bg-gradient-to-br from-cyan-500/10 via-blue-500/8 to-slate-500/5 p-6">
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">The recruiter noticed</p>
+                  <h2 className="mt-3 text-2xl font-black tracking-tight text-white">
+                    Two moments that defined this interview
+                  </h2>
+
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                    {/* Best moment */}
+                    <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 p-5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">Strongest answer</p>
+                        {bestAnswer?.trustImpact != null && bestAnswer.trustImpact > 0 && (
+                          <span className="rounded-full bg-emerald-400/20 px-2.5 py-1 text-xs font-black text-emerald-200">+{bestAnswer.trustImpact} trust</span>
+                        )}
+                      </div>
+                      <p className="mt-2 text-sm font-black text-white">Question {bestIdx}</p>
+                      <p className="mt-2 text-sm leading-6 text-emerald-100">
+                        This answer built recruiter confidence because {bestReason}.
+                      </p>
+                      {bestAnswer?.coachingAction && (
+                        <p className="mt-3 rounded-lg bg-black/20 px-3 py-2 text-xs leading-5 text-slate-300">
+                          Coach: {bestAnswer.coachingAction}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Weakest moment */}
+                    <div className="rounded-xl border border-rose-400/20 bg-rose-400/[0.07] p-5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-rose-300">Where trust slipped</p>
+                        {worstAnswer?.trustImpact != null && worstAnswer.trustImpact < 0 && (
+                          <span className="rounded-full bg-rose-400/20 px-2.5 py-1 text-xs font-black text-rose-200">{worstAnswer.trustImpact} trust</span>
+                        )}
+                      </div>
+                      <p className="mt-2 text-sm font-black text-white">Question {worstIdx}</p>
+                      <p className="mt-2 text-sm leading-6 text-rose-100">
+                        Trust dropped here because {worstReason}.
+                      </p>
+                      {worstAnswer?.coachingAction && (
+                        <p className="mt-3 rounded-lg bg-black/20 px-3 py-2 text-xs leading-5 text-slate-300">
+                          Coach: {worstAnswer.coachingAction}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-cyan-400/15 bg-black/20 px-4 py-3">
+                    <p className="text-xs leading-5 text-slate-300">
+                      <span className="font-black text-white">Quick win: </span>{report.quickWin}
+                    </p>
+                  </div>
+                </section>
+              );
+            })()}
+
+            {/* ── Delivery stats — after the personal moment, not before ── */}
             <section className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-                <h2 className="flex items-center gap-2 text-base font-black"><ShieldCheck className="h-4 w-4 text-emerald-300" />Sentiment snapshot</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-200">You showed useful role fit, but the recruiter still needs sharper metrics, ownership, or structure.</p>
+                <h2 className="flex items-center gap-2 text-base font-black"><ShieldCheck className="h-4 w-4 text-emerald-300" />Delivery signals</h2>
+                <p className="mt-2 text-xs leading-5 text-slate-400">Estimated from transcript length, word count, and filler word detection.</p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-4">
                   <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-slate-400">Speaking pace</p><p className="mt-1.5 text-xl font-black">{report.averageWpm || "—"} <span className="text-sm text-slate-400">WPM</span></p><p className="mt-0.5 text-[10px] text-slate-500">{report.averageWpm ? (report.averageWpm >= 110 && report.averageWpm <= 170 ? "Good pace" : report.averageWpm < 110 ? "Too slow" : "Too fast") : "Not measured"}</p></div>
                   {(result.fillerWordCount ?? 0) >= 0 && (
@@ -1867,9 +1950,9 @@ export default function ResultsPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-5">
-                <h2 className="flex items-center gap-2 text-base font-black"><Lightbulb className="h-4 w-4 text-emerald-200" />One quick win</h2>
-                <p className="mt-3 text-sm leading-6 text-emerald-50">{report.quickWin}</p>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><CheckCircle2 className="h-4 w-4 text-emerald-300" />What landed</h2>
+                <div className="mt-3 space-y-2">{report.strengths.map((item) => <p key={item} className="rounded-xl bg-emerald-400/10 px-3 py-2 text-xs leading-5 text-emerald-50">{item}</p>)}</div>
               </div>
             </section>
 
@@ -1877,15 +1960,9 @@ export default function ResultsPage() {
 
             <UpgradeStrip roleLabel={report.roleLabel} />
 
-            <section className="mt-4 grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-                <h2 className="flex items-center gap-2 text-base font-black"><CheckCircle2 className="h-4 w-4 text-emerald-300" />What landed</h2>
-                <div className="mt-3 space-y-2">{report.strengths.map((item) => <p key={item} className="rounded-xl bg-emerald-400/10 px-3 py-2 text-xs leading-5 text-emerald-50">{item}</p>)}</div>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-                <h2 className="flex items-center gap-2 text-base font-black"><Target className="h-4 w-4 text-blue-300" />What needs work</h2>
-                <div className="mt-3 space-y-2">{report.improvements.map((item) => <p key={item} className="rounded-xl bg-blue-400/10 px-3 py-2 text-xs leading-5 text-blue-50">{item}</p>)}</div>
-              </div>
+            <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+              <h2 className="flex items-center gap-2 text-base font-black"><Target className="h-4 w-4 text-blue-300" />What needs work</h2>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">{report.improvements.map((item) => <p key={item} className="rounded-xl bg-blue-400/10 px-3 py-2 text-xs leading-5 text-blue-50">{item}</p>)}</div>
             </section>
 
             <RealBlurredInsights

@@ -491,13 +491,68 @@ const navItems = [
   { label: "Results", href: "/results", icon: BarChart3 },
 ];
 
-const recruiterQuestions = [
-  "Can you walk me through your background and what makes you interested in this role?",
-  "Tell me about one relevant situation from your experience.",
-  "What was the hardest part, and how did you solve it?",
-  "What measurable impact did your work create?",
-  "What would you improve if you handled the same situation again?",
+// ── CV-aware fallback questions ─────────────────────────────────────────────
+// These are used by the rule-engine fallback (when the LLM times out or the
+// Vapi path is unavailable). They are built dynamically from the candidate's
+// actual CV data so even the fallback path feels personalised — not generic.
+// No hardcoded names, roles, or companies: everything comes from setup.
+function buildCvAwareQuestions(setup: InterviewSetup): string[] {
+  const role = setup.targetRole || "this role";
+  const profile = setup.resumeProfile as
+    | { experience?: Array<{ title?: string; company?: string; dates?: string; bullets?: string[] }>; skills?: string[]; education?: Array<{ degree?: string; institution?: string }> }
+    | null
+    | undefined;
+
+  const mostRecentJob = profile?.experience?.[0];
+  const secondJob = profile?.experience?.[1];
+  const topSkills = profile?.skills?.slice(0, 3).join(", ");
+  const recentTitle = mostRecentJob?.title || "your most recent role";
+  const recentCompany = mostRecentJob?.company;
+  const recentBullet = mostRecentJob?.bullets?.[0];
+
+  const q1 = recentCompany
+    ? `Walk me through your background — starting with your time as ${recentTitle}${recentCompany ? ` at ${recentCompany}` : ""} — and explain what makes you right for ${role}.`
+    : `Walk me through your background and explain what specifically makes you right for ${role}.`;
+
+  const q2 = recentBullet
+    ? `You mentioned ${recentBullet.toLowerCase().slice(0, 60)}… — give me one concrete example of that in action: the situation, what you did personally, and the outcome.`
+    : recentTitle
+    ? `Give me one concrete example from your time as ${recentTitle}: the situation, what you personally did, and the measurable outcome.`
+    : "Give me one concrete situation from your experience: what the problem was, what you personally did, and what changed as a result.";
+
+  const q3 = secondJob
+    ? `You've worked across ${recentTitle} and ${secondJob.title || "other roles"} — what was the most difficult challenge you personally had to solve, and how did you approach it?`
+    : "What was the hardest problem you personally had to solve in your career, and what exactly did you do?";
+
+  const q4 = topSkills
+    ? `You have experience with ${topSkills}. Walk me through a specific situation where that directly created a measurable result — not for the team, but for you personally.`
+    : "What is the single most measurable result your work has produced? Give me the number, the context, and your exact contribution.";
+
+  const q5 = `Looking back at your experience, what would you do differently today — and how does that make you better prepared for ${role}?`;
+
+  return [q1, q2, q3, q4, q5];
+}
+
+// Fallback: static questions used only if setup has no CV data at all
+const recruiterQuestionsFallback = [
+  "Walk me through your background and what makes you the right fit for this role.",
+  "Give me one concrete example from your experience: the situation, what you personally did, and the outcome.",
+  "What was the hardest problem you personally had to solve, and how did you approach it?",
+  "What is the most measurable result your work has produced? Give me a number.",
+  "What would you do differently today, and how does that make you better prepared for this role?",
 ];
+
+function getRecruiterQuestions(setup: InterviewSetup): string[] {
+  try {
+    const dynamic = buildCvAwareQuestions(setup);
+    if (dynamic.every(q => q.length > 20)) return dynamic;
+  } catch {}
+  return recruiterQuestionsFallback;
+}
+
+// Legacy alias kept for the few call sites that reference recruiterQuestions directly
+// (live copilot panel, snapshot display). These are read-only and non-critical.
+const recruiterQuestions = recruiterQuestionsFallback;
 
 function getVisibleTranscriptItems(transcript: TranscriptItem[]) {
   return transcript.filter((item) => {
@@ -2641,11 +2696,12 @@ function buildRecruiterReply(
     return "Yes, I can hear you. Let’s begin properly. Give me a short overview of your background and why this role is relevant for you.";
   }
 
+  const dynamicQuestions = getRecruiterQuestions(setup);
   const intelligenceV2 = buildWorkZoRecruiterReplyV2({
     answer,
     currentQuestion:
-      recruiterQuestions[
-        Math.min(questionIndex, recruiterQuestions.length - 1)
+      dynamicQuestions[
+        Math.min(questionIndex, dynamicQuestions.length - 1)
       ] || "",
     setup,
     memory,
@@ -4122,8 +4178,8 @@ function buildMemoryAwareFollowUp(
   const intelligenceV2 = buildWorkZoRecruiterReplyV2({
     answer,
     currentQuestion:
-      recruiterQuestions[
-        Math.min(questionIndex, recruiterQuestions.length - 1)
+      getRecruiterQuestions(setup)[
+        Math.min(questionIndex, getRecruiterQuestions(setup).length - 1)
       ] || "",
     setup,
     memory,
@@ -4778,8 +4834,8 @@ export default function InterviewPage() {
         transcriptCount: transcript.length,
         questionIndex,
         currentQuestion:
-          recruiterQuestions[
-            Math.min(questionIndex, recruiterQuestions.length - 1)
+          recruiterQuestionsFallback[
+            Math.min(questionIndex, recruiterQuestionsFallback.length - 1)
           ] || "",
         interimText,
         recruiterConcern: recruiterSignal.concern,
@@ -5470,8 +5526,7 @@ export default function InterviewPage() {
         );
       };
 
-      // Free users get GPT-4o intelligence — only session count is limited.
-      // if (serverPlan !== "premium" && serverPlan !== "premium_pro") return fallback("free_plan_disabled");
+      // Free users get full GPT-4o intelligence — session count is enforced by /api/db/interview-session.
 
       try {
         const signalAnalysis = analyzeAnswerSignals(answer, currentSetup);
@@ -8156,7 +8211,7 @@ export default function InterviewPage() {
                           type="button"
                           onClick={() =>
                             speakRecruiter(
-                              recruiterQuestions[Math.max(0, questionIndex)],
+                              getRecruiterQuestions(activeSetup)[Math.max(0, questionIndex)],
                             )
                           }
                           className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200"
