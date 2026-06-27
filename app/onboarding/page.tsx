@@ -946,7 +946,19 @@ export default function OnboardingPage() {
               )}
 
               {uploadError && !contextModalOpen && (
-                <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">{uploadError}</div>
+                uploadError.includes("sign in") ? (
+                  <div className="mt-3 rounded-lg border border-blue-400/20 bg-blue-500/10 p-4">
+                    <p className="text-sm text-blue-100">Sign in to upload your CV and get a personalised interview.</p>
+                    <a
+                      href="/login"
+                      className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-black text-white transition hover:bg-blue-400"
+                    >
+                      Sign in
+                    </a>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">{uploadError}</div>
+                )
               )}
             </div>
 
@@ -1069,12 +1081,24 @@ export default function OnboardingPage() {
               ) : manualCv && fileName ? (
                 <><Check className="h-7 w-7 text-emerald-300" strokeWidth={2.5} /><span className="mt-2 block text-sm font-black text-emerald-100">{fileName}</span><span className="mt-1 block text-xs text-slate-500">Click to replace</span></>
               ) : (
-                <><Upload className="h-7 w-7 text-blue-200" /><span className="mt-2 block text-sm font-black">Upload your CV</span><span className="mt-1 block text-xs text-slate-500">PDF, DOCX or TXT</span></>
+                <><Upload className="h-7 w-7 text-blue-200" /><span className="mt-2 block text-sm font-black">Upload your CV</span><span className="mt-1 block text-xs text-slate-500">PDF, DOCX or TXT · <a href="/login" className="text-blue-400 underline hover:text-blue-300" onClick={(e) => e.stopPropagation()}>Sign in</a> to upload</span></>
               )}
             </label>
 
             {uploadError && (
-              <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">{uploadError}</div>
+              (uploadError.includes("sign in") ? (
+                <div className="mt-3 rounded-lg border border-blue-400/20 bg-blue-500/10 p-4">
+                  <p className="text-sm text-blue-100">Sign in to upload your CV and get a personalised interview.</p>
+                  <a
+                    href="/login"
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-black text-white transition hover:bg-blue-400"
+                  >
+                    Sign in
+                  </a>
+                </div>
+              ) : (
+                <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">{uploadError}</div>
+              ))
             )}
 
             {aiCvStructuringStatus !== "idle" && (
