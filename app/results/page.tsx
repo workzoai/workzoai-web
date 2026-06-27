@@ -1777,9 +1777,9 @@ export default function ResultsPage() {
     <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
+          <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
             <ArrowLeft className="h-4 w-4" />
-            Dashboard
+            New interview
           </Link>
 
           <div className="flex items-center gap-3">

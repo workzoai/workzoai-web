@@ -82,11 +82,11 @@ export default function AuthNavButton() {
             <p className="mt-1 truncate text-sm font-bold text-white">{shortEmail}</p>
           </div>
 
-          <Link href="/dashboard" className="mt-2 block rounded-xl px-3 py-2.5 text-sm font-black text-slate-200 hover:bg-white/10 hover:text-white">
-            Dashboard
+          <Link href="/onboarding" className="mt-2 block rounded-xl px-3 py-2.5 text-sm font-black text-slate-200 hover:bg-white/10 hover:text-white">
+            Start interview
           </Link>
-          <Link href="/account" className="block rounded-xl px-3 py-2.5 text-sm font-black text-slate-200 hover:bg-white/10 hover:text-white">
-            Account & billing
+          <Link href="/dashboard/settings" className="block rounded-xl px-3 py-2.5 text-sm font-black text-slate-200 hover:bg-white/10 hover:text-white">
+            Account & settings
           </Link>
           <Link href="/history" className="block rounded-xl px-3 py-2.5 text-sm font-black text-slate-200 hover:bg-white/10 hover:text-white">
             Interview history

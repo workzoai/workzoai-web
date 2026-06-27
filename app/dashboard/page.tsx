@@ -1,84 +1,9 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import Image from "next/image";
-import Link from "next/link";
-import { useEffect, useMemo, useState, type ComponentType } from "react";
-import { ArrowLeft, Bell, CheckCircle2, CreditCard, FileText, History, LockKeyhole, LogOut, Settings, ShieldCheck, Sparkles, UserRound } from "lucide-react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { getWorkZoPlanLimits, normalizeWorkZoPlan, type WorkZoPlanType } from "@/lib/workzoPlanLimits";
-import { setWorkZoCurrentPlan } from "@/lib/workzoUsageTracker";
-
-type AccountState = { email: string; signedIn: boolean; plan: WorkZoPlanType; status: string; renewal: string | null };
-
-export default function DashboardSettingsPage() {
-  const [account, setAccount] = useState<AccountState>({ email: "", signedIn: false, plan: "free", status: "Checking…", renewal: null });
-  const [loading, setLoading] = useState(true);
-  const [signingOut, setSigningOut] = useState(false);
-  const limits = useMemo(() => getWorkZoPlanLimits(account.plan), [account.plan]);
-
-  useEffect(() => {
-    let active = true;
-    async function loadAccount() {
-      try {
-        const supabase = createSupabaseBrowserClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        const res = await fetch("/api/account/plan", { cache: "no-store" });
-        const planData = await res.json().catch(() => ({}));
-        const plan = normalizeWorkZoPlan(planData?.plan || "free");
-        setWorkZoCurrentPlan(plan);
-        if (!active) return;
-        setAccount({ email: user?.email || planData?.email || "", signedIn: Boolean(user || planData?.authenticated), plan, status: String(planData?.status || (plan === "free" ? "free" : "active")), renewal: planData?.currentPeriodEnd || null });
-      } catch {
-        if (!active) return;
-        setAccount({ email: "", signedIn: false, plan: "free", status: "Unavailable", renewal: null });
-      } finally { if (active) setLoading(false); }
-    }
-    loadAccount();
-    return () => { active = false; };
-  }, []);
-
-  async function handleSignOut() {
-    setSigningOut(true);
-    try {
-      const supabase = createSupabaseBrowserClient();
-      await supabase.auth.signOut();
-      window.location.href = "/login";
-    } catch { setSigningOut(false); }
-  }
-
-  const preferenceCards = [
-    { title: "Account", description: account.email || "Sign in to save interviews and manage billing.", icon: UserRound, status: account.signedIn ? "Active" : "Signed out" },
-    { title: "Plan", description: `${limits.description} ${account.renewal ? `Access until ${new Date(account.renewal).toLocaleDateString()}.` : ""}`, icon: CreditCard, status: loading ? "Checking…" : limits.label, href: "/billing/manage" },
-    { title: "Data & privacy", description: "Your account, reports, and billing state are protected. Legal and deletion pages are available anytime.", icon: ShieldCheck, status: "Protected", href: "/legal/privacy" },
-    { title: "Notifications", description: "Product emails are limited to account, billing, and important onboarding messages.", icon: Bell, status: "Product emails" },
-  ];
-
-  return (
-    <main className="min-h-screen bg-[#050b14] px-4 py-5 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
-        <header className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-white/10 bg-[#071225]/90 p-4 shadow-2xl shadow-black/20">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-black text-slate-300 hover:text-white"><ArrowLeft className="h-4 w-4" />Back to dashboard</Link>
-          <Link href="/dashboard" className="flex items-center gap-3"><Image src="/workzo_icon.png" alt="WorkZo AI" width={42} height={42} className="rounded-lg" /><div><p className="text-lg font-black">WorkZo <span className="text-blue-400">AI</span></p><p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Workspace</p></div></Link>
-        </header>
-
-        <section className="mt-6 rounded-lg border border-white/10 bg-gradient-to-br from-blue-500/15 via-violet-500/10 to-white/[0.03] p-6 sm:p-8">
-          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/[0.08] px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-cyan-100"><Settings className="h-4 w-4" />Workspace settings</div>
-          <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px] lg:items-end"><div><h1 className="text-4xl font-black tracking-tight sm:text-3xl">Account & workspace</h1><p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">Manage your account, plan, billing, privacy, and interview workspace links.</p></div><div className="rounded-xl border border-white/10 bg-black/20 p-4"><p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Current plan</p><div className="mt-3 flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-400/15"><CheckCircle2 className="h-5 w-5 text-emerald-200" /></div><div className="min-w-0"><p className="font-black text-emerald-200">{loading ? "Checking…" : limits.label}</p><p className="truncate text-sm text-slate-400">{account.email || "Sign in to save history"}</p></div></div></div></div>
-        </section>
-
-        <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {preferenceCards.map((item) => { const Icon = item.icon; const body = <article className="h-full rounded-xl border border-white/10 bg-white/[0.035] p-5 transition hover:bg-white/[0.055]"><div className="flex items-start justify-between gap-3"><div className="grid h-11 w-11 place-items-center rounded-lg bg-blue-400/10"><Icon className="h-5 w-5 text-blue-200" /></div><span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-black text-slate-300">{item.status}</span></div><h2 className="mt-5 text-xl font-black">{item.title}</h2><p className="mt-2 text-sm leading-6 text-slate-400">{item.description}</p></article>; return item.href ? <Link key={item.title} href={item.href}>{body}</Link> : <div key={item.title}>{body}</div>; })}
-        </section>
-
-        <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_360px]">
-          <div className="rounded-lg border border-white/10 bg-white/[0.035] p-6"><h2 className="text-2xl font-black">Quick actions</h2><div className="mt-5 grid gap-3 sm:grid-cols-2"><Quick href="/billing/manage" icon={CreditCard} title="Manage billing" text="Open plan, renewal, invoices, cancellation, and Stripe portal." /><Quick href="/history" icon={History} title="View interview history" text="Open saved reports and previous recruiter feedback." /><Quick href="/copilot" icon={Sparkles} title="Open Work-O-Bot" text="Use the AI copilot for CV, answer comparison, and career planning." /><Quick href="/legal/delete-data" icon={FileText} title="Data request" text="Request account or data deletion information." /></div></div>
-          <aside className="rounded-lg border border-white/10 bg-white/[0.035] p-6"><h2 className="text-2xl font-black">Session</h2><p className="mt-2 text-sm leading-6 text-slate-400">Sign out only affects your local session. Saved interview reports remain in your account history.</p>{account.signedIn ? <button type="button" onClick={handleSignOut} disabled={signingOut} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-300/20 bg-red-400/[0.08] px-5 py-3 text-sm font-black text-red-100 hover:bg-red-400/[0.12] disabled:opacity-60"><LogOut className="h-4 w-4" />{signingOut ? "Signing out…" : "Sign out"}</button> : <Link href="/login?redirect=/dashboard/settings" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400"><LockKeyhole className="h-4 w-4" />Sign in</Link>}</aside>
-        </section>
-      </div>
-    </main>
-  );
-}
-
-function Quick({ href, icon: Icon, title, text }: { href: string; icon: ComponentType<{ className?: string }>; title: string; text: string }) {
-  return <Link href={href} className="rounded-lg border border-white/10 bg-black/20 p-4 hover:bg-white/[0.06]"><Icon className="h-5 w-5 text-blue-200" /><p className="mt-3 font-black">{title}</p><p className="mt-1 text-sm text-slate-400">{text}</p></Link>;
+// /dashboard previously rendered the account settings page, which confused
+// users coming from the results page expecting a "home" view.
+// The real user home is the interview start page (/onboarding).
+// Account settings live at /dashboard/settings.
+export default function DashboardPage() {
+  redirect("/onboarding");
 }
