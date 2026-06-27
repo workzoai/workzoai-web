@@ -251,10 +251,7 @@ function buildEmailText(roleLabel: string, overallScore: number, signals?: Parti
 
   const days = buildSessionAwareDays(roleShort, overallScore, gap, resolvedSignals);
 
-  const dayText = days.map(d => `${d.day} — ${d.title}
-${d.tip}`).join("
-
-");
+  const dayText = days.map(d => `${d.day} - ${d.title}\n${d.tip}`).join("\n\n");
 
   return `Your WorkZo AI Interview Report — ${roleShort}
 
