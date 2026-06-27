@@ -8211,7 +8211,7 @@ export default function InterviewPage() {
                           type="button"
                           onClick={() =>
                             speakRecruiter(
-                              getRecruiterQuestions(activeSetup)[Math.max(0, questionIndex)],
+                              getRecruiterQuestions(setupRef.current)[Math.max(0, questionIndex)],
                             )
                           }
                           className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200"
