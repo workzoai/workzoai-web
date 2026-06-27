@@ -1874,10 +1874,11 @@ export default function ResultsPage() {
                  (worstAnswer?.fillerCount ?? 0) >= 3 ? `${worstAnswer.fillerCount} filler words detected` :
                  "the answer ended before enough evidence was given");
 
-              const bestReason = bestAnswer?.strength ||
-                (bestAnswer?.metricPresent ? "it included a measurable result" :
-                 bestAnswer?.ownershipPresent ? "you made your personal contribution clear" :
-                 "it had the clearest structure");
+              const bestReason =
+                bestAnswer?.metricPresent ? "it included a measurable result" :
+                bestAnswer?.ownershipPresent ? "you made your personal contribution clear" :
+                bestAnswer?.resultPresent ? "it clearly described the outcome" :
+                "it had the strongest evidence and structure";
 
               return (
                 <section className="mt-4 rounded-2xl border border-cyan-400/25 bg-gradient-to-br from-cyan-500/10 via-blue-500/8 to-slate-500/5 p-6">
@@ -1899,9 +1900,9 @@ export default function ResultsPage() {
                       <p className="mt-2 text-sm leading-6 text-emerald-100">
                         This answer built recruiter confidence because {bestReason}.
                       </p>
-                      {bestAnswer?.coachingAction && (
+                      {bestAnswer?.rewrite && (
                         <p className="mt-3 rounded-lg bg-black/20 px-3 py-2 text-xs leading-5 text-slate-300">
-                          Coach: {bestAnswer.coachingAction}
+                          Coach: {bestAnswer.rewrite}
                         </p>
                       )}
                     </div>
@@ -1918,9 +1919,9 @@ export default function ResultsPage() {
                       <p className="mt-2 text-sm leading-6 text-rose-100">
                         Trust dropped here because {worstReason}.
                       </p>
-                      {worstAnswer?.coachingAction && (
+                      {worstAnswer?.rewrite && (
                         <p className="mt-3 rounded-lg bg-black/20 px-3 py-2 text-xs leading-5 text-slate-300">
-                          Coach: {worstAnswer.coachingAction}
+                          Coach: {worstAnswer.rewrite}
                         </p>
                       )}
                     </div>
