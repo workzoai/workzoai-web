@@ -19,6 +19,7 @@ import { ChangeEvent, useEffect, useId, useMemo, useRef, useState } from "react"
 
 import { useInterviewStore } from "@/store/interviewStore";
 import { buildAndSaveInterviewSetup, structureResumeProfileFromCv } from "@/lib/workzoCvClient";
+import { createSupabaseBrowserClient } from "@/utils/supabase/client";
 import {
   saveCanonicalProfile,
   lockInterviewLanguage,
@@ -530,6 +531,7 @@ export default function OnboardingPage() {
   const store = useInterviewStore() as unknown;
   const setup = getStoreSetup(store);
 
+  const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
   const [uploading, setUploading] = useState(false);
   const uploadInFlightRef = useRef(false);
   const [uploadError, setUploadError] = useState("");
@@ -657,6 +659,12 @@ export default function OnboardingPage() {
     saveCanonicalCvSetup(canonicalSetup, store);
     enrichSetupInBackground(canonicalSetup);
   }
+
+  useEffect(() => {
+    createSupabaseBrowserClient().auth.getUser().then(({ data }) => {
+      setIsSignedIn(Boolean(data.user?.email));
+    }).catch(() => setIsSignedIn(false));
+  }, []);
 
   useEffect(() => {
     const restored = readLatestInterviewSetup() as SetupState | null;
@@ -1073,17 +1081,31 @@ export default function OnboardingPage() {
               </button>
             </div>
 
-            <label className={cn("mt-5 flex min-h-[108px] cursor-pointer flex-col items-center justify-center rounded-lg border-[1.5px] p-4 text-center transition",
-              manualCv && fileName ? "border-emerald-300/40 bg-emerald-400/[0.07]" : "border-dashed border-blue-300/35 bg-blue-500/[0.07] hover:bg-blue-500/[0.12]")}>
-              <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleCvUpload} className="hidden" />
-              {uploading ? (
-                <><Upload className="h-7 w-7 text-blue-200" /><span className="mt-2 block text-sm font-black">Reading your CV…</span></>
-              ) : manualCv && fileName ? (
-                <><Check className="h-7 w-7 text-emerald-300" strokeWidth={2.5} /><span className="mt-2 block text-sm font-black text-emerald-100">{fileName}</span><span className="mt-1 block text-xs text-slate-500">Click to replace</span></>
-              ) : (
-                <><Upload className="h-7 w-7 text-blue-200" /><span className="mt-2 block text-sm font-black">Upload your CV</span><span className="mt-1 block text-xs text-slate-500">PDF, DOCX or TXT · <a href="/login" className="text-blue-400 underline hover:text-blue-300" onClick={(e) => e.stopPropagation()}>Sign in</a> to upload</span></>
-              )}
-            </label>
+            {isSignedIn === false ? (
+              <div className="mt-5 flex min-h-[108px] flex-col items-center justify-center rounded-lg border-[1.5px] border-dashed border-white/15 bg-white/[0.03] p-4 text-center">
+                <Upload className="h-7 w-7 text-slate-500" />
+                <span className="mt-2 block text-sm font-black text-slate-300">Upload your CV</span>
+                <span className="mt-1 block text-xs text-slate-500">Requires an account</span>
+                <a
+                  href="/login"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-4 py-2 text-sm font-black text-white transition hover:bg-blue-400"
+                >
+                  Sign in to upload
+                </a>
+              </div>
+            ) : (
+              <label className={cn("mt-5 flex min-h-[108px] cursor-pointer flex-col items-center justify-center rounded-lg border-[1.5px] p-4 text-center transition",
+                manualCv && fileName ? "border-emerald-300/40 bg-emerald-400/[0.07]" : "border-dashed border-blue-300/35 bg-blue-500/[0.07] hover:bg-blue-500/[0.12]")}>
+                <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleCvUpload} className="hidden" />
+                {uploading ? (
+                  <><Upload className="h-7 w-7 text-blue-200" /><span className="mt-2 block text-sm font-black">Reading your CV…</span></>
+                ) : manualCv && fileName ? (
+                  <><Check className="h-7 w-7 text-emerald-300" strokeWidth={2.5} /><span className="mt-2 block text-sm font-black text-emerald-100">{fileName}</span><span className="mt-1 block text-xs text-slate-500">Click to replace</span></>
+                ) : (
+                  <><Upload className="h-7 w-7 text-blue-200" /><span className="mt-2 block text-sm font-black">Upload your CV</span><span className="mt-1 block text-xs text-slate-500">PDF, DOCX or TXT</span></>
+                )}
+              </label>
+            )}
 
             {uploadError && (
               (uploadError.includes("sign in") ? (
