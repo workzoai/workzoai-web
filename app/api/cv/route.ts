@@ -1590,7 +1590,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
 
     aiResult = {
       ok: false,
-      source: "local_fallback_derived_context_detected",
+      source: "local_fallback_ai_error",
       resumeProfile: {
         ...localProfile,
         basics: {
@@ -1630,7 +1630,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
     );
     aiResult = {
       ok: false,
-      source: "local_fallback_ai_uncaught_error",
+      source: "local_fallback_ai_error",
       resumeProfile: localProfile,
       error: aiError instanceof Error ? aiError.message : "AI CV parser crashed unexpectedly.",
     };
@@ -1799,7 +1799,7 @@ export async function POST(request: Request) {
         );
         aiResult = {
           ok: false,
-          source: "local_fallback_ai_uncaught_error",
+          source: "local_fallback_ai_error",
           resumeProfile: localProfile,
           error: aiError instanceof Error ? aiError.message : "AI CV parser crashed unexpectedly.",
         };
