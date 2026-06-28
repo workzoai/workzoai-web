@@ -71,9 +71,9 @@ const markets: { label: Market; flag: string }[] = [
 const companyStyles: CompanyStyle[] = ["Realistic", "Startup", "Corporate", "Technical", "Consulting"];
 
 const recruiters: { key: RecruiterKey; name: string; role: string; avatar: string; quote: string; description: string }[] = [
-  { key: "friendly_hr", name: "Sarah", role: "Friendly HR", avatar: "👩🏻‍💼", quote: "I'd love to understand how you work with people.", description: "Warm, supportive, and communication-focused." },
+  { key: "friendly_hr", name: "Sarah", role: "Friendly HR", avatar: "👩🏻‍💼", quote: "I'd love to understand how you work with people.", description: "Warm, supportive, and communication-focused. Good for all experience levels." },
   { key: "analytical_hiring_manager", name: "Daniel", role: "Hiring Manager", avatar: "👨🏻‍💼", quote: "Can you prove the business impact behind that answer?", description: "Evidence-driven and focused on measurable impact." },
-  { key: "startup_recruiter", name: "Priya", role: "Startup Recruiter", avatar: "👩🏽‍💼", quote: "What did YOU specifically own in that project?", description: "Fast-paced, practical, and ownership-focused." },
+  { key: "startup_recruiter", name: "Priya", role: "Supportive Recruiter", avatar: "👩🏽‍💼", quote: "What did you learn from that experience — and how has it shaped how you work?", description: "Warm and growth-focused. Great for freshers, career changers, and first interviews." },
   { key: "german_corporate", name: "Markus", role: "Corporate Recruiter", avatar: "👨🏼‍💼", quote: "Please keep the answer concise and relevant.", description: "Structured, professional, and process-oriented." },
 ];
 
@@ -443,12 +443,13 @@ function readinessHint(readiness: number) {
   return "Add your CV to unlock a personal interview.";
 }
 
-function ReadinessRail({ readiness, checks, summaryLine, onStart, hideCta }: {
+function ReadinessRail({ readiness, checks, summaryLine, onStart, hideCta, onChecklistClick }: {
   readiness: number;
   checks: Record<"cv" | "jd" | "role" | "style", boolean>;
   summaryLine: string;
   onStart: () => void;
   hideCta?: boolean;
+  onChecklistClick?: (key: "cv" | "jd" | "role" | "style") => void;
 }) {
   const gradientId = useId().replace(/:/g, "");
   const circumference = 251.3;
@@ -485,14 +486,33 @@ function ReadinessRail({ readiness, checks, summaryLine, onStart, hideCta }: {
         <div className="relative mt-4 space-y-1.5">
           {readinessChecklist.map((item) => {
             const done = checks[item.key];
+            const hints: Record<string, string> = {
+              cv: "Upload your CV for personalised questions",
+              jd: "Paste the job description",
+              role: "Enter the role you are applying for",
+              style: "Pick a recruiter and interview style",
+            };
+            const canClick = !done && onChecklistClick;
             return (
-              <div key={item.key} className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm">
-                <span className={cn("grid h-5 w-5 place-items-center rounded-full border",
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => canClick && onChecklistClick(item.key)}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm text-left transition",
+                  canClick ? "cursor-pointer hover:bg-white/[0.05]" : "cursor-default",
+                )}
+              >
+                <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full border transition",
                   done ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-300" : "border-white/15 text-slate-500")}>
                   {done && <Check className="h-3 w-3" strokeWidth={3.5} />}
                 </span>
-                <span className={cn("font-bold", done ? "text-slate-200" : "text-slate-500")}>{item.label}</span>
-              </div>
+                <span className="min-w-0">
+                  <span className={cn("block font-bold", done ? "text-slate-200" : "text-slate-400")}>{item.label}</span>
+                  {!done && <span className="block text-[11px] text-slate-600">{hints[item.key]}</span>}
+                </span>
+                {canClick && <span className="ml-auto shrink-0 text-[10px] font-black uppercase tracking-wider text-blue-400">Add →</span>}
+              </button>
             );
           })}
         </div>
@@ -508,6 +528,26 @@ function ReadinessRail({ readiness, checks, summaryLine, onStart, hideCta }: {
           </div>
         </div>
       </div>
+      {/* Prepare with Work-O-Bot — shown before Start Interview */}
+      {!hideCta && (
+        <div className="mt-3 rounded-xl border border-blue-300/15 bg-blue-500/[0.06] px-3 py-2.5">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-300">
+            Before you start
+          </p>
+          <p className="mt-1 text-[11px] leading-4 text-slate-500">
+            Not sure what to expect? Ask Work-O-Bot about likely questions, how to frame your experience, or how to handle tough topics.
+          </p>
+          <a
+            href="/copilot"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-black text-blue-400 hover:text-blue-300"
+          >
+            Open Work-O-Bot →
+          </a>
+        </div>
+      )}
+
       {!hideCta && (
         <button
           type="button"
@@ -826,6 +866,21 @@ export default function OnboardingPage() {
         .catch(() => { /* keep canonical */ });
     } catch (error) {
       const rawMsg = error instanceof Error ? error.message : "";
+
+      // Suppress abort/cancel errors — these happen when the request times out
+      // or the user navigates away. They are not actionable by the user.
+      const isAbortError =
+        error instanceof Error && (
+          error.name === "AbortError" ||
+          rawMsg.toLowerCase().includes("aborted") ||
+          rawMsg.toLowerCase().includes("abort") ||
+          rawMsg.toLowerCase().includes("cancel")
+        );
+      if (isAbortError) {
+        // Silently clear the uploading state — don't show anything
+        return;
+      }
+
       const friendlyMsg = rawMsg === "Unauthorized" || rawMsg === "Please sign in to upload your CV."
         ? "Please sign in to upload your CV."
         : rawMsg || "Could not read this CV. Paste the CV text manually for now.";
@@ -872,15 +927,21 @@ export default function OnboardingPage() {
 
       <div className="relative z-10 mx-auto flex min-h-screen max-w-[1480px] flex-col px-4 pt-3 sm:px-5">
         <header className="flex min-h-[58px] shrink-0 items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-4 shadow-[0_18px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:px-5">
-          <Link href="/" className="flex items-center gap-3 text-slate-200 transition hover:text-white">
-            <ArrowLeft className="h-5 w-5" />
-            <span className="font-black tracking-tight">Interview Setup</span>
+          {/* Left: back arrow */}
+          <Link href="/dashboard" className="flex items-center gap-2 text-slate-400 transition hover:text-white">
+            <ArrowLeft className="h-4 w-4" />
+            <span className="text-sm font-bold">Back</span>
           </Link>
+
+          {/* Right: auto-saved + dashboard button + logo */}
           <div className="flex items-center gap-3">
             <span className="hidden items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-400/[0.08] px-3 py-1.5 text-xs font-black text-emerald-200 sm:inline-flex">
               <span className="h-2 w-2 rounded-full bg-emerald-300 [animation:wzDotPulse_1.6s_ease-in-out_infinite]" />
               Auto-saved
             </span>
+            <Link href="/dashboard" className="hidden sm:inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-black text-slate-200 transition hover:bg-white/10">
+              Dashboard
+            </Link>
             <Link href="/" className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/10">
               <Image src="/workzo_icon.png" alt="WorkZo" width={22} height={22} className="rounded-md" />
               WorkZo AI
@@ -894,8 +955,8 @@ export default function OnboardingPage() {
           <div className="flex min-w-0 flex-col gap-4">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.26em] text-cyan-300/80">Interview setup</p>
-              <h1 className="mt-1.5 text-3xl font-black tracking-tight sm:text-4xl">Set up your interview</h1>
-              <p className="mt-1.5 text-sm leading-6 text-slate-400">Add your context, pick a style, and start. Everything is editable right here.</p>
+              <h1 className="mt-1.5 text-3xl font-black tracking-tight sm:text-4xl">Ready to practice?</h1>
+              <p className="mt-1.5 text-sm leading-6 text-slate-400">Upload your CV, pick a role, and start. Works for freshers, career changers, and experienced professionals.</p>
             </div>
 
             {/* 1 · interview context */}
@@ -972,12 +1033,14 @@ export default function OnboardingPage() {
 
             {/* 2 · role + company */}
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.032] p-4 backdrop-blur-2xl">
+              <div id="wz-section-role" className="rounded-[22px] border border-white/10 bg-white/[0.032] p-4 backdrop-blur-2xl">
                 <label htmlFor="wz-target-role" className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Target role</label>
+                <p className="mt-0.5 text-xs text-slate-600">The recruiter tailors every question to this role</p>
                 <input id="wz-target-role" value={role} onChange={(e) => setRole(e.target.value)} onBlur={requestPersist} placeholder="e.g. Customer Success Manager" className="mt-2.5 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-[15px] font-bold text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50" />
               </div>
               <div className="rounded-[22px] border border-white/10 bg-white/[0.032] p-4 backdrop-blur-2xl">
                 <label htmlFor="wz-target-company" className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Target company <span className="normal-case tracking-normal text-slate-600">· optional</span></label>
+                <p className="mt-0.5 text-xs text-slate-600">Adds company-specific context to questions</p>
                 <input id="wz-target-company" value={companyName} onChange={(e) => setCompanyName(e.target.value)} onBlur={requestPersist} placeholder="e.g. Google, Siemens, a startup" className="mt-2.5 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-[15px] font-bold text-white outline-none placeholder:text-slate-600 focus:border-blue-400/50" />
               </div>
             </div>
@@ -987,6 +1050,7 @@ export default function OnboardingPage() {
               <div className="grid gap-5 lg:grid-cols-3">
                 <div>
                   <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Market</p>
+                  <p className="mt-0.5 text-[11px] text-slate-600">Sets interview norms for that region</p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     {markets.map((item) => (
                       <button key={item.label} type="button" onClick={() => { setMarket(item.label); requestPersist(); }}
@@ -997,8 +1061,9 @@ export default function OnboardingPage() {
                     ))}
                   </div>
                 </div>
-                <div>
+                <div id="wz-section-style">
                   <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Company style</p>
+                  <p className="mt-0.5 text-[11px] text-slate-600">Sets the interview pressure and focus</p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     {companyStyles.map((item) => (
                       <button key={item} type="button" onClick={() => { setCompanyStyle(item); requestPersist(); }}
@@ -1011,6 +1076,7 @@ export default function OnboardingPage() {
                 </div>
                 <div>
                   <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Language</p>
+                  <p className="mt-0.5 text-[11px] text-slate-600">The whole interview runs in this language</p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     {interviewLanguages.map((item) => (
                       <button key={item.label} type="button" onClick={() => { setInterviewLanguage(item.label); requestPersist(); }}
@@ -1032,6 +1098,7 @@ export default function OnboardingPage() {
                   {selectedPersona.name} · {selectedPersona.role}
                 </span>
               </div>
+              <p className="mt-1 text-[11px] text-slate-600">New to interviews? Start with Priya or Sarah — they focus on potential, not just experience.</p>
               <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
                 {recruiters.map((item) => (
                   <PersonaCard key={item.key} persona={item} selected={recruiter === item.key}
@@ -1046,13 +1113,23 @@ export default function OnboardingPage() {
 
             {/* readiness rail mobile */}
             <div className="xl:hidden">
-              <ReadinessRail readiness={readiness} checks={checks} summaryLine={summaryLine} onStart={startInterview} hideCta />
+              <ReadinessRail readiness={readiness} checks={checks} summaryLine={summaryLine} onStart={startInterview} hideCta
+              onChecklistClick={(key) => {
+                if (key === "cv" || key === "jd") openContextModal();
+                else if (key === "role") document.getElementById("wz-target-role")?.focus();
+                else if (key === "style") document.getElementById("wz-section-style")?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }} />
             </div>
           </div>
 
           {/* right rail desktop */}
           <aside className="hidden xl:sticky xl:top-3 xl:block">
-            <ReadinessRail readiness={readiness} checks={checks} summaryLine={summaryLine} onStart={startInterview} />
+            <ReadinessRail readiness={readiness} checks={checks} summaryLine={summaryLine} onStart={startInterview}
+          onChecklistClick={(key) => {
+            if (key === "cv" || key === "jd") openContextModal();
+            else if (key === "role") document.getElementById("wz-target-role")?.focus();
+            else if (key === "style") document.getElementById("wz-section-style")?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }} />
           </aside>
         </section>
       </div>
@@ -1072,8 +1149,8 @@ export default function OnboardingPage() {
           <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-[26px] border border-white/10 bg-[#070d1d] p-5 shadow-[0_40px_120px_rgba(0,0,0,0.6)] [animation:wzModalIn_0.28s_cubic-bezier(0.22,1,0.36,1)] sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black tracking-tight">Add your context</h2>
-                <p className="mt-1 text-sm leading-5 text-slate-400">Both are optional — but the more you add, the more personal the interview gets.</p>
+                <h2 className="text-xl font-black tracking-tight">Personalise your interview</h2>
+                <p className="mt-1 text-sm leading-5 text-slate-400">Your CV makes every question specific to your real experience. The job description focuses the recruiter on what that role actually needs.</p>
               </div>
               <button type="button" onClick={() => setContextModalOpen(false)}
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition hover:bg-white/10 hover:text-white" aria-label="Close">

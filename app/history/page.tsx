@@ -48,6 +48,7 @@ type SessionRow = {
   verdict: Record<string, unknown> | null;
   summary: Record<string, unknown> | null;
   weakest_moment: Record<string, unknown> | null;
+  report: Record<string, unknown> | null; // packed runtime state including rawResult
   created_at: string | null;
 };
 
@@ -69,6 +70,19 @@ function formatDuration(seconds?: number | null) {
   const mins = Math.floor(total / 60);
   const secs = total % 60;
   return `${mins}m ${secs}s`;
+}
+
+/** Returns the real duration in seconds for a session row.
+ *  Falls back to rawResult.durationSeconds when duration_seconds is 0 or null —
+ *  this covers ECONNRESET drops where the session completion write never landed. */
+function effectiveDuration(session: SessionRow): number {
+  const col = Number(session.duration_seconds ?? 0);
+  if (col > 0) return col;
+  // Try packed rawResult inside report JSON
+  const raw = session.report as Record<string, unknown> | null;
+  const rawResult = raw?.rawResult as Record<string, unknown> | null | undefined;
+  const fromRaw = Number(rawResult?.durationSeconds ?? raw?.durationSeconds ?? 0);
+  return fromRaw > 0 ? fromRaw : 0;
 }
 
 function scoreTone(score?: number | null) {
@@ -120,7 +134,7 @@ export default async function HistoryPage() {
 
   const { data: sessions, error } = await supabase
     .from("interview_sessions")
-    .select("id, target_role, target_company, recruiter_name, recruiter_title, company_style, atmosphere, country, duration_seconds, overall_score, trust_score, verdict, summary, weakest_moment, created_at")
+    .select("id, target_role, target_company, recruiter_name, recruiter_title, company_style, atmosphere, country, duration_seconds, overall_score, trust_score, verdict, summary, weakest_moment, report, created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(100);
@@ -138,12 +152,11 @@ export default async function HistoryPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white">
             <ArrowLeft className="h-4 w-4" />
-            Back to dashboard
+            Dashboard
           </Link>
-
-          <Link href="/interview" className="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-black">
+          <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-black text-white hover:bg-blue-400">
             <RotateCcw className="h-4 w-4" />
-            Practice again
+            New interview
           </Link>
         </div>
 
@@ -271,7 +284,7 @@ export default async function HistoryPage() {
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
                     <p className="text-xs text-slate-500">Duration</p>
-                    <p className="mt-1 text-lg font-black">{formatDuration(session.duration_seconds)}</p>
+                    <p className="mt-1 text-lg font-black">{(() => { const d = effectiveDuration(session); return d > 0 ? formatDuration(d) : "—"; })()}</p>
                   </div>
                 </div>
               </div>

@@ -85,6 +85,9 @@ export default function AuthNavButton() {
           <Link href="/onboarding" className="mt-2 block rounded-xl px-3 py-2.5 text-sm font-black text-slate-200 hover:bg-white/10 hover:text-white">
             Start interview
           </Link>
+          <Link href="/history" className="block rounded-xl px-3 py-2.5 text-sm font-black text-slate-200 hover:bg-white/10 hover:text-white">
+            Dashboard
+          </Link>
           <Link href="/dashboard/settings" className="block rounded-xl px-3 py-2.5 text-sm font-black text-slate-200 hover:bg-white/10 hover:text-white">
             Account & settings
           </Link>

@@ -1004,6 +1004,53 @@ function LockedPreview({ title, children, count }: { title: string; children: Re
 
 function TranscriptCard({ item, index }: { item: AnswerInsight; index: number }) {
   const [open, setOpen] = useState(index === 0);
+  const [coachOpen, setCoachOpen] = useState(false);
+  const [coachInput, setCoachInput] = useState("");
+  const [coachMessages, setCoachMessages] = useState<Array<{ role: "user" | "bot"; text: string }>>([]);
+  const [coachLoading, setCoachLoading] = useState(false);
+
+  async function askCoach(question: string) {
+    if (!question.trim() || coachLoading) return;
+    const userMsg = question.trim();
+    setCoachInput("");
+    setCoachMessages((prev) => [...prev, { role: "user", text: userMsg }]);
+    setCoachLoading(true);
+    try {
+      const systemPrompt = `You are a professional interview coach helping a job seeker improve a specific interview answer.
+
+The recruiter asked: "${item.question}"
+
+The candidate answered: "${item.answer}"
+
+Identified weakness: ${item.weakness}
+Evidence score: ${item.evidenceScore}%
+Trust impact: ${item.trustImpact}%
+Suggested rewrite direction: ${item.rewrite}
+
+Give specific, actionable coaching. Be direct and practical. Keep your response under 120 words. Never repeat the question back.`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 200,
+          system: systemPrompt,
+          messages: [
+            ...coachMessages.map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.text })),
+            { role: "user", content: userMsg },
+          ],
+        }),
+      });
+      const data = await res.json();
+      const botText = data?.content?.[0]?.text || "I couldn't generate a response. Please try again.";
+      setCoachMessages((prev) => [...prev, { role: "bot", text: botText }]);
+    } catch {
+      setCoachMessages((prev) => [...prev, { role: "bot", text: "Something went wrong. Please try again." }]);
+    } finally {
+      setCoachLoading(false);
+    }
+  }
 
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
@@ -1021,18 +1068,94 @@ function TranscriptCard({ item, index }: { item: AnswerInsight; index: number })
       </button>
 
       {open ? (
-        <div className="grid gap-3 border-t border-white/10 p-4 xl:grid-cols-3">
-          <div className="rounded-xl bg-white/[0.04] p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Your answer</p>
-            <p className="mt-2 text-xs leading-5 text-slate-200">{item.answer}</p>
+        <div className="border-t border-white/10 p-4 space-y-3">
+          <div className="grid gap-3 xl:grid-cols-3">
+            <div className="rounded-xl bg-white/[0.04] p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Your answer</p>
+              <p className="mt-2 text-xs leading-5 text-slate-200">{item.answer}</p>
+            </div>
+            <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-200">What the recruiter heard</p>
+              <p className="mt-2 text-xs leading-5 text-amber-50">{item.recruiterHeard}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-200">How to improve this</p>
+              <p className="mt-2 text-xs leading-5 text-emerald-50">{item.rewrite}</p>
+            </div>
           </div>
-          <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-200">What the recruiter heard</p>
-            <p className="mt-2 text-xs leading-5 text-amber-50">{item.recruiterHeard}</p>
-          </div>
-          <div className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-200">Top 10% rewrite</p>
-            <p className="mt-2 text-xs leading-5 text-emerald-50">{item.rewrite}</p>
+
+          {/* Post-answer coaching bot */}
+          <div className="rounded-xl border border-blue-300/15 bg-blue-500/[0.05]">
+            <button
+              type="button"
+              onClick={() => setCoachOpen((v) => !v)}
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm">🤖</span>
+                <p className="text-[11px] font-black text-blue-300">Ask Work-O-Bot about this answer</p>
+              </div>
+              <ChevronDown className={cn("h-3.5 w-3.5 text-slate-500 transition", coachOpen && "rotate-180")} />
+            </button>
+
+            {coachOpen && (
+              <div className="border-t border-blue-300/10 px-4 pb-4 pt-3">
+                {coachMessages.length === 0 && (
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {[
+                      "How could I have structured this better?",
+                      "Give me a stronger version of this answer",
+                      "What metric could I have added?",
+                      "How do I show more ownership here?",
+                    ].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => askCoach(suggestion)}
+                        className="rounded-lg border border-blue-300/15 bg-blue-500/10 px-2.5 py-1.5 text-[11px] font-bold text-blue-200 hover:bg-blue-500/20 transition"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {coachMessages.length > 0 && (
+                  <div className="mb-3 space-y-2 max-h-48 overflow-y-auto">
+                    {coachMessages.map((msg, i) => (
+                      <div key={i} className={cn("rounded-xl px-3 py-2 text-xs leading-5", msg.role === "user" ? "bg-white/[0.06] text-slate-200 ml-6" : "bg-blue-500/10 text-blue-50 mr-6")}>
+                        {msg.role === "bot" && <span className="mr-1 text-blue-400">🤖</span>}
+                        {msg.text}
+                      </div>
+                    ))}
+                    {coachLoading && (
+                      <div className="rounded-xl bg-blue-500/10 px-3 py-2 text-xs text-blue-400 mr-6">
+                        Thinking...
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={coachInput}
+                    onChange={(e) => setCoachInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && askCoach(coachInput)}
+                    placeholder="Ask about this answer..."
+                    className="flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-blue-400/40 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => askCoach(coachInput)}
+                    disabled={coachLoading || !coachInput.trim()}
+                    className="rounded-lg bg-blue-500 px-3 py-2 text-xs font-black text-white hover:bg-blue-400 disabled:opacity-40 transition"
+                  >
+                    Ask
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
@@ -1777,10 +1900,15 @@ export default function ResultsPage() {
     <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
-            <ArrowLeft className="h-4 w-4" />
-            New interview
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
+              <ArrowLeft className="h-4 w-4" />
+              New interview
+            </Link>
+            <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
+              Dashboard
+            </Link>
+          </div>
 
           <div className="flex items-center gap-3">
             <PremiumUsageBadge compact={false} label={isProPlan ? "Premium Pro report" : isPremium ? "Premium report" : "Free report"} />

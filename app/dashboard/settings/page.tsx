@@ -57,8 +57,8 @@ export default function DashboardSettingsPage() {
     <main className="min-h-screen bg-[#050b14] px-4 py-5 text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <header className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-white/10 bg-[#071225]/90 p-4 shadow-2xl shadow-black/20">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-black text-slate-300 hover:text-white"><ArrowLeft className="h-4 w-4" />Back to dashboard</Link>
-          <Link href="/dashboard" className="flex items-center gap-3"><Image src="/workzo_icon.png" alt="WorkZo AI" width={42} height={42} className="rounded-lg" /><div><p className="text-lg font-black">WorkZo <span className="text-blue-400">AI</span></p><p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Workspace</p></div></Link>
+          <Link href="/history" className="inline-flex items-center gap-2 text-sm font-black text-slate-300 hover:text-white"><ArrowLeft className="h-4 w-4" />Back to dashboard</Link>
+          <Link href="/history" className="flex items-center gap-3"><Image src="/workzo_icon.png" alt="WorkZo AI" width={42} height={42} className="rounded-lg" /><div><p className="text-lg font-black">WorkZo <span className="text-blue-400">AI</span></p><p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Workspace</p></div></Link>
         </header>
 
         <section className="mt-6 rounded-lg border border-white/10 bg-gradient-to-br from-blue-500/15 via-violet-500/10 to-white/[0.03] p-6 sm:p-8">

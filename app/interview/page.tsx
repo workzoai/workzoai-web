@@ -1,5 +1,9 @@
 "use client";
 
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -24,6 +28,7 @@ import {
   Sparkles,
   Star,
   User,
+  RotateCcw,
   Volume2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -5274,6 +5279,7 @@ export default function InterviewPage() {
     return () => window.clearInterval(timer);
   }, [status]);
 
+
   useEffect(() => {
     if (autoScrollTranscript)
       transcriptEndRef.current?.scrollIntoView({
@@ -7597,6 +7603,32 @@ export default function InterviewPage() {
     if (status !== "recruiter-speaking") startListening();
   }, [startInterview, startListening, status, stopListening]);
 
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────
+  // Space = Push to Talk, R = Repeat last question
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+
+      if (e.code === "Space" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        toggleMic();
+        return;
+      }
+
+      if ((e.key === "r" || e.key === "R") && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        const last = [...transcript].reverse().find((t) => t.role === "recruiter");
+        if (last?.text) speakRecruiter(last.text);
+        return;
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleMic, speakRecruiter, transcript]);
+
   const restoreInterviewSnapshot = useCallback(() => {
     const snapshot = recoverySnapshotRef.current || recoverySnapshot;
     if (!snapshot) return;
@@ -8392,9 +8424,86 @@ export default function InterviewPage() {
             </div>
           </div>
         )}
-        <div className="grid grid-cols-1 overflow-x-hidden lg:min-h-0 lg:h-full lg:grid-cols-[1fr_340px] lg:overflow-hidden">
+        <div className="grid grid-cols-1 overflow-x-hidden lg:min-h-0 lg:h-full lg:grid-cols-[200px_1fr_320px] lg:overflow-hidden">
+
+          {/* ── LEFT SIDEBAR: Interview flow + tips ── */}
+          <aside className="hidden border-r border-white/[0.07] bg-[#040810] lg:flex lg:flex-col lg:min-h-0 lg:overflow-y-auto">
+            {/* Interview flow steps */}
+            <div className="p-4 border-b border-white/[0.07]">
+              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-600">Interview flow</p>
+              <div className="mt-3 space-y-1">
+                {[
+                  { n: 1, label: "Introduction", done: questionIndex >= 1 },
+                  { n: 2, label: "Background", done: questionIndex >= 3 },
+                  { n: 3, label: "Experience", done: questionIndex >= 6, active: questionIndex >= 3 && questionIndex < 6 },
+                  { n: 4, label: "Skills", done: questionIndex >= 9, active: questionIndex >= 6 && questionIndex < 9 },
+                  { n: 5, label: "Strengths", done: questionIndex >= 12, active: questionIndex >= 9 && questionIndex < 12 },
+                  { n: 6, label: "Closing", done: false, active: questionIndex >= 12 },
+                ].map((step) => (
+                  <div key={step.n} className={cn(
+                    "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition",
+                    step.done ? "text-emerald-300" : step.active ? "bg-blue-500/10 text-blue-200 font-black" : "text-slate-600"
+                  )}>
+                    <span className={cn(
+                      "grid h-5 w-5 shrink-0 place-items-center rounded-full text-[9px] font-black border",
+                      step.done ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300" :
+                      step.active ? "border-blue-400/40 bg-blue-500/20 text-blue-300" :
+                      "border-white/[0.08] text-slate-600"
+                    )}>
+                      {step.done ? "✓" : step.n}
+                    </span>
+                    <span className="font-bold">{step.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Interview tips */}
+            <div className="p-4 border-b border-white/[0.07]">
+              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-600 mb-3">Tips</p>
+              <div className="space-y-2">
+                {[
+                  "Use the STAR method",
+                  "Be specific with examples",
+                  "Quantify your impact",
+                  "Stay focused and concise",
+                ].map((tip) => (
+                  <div key={tip} className="flex items-start gap-2 text-xs text-slate-500">
+                    <span className="mt-0.5 text-emerald-500">✓</span>
+                    {tip}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Keyboard shortcuts */}
+            <div className="p-4">
+              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-600 mb-3">Shortcuts</p>
+              <div className="space-y-2">
+                {[
+                  { key: "Space", label: "Push to talk" },
+                  { key: "R", label: "Repeat question" },
+                  { key: "T", label: "Toggle transcript" },
+                ].map(({ key, label }) => (
+                  <div key={key} className="flex items-center justify-between gap-2 text-xs text-slate-500">
+                    <span>{label}</span>
+                    <kbd className="rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-black text-slate-400">{key}</kbd>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Connection status at bottom */}
+            <div className="mt-auto border-t border-white/[0.07] p-4">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                Connection good
+              </div>
+            </div>
+          </aside>
+
           <div className="flex flex-col lg:h-full lg:min-h-0">
-            <section className="relative shrink-0 overflow-hidden bg-[#08101c] h-[320px] sm:h-[390px] lg:h-[42%] lg:min-h-[280px] lg:max-h-[480px]">
+            <section className="relative shrink-0 overflow-hidden bg-[#08101c] h-[300px] sm:h-[360px] lg:h-[50%] lg:min-h-[260px] lg:max-h-[460px]">
               <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-blue-500/20 blur-3xl" />
               <div className="absolute inset-0">
                 <Image
@@ -8565,36 +8674,6 @@ export default function InterviewPage() {
                 </p>
               </div>
 
-              <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3">
-                <button
-                  onClick={toggleMic}
-                  className={`grid h-12 w-12 place-items-center rounded-full shadow-2xl transition-transform active:scale-95 ${
-                    status === "listening"
-                      ? "bg-blue-500 text-white ring-4 ring-blue-400/30"
-                      : "bg-white text-slate-950 hover:bg-blue-50"
-                  }`}
-                >
-                  {status === "listening" ? (
-                    <MicOff className="h-6 w-6" />
-                  ) : (
-                    <Mic className="h-6 w-6" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSettingsOpen(true)}
-                  className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white shadow-lg backdrop-blur-sm border border-white/20 transition hover:bg-white/25"
-                  aria-label="Interview settings"
-                >
-                  <Settings className="h-6 w-6" />
-                </button>
-                <button
-                  onClick={endInterview}
-                  className="grid h-10 w-10 place-items-center rounded-full bg-red-500/90 text-white shadow-xl transition hover:bg-red-400 active:scale-95"
-                >
-                  <PhoneOff className="h-6 w-6" />
-                </button>
-              </div>
             </section>
 
             <section
@@ -8735,12 +8814,63 @@ export default function InterviewPage() {
                 </div>
               )}
             </section>
+
+            {/* ── BOTTOM CONTROLS BAR — settings removed (in header), progress removed (in right panel) ── */}
+            <div className="hidden lg:flex shrink-0 items-center justify-center gap-6 border-t border-white/[0.08] bg-[#04080f] px-6 py-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const last = [...transcript].reverse().find(t => t.role === "recruiter");
+                  if (last?.text) speakRecruiter(last.text);
+                }}
+                className="flex flex-col items-center gap-1 text-slate-500 hover:text-slate-300 transition"
+                title="Repeat last question (R)"
+              >
+                <div className="grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-white/[0.04]">
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-wide">Repeat</span>
+              </button>
+
+              <button
+                onClick={toggleMic}
+                className="flex flex-col items-center gap-1 transition group"
+              >
+                <div className={`grid h-12 w-12 place-items-center rounded-full shadow-2xl transition-all active:scale-95 ${
+                  status === "listening"
+                    ? "bg-blue-500 text-white ring-4 ring-blue-400/30 shadow-[0_0_24px_rgba(59,130,246,0.4)]"
+                    : "bg-white text-slate-950 hover:bg-blue-50"
+                }`}>
+                  {status === "listening" ? (
+                    <MicOff className="h-5 w-5" />
+                  ) : (
+                    <Mic className="h-5 w-5" />
+                  )}
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-wide text-slate-400 group-hover:text-white transition">
+                  {status === "listening" ? "Stop" : "Push to Talk"}
+                  {status !== "listening" && <span className="ml-1 text-slate-600">(Space)</span>}
+                </span>
+              </button>
+
+              <button
+                onClick={endInterview}
+                className="flex flex-col items-center gap-1 text-slate-500 hover:text-red-400 transition group"
+                title="End interview"
+              >
+                <div className="grid h-8 w-8 place-items-center rounded-full border border-red-500/30 bg-red-500/10 text-red-400 transition group-hover:bg-red-500/20">
+                  <PhoneOff className="h-3.5 w-3.5" />
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-wide">End</span>
+              </button>
+            </div>
+
           </div>
 
-          <aside className="flex flex-col gap-0 border-l border-white/[0.07] lg:min-h-0">
+          <aside className="flex flex-col gap-0 border-l border-white/[0.07] lg:min-h-0 lg:overflow-y-auto">
             <section className="border-b border-white/[0.07] bg-[#05090f] p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                Signal
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-1.5">
+                <span className="text-blue-400">▌</span> Live Feedback
               </p>
               <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div
@@ -8821,7 +8951,7 @@ export default function InterviewPage() {
             >
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                  Live Copilot
+                  Session signals
                 </p>
                 <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
               </div>
@@ -8853,72 +8983,23 @@ export default function InterviewPage() {
                 </div>
               </div>
 
+              {/* Filler word count — observational only, no coaching hints during interview */}
               {fillerWordCount > 0 && (
-                <div className="mb-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-1.5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200">
+                <div className="mt-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">
                     Filler words
                   </p>
-                  <p className="mt-0.5 text-[13px] leading-5 text-slate-100">
-                    {fillerWordCount} filler word
-                    {fillerWordCount === 1 ? "" : "s"} detected (um, uh, like,
-                    you know). Reduce these to sound more confident.
+                  <p className="mt-1 text-sm font-black text-white">
+                    {fillerWordCount}
+                    <span className="ml-1 text-xs font-normal text-slate-400">
+                      detected this session
+                    </span>
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-slate-600">
+                    Reviewed in full after the interview.
                   </p>
                 </div>
               )}
-
-              <div className="mt-2 space-y-1.5">
-                <div className="rounded-xl border border-emerald-300/15 bg-emerald-500/[0.06] px-3 py-2">
-                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-400">
-                    Say next
-                  </p>
-                  <p className="text-xs leading-4 text-slate-100 line-clamp-2">
-                    {scoreReady
-                      ? recruiterSignal.trust < 60
-                        ? "Clarify the claim first, then give one verified example."
-                        : "Use one real example and state the result."
-                      : "Answer the recruiter with one clear, role-relevant example."}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2">
-                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-                    Concern
-                  </p>
-                  <p className="text-xs leading-4 text-slate-400 line-clamp-2">
-                    {scoreReady
-                      ? recruiterSignal.concern
-                      : "The recruiter is waiting for evidence, ownership, and impact."}
-                  </p>
-                </div>
-
-                {/* Live filler word counter */}
-                {status === "listening" && fillerCount > 0 && (
-                  <div className="rounded-xl border border-red-300/15 bg-red-400/[0.07] px-3 py-1.5">
-                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-red-200">
-                      Filler words
-                    </p>
-                    <p className="mt-1 text-[13px] leading-5 text-slate-100">
-                      <span className="font-black text-red-300">
-                        {fillerCount}
-                      </span>{" "}
-                      detected — avoid um, uh, like, you know.
-                    </p>
-                  </div>
-                )}
-
-                {/* Emotional memory pattern callbacks */}
-                {emotionalMemory.missingMetrics >= 2 && (
-                  <div className="rounded-xl border border-violet-300/15 bg-violet-400/[0.07] px-3 py-1.5">
-                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-violet-200">
-                      Pattern detected
-                    </p>
-                    <p className="mt-1 text-[13px] leading-5 text-slate-100">
-                      {emotionalMemory.lastCallbackLine ||
-                        "Multiple answers without measurable proof — add one number."}
-                    </p>
-                  </div>
-                )}
-              </div>
             </section>
 
             <section className="bg-[#05090f] p-4">
@@ -8958,7 +9039,7 @@ export default function InterviewPage() {
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">
-                  Live Copilot
+                  Session signals
                 </p>
                 <p
                   className={`truncate text-sm font-black ${recruiterMoodColor(recruiterSignal.mood)}`}

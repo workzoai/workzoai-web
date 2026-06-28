@@ -4,6 +4,7 @@ import LegacyStoragePrivacyCleanup from "@/components/privacy/LegacyStoragePriva
 import CookieConsentBanner from "@/components/privacy/CookieConsentBanner";
 import WorkZoFounderAnalyticsTracker from "@/components/WorkZoFounderAnalyticsTracker";
 import { AppLanguageProvider } from "@/lib/workzoAppLanguage";
+import WorkOBotFloating from "@/components/WorkOBotFloating";
 
 
 export const metadata: Metadata = {
@@ -55,6 +56,7 @@ export default function RootLayout({
         <LegacyStoragePrivacyCleanup />
         <WorkZoFounderAnalyticsTracker />
         {children}
+        <WorkOBotFloating />
         <CookieConsentBanner />
       </body>
     </html>

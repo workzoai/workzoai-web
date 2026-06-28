@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabase
       .from("interview_results")
       .insert({
-        session_id: realSessionId, // null if no matching session found — safe for nullable UUID column
+        session_id: realSessionId,
         user_id: userId,
         overall_score: body.overallScore || null,
         trust_score: body.trustScore || null,
@@ -75,6 +75,26 @@ export async function POST(request: Request) {
       .single();
 
     if (error) throw error;
+
+    // Patch the session row's duration_seconds if it is 0 or null.
+    // This handles the common case where persistInterviewSessionToDb("completed")
+    // was dropped by ECONNRESET — the result write succeeds but the session
+    // completion write (which carries the real duration) fails silently.
+    // We use the durationSeconds field the interview page now sends here.
+    const durationFromResult = Math.max(0, Math.round(Number(body.durationSeconds || body.rawResult?.durationSeconds || 0)));
+    if (realSessionId && durationFromResult > 0) {
+      // Only update if the session currently has duration=0 or null — never overwrite a real value.
+      try {
+        await supabase
+          .from("interview_sessions")
+          .update({ duration_seconds: durationFromResult })
+          .eq("id", realSessionId)
+          .or("duration_seconds.is.null,duration_seconds.eq.0");
+      } catch {
+        // best-effort patch — never block the result response
+      }
+    }
+
     return NextResponse.json({ ok: true, result: data });
   } catch (error) {
     console.error("POST interview-result db error", error);

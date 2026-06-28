@@ -369,7 +369,7 @@ export function sanitizeInterviewSetup(setup: WorkZoInterviewSetup | null | unde
     role: normalizeSetupTargetRole(setup) || "General Role",
     targetMarket: normalizeSetupTargetMarket(setup),
     country: normalizeSetupTargetMarket(setup),
-    recruiterPersonality: normalizeSetupRecruiterPersonality(setup),
+    recruiterPersonality: normalizeSetupRecruiterPersonality(setup) || (setup as any).recruiterPersonality || "",
     companyStyle: normalizeSetupCompanyStyle(setup),
     candidateName,
     candidateHeadline: cleanString(setup.candidateHeadline || profileBasics.headline, 200),
@@ -490,9 +490,11 @@ export function normalizeSetupTargetMarket(setup: WorkZoInterviewSetup | null | 
 export function normalizeSetupRecruiterPersonality(
   setup: WorkZoInterviewSetup | null | undefined,
 ): string {
-  if (!setup) return "sarah";
-
-  return cleanString(setup.recruiterPersonality || setup.recruiter || "sarah", 80) || "sarah";
+  if (!setup) return "";
+  // Never hardcode a default recruiter here — the caller decides the fallback.
+  // Returning "" lets buildSetupFromStorage fall back to its own default (friendly_hr)
+  // via normalizeRecruiterId, rather than silently overwriting the user's choice.
+  return cleanString(setup.recruiterPersonality || setup.recruiter || "", 80);
 }
 
 export function normalizeSetupCompanyStyle(
