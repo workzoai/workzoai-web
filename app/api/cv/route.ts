@@ -1590,7 +1590,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
 
     aiResult = {
       ok: false,
-      source: "local_fallback_ai_error",
+      source: "local_fallback_ai_error" as const,
       resumeProfile: {
         ...localProfile,
         basics: {
@@ -1600,7 +1600,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
         },
       },
       error: "Input text was a derived CV summary — used local extraction with provided candidateName.",
-    };
+    } as WorkZoAiCvParserResult;
   } else {
   try {
     // Check cache before calling AI — same CV text skips the 10-15s parse
@@ -1630,10 +1630,10 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
     );
     aiResult = {
       ok: false,
-      source: "local_fallback_ai_error",
+      source: "local_fallback_ai_error" as const,
       resumeProfile: localProfile,
       error: aiError instanceof Error ? aiError.message : "AI CV parser crashed unexpectedly.",
-    };
+    } as WorkZoAiCvParserResult;
   }
   }
 
@@ -1799,10 +1799,10 @@ export async function POST(request: Request) {
         );
         aiResult = {
           ok: false,
-          source: "local_fallback_ai_error",
+          source: "local_fallback_ai_error" as const,
           resumeProfile: localProfile,
           error: aiError instanceof Error ? aiError.message : "AI CV parser crashed unexpectedly.",
-        };
+        } as WorkZoAiCvParserResult;
       }
       if (aiResult && aiResult.ok) cvCacheSet(_uploadCacheKey, aiResult);
       } // end cache-miss block
