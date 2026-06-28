@@ -495,7 +495,26 @@ export async function POST(request: Request) {
     );
   }
 
-  // 3. Rate limit — keyed by user ID (more accurate than IP, and consistent
+  // 3. Free Work-O-Bot limit + burst protection.
+  // Free users get a small daily allowance on the floating bot. Premium plans
+  // keep the existing per-minute protection. This is enforced server-side by
+  // user ID, so clearing browser storage cannot bypass it.
+  if (!isPremium) {
+    const freeDailyLimit = Number(process.env.WORKZO_FREE_WORKOBOT_MESSAGES_PER_DAY || 10);
+    const { allowed: freeDailyAllowed } = await checkWorkZoRateLimit(
+      `copilot_daily:${account.userId}`,
+      Number.isFinite(freeDailyLimit) && freeDailyLimit > 0 ? freeDailyLimit : 10,
+      24 * 60 * 60 * 1000,
+    );
+    if (!freeDailyAllowed) {
+      return NextResponse.json(
+        { success: false, error: "upgrade_required_rate_limit", requiredPlan: "premium", dailyLimit: freeDailyLimit },
+        { status: 429 },
+      );
+    }
+  }
+
+  // Burst rate limit — keyed by user ID (more accurate than IP, and consistent
   // across serverless instances since it's backed by a database table).
   const rateLimitKey = `copilot:${account.userId}`;
   const rateLimit = isPro ? 80 : isPremium ? 40 : 5;

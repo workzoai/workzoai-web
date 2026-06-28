@@ -41,7 +41,8 @@ function getServiceClient() {
  *             `copilot:${userId}` or `interview:${ip}`. Scope by user ID
  *             where possible — IP-based keys are easy to evade with proxies
  *             and unfairly group multiple users behind the same NAT/VPN.
- * @param limit Max requests allowed within the current 60-second window.
+ * @param limit Max requests allowed within the current window.
+ * @param windowMs Window size in milliseconds. Defaults to 60 seconds.
  * @returns `{ allowed, remaining }` — fails OPEN (allowed: true) if the
  *          database is unreachable, so a Supabase outage degrades to "no
  *          rate limiting" rather than blocking every request in the app.
@@ -49,13 +50,16 @@ function getServiceClient() {
 export async function checkWorkZoRateLimit(
   key: string,
   limit: number,
+  windowMs = 60_000,
 ): Promise<{ allowed: boolean; remaining: number }> {
   try {
     const supabase = getServiceClient();
 
-    // Floor to the current minute so concurrent requests in the same
+    const safeWindowMs = Number.isFinite(windowMs) && windowMs > 0 ? windowMs : 60_000;
+
+    // Floor to the current window so concurrent requests in the same
     // window share one row instead of racing to create separate ones.
-    const windowStart = new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString();
+    const windowStart = new Date(Math.floor(Date.now() / safeWindowMs) * safeWindowMs).toISOString();
 
     // Atomic upsert + increment via a single round trip: try to insert a
     // fresh row for this window; if it already exists, read the current

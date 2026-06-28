@@ -35,7 +35,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import UpgradeModal from "@/components/premium/UpgradeModal";
 import PremiumUsageBadge from "@/components/premium/PremiumUsageBadge";
 import {
-  checkWorkZoInterviewAllowed,
   recordWorkZoInterviewStarted,
   recordWorkZoTavusInterviewStarted,
 } from "@/lib/workzoUsageTracker";
@@ -7029,24 +7028,10 @@ export default function InterviewPage() {
       });
       return;
     }
-    const currentPlan = serverPlan;
-    const interviewCheck = checkWorkZoInterviewAllowed(currentPlan);
-    if (!interviewCheck.allowed) {
-      const gateFeature =
-        currentPlan === "premium" ? "premium_pro_interview" : "interview_limit";
-      openUpgradeModal(gateFeature);
-      addTranscript({
-        role: "system",
-        speaker: "System",
-        text:
-          currentPlan === "premium"
-            ? `You have used all ${interviewCheck.limit} interviews this month. Upgrade to Premium Pro for unlimited voice interviews.`
-            : `You have used all ${interviewCheck.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
-      });
-      return;
-    }
-    // Record this interview start so the usage counter increments correctly
-    recordWorkZoInterviewStarted();
+    // Do NOT block from localStorage here. A new login on the same browser can
+    // inherit another account/session's local usage and incorrectly see
+    // "usage over". The authoritative per-user limit is enforced below by
+    // /api/db/interview-session before the interview actually starts.
     fetch("/api/transcribe", { method: "OPTIONS" }).catch(() => undefined);
 
     const restoredSnapshot = recoveredSessionRef.current;
@@ -7158,6 +7143,29 @@ export default function InterviewPage() {
       ).__workzoDisruptionMemory = createWorkZoDisruptionMemory();
     }
 
+    const sessionPersistResult = await persistInterviewSessionToDb("active");
+    if (sessionPersistResult.blocked) {
+      const blockedPlan = sessionPersistResult.plan || serverPlan;
+      const gateFeature =
+        blockedPlan === "premium" ? "premium_pro_interview" : "interview_limit";
+      openUpgradeModal(gateFeature);
+      addTranscript({
+        role: "system",
+        speaker: "System",
+        text:
+          blockedPlan === "premium"
+            ? `You've used all ${sessionPersistResult.limit} interviews this month. Upgrade to Premium Pro for unlimited voice interviews.`
+            : `You've used all ${sessionPersistResult.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
+      });
+      setStatus("idle");
+      return;
+    }
+
+    // Record locally only after the server accepts this account's session.
+    // This keeps dashboard counters useful without letting stale browser data
+    // block a different/new login.
+    recordWorkZoInterviewStarted();
+
     setWaitingRoomActive(true);
     setWaitingRoomStep(0);
     for (
@@ -7192,29 +7200,6 @@ export default function InterviewPage() {
     setRecoveredSessionReady(false);
     setRecoverySnapshot(null);
     setRecoveryNoticeDismissed(false);
-
-    const sessionPersistResult = await persistInterviewSessionToDb("active");
-    if (sessionPersistResult.blocked) {
-      // Server-side limit reached — the client-side localStorage check at
-      // the top of this function can be bypassed (clearing site data,
-      // private window), but this cannot, since it's tied to the
-      // authenticated user and DB-resolved plan. Stop the interview from
-      // actually starting.
-      const blockedPlan = sessionPersistResult.plan || serverPlan;
-      const gateFeature =
-        blockedPlan === "premium" ? "premium_pro_interview" : "interview_limit";
-      openUpgradeModal(gateFeature);
-      addTranscript({
-        role: "system",
-        speaker: "System",
-        text:
-          blockedPlan === "premium"
-            ? `You've used all ${sessionPersistResult.limit} interviews this month. Upgrade to Premium Pro for unlimited voice interviews.`
-            : `You've used all ${sessionPersistResult.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
-      });
-      setStatus("idle");
-      return;
-    }
 
     trackWorkZoInterviewEvent("interview_started", {
       role: freshSetup.targetRole,
@@ -7253,11 +7238,11 @@ export default function InterviewPage() {
     // Free:         Vapi voice → browser fallback on failure
     // Premium:      Vapi voice → browser fallback on failure
     // Premium Pro:  Vapi voice → browser fallback on failure  (Tavus handled separately)
-    // currentPlan already declared above for the limit check — reuse it
+    const currentPlanForVoice = serverPlan;
     const isVapiEligible =
-      currentPlan === "free" ||
-      currentPlan === "premium" ||
-      currentPlan === "premium_pro";
+      currentPlanForVoice === "free" ||
+      currentPlanForVoice === "premium" ||
+      currentPlanForVoice === "premium_pro";
 
     if (
       isVapiEligible &&
