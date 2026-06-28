@@ -4856,7 +4856,9 @@ export default function InterviewPage() {
   >("free");
   const [planLoading, setPlanLoading] = useState(true);
   // Technical mode — premium/premium_pro only
-  const [technicalMode, setTechnicalMode] = useState(false);
+  const isTechnicalRecruiter = (id: string) =>
+    id === "faang_hiring_manager" || id === "alex" || id.includes("faang");
+  const [technicalMode, setTechnicalMode] = useState(() => isTechnicalRecruiter(setup.recruiterId || ""));
   const [codeSnapshot, setCodeSnapshot] = useState("");
   const [codeLanguage, setCodeLanguage] = useState("python");
   const codeSnapshotRef = useRef("");
@@ -7943,6 +7945,8 @@ export default function InterviewPage() {
                                 }
 
                                 applyRecruiterFromSettings(recruiter.id);
+                if (recruiter.id === "faang_hiring_manager") setTechnicalMode(true);
+                else setTechnicalMode(false);
                               }}
                               className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
                                 selected
@@ -8046,7 +8050,7 @@ export default function InterviewPage() {
                         className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
                       >
                         <span>Voice On/Off</span>
-                        <span className="text-slate-400">
+                        <span className={audioEnabled ? "font-black text-emerald-400" : "text-slate-500"}>
                           {audioEnabled ? "On" : "Off"}
                         </span>
                       </button>
@@ -8058,7 +8062,7 @@ export default function InterviewPage() {
                         className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
                       >
                         <span>Live AI voice</span>
-                        <span className="text-slate-400">
+                        <span className={premiumVoiceEnabled ? "font-black text-emerald-400" : "text-slate-500"}>
                           {premiumVoiceEnabled ? "On" : "Off"}
                         </span>
                       </button>
@@ -8097,7 +8101,7 @@ export default function InterviewPage() {
                             ? "Hide Transcript"
                             : "Show Live Transcript"}
                         </span>
-                        <span className="text-slate-400">
+                        <span className={showTranscript ? "font-black text-emerald-400" : "text-slate-500"}>
                           {showTranscript ? "On" : "Off"}
                         </span>
                       </button>
@@ -8109,7 +8113,7 @@ export default function InterviewPage() {
                         className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm workzo-transcript-body"
                       >
                         <span>Auto-scroll Transcript</span>
-                        <span className="text-slate-400">
+                        <span className={autoScrollTranscript ? "font-black text-emerald-400" : "text-slate-500"}>
                           {autoScrollTranscript ? "On" : "Off"}
                         </span>
                       </button>
@@ -8126,10 +8130,10 @@ export default function InterviewPage() {
                         <button
                           type="button"
                           onClick={() => setShowCopilot((value) => !value)}
-                          className="relative h-6 w-11 rounded-full bg-blue-500"
+                          className={`relative h-6 w-11 rounded-full transition-colors ${showCopilot ? "bg-blue-500" : "bg-white/20"}`}
                           aria-label="Toggle Live Copilot"
                         >
-                          <span className="absolute right-1 top-1 h-4 w-4 rounded-full bg-white" />
+                          <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all ${showCopilot ? "right-1" : "left-1"}`} />
                         </button>
                       </div>
 
@@ -8399,7 +8403,7 @@ export default function InterviewPage() {
         )}
 
         {/* Technical mode: show code panel between recruiter video and sidebar */}
-        {technicalMode && premiumUnlocked && (
+        {technicalMode && (
           <div className="border-b border-white/[0.06] bg-[#060d18] px-4 pb-3 pt-2">
             <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-violet-400">
               Code Workspace · Technical Mode
@@ -8488,7 +8492,7 @@ export default function InterviewPage() {
           </aside>
 
           <div className="flex flex-col lg:h-full lg:min-h-0">
-            <section className="relative shrink-0 overflow-hidden bg-[#08101c] h-[300px] sm:h-[360px] lg:h-[50%] lg:min-h-[260px] lg:max-h-[460px]">
+            <section className="relative shrink-0 overflow-hidden bg-[#08101c] h-[380px] sm:h-[450px] lg:h-[58%] lg:min-h-[380px] lg:max-h-[640px]">
               <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-blue-500/20 blur-3xl" />
               <div className="absolute inset-0">
                 <Image
@@ -8801,54 +8805,8 @@ export default function InterviewPage() {
             </section>
 
             {/* ── BOTTOM CONTROLS BAR — settings removed (in header), progress removed (in right panel) ── */}
-            <div className="hidden lg:flex shrink-0 items-center justify-center gap-6 border-t border-white/[0.08] bg-[#04080f] px-6 py-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  const last = [...transcript].reverse().find(t => t.role === "recruiter");
-                  if (last?.text) speakRecruiter(last.text);
-                }}
-                className="flex flex-col items-center gap-1 text-slate-500 hover:text-slate-300 transition"
-                title="Repeat last question (R)"
-              >
-                <div className="grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-white/[0.04]">
-                  <RotateCcw className="h-3.5 w-3.5" />
-                </div>
-                <span className="text-[9px] font-black uppercase tracking-wide">Repeat</span>
-              </button>
 
-              <button
-                onClick={toggleMic}
-                className="flex flex-col items-center gap-1 transition group"
-              >
-                <div className={`grid h-12 w-12 place-items-center rounded-full shadow-2xl transition-all active:scale-95 ${
-                  status === "listening"
-                    ? "bg-blue-500 text-white ring-4 ring-blue-400/30 shadow-[0_0_24px_rgba(59,130,246,0.4)]"
-                    : "bg-white text-slate-950 hover:bg-blue-50"
-                }`}>
-                  {status === "listening" ? (
-                    <MicOff className="h-5 w-5" />
-                  ) : (
-                    <Mic className="h-5 w-5" />
-                  )}
-                </div>
-                <span className="text-[9px] font-black uppercase tracking-wide text-slate-400 group-hover:text-white transition">
-                  {status === "listening" ? "Stop" : "Push to Talk"}
-                  {status !== "listening" && <span className="ml-1 text-slate-600">(Space)</span>}
-                </span>
-              </button>
-
-              <button
-                onClick={endInterview}
-                className="flex flex-col items-center gap-1 text-slate-500 hover:text-red-400 transition group"
-                title="End interview"
-              >
-                <div className="grid h-8 w-8 place-items-center rounded-full border border-red-500/30 bg-red-500/10 text-red-400 transition group-hover:bg-red-500/20">
-                  <PhoneOff className="h-3.5 w-3.5" />
-                </div>
-                <span className="text-[9px] font-black uppercase tracking-wide">End</span>
-              </button>
-            </div>
+            {/* Bottom control bar removed — shortcuts shown in left sidebar */}
 
           </div>
 

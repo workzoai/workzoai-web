@@ -9,6 +9,7 @@ import {
 import { cleanExtractedCvText } from "@/lib/workzoCvPdfCleaner";
 import {
   parseResumeWithAiStructure,
+  type WorkZoAiCvParserResult,
   repairResumeProfileAfterParsing,
 } from "@/lib/workzoAiCvParser";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
@@ -19,6 +20,40 @@ const require = createRequire(import.meta.url);
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// ── Parse result cache ───────────────────────────────────────────────────────
+// Caches AI parse results by a hash of the raw CV text.
+// Same file uploaded twice in quick succession → instant return, no AI call.
+// Survives across requests within a warm serverless instance (up to ~10 min).
+const _cvParseCache = new Map<string, { result: WorkZoAiCvParserResult; ts: number }>();
+const CV_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const CV_CACHE_MAX = 20;
+
+function cvCacheKey(text: string): string {
+  // Fast non-crypto hash — good enough for cache keying
+  let h = 0x811c9dc5;
+  for (let i = 0; i < Math.min(text.length, 4000); i++) {
+    h ^= text.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return `cv_${h.toString(16)}_${text.length}`;
+}
+
+function cvCacheGet(key: string): WorkZoAiCvParserResult | null {
+  const entry = _cvParseCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CV_CACHE_TTL_MS) { _cvParseCache.delete(key); return null; }
+  return entry.result;
+}
+
+function cvCacheSet(key: string, result: WorkZoAiCvParserResult) {
+  if (_cvParseCache.size >= CV_CACHE_MAX) {
+    // Evict oldest entry
+    const oldest = [..._cvParseCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
+    if (oldest) _cvParseCache.delete(oldest[0]);
+  }
+  _cvParseCache.set(key, { result, ts: Date.now() });
+}
 
 type RequestBody = {
   cvText?: string;
@@ -1568,15 +1603,24 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
     };
   } else {
   try {
-    aiResult = await parseResumeWithAiStructure({
-      cvText: rawCv,
-      layoutText: rawCv,
-      fileName: body.fileName || "pasted-cv.txt",
-      jobDescription: jd,
-      targetRole: body.targetRole,
-      targetMarket: body.targetMarket,
-      language: body.language,
-    });
+    // Check cache before calling AI — same CV text skips the 10-15s parse
+    const _cacheKey = cvCacheKey(rawCv);
+    const _cached = cvCacheGet(_cacheKey);
+    if (_cached) {
+      console.info("[WorkZo CV Pipeline] api.cv.json.cache_hit", { fileName: body.fileName, cacheKey: _cacheKey });
+      aiResult = _cached;
+    } else {
+      aiResult = await parseResumeWithAiStructure({
+        cvText: rawCv,
+        layoutText: rawCv,
+        fileName: body.fileName || "pasted-cv.txt",
+        jobDescription: jd,
+        targetRole: body.targetRole,
+        targetMarket: body.targetMarket,
+        language: body.language,
+      });
+      if (aiResult.ok) cvCacheSet(_cacheKey, aiResult);
+    }
   } catch (aiError) {
     console.error("api.cv.json.ai_parser_uncaught_error", aiError);
     const localProfile = repairResumeProfileAfterParsing(
@@ -1729,6 +1773,13 @@ export async function POST(request: Request) {
       }
 
       let aiResult;
+      // Check cache first — same file re-uploaded within 10 min skips the AI call
+      const _uploadCacheKey = cvCacheKey(cleanedCv);
+      const _uploadCached = cvCacheGet(_uploadCacheKey);
+      if (_uploadCached) {
+        console.info("[WorkZo CV Pipeline] api.cv.file.cache_hit", { fileName: safeFileName });
+        aiResult = _uploadCached;
+      } else {
       try {
         aiResult = await withTimeout(
           parseResumeWithAiStructure({
@@ -1753,6 +1804,8 @@ export async function POST(request: Request) {
           error: aiError instanceof Error ? aiError.message : "AI CV parser crashed unexpectedly.",
         };
       }
+      if (aiResult && aiResult.ok) cvCacheSet(_uploadCacheKey, aiResult);
+      } // end cache-miss block
 
       aiResult = lockParserResultIdentity(aiResult, {
         rawText: cleanedCv,

@@ -1071,7 +1071,7 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
   return repairProfileIdentity(profile, rawText, fileName, clean(basics.name));
 }
 
-function truncateCvText(value: string, limit = 28000) {
+function truncateCvText(value: string, limit = 10000) {  // 10k chars covers even verbose 4-page CVs; 28k was 7x overkill
   const text = normalizeCvTextForParsing(value);
   if (text.length <= limit) return text;
   return `${text.slice(0, limit)}\n\n[CV truncated for model context]`;
@@ -1152,7 +1152,7 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
     const response = await client.chat.completions.create({
       model,
       temperature: 0,
-      max_tokens: 5000,
+      max_tokens: 2000,  // CV JSON is ~600-900 tokens; 2000 gives headroom without forcing long generation
       response_format: { type: "json_object" },
       messages: [
         {
@@ -1178,22 +1178,8 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "Never put a phone number or any other text in the email field.",
             "",
             "COMMON NAME MISTAKES to avoid:",
-            "  WRONG: basics.name = 'Matplotlib Seaborn Tableau' (data viz tools, not a name)",
-            "  WRONG: basics.name = 'Public Relations Teamwork' (skills)",
-            "  WRONG: basics.name = 'Programming Python Bash PowerShell' (skill category + tools)",
-            "  WRONG: basics.name = 'Tools Ticketing-Systeme Remote Support' (CV section text)",
-            "  WRONG: basics.name = 'Profile Summary Work Experience' (CV section headers)",
-            "  WRONG: basics.name = 'Springfield Elementary School' (employer name)",
-            "  WRONG: basics.name = 'Acme Corp Ltd' (company name, not a person)",
-            "  WRONG: basics.name = 'Educationkey Skills' (concatenated section headers)",
-            "  WRONG: basics.name = 'Critical Thinking' (soft skill, not a name)",
-            "  WRONG: basics.name = 'Effective Communication' (soft skill phrase)",
-            "  WRONG: basics.name = 'Marketing Manager' (job title, not a name)",
-            "  WRONG: basics.name = 'Any City' (placeholder address text, not a name)",
-            "  CORRECT: basics.name = 'Maria Schmidt' (real person name)",
-            "  CORRECT: basics.name = 'James Okafor' (real person name)",
-            "  CORRECT: basics.name = 'Elena Vasquez' (real person name)",
-            "  CORRECT: basics.name = 'Thomas Müller' (real person name)",
+            "  WRONG: 'Matplotlib Seaborn Tableau', 'Public Relations Teamwork', 'Programming Python Bash PowerShell', 'Profile Summary Work Experience', 'Marketing Manager', 'Critical Thinking', 'Acme Corp Ltd'",
+            "  CORRECT: 'Maria Schmidt', 'James Okafor', 'Elena Vasquez', 'Thomas Müller'",
             "",
             "HOW TO FIND THE REAL NAME:",
             "  1. Look for a standalone line near the top that contains only a person's first and last name.",
@@ -1249,12 +1235,6 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "    any section heading, any skill, any job title used as a name.",
             "  If the name field would be one of these invalid values, scan the document header for a real person name instead.",
             "  A valid name is 1–5 words, no digits, no section-heading words.",
-            "",
-            "Projects may appear under: PROJECTS, PERSONAL PROJECTS, BOOTCAMP PROJECTS, DATA SCIENCE PROJECTS, ACADEMIC PROJECTS, PORTFOLIO PROJECTS, CASE STUDIES, PROJECT EXPERIENCE, or as named portfolio items after education/bootcamp.",
-            "For each project, extract the project name and factual bullets. Preserve technologies, datasets, APIs, cloud tools, dashboards, ML/NLP/RAG terms, outcomes, and links if visible.",
-            "If a project is mixed into a bootcamp or portfolio section, still put it in projects — do NOT convert it into work experience, education, or skills.",
-            "If uncertain whether an item is a project or a skill, prefer returning it as a project with a short bullet rather than dropping it.",
-            "Never hallucinate projects. Only use names or descriptions visible in the CV text.",
             "",
             "If the name is split across lines around a job title, combine person-name tokens only: FIRST / ROLE / LAST => FIRST LAST.",
             "Keep bullets factual. Split bullets only when the source clearly separates responsibilities.",
