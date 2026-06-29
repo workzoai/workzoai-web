@@ -164,10 +164,14 @@ function scoreSetup(setup: WorkZoInterviewSetup) {
   const cvText = normalizeSetupCvText(setup);
   const jdText = normalizeSetupJobDescription(setup);
 
-  if (cvText) score += 20;
+  // CV and resumeProfile are weighted very heavily so a setup with CV
+  // can never be beaten by a setup without CV regardless of setupVersion.
+  // This prevents the refresh-drops-CV bug where a lower-scored setup
+  // without CV text wins the scoreSetup comparison.
+  if (cvText) score += 50;
   if (jdText) score += 8;
   if (setup.targetRole || setup.role || setup.jobTitle) score += 5;
-  if (hasUsableResumeProfile(setup)) score += 20;
+  if (hasUsableResumeProfile(setup)) score += 40;
   if (isValidCandidateName(setup.candidateName || setup.resumeProfile?.basics?.name || "")) score += 8;
   if (isCanonicalSetup(setup)) score += 12;
   if (setup.setupVersion || setup.version) score += 2;

@@ -2271,7 +2271,9 @@ function buildVapiTranscriberOverride(setup: InterviewSetup) {
     // Vapi maximum endpointing is 500ms. Values above 500 cause a 400 Bad Request.
     // English: 350ms (faster responses, natural cadence)
     // Non-English: 480ms (slightly more time for non-native speech patterns, stays under 500)
-    endpointing: language.code.toLowerCase().startsWith("en") ? 350 : 480,
+    // Max out endpointing to reduce mid-thought cutoffs. 500ms is Vapi maximum.
+    // Candidates need time between words especially non-native speakers and thinkers.
+    endpointing: 500,
   };
 }
 
@@ -2936,15 +2938,17 @@ function recruiterMoodColor(mood: RecruiterSignalState["mood"]) {
 }
 
 const defaultRecruiterSignal: RecruiterSignalState = {
-  overall: 78,
-  confidence: 82,
-  clarity: 75,
-  relevance: 80,
-  communication: 76,
-  trust: 74,
-  interest: 72,
-  mood: "Engaged",
-  concern: "Waiting for a specific answer with proof.",
+  // Start at neutral 50 — score must be EARNED through answers.
+  // Starting at 78 meant any short/broken session showed 75-78 as "default".
+  overall: 50,
+  confidence: 50,
+  clarity: 50,
+  relevance: 50,
+  communication: 50,
+  trust: 50,
+  interest: 50,
+  mood: "Neutral",
+  concern: "Waiting for the first answer.",
 };
 
 function getWaitingRecruiterSignal(): RecruiterSignalState {
@@ -4122,9 +4126,10 @@ function updateRecruiterMemoryState(
       "Positive pattern: stronger evidence and ownership are emerging.";
 
   const nextQuestionCount = previous.askedTopics.length;
-  // Don't close until at least 12 topics have been covered
+  // Don't close until at least 15 topics have been covered
+  // This prevents premature closing for Vapi sessions that run longer
   const needsClosingChallenge =
-    nextQuestionCount >= 12 && !previous.closingAsked;
+    nextQuestionCount >= 15 && !previous.closingAsked;
   // readyForResults gates the end-of-interview transition.
   // A raw question count alone is not enough — the recruiter must have
   // issued a closing invitation ("do you have any questions") AND the
@@ -4136,8 +4141,8 @@ function updateRecruiterMemoryState(
   // - OR hard cap at 20 topics (true emergency exit only)
   // This prevents cutting the interview short at question 4-5.
   const readyForResults =
-    (previous.closingAsked && nextQuestionCount >= 10) ||
-    nextQuestionCount >= 20 ||
+    (previous.closingAsked && nextQuestionCount >= 15) ||
+    nextQuestionCount >= 30 ||
     previous.readyForResults;
 
   return {
@@ -4203,7 +4208,12 @@ function buildMemoryAwareFollowUp(
   const style = detectCompanyInterviewStyle(setup);
   const analysis = analyzeAnswerSignals(answer, setup);
 
-  if (questionIndex >= 11 && !memory.closingAsked) {
+  // Only trigger closing after at least 10 real covered topics
+  // questionIndex can be inflated by short greetings — use askedTopics as truth
+  const realTopicsCount = memory.askedTopics?.length || 0;
+  // Only trigger closing challenge in browser engine (non-Vapi) sessions
+  // Vapi handles its own closing via the prompt instructions
+  if (questionIndex >= 11 && realTopicsCount >= 15 && !memory.closingAsked) {
     return buildClosingChallenge(setup, memory);
   }
 
@@ -4552,7 +4562,15 @@ function isProgressWorthyRecruiterTurn(text: string) {
   const cleaned = cleanVisibleTranscriptText(text).toLowerCase();
   if (!cleaned) return false;
 
-  // Do not count greetings or small-talk as interview progress.
+  // Do not count greetings, acknowledgements, or short fillers as progress.
+  if (
+    /^(noted|understood|good|great|i see|okay|ok|thanks|thank you|alright|go ahead|please continue|continue)[.,!]?$/i.test(
+      cleaned.trim()
+    )
+  ) {
+    return false;
+  }
+
   if (
     /\b(how are you|good morning|good afternoon|good evening|hello|hi[, ]|let'?s begin)\b/i.test(
       cleaned,
@@ -4562,12 +4580,17 @@ function isProgressWorthyRecruiterTurn(text: string) {
     return false;
   }
 
-  return (
-    /\?$/.test(cleaned) ||
-    /\b(tell me|walk me through|give me|describe|explain|what|why|how|can you|could you|share an example|specific example|measurable impact|hardest part|improve if)\b/i.test(
-      cleaned,
-    )
+  // Only count if it's a substantive question or instruction (not an acknowledgement)
+  // AND the turn is long enough to be a real question (not just "Noted. Go deeper.")
+  const isSubstantive = (
+    /\?/.test(cleaned) ||
+    /\b(tell me|walk me through|give me|describe|explain|what|why|how|can you|could you|share an example|specific example|measurable impact|hardest part|improve if)\b/i.test(cleaned)
   );
+
+  // Short turns under 30 chars are almost never real questions
+  if (cleaned.length < 30) return false;
+
+  return isSubstantive;
 }
 
 function getWorkZoLiveCopilotInsight(input: {
@@ -5072,13 +5095,21 @@ export default function InterviewPage() {
     visibleTranscriptItems.filter((item) => item.role !== "system").length +
     (interimText ? 1 : 0);
   const visibleQuestionNumber = hasStartedInterview
-    ? Math.max(1, Math.min(questionIndex, 20))
+    ? Math.max(1, Math.min(questionIndex, 30))
     : 0;
   const progress = hasStartedInterview
-    ? Math.round((visibleQuestionNumber / 20) * 100)
+    ? Math.round((visibleQuestionNumber / 30) * 100)
     : 0;
-  const interviewComplete: boolean =
-    visibleQuestionNumber >= 20 || recruiterMemory.readyForResults;
+  // interviewComplete: ONLY trigger on transcript-detected closing.
+  // When Vapi is active, the browser engine memory (readyForResults) should
+  // NOT end the interview — Vapi controls the conversation and will issue
+  // its own closing. We only end when the closing detection in the useEffect
+  // below fires (closingInvitationSeenRef + candidate reply).
+  // For browser-engine-only sessions (no Vapi), readyForResults is fine.
+  const vapiIsActive = premiumVoiceStatus === "connected";
+  const interviewComplete: boolean = vapiIsActive
+    ? false  // Vapi sessions: NEVER auto-end from memory state — only from transcript closing detection
+    : recruiterMemory.readyForResults;
   const headerTitle = setup.targetCompany
     ? `${setup.targetRole} – ${setup.targetCompany}`
     : setup.targetRole;
@@ -5772,7 +5803,7 @@ export default function InterviewPage() {
           // 150ms: state settles fast enough, silence already provides the pause.
           window.setTimeout(() => {
             if (stopRequestedRef.current) return;
-            setQuestionIndex((value) => Math.min(value + 1, 20));
+            setQuestionIndex((value) => Math.min(value + 1, 30));
             speakRecruiter(reply);
           }, 150);
         };
@@ -5788,15 +5819,15 @@ export default function InterviewPage() {
         // SpeechRecognition path above. A generous hard cap remains only as
         // a last-resort safety backstop, not the normal stop condition.
         const SILENCE_THRESHOLD_RMS = 0.012;
-        const SILENCE_STOP_MS = 2000;
+        const SILENCE_STOP_MS = 3500; // 3.5s — thinking pauses and "uh," filler pauses are common
         const MIN_RECORDING_MS = 800; // ignore the initial silence while the mic warms up
         const HARD_CAP_MS = 90000; // backstop only — should essentially never be hit
         // Same "paused right after starting" problem as the primary path —
         // this path has no live transcript to count words from, so total
         // detected speech time is used as the proxy instead. One grace
         // extension only.
-        const GRACE_SPEECH_MS_THRESHOLD = 2000;
-        const GRACE_EXTENSION_MS = 2800;
+        const GRACE_SPEECH_MS_THRESHOLD = 8000; // give grace to anyone who has spoken less than 8s
+        const GRACE_EXTENSION_MS = 4000; // 4s extra after silence detected before stopping
         let speechDetectedMs = 0;
         let graceUsed = false;
         let graceDeadline: number | null = null;
@@ -5904,7 +5935,7 @@ export default function InterviewPage() {
     // was cutting candidates off mid-answer — confirmed from live testing.
     // 2000ms is closer to a natural "I'm actually done" pause without
     // reintroducing the noticeable lag the original 2200ms had.
-    const SILENCE_MS = 2000;
+    const SILENCE_MS = 3500; // 3.5s — matches the RMS path to avoid cutting off mid-thought
     // People very often pause right after starting a hard question — "The
     // hardest part was... [pause to think]" — confirmed from live testing
     // where this produced a 3-word fragment ("this part is") submitted as a
@@ -6145,7 +6176,7 @@ export default function InterviewPage() {
       // The old 650ms added perceived lag without adding realism.
       window.setTimeout(() => {
         if (stopRequestedRef.current) return;
-        setQuestionIndex((value) => Math.min(value + 1, 20));
+        setQuestionIndex((value) => Math.min(value + 1, 30));
         setRecruiterVisualState(
           interruptDecision.shouldInterrupt ? "interrupting" : "listening",
         );
@@ -6799,7 +6830,7 @@ export default function InterviewPage() {
               const signature = recruiterText.toLowerCase().slice(0, 140);
               if (vapiQuestionSignatureRef.current !== signature) {
                 vapiQuestionSignatureRef.current = signature;
-                setQuestionIndex((value) => Math.min(value + 1, 20));
+                setQuestionIndex((value) => Math.min(value + 1, 30));
               }
             }
 
@@ -8709,22 +8740,21 @@ export default function InterviewPage() {
                     {transcriptMessageCount === 1 ? "" : "s"}
                   </span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="hidden items-center gap-2 text-xs text-slate-500 sm:flex">
-                    Auto-scroll
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setAutoScrollTranscript((value) => !value); }}
-                      className={`relative h-4 w-7 rounded-full transition ${autoScrollTranscript ? "bg-blue-500" : "bg-white/15"}`}
-                    >
-                      <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition ${autoScrollTranscript ? "right-0.5" : "left-0.5"}`} />
-                    </button>
-                  </div>
-                  <span className="text-[10px] font-black text-slate-500 lg:hidden">
-                    {showTranscript ? "▲" : "▼"}
-                  </span>
-                </div>
+                <span className="text-[10px] font-black text-slate-500 lg:hidden">
+                  {showTranscript ? "▲" : "▼"}
+                </span>
               </button>
+              {/* Auto-scroll toggle — outside the button to avoid nested button HTML error */}
+              <div className="hidden items-center gap-2 border-b border-white/[0.07] px-5 py-1.5 text-xs text-slate-500 sm:flex justify-end">
+                Auto-scroll
+                <button
+                  type="button"
+                  onClick={() => setAutoScrollTranscript((value) => !value)}
+                  className={`relative h-4 w-7 rounded-full transition ${autoScrollTranscript ? "bg-blue-500" : "bg-white/15"}`}
+                >
+                  <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition ${autoScrollTranscript ? "right-0.5" : "left-0.5"}`} />
+                </button>
+              </div>
 
               {showTranscript ||
               (typeof window !== "undefined" && window.innerWidth >= 1024) ? (
@@ -8951,8 +8981,8 @@ export default function InterviewPage() {
                   Progress
                 </p>
                 <span className="tabular-nums text-sm font-black text-white">
-                  {visibleQuestionNumber}
-                  <span className="text-slate-500">/12</span>
+                  {progress}
+                  <span className="text-slate-500">%</span>
                 </span>
               </div>
               <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.07]">

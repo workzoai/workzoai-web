@@ -654,10 +654,18 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
   const confidenceScore = numberOr(result.confidenceScore, numberOr(resultRecord.score?.confidence, clamp(trustScore - (answerInsights.some((item) => item.fillerCount >= 4) ? 8 : 0) + (ownershipScore >= 70 ? 4 : -3))));
   const roleCompetencyScore = numberOr(result.roleCompetencyScore, numberOr(resultRecord.score?.relevance, clamp((evidenceQuality * 0.58) + (structureScore * 0.22) + (ownershipScore * 0.2))));
 
-  const overallScore = numberOr(
-    result.overallScore,
-    numberOr(resultRecord.score?.overall, clamp((communicationScore * 0.22) + (confidenceScore * 0.18) + (roleCompetencyScore * 0.28) + (trustScore * 0.2) + (evidenceQuality * 0.12))),
-  );
+  // Calculate from transcript first — this is always honest
+  const calculatedScore = clamp((communicationScore * 0.22) + (confidenceScore * 0.18) + (roleCompetencyScore * 0.28) + (trustScore * 0.2) + (evidenceQuality * 0.12));
+
+  // Only use the stored score if:
+  // 1. We have enough answers (3+) to trust it was a real session
+  // 2. The stored score is meaningfully different from the default signal (50)
+  // Otherwise, the transcript-based calculation is more honest.
+  const storedScore = numberOr(result.overallScore, resultRecord.score?.overall);
+  const storedScoreIsDefault = storedScore !== null && storedScore !== undefined && (storedScore >= 48 && storedScore <= 52);
+  const overallScore = (answersCount >= 3 && storedScore && !storedScoreIsDefault)
+    ? clamp(storedScore)
+    : calculatedScore;
 
   const redFlags = uniqueList(
     result.redFlags,
