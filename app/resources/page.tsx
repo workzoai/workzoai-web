@@ -25,7 +25,7 @@ export default function ResourcesPage() {
         </Link>
 
         <section className="mt-10 text-center">
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-brand">Resources</p>
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-muted">Resources</p>
           <h1 className="mt-4 text-4xl font-black tracking-[-0.04em] sm:text-4xl">Everything you need to understand WorkZo AI.</h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-muted">
             Product information, support, legal pages, updates, and launch resources in one place.
@@ -42,7 +42,7 @@ export default function ResourcesPage() {
                 </div>
                 <h2 className="mt-5 text-xl font-black">{item.title}</h2>
                 <p className="mt-2 text-sm leading-6 text-muted">{item.text}</p>
-                <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-brand group-hover:text-brand">
+                <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-muted group-hover:text-muted">
                   Open
                   <ArrowRight className="h-4 w-4" />
                 </span>

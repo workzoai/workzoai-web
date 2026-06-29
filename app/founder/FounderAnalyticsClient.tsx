@@ -384,9 +384,9 @@ export default function FounderAnalyticsClient() {
         {/* Top KPIs — 4 most important */}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi
-            label="Unique visitors"
+            label="Unique visitors (all-time)"
             value={fmt(visitors)}
-            hint={`${fmt(active7d)} active last 7 days`}
+            hint={`${fmt(visitors)} all-time · ${fmt(active7d)} active last 7d`}
             sparkData={uploadSpark}
             sparkColor="#6366f1"
           />

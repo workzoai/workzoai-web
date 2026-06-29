@@ -19,7 +19,7 @@
   /* text */
   --wz-fg: #0b1220;
   --wz-muted: #475569;
-  --wz-subtle: #94a3b8;
+  --wz-subtle: #475569;  /* matches muted — both now clearly readable on white */
 
   /* brand */
   --wz-brand: #2563eb;
@@ -62,8 +62,8 @@
   --wz-line-soft: rgba(255, 255, 255, 0.06);
 
   --wz-fg: #f8fafc;
-  --wz-muted: #94a3b8;
-  --wz-subtle: #64748b;
+  --wz-muted: #94a3b8;   /* 6.84:1 on dark canvas — passes AA */
+  --wz-subtle: #94a3b8;  /* matches muted — both clearly readable on dark bg */
 
   --wz-brand: #3b82f6;
   --wz-brand-strong: #2563eb;

@@ -156,14 +156,14 @@ export default function CvWorkspacePage() {
       if (skillNames.includes(normalizedName)) return true;
 
       // Also reject if the name exactly matches one of the candidate's own
-      // project titles — this is the specific failure mode where a project
+      // project titles: this is the specific failure mode where a project
       // name like "YouTube API And NLP" or "GANS E-Scooter Service" ends up
       // in basics.name instead of the real human name.
       const projectNames = (prof.projects || []).map((proj) => String(proj?.name || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim());
       if (normalizedName && projectNames.includes(normalizedName)) return true;
 
       // Reject names containing tech/project acronyms that essentially never
-      // appear in a real human name (API, NLP, RAG, GCP, SQL, etc.) — these
+      // appear in a real human name (API, NLP, RAG, GCP, SQL, etc.): these
       // are strong signals the "name" is actually a project title or skill
       // phrase that slipped past the other checks.
       if (/\b(API|NLP|RAG|GCP|SQL|ITIL|ITSM|CRM|ERP|SDK|CSS|HTML|JSON|REST|AWS)\b/.test(rawName)) return true;
@@ -299,7 +299,7 @@ export default function CvWorkspacePage() {
   }, []);
 
   // `baselineInput` feeds the auto-generated "improved CV" baseline. It must
-  // NOT depend on atsText/aiRewriteApplied — those are the result of running
+  // NOT depend on atsText/aiRewriteApplied: those are the result of running
   // the AI rewrite, and feeding them back in here would create a loop: the
   // rewrite changes atsText → baseline recomputes from the new atsText →
   // the effect below resets atsText back to the (now German, then English
@@ -319,17 +319,17 @@ export default function CvWorkspacePage() {
     [cvText, savedResumeProfile, jobDescription, targetRole, targetMarket, template],
   );
 
-  // `resumeInput` feeds the template/preview/download — this is the one that
+  // `resumeInput` feeds the template/preview/download: this is the one that
   // SHOULD reflect the rewrite (and its language) once applied.
   const resumeInput = useMemo(
     () => ({
       cvText: aiRewriteApplied && atsText.trim() ? atsText : cvText,
       // Prefer the AI's own structured profile from the rewrite when we have
-      // one — this is the fix for the rewrite corrupting the candidate name,
+      // one: this is the fix for the rewrite corrupting the candidate name,
       // dropping jobs/projects, and losing education. Only fall back to
       // re-parsing the plain text (resumeProfile: undefined, which makes
       // buildResumeJson call extractResumeProfile on cvText) when the AI
-      // didn't return structured JSON for some reason — e.g. an older
+      // didn't return structured JSON for some reason: e.g. an older
       // cached response, or the JSON path failed and the route fell back
       // to plain text.
       resumeProfile: aiRewriteApplied && atsText.trim()
@@ -564,7 +564,7 @@ export default function CvWorkspacePage() {
 
       setAtsText(rewritten);
       // If the AI returned a structured profile alongside the plain text,
-      // use it directly for the template/preview/download path — this is
+      // use it directly for the template/preview/download path: this is
       // what actually fixes the dropped-job/wrong-name/lost-project bugs,
       // since the model fills in each field explicitly instead of a regex
       // parser having to infer structure from prose after the fact.
@@ -647,7 +647,7 @@ export default function CvWorkspacePage() {
             <div>
               <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Rewrite your CV for this job</h1>
               <p className="mt-1 text-sm leading-6 text-muted">
-                Paste the job description, pick a language, and WorkZo rewrites your CV to match — same jobs and dates, sharper wording.
+                Paste the job description, pick a language, and WorkZo rewrites your CV to match: same jobs and dates, sharper wording.
               </p>
             </div>
           </div>
@@ -659,7 +659,7 @@ export default function CvWorkspacePage() {
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
                 className="min-h-[140px] w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm leading-6 outline-none transition focus:border-brand"
-                placeholder="Paste the job description here — this is what the rewrite targets."
+                placeholder="Paste the job description here: this is what the rewrite targets."
               />
             </label>
 
@@ -695,7 +695,7 @@ export default function CvWorkspacePage() {
               >
                 <span className="flex items-center gap-2">
                   <CheckCircle2 className={cn("h-4 w-4", cvReady ? "text-success" : "text-subtle")} />
-                  {cvReady ? "CV loaded from your profile" : "No CV text yet — add it below"}
+                  {cvReady ? "CV loaded from your profile" : "No CV text yet: add it below"}
                 </span>
                 <ChevronDown className={cn("h-4 w-4 transition-transform", cvTextExpanded && "rotate-180")} />
               </button>
@@ -731,7 +731,7 @@ export default function CvWorkspacePage() {
           )}
           {aiRewriteApplied && !aiRewriteError && (
             <p className="mt-4 rounded-xl border border-success/20 bg-success/10 px-4 py-2.5 text-sm font-bold text-success">
-              Rewritten for this job description in {outputLanguage}. Same jobs, dates, and companies — only wording changed. Review before downloading.
+              Rewritten for this job description in {outputLanguage}. Same jobs, dates, and companies: only wording changed. Review before downloading.
             </p>
           )}
         </section>
@@ -819,7 +819,7 @@ export default function CvWorkspacePage() {
             <div className="flex items-start justify-between gap-4">
               <p className="text-sm leading-6 text-muted">{phaseA.recruiterScan.firstImpression}</p>
               <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-brand/20 bg-canvas-soft text-center">
-                <p className="text-xl font-black text-brand">{phaseA.readinessScore}</p>
+                <p className="text-xl font-black text-muted">{phaseA.readinessScore}</p>
                 <p className="-mt-1 text-[9px] font-black text-subtle">READY</p>
               </div>
             </div>
@@ -847,7 +847,7 @@ export default function CvWorkspacePage() {
               </div>
               <div className="rounded-lg border border-line bg-canvas-soft p-4">
                 <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-muted"><Target className="h-4 w-4" /> After CV fix</div>
-                <p className="mt-2 text-2xl font-black text-brand">{phaseA.interviewProbability.afterCvFix}%</p>
+                <p className="mt-2 text-2xl font-black text-muted">{phaseA.interviewProbability.afterCvFix}%</p>
                 <p className="mt-1 text-xs text-subtle">If missing proof is added</p>
               </div>
               <div className="rounded-lg border border-line bg-canvas-soft p-4">
@@ -859,7 +859,7 @@ export default function CvWorkspacePage() {
           </CollapsibleSection>
 
           {jobDescription.trim() && cvText.trim() && (
-            <CollapsibleSection eyebrow="ATS optimization" title={`Keyword match — ${atsScore}%`} defaultOpen={false}>
+            <CollapsibleSection eyebrow="ATS optimization" title={`Keyword match: ${atsScore}%`} defaultOpen={false}>
               <p className="text-sm leading-6 text-muted">
                 {atsScore >= 75
                   ? "Strong keyword coverage. Your CV includes most JD requirements."
@@ -903,7 +903,7 @@ export default function CvWorkspacePage() {
                 <div className="mt-4 rounded-xl border border-line bg-canvas-soft p-4">
                   <p className="text-xs font-black text-fg">Quick fix</p>
                   <p className="mt-1 text-sm leading-6 text-muted">
-                    Add these terms naturally to your CV where you genuinely have experience: <span className="font-bold text-warning">{atsKeywords.missing.slice(0, 5).join(", ")}</span>. Only add terms that reflect real experience — never keyword-stuff.
+                    Add these terms naturally to your CV where you genuinely have experience: <span className="font-bold text-warning">{atsKeywords.missing.slice(0, 5).join(", ")}</span>. Only add terms that reflect real experience: never keyword-stuff.
                   </p>
                 </div>
               )}
@@ -914,14 +914,14 @@ export default function CvWorkspacePage() {
             <div className="flex items-start justify-between gap-4">
               <p className="text-sm leading-6 text-muted">{phaseB.companyDNA.description}</p>
               <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-brand/20 bg-canvas-soft text-center">
-                <p className="text-xl font-black text-brand">{phaseB.trustAudit.overall}</p>
+                <p className="text-xl font-black text-muted">{phaseB.trustAudit.overall}</p>
                 <p className="-mt-1 text-[9px] font-black text-subtle">TRUST</p>
               </div>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-line bg-canvas-soft p-4">
-                <p className="text-sm font-black text-brand">Company DNA rules</p>
+                <p className="text-sm font-black text-muted">Company DNA rules</p>
                 <div className="mt-3 space-y-3">
                   {phaseB.companyDNA.dimensions.map((item) => (
                     <div key={item.label}>
@@ -963,7 +963,7 @@ export default function CvWorkspacePage() {
                       </p>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-muted">{item.text}</p>
-                    <p className="mt-2 text-xs leading-5 text-brand">Recruiter hears: {item.recruiterHeard}</p>
+                    <p className="mt-2 text-xs leading-5 text-muted">Recruiter hears: {item.recruiterHeard}</p>
                   </div>
                 ))}
               </div>

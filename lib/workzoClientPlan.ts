@@ -20,6 +20,13 @@ export type WorkZoClientPlanState = {
   currentPeriodEnd: string | null;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
+  usage?: {
+    interviewsStarted: number;
+    interviewsCompleted: number;
+    interviewsRemaining: number;
+    interviewLimit: number;
+    canStartInterview: boolean;
+  };
 };
 
 type WorkZoPlanPayload = Omit<WorkZoClientPlanState, "loading">;
@@ -65,6 +72,7 @@ function fallbackPlan(
     currentPeriodEnd: null,
     stripeCustomerId: null,
     stripeSubscriptionId: null,
+    usage: undefined,
   };
 }
 
@@ -105,6 +113,7 @@ export async function fetchWorkZoAuthoritativePlan(options?: {
       currentPeriodEnd: data?.currentPeriodEnd || null,
       stripeCustomerId: data?.stripeCustomerId || null,
       stripeSubscriptionId: data?.stripeSubscriptionId || null,
+      usage: data?.usage || undefined,
     };
   } catch (error) {
     const name = error instanceof Error ? error.name : "";

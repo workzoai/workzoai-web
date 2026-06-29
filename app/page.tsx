@@ -30,18 +30,18 @@ const trustItems = [
 const quickFeatures = [
   { title: "Recruiter That Reads Your CV", text: "Questions are built from your actual background. Gaps get probed.", icon: Mic },
   { title: "Role and Market Aware", text: "DACH, US, and UK recruiters behave differently. So does WorkZo.", icon: FileText },
-  { title: "Live Copilot", text: "Mid-session guidance on what to say — and what not to.", icon: Zap },
+  { title: "Live Copilot", text: "Mid-session guidance on what to say, and what not to.", icon: Zap },
   { title: "Trust Score Timeline", text: "See the exact question where the recruiter's confidence dropped.", icon: BarChart3 },
 ];
 
 const TESTIMONIALS = [
   {
-    quote: "I’d been getting to final rounds and bombing. WorkZo showed me my trust score dropped every time I answered ownership questions. Two sessions later I had a framework — got an offer the following week.",
+    quote: "I’d been getting to final rounds and bombing. WorkZo showed me my trust score dropped every time I answered ownership questions. Two sessions later I had a framework: got an offer the following week.",
     name: "Fayaz Ahmed",
     role: "Product Manager",
     location: "London",
     score: 84,
-    // Stable AI-generated face via randomuser.me — replace with real photo when available
+    // Stable AI-generated face via randomuser.me: replace with real photo when available
     avatar: "",
   },
   {
@@ -63,57 +63,157 @@ const TESTIMONIALS = [
 ];
 
 const RECRUITER_PERSONAS = [
+  // Standard tier (Free / Premium)
   {
-    name: "Sarah M.",
-    title: "Senior Hiring Manager",
+    name: "Sarah",
+    title: "Friendly HR",
     image: "/recruiters/sarah.png",
-    style: "Sceptical · Evidence-driven",
-    description: "Pushes hard on proof and ownership. Won't let a vague answer pass — follow-ups like 'What was the measurable outcome?' are her signature.",
-    difficulty: 4,
-    color: "blue",
-    tag: "Standard",
-    tagStyle: "border-brand/20 bg-brand/10 text-brand",
-    borderStyle: "border-brand/20",
-    bgStyle: "bg-brand/[0.06]",
-    accentStyle: "text-brand",
+    emoji: null,
+    style: "Warm · Supportive",
+    description: "Puts you at ease but still probes communication, culture fit, and role clarity. Great for warming up before tougher rounds.",
+    difficulty: 2,
+    tag: "Free",
+    tagStyle: "border-fg/20 bg-fg/5 text-muted",
+    borderStyle: "border-fg/10",
+    bgStyle: "bg-fg/[0.03]",
+    accentStyle: "text-muted",
   },
   {
-    name: "James K.",
-    title: "Tech Recruiter",
-    image: "/recruiters/markus.png",
-    style: "Fast-paced · No-nonsense",
-    description: "Moves quickly and wants clean, structured answers. Loses interest fast if you ramble — keep it tight and evidence-backed.",
-    difficulty: 3,
-    color: "emerald",
-    tag: "Standard",
-    tagStyle: "border-success/20 bg-success/10 text-success",
-    borderStyle: "border-success/20",
-    bgStyle: "bg-success/[0.06]",
-    accentStyle: "text-success",
-  },
-  {
-    name: "Priya N.",
-    title: "Culture & Values Lead",
-    image: "/recruiters/priya.png",
-    style: "Empathetic · Values-focused",
-    description: "Digs deep into motivations, team fit, and soft skills. 'Why this role specifically?' is her favourite — surface-level answers won't satisfy her.",
-    difficulty: 3,
-    color: "violet",
-    tag: "Premium",
-    tagStyle: "border-brand/20 bg-brand/10 text-brand",
-    borderStyle: "border-brand/20",
-    bgStyle: "bg-brand/[0.06]",
-    accentStyle: "text-brand",
-  },
-  {
-    name: "Daniel R.",
-    title: "Executive Search Partner",
+    name: "Daniel",
+    title: "Hiring Manager",
     image: "/recruiters/daniel.png",
-    style: "Strategic · High-stakes",
-    description: "Senior-level interviews with strategic questions. Expects industry fluency, clear leadership examples, and commercial awareness at every answer.",
+    emoji: null,
+    style: "Evidence-driven · Direct",
+    description: "Pushes hard on proof and ownership. Won't let a vague answer pass. 'What was the measurable outcome?' is his signature follow-up.",
     difficulty: 5,
-    color: "amber",
+    tag: "Free",
+    tagStyle: "border-fg/20 bg-fg/5 text-muted",
+    borderStyle: "border-fg/10",
+    bgStyle: "bg-fg/[0.03]",
+    accentStyle: "text-muted",
+  },
+  {
+    name: "Priya",
+    title: "Startup Recruiter",
+    image: "/recruiters/priya.png",
+    emoji: null,
+    style: "Fast-paced · Impact-driven",
+    description: "Cares about ownership, speed, and execution. Cut the buzzwords — show what you personally shipped and how fast.",
+    difficulty: 4,
+    tag: "Free",
+    tagStyle: "border-fg/20 bg-fg/5 text-muted",
+    borderStyle: "border-fg/10",
+    bgStyle: "bg-fg/[0.03]",
+    accentStyle: "text-muted",
+  },
+  {
+    name: "Markus",
+    title: "Corporate Recruiter",
+    image: "/recruiters/markus.png",
+    emoji: null,
+    style: "Structured · Process-oriented",
+    description: "Expects organised, concise answers. DACH-style precision: relevance first, no rambling, clear professional framing at every step.",
+    difficulty: 4,
+    tag: "Free",
+    tagStyle: "border-fg/20 bg-fg/5 text-muted",
+    borderStyle: "border-fg/10",
+    bgStyle: "bg-fg/[0.03]",
+    accentStyle: "text-muted",
+  },
+  {
+    name: "Alex Chen",
+    title: "Technical Interviewer",
+    image: "/recruiters/alex.png",
+    emoji: null,
+    style: "Deep-dive · CV-grounded",
+    description: "Asks about your actual projects by name. Probes trade-offs, complexity, and why you chose X over Y. No generic 'design for 10M users' questions.",
+    difficulty: 5,
     tag: "Premium",
+    tagStyle: "border-brand/20 bg-brand/10 text-brand",
+    borderStyle: "border-brand/20",
+    bgStyle: "bg-brand/[0.06]",
+    accentStyle: "text-brand",
+  },
+  // Pro tier
+  {
+    name: "Zoe Martinez",
+    title: "Startup Founder",
+    image: "/recruiters/zoe.png",
+    emoji: null,
+    style: "Radical ownership · No fluff",
+    description: "Built and scaled teams herself. Wants to know what you'd do day one, how you handle ambiguity, and whether you can move without instructions.",
+    difficulty: 5,
+    tag: "Pro",
+    tagStyle: "border-warning/20 bg-warning/10 text-warning",
+    borderStyle: "border-warning/20",
+    bgStyle: "bg-warning/[0.06]",
+    accentStyle: "text-warning",
+  },
+  {
+    name: "James Harrington",
+    title: "Consulting Partner",
+    image: "/recruiters/james.png",
+    emoji: null,
+    style: "Case-style · Framework pressure",
+    description: "Expects structured thinking, clear hypotheses, and client-ready communication. Rambling answers get redirected fast.",
+    difficulty: 4,
+    tag: "Pro",
+    tagStyle: "border-warning/20 bg-warning/10 text-warning",
+    borderStyle: "border-warning/20",
+    bgStyle: "bg-warning/[0.06]",
+    accentStyle: "text-warning",
+  },
+  {
+    name: "Noah Jones",
+    title: "Sales Director",
+    image: "/recruiters/noah.png",
+    emoji: null,
+    style: "Numbers-first · Commercial",
+    description: "Wants quota, deal size, and pipeline discipline. Give vague revenue claims and he'll push until you have an exact figure.",
+    difficulty: 4,
+    tag: "Pro",
+    tagStyle: "border-warning/20 bg-warning/10 text-warning",
+    borderStyle: "border-warning/20",
+    bgStyle: "bg-warning/[0.06]",
+    accentStyle: "text-warning",
+  },
+  {
+    name: "Aisha Patel",
+    title: "Product Leader",
+    image: "/recruiters/aisha.png",
+    emoji: null,
+    style: "User-empathy · Data-driven",
+    description: "Probes prioritisation discipline, cross-functional influence, and metric-driven decisions. Wants you to defend the trade-offs you made.",
+    difficulty: 4,
+    tag: "Pro",
+    tagStyle: "border-warning/20 bg-warning/10 text-warning",
+    borderStyle: "border-warning/20",
+    bgStyle: "bg-warning/[0.06]",
+    accentStyle: "text-warning",
+  },
+  {
+    name: "Victoria Stern",
+    title: "Executive Recruiter",
+    image: "/recruiters/victoria.png",
+    emoji: null,
+    style: "Board-ready · Leadership narrative",
+    description: "Places C-suite and VP-level leaders. Assesses executive presence, organisational impact, and whether your leadership story actually holds up.",
+    difficulty: 4,
+    tag: "Pro",
+    tagStyle: "border-warning/20 bg-warning/10 text-warning",
+    borderStyle: "border-warning/20",
+    bgStyle: "bg-warning/[0.06]",
+    accentStyle: "text-warning",
+  },
+  {
+    name: "David Kimura",
+    title: "Enterprise Recruiter",
+    image: "/recruiters/david.png",
+    emoji: null,
+    style: "Stakeholder-focused · Matrixed",
+    description: "Cares about cross-team collaboration, governance, and navigating large orgs. Show how you drove outcomes when you didn't own the decision.",
+    difficulty: 3,
+    tag: "Pro",
     tagStyle: "border-warning/20 bg-warning/10 text-warning",
     borderStyle: "border-warning/20",
     bgStyle: "bg-warning/[0.06]",
@@ -122,17 +222,17 @@ const RECRUITER_PERSONAS = [
 ];
 
 const COMPARISON_ROWS = [
-  ["CV-Aware Interviews", "Reads your actual CV — questions reference your real experience", "Generic role filter only"],
+  ["CV-Aware Interviews", "Reads your actual CV: questions reference your real experience", "Generic role filter only"],
   ["Job Description Awareness", "Probes the exact skills and gaps in the posting you paste", "Role type only, not the specific job"],
   ["Recruiter Trust Analysis", "Live trust score per answer with a timeline showing why it dropped", "Not available"],
-  ["Dynamic Follow-Ups", "Recruiter reacts to your specific answer — not a fixed script", "Preset question order"],
+  ["Dynamic Follow-Ups", "Recruiter reacts to your specific answer, not a fixed script", "Preset question order"],
   ["Weakest Answer Detection", "Flags your lowest-scoring answer with a specific, actionable fix", "Not available"],
-  ["Recruiter Personalities", "4 recruiter personas with distinct styles and pressure levels", "Not available"],
+  ["Recruiter Personalities", "11 recruiter personas with distinct styles and pressure levels", "Not available"],
   ["Trust Timeline", "Visual graph of recruiter confidence question by question", "Not available"],
   ["Improvement Plan", "Specific metrics, ownership, and structure fixes tied to your session", "Generic tips"],
 ];
 
-// Module-level constant — not recreated on every TrustTimeline render
+// Module-level constant, not recreated on every TrustTimeline render
 const FIXED_TRUST_PTS = [[0,42],[20,36],[40,39],[60,28],[80,23],[110,26]];
 
 const TRUST_STAGES = [
@@ -144,7 +244,7 @@ const TRUST_STAGES = [
 
 function TrustTimeline() {
   const [idx, setIdx] = useState(0);
-  // Unique IDs per instance — safe if TrustTimeline ever renders more than once
+  // Unique IDs per instance: safe if TrustTimeline ever renders more than once
   const uid = useId().replace(/:/g, "");
   const fillId = `tFill${uid}`;
   const strokeId = `tStroke${uid}`;
@@ -171,7 +271,7 @@ function TrustTimeline() {
           <p className={`text-3xl font-black leading-none transition-all duration-500 ${stage.color}`}>
             {stage.score}
           </p>
-          <p className="mb-0.5 text-xs text-subtle">/ 100 trust score</p>
+          <p className="mb-0.5 text-xs text-muted">/ 100 trust score</p>
         </div>
         <svg viewBox="0 0 140 64" className="w-full" preserveAspectRatio="none" style={{ height: "64px" }}>
           <defs>
@@ -194,8 +294,8 @@ function TrustTimeline() {
           <circle cx="140" cy={stage.lastY} r="8" fill="rgba(52,211,153,0.18)" className="transition-all duration-500" />
         </svg>
         <div className="mt-2 flex items-center justify-between">
-          <p className="text-[10px] text-subtle">Q1</p>
-          <p className="text-[10px] text-subtle">Q7</p>
+          <p className="text-[10px] text-muted">Q1</p>
+          <p className="text-[10px] text-muted">Q7</p>
         </div>
       </div>
     </div>
@@ -207,7 +307,7 @@ function PlatformBento() {
     <div className="mx-auto w-full max-w-5xl">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
 
-        {/* ── Card 1: Interview Room — large, 2 cols × 2 rows ── */}
+        {/* ── Card 1: Interview Room: large, 2 cols × 2 rows ── */}
         <div className="overflow-hidden rounded-lg border border-brand/[0.22] bg-canvas-soft shadow-[0_0_40px_rgba(59,130,246,0.07)] backdrop-blur-sm md:col-span-2 md:row-span-2">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
@@ -216,7 +316,7 @@ function PlatformBento() {
                 <UserRound className="h-4 w-4 text-muted" />
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-subtle">Live interview</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">Live interview</p>
                 <p className="text-sm font-black">Sarah · Hiring Manager</p>
               </div>
             </div>
@@ -224,7 +324,7 @@ function PlatformBento() {
           </div>
           {/* Body */}
           <div className="grid gap-3 p-4 sm:grid-cols-[180px_1fr]">
-            {/* Recruiter video tile — tall, dominant */}
+            {/* Recruiter video tile: tall, dominant */}
             <div className="relative h-64 overflow-hidden rounded-xl ring-1 ring-brand/20 sm:h-full sm:min-h-[260px]">
               <div className="absolute inset-0 dark:bg-[linear-gradient(175deg,#0d1e3a,#071020_55%,#040810)]" />
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_100%_100%_at_50%_50%,transparent_48%,rgba(0,0,0,0.5)_100%)]" />
@@ -239,22 +339,22 @@ function PlatformBento() {
               </div>
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent px-3 pb-3 pt-10">
                 <p className="text-sm font-black text-fg">Sarah Mitchell</p>
-                <p className="text-[10px] text-subtle">Senior Hiring Manager</p>
+                <p className="text-[10px] text-muted">Senior Hiring Manager</p>
               </div>
             </div>
             {/* Right panels */}
             <div className="space-y-2.5">
               <div className="rounded-xl border border-line bg-fg/[0.05] p-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-subtle">Current question</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted">Current question</p>
                 <p className="mt-1.5 text-sm leading-5 text-fg">Tell me about a customer situation where you influenced the outcome.</p>
               </div>
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="rounded-xl border border-line bg-fg/[0.05] p-3">
-                  <p className="text-[11px] text-subtle">Trust</p>
+                  <p className="text-[11px] text-muted">Trust</p>
                   <p className="mt-1 text-2xl font-black text-fg">74</p>
                 </div>
                 <div className="rounded-xl border border-line bg-fg/[0.05] p-3">
-                  <p className="text-[11px] text-subtle">Progress</p>
+                  <p className="text-[11px] text-muted">Progress</p>
                   <p className="mt-1 text-2xl font-black text-success">7/12</p>
                 </div>
               </div>
@@ -263,7 +363,7 @@ function PlatformBento() {
                 <p className="mt-1.5 text-xs leading-4 text-fg">Needs stronger metrics and clearer ownership.</p>
               </div>
               <div className="rounded-xl border border-line bg-fg/[0.05] p-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-subtle">Live Copilot</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted">Live Copilot</p>
                 <p className="mt-1.5 text-xs leading-4 text-fg">Anchor your answer with a result the recruiter can verify.</p>
               </div>
             </div>
@@ -290,7 +390,7 @@ function PlatformBento() {
           </div>
         </div>
 
-        {/* ── Card 3: Trust Timeline — live ── */}
+        {/* ── Card 3: Trust Timeline: live ── */}
         <TrustTimeline />
 
         {/* ── Card 4: Progress Dashboard ── */}
@@ -301,14 +401,14 @@ function PlatformBento() {
           <div className="space-y-2.5 p-4">
             {[["Sessions", "12"], ["Avg Score", "71"], ["Best Score", "84"], ["Streak", "3 days"]].map(([label, val]) => (
               <div key={label} className="flex items-center justify-between">
-                <p className="text-xs text-subtle">{label}</p>
+                <p className="text-xs text-muted">{label}</p>
                 <p className="text-sm font-black text-fg">{val}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* ── Card 5: Interview Report — 2 cols ── */}
+        {/* ── Card 5: Interview Report: 2 cols ── */}
         <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft backdrop-blur-sm md:col-span-2">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <p className="text-sm font-black">Interview Report</p>
@@ -323,7 +423,7 @@ function PlatformBento() {
                 {[["Confidence", 80], ["Clarity", 70], ["Relevance", 78]].map(([l, v]) => (
                   <div key={l as string}>
                     <div className="mb-1 flex justify-between text-[11px]">
-                      <span className="text-subtle">{l}</span>
+                      <span className="text-muted">{l}</span>
                       <span className="text-muted">{v}</span>
                     </div>
                     <div className="h-1 overflow-hidden rounded-full bg-fg/10">
@@ -346,133 +446,256 @@ function PlatformBento() {
 }
 
 function DemoSection() {
+  const [step, setStep] = useState(0);
+  const [trust, setTrust] = useState(50);
+  const [running, setRunning] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const conversation = [
+    {
+      role: "recruiter",
+      text: "Walk me through a dashboard or report you built that actually changed how someone made a decision.",
+      trust: 50,
+      feedback: null,
+    },
+    {
+      role: "candidate",
+      text: "Yeah so we built a sales dashboard. The team used it and it helped them see the data better. It was quite useful for the business.",
+      trust: 34,
+      feedback: { label: "Trust dropped 16 pts", reason: "No ownership. No metric. Vague outcome. 'We' not 'I'.", color: "danger" },
+    },
+    {
+      role: "recruiter",
+      text: "What did YOU specifically build, and what decision did it change?",
+      trust: 34,
+      feedback: null,
+    },
+    {
+      role: "candidate",
+      text: "I built a Python pipeline that pulled from three data sources into BigQuery, then designed a Looker dashboard tracking churn signals by cohort. The sales lead used it to reprioritise 40 at-risk accounts. Within 6 weeks, churn in that segment dropped from 18% to 11%.",
+      trust: 81,
+      feedback: { label: "Trust jumped 47 pts", reason: "Tools named. Personal ownership clear. Decision identified. Metric concrete.", color: "success" },
+    },
+    {
+      role: "recruiter",
+      text: "Good. How did you decide which churn signals to track?",
+      trust: 81,
+      feedback: null,
+    },
+  ];
+
+  useEffect(() => {
+    if (!running) return;
+    if (step >= conversation.length) {
+      setRunning(false);
+      setDone(true);
+      return;
+    }
+    const delay = step === 0 ? 400 : conversation[step].role === "candidate" ? 1800 : 1200;
+    const t = window.setTimeout(() => {
+      setTrust(conversation[step].trust);
+      setStep((s) => s + 1);
+    }, delay);
+    return () => window.clearTimeout(t);
+  }, [running, step]);
+
+  function startDemo() {
+    setStep(0);
+    setTrust(50);
+    setDone(false);
+    setRunning(true);
+  }
+
+  const visibleSteps = conversation.slice(0, step);
+  const trustColor = trust >= 70 ? "#22c55e" : trust >= 55 ? "#3b82f6" : "#f59e0b";
+  const trustLabel = trust >= 70 ? "Strong signal" : trust >= 55 ? "Neutral" : "Weak signal";
+
   return (
     <section className="px-4 py-20 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl">
-        <div className="mx-auto max-w-3xl text-center">
-          <SectionLabel>How it works</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
-            Watch a live session
+        <div className="mx-auto max-w-2xl text-center">
+          <SectionLabel>Live demo</SectionLabel>
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+            Watch the trust score change in real time
           </h2>
-          <p className="mt-4 text-lg leading-8 text-muted">
-            Two minutes. Real recruiter follow-ups. Trust score updating in real time.
+          <p className="mt-4 text-lg text-muted">
+            Same candidate, same role. One vague answer drops the score. One specific answer with tools and metrics brings it back.
           </p>
         </div>
 
-        {/* Video container */}
-        <div className="relative mt-10 overflow-hidden rounded-xl border border-line bg-canvas-soft backdrop-blur-sm">
-          {/* Aspect ratio wrapper 16:9 */}
-          <div className="relative aspect-video w-full">
-
-            {/* Animated mock interview UI — shown when no video is available */}
-            <div className="absolute inset-0 flex flex-col">
-              {/* Header bar */}
-              <div className="flex items-center justify-between border-b border-line bg-canvas-soft px-5 py-3">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-                  <span className="text-xs font-black uppercase tracking-[0.18em] text-success">Live session</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-subtle">Sarah M. · Senior Hiring Manager</span>
-                  <div className="flex items-center gap-1.5 rounded-full border border-brand/20 bg-brand/10 px-2.5 py-1">
-                    <span className="text-[11px] font-black text-brand">Trust</span>
-                    <span className="text-[11px] font-black text-fg">76</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Main area */}
-              <div className="flex flex-1 gap-0 overflow-hidden">
-                {/* Recruiter side */}
-                <div className="flex w-1/2 flex-col items-center justify-center gap-4 border-r border-line p-6">
-                  <div className="relative">
-                    <img
-                      src="/recruiters/sarah.png"
-                      alt="Sarah — AI Recruiter"
-                      className="h-20 w-20 rounded-full object-cover ring-2 ring-brand/30 sm:h-24 sm:w-24"
-                    />
-                    <div className="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full bg-brand">
-                      <svg className="h-3 w-3 text-fg" fill="currentColor" viewBox="0 0 20 20"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd"/></svg>
-                    </div>
-                  </div>
-                  <div className="w-full max-w-[260px] space-y-2">
-                    <div className="rounded-lg rounded-tl-sm bg-fg/[0.06] px-4 py-3">
-                      <p className="text-[11px] leading-5 text-muted">
-                        That gives me the story. Now I need a measurable result — time saved, fewer issues, or a customer outcome. What changed after your work?
-                      </p>
-                    </div>
-                    <div className="flex gap-1">
-                      {[1,2,3].map(i => (
-                        <div key={i} className={`h-1 flex-1 rounded-full bg-brand/40`} style={{animationDelay:`${i*0.15}s`}} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Candidate + copilot side */}
-                <div className="flex w-1/2 flex-col justify-between p-4">
-                  {/* Live copilot */}
-                  <div className="rounded-lg border border-success/15 bg-success/[0.07] p-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-success">Live copilot</p>
-                    <p className="mt-1 text-[11px] leading-4 text-fg">Add one metric. E.g. &ldquo;reduced response time by 40%&rdquo; or &ldquo;resolved 95% of tickets first contact.&rdquo;</p>
-                  </div>
-
-                  {/* Trust timeline mini */}
-                  <div className="mt-3 flex-1 rounded-lg border border-line bg-canvas-soft p-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-subtle">Trust timeline</p>
-                    <div className="mt-2 flex items-end gap-1 h-10">
-                      {[55,60,58,72,68,76,74,78].map((v,i) => (
-                        <div
-                          key={i}
-                          className={`flex-1 rounded-sm ${v >= 70 ? 'bg-success/60' : v >= 60 ? 'bg-brand/50' : 'bg-warning/50'}`}
-                          style={{height:`${(v/100)*100}%`}}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Mic indicator */}
-                  <div className="mt-3 flex items-center gap-2 rounded-xl border border-line bg-fg/[0.04] px-3 py-2">
-                    <div className="h-2 w-2 rounded-full bg-danger animate-pulse" />
-                    <p className="text-[11px] text-muted">Candidate responding...</p>
-                  </div>
-                </div>
+        <div className="mt-12 overflow-hidden rounded-2xl border border-line bg-canvas shadow-xl shadow-black/[0.08]">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-line bg-canvas-soft px-5 py-3.5">
+            <div className="flex items-center gap-2.5">
+              <div className={`h-2 w-2 rounded-full ${running ? "animate-pulse bg-success" : done ? "bg-success" : "bg-muted/40"}`} />
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-muted">
+                {running ? "Interview in progress" : done ? "Session complete" : "Ready to start"}
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="hidden text-xs text-muted sm:block">Alex Chen · Technical Interviewer</span>
+              <div className="flex items-center gap-1.5 rounded-full border border-line bg-canvas px-3 py-1">
+                <span className="text-[11px] font-black text-muted">Trust</span>
+                <span className="text-[11px] font-black text-fg" style={{color: trustColor}}>{trust}</span>
+                <span className="text-[9px] text-muted">/100</span>
               </div>
             </div>
+          </div>
 
-            {/* Play overlay — links to demo page */}
-            <a
-              href="/demo"
-              className="absolute inset-0 flex items-center justify-center bg-black/30 transition hover:bg-black/20 group"
-              aria-label="Try interactive demo"
-            >
-              <div className="flex flex-col items-center gap-3">
-                <div className="grid h-16 w-16 place-items-center rounded-full border border-line bg-fg/10 shadow-2xl backdrop-blur-sm transition group-hover:scale-110 group-hover:bg-fg/20">
-                  <svg className="h-6 w-6 translate-x-0.5 text-fg" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                  </svg>
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px]">
+            {/* Conversation */}
+            <div className="min-h-[380px] space-y-4 border-b border-line p-5 lg:border-b-0 lg:border-r">
+              {step === 0 && !running && (
+                <div className="flex h-full min-h-[300px] flex-col items-center justify-center gap-6 text-center">
+                  <div className="space-y-2">
+                    <p className="text-sm font-black text-fg">See exactly what kills a candidate&apos;s chances</p>
+                    <p className="text-xs text-muted">Watch the trust score drop on a vague answer, then recover when they fix it.</p>
+                  </div>
+                  <button
+                    onClick={startDemo}
+                    className="inline-flex items-center gap-2.5 rounded-xl bg-fg px-6 py-3 text-sm font-black text-canvas shadow-lg transition hover:scale-[1.02] hover:bg-brand hover:text-on-brand"
+                  >
+                    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd"/>
+                    </svg>
+                    Play demo
+                  </button>
+                  <p className="text-[11px] text-muted">Takes 15 seconds</p>
                 </div>
-                <span className="rounded-full border border-line bg-canvas-soft px-4 py-1.5 text-xs font-black text-fg backdrop-blur-sm">
-                  Try interactive demo
-                </span>
+              )}
+
+              {visibleSteps.map((s, i) => (
+                <div key={i} className={`flex flex-col gap-2 ${s.role === "candidate" ? "items-end" : "items-start"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 ${
+                    s.role === "recruiter"
+                      ? "rounded-tl-sm bg-fg/[0.06] text-fg"
+                      : "rounded-tr-sm bg-brand text-white"
+                  }`}>
+                    {s.role === "recruiter" && (
+                      <p className="mb-1 text-[10px] font-black uppercase tracking-wide text-muted">Sarah Chen</p>
+                    )}
+                    {s.text}
+                  </div>
+                  {s.feedback && (
+                    <div className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-xs max-w-[85%] ${
+                      s.feedback.color === "success"
+                        ? "border-success/20 bg-success/[0.07] text-success"
+                        : "border-warning/20 bg-warning/[0.07] text-warning"
+                    }`}>
+                      <span className="mt-0.5 shrink-0 font-black">{s.feedback.color === "success" ? "+" : "−"}</span>
+                      <div>
+                        <p className="font-black">{s.feedback.label}</p>
+                        <p className="mt-0.5 opacity-80">{s.feedback.reason}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {running && step < conversation.length && (
+                <div className={`flex ${conversation[step]?.role === "candidate" ? "justify-end" : "justify-start"}`}>
+                  <div className="flex items-center gap-1.5 rounded-2xl bg-fg/[0.06] px-4 py-3">
+                    {[0,1,2].map(i => (
+                      <div key={i} className="h-1.5 w-1.5 rounded-full bg-muted animate-bounce" style={{animationDelay:`${i*0.15}s`}} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {done && (
+                <div className="rounded-xl border border-line bg-canvas-soft p-4 text-center">
+                  <p className="text-xs font-black text-fg">Ready to practice this yourself?</p>
+                  <Link href="/onboarding" className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-fg px-4 py-2 text-xs font-black text-canvas transition hover:bg-brand hover:text-on-brand">
+                    Start your interview
+                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Live score panel */}
+            <div className="p-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">Recruiter trust score</p>
+
+              {/* Big score */}
+              <div className="mt-4 flex items-end gap-2">
+                <span className="text-5xl font-black tabular-nums transition-all duration-700" style={{color: trustColor}}>{trust}</span>
+                <span className="mb-1.5 text-sm text-muted">/100</span>
               </div>
-            </a>
+              <p className="mt-1 text-xs font-black" style={{color: trustColor}}>{trustLabel}</p>
+
+              {/* Trust bar */}
+              <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-fg/[0.07]">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{width:`${trust}%`, backgroundColor: trustColor}}
+                />
+              </div>
+
+              {/* Score history */}
+              <div className="mt-6">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">This session</p>
+                <div className="mt-3 flex items-end gap-1 h-16">
+                  {[50, ...(visibleSteps.filter(s => s.trust !== undefined).map(s => s.trust))].map((v, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 rounded-sm transition-all duration-500"
+                      style={{
+                        height:`${(v/100)*100}%`,
+                        backgroundColor: v >= 70 ? "#22c55e" : v >= 55 ? "#3b82f6" : "#f59e0b",
+                        opacity: 0.7
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* What recruiters look for */}
+              <div className="mt-6 space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">What Alex notices</p>
+                {[
+                  { label: "Tools named (Python, BigQuery, Looker)", ok: step >= 4 },
+                  { label: "Personal ownership clear", ok: step >= 4 },
+                  { label: "Metric with before/after", ok: step >= 4 },
+                  { label: "Business decision linked", ok: step >= 4 },
+                ].map(item => (
+                  <div key={item.label} className="flex items-center gap-2">
+                    <div className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 transition-colors duration-500 ${
+                      item.ok ? "border-success bg-success" : "border-line bg-transparent"
+                    }`}>
+                      {item.ok && (
+                        <svg className="h-full w-full text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                        </svg>
+                      )}
+                    </div>
+                    <span className={`text-xs transition-colors duration-500 ${item.ok ? "font-black text-fg" : "text-muted"}`}>
+                      {item.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {done && (
+                <button
+                  onClick={startDemo}
+                  className="mt-6 w-full rounded-lg border border-line bg-fg/[0.04] py-2 text-xs font-black text-muted transition hover:bg-fg/[0.08]"
+                >
+                  Replay
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Caption row */}
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-4 text-[11px] text-subtle">
-          {["Questions built from the actual CV", "Live trust score per answer", "Follow-ups based on what was said", "Weakest moment flagged with reasoning"].map((label) => (
-            <div key={label} className="flex items-center gap-1.5">
-              <div className="h-1 w-1 rounded-full bg-brand/60" />
-              {label}
-            </div>
-          ))}
-        </div>
+        <p className="mt-4 text-center text-xs text-muted">
+          This is what WorkZo shows you after every answer. Your real session uses your CV and the actual job.
+        </p>
       </div>
     </section>
   );
 }
+
 
 function TestimonialsSection() {
   return (
@@ -528,7 +751,7 @@ function TestimonialsSection() {
                 )}
                 <div>
                   <p className="text-sm font-black text-fg">{t.name}</p>
-                  <p className="text-[11px] text-subtle">{t.role} · {t.location}</p>
+                  <p className="text-[11px] text-muted">{t.role} · {t.location}</p>
                 </div>
               </div>
             </div>
@@ -546,15 +769,15 @@ function RecruiterPersonasSection() {
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>Meet your interviewers</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
-            4 AI recruiters. Each one harder than the last.
+            11 AI recruiters. Each one built to expose something different.
           </h2>
           <p className="mt-4 text-lg leading-8 text-muted">
             Every recruiter has a distinct style, pressure level, and way of exposing weak answers.
-            Practice against all four before the real interview.
+            Practice across all 11 before the real interview.
           </p>
         </div>
 
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {RECRUITER_PERSONAS.map((p) => (
             <div
               key={p.name}
@@ -566,25 +789,31 @@ function RecruiterPersonasSection() {
               </span>
 
               {/* Avatar */}
-              <img
-                src={p.image}
-                alt={p.name}
-                className="h-14 w-14 rounded-full ring-1 ring-line"
-              />
+              {p.image ? (
+                <img
+                  src={p.image}
+                  alt={p.name}
+                  className="h-14 w-14 rounded-full ring-1 ring-line"
+                />
+              ) : (
+                <span className="grid h-14 w-14 place-items-center rounded-full bg-fg/[0.07] text-2xl ring-1 ring-line">
+                  {p.emoji}
+                </span>
+              )}
 
               {/* Name + title */}
               <p className="mt-4 text-base font-black text-fg">{p.name}</p>
               <p className={`mt-0.5 text-[11px] font-black uppercase tracking-[0.14em] ${p.accentStyle}`}>{p.title}</p>
 
               {/* Style tag */}
-              <p className="mt-1 text-[11px] text-subtle">{p.style}</p>
+              <p className="mt-1 text-[11px] text-muted">{p.style}</p>
 
               {/* Description */}
               <p className="mt-3 flex-1 text-xs leading-5 text-muted">{p.description}</p>
 
               {/* Difficulty dots */}
               <div className="mt-4 flex items-center gap-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-subtle">Difficulty</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted">Difficulty</p>
                 <div className="flex gap-1">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <span
@@ -598,8 +827,8 @@ function RecruiterPersonasSection() {
           ))}
         </div>
 
-        <p className="mt-8 text-center text-sm text-subtle">
-          Standard personas available on all plans · Premium personas included in Premium Pro
+        <p className="mt-8 text-center text-sm text-muted">
+          Free personas available on all plans · Premium personas on Premium · Pro personas on Premium Pro
         </p>
       </div>
     </section>
@@ -607,7 +836,7 @@ function RecruiterPersonasSection() {
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm font-black uppercase tracking-[0.20em] text-subtle">{children}</p>;
+  return <p className="text-sm font-black uppercase tracking-[0.20em] text-muted">{children}</p>;
 }
 
 function FaqItem({ question, answer }: { question: string; answer: string }) {
@@ -659,7 +888,7 @@ export default function LandingPage() {
 
       {/* ── Hero ── */}
       <section className="relative isolate overflow-hidden">
-        {/* Cinematic glow — deep blue spotlight from above, fades to nothing */}
+        {/* Cinematic glow: deep blue spotlight from above, fades to nothing */}
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_110%_65%_at_50%_-5%,rgba(37,99,235,0.38)_0%,rgba(14,50,140,0.18)_40%,transparent_70%)]" />
         <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-3">
@@ -681,7 +910,9 @@ export default function LandingPage() {
                 <ChevronDown className="h-4 w-4" />
               </button>
 
-              <div className="invisible absolute left-0 top-full z-50 mt-4 w-72 translate-y-2 rounded-lg border border-line bg-canvas/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+              {/* Invisible bridge prevents hover gap between button and menu */}
+              <div className="absolute left-0 top-full h-3 w-full" />
+              <div className="invisible absolute left-0 top-full z-50 mt-1 w-72 translate-y-1 rounded-lg border border-line bg-canvas/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
                 {[
                   ["How it works", "/features/interview-practice", "See how the recruiter reads the CV and where offers are lost."],
                   ["Improve CV", "/features/improve-cv", "View CV optimization details before upgrading."],
@@ -692,10 +923,10 @@ export default function LandingPage() {
                   <Link
                     key={title}
                     href={href}
-                    className="block rounded-xl px-3 py-2.5 transition hover:bg-fg/10"
+                    className="block rounded-xl px-3 py-2.5 transition hover:bg-fg/10 cursor-pointer"
                   >
                     <span className="block text-sm font-black text-fg">{title}</span>
-                    <span className="mt-0.5 block text-xs leading-5 text-subtle">{text}</span>
+                    <span className="mt-0.5 block text-xs leading-5 text-muted">{text}</span>
                   </Link>
                 ))}
               </div>
@@ -713,7 +944,9 @@ export default function LandingPage() {
                 <ChevronDown className="h-4 w-4" />
               </button>
 
-              <div className="invisible absolute left-0 top-full z-50 mt-4 w-72 translate-y-2 rounded-lg border border-line bg-canvas/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+              {/* Invisible bridge prevents hover gap */}
+              <div className="absolute left-0 top-full h-3 w-full" />
+              <div className="invisible absolute left-0 top-full z-50 mt-1 w-72 translate-y-1 rounded-lg border border-line bg-canvas/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
                 {[
                   ["Resources", "/resources", "Interview, CV, and job-search guides."],
                   ["About", "/about", "Meet Haritha and the WorkZo AI story."],
@@ -729,7 +962,7 @@ export default function LandingPage() {
                     className="block rounded-xl px-3 py-2.5 transition hover:bg-fg/10"
                   >
                     <span className="block text-sm font-black text-fg">{title}</span>
-                    <span className="mt-0.5 block text-xs leading-5 text-subtle">{text}</span>
+                    <span className="mt-0.5 block text-xs leading-5 text-muted">{text}</span>
                   </Link>
                 ))}
               </div>
@@ -746,7 +979,7 @@ export default function LandingPage() {
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted sm:text-xl">
-              WorkZo reads the CV, the role, and the company. Then it asks the exact questions a recruiter would — with follow-ups, pressure, and a live trust score that shows exactly where the interview turned.
+              WorkZo reads the CV, the role, and the company. Then it asks the exact questions a recruiter would, with follow-ups, pressure, and a live trust score that shows exactly where the interview turned.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -781,19 +1014,19 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {[
-              ["500+", "sessions run"],
-              ["74", "Avg. trust improvement"],
-              ["10+", "Countries"],
-              ["4", "recruiter personas"],
+              ["11", "recruiter personas"],
+              ["15", "supported languages"],
+              ["3", "plan tiers"],
+              ["Free", "to try, no card needed"],
             ].map(([number, label]) => (
               <div key={label} className="rounded-lg border border-line bg-canvas-soft p-6 text-center backdrop-blur-sm">
                 <p className="text-4xl font-black text-fg">{number}</p>
-                <p className="mt-1 text-sm text-subtle">{label}</p>
+                <p className="mt-1 text-sm text-muted">{label}</p>
               </div>
             ))}
           </div>
-          <p className="mt-4 text-center text-xs text-subtle">
-            Built to show what recruiters notice — and what candidates never see coming.
+          <p className="mt-4 text-center text-xs text-muted">
+            Built to show what recruiters notice, and what candidates never see coming.
           </p>
         </div>
       </section>
@@ -835,7 +1068,7 @@ export default function LandingPage() {
                   <span className="text-[9px] font-black text-fg">02</span>
                 </div>
                 <div className="flex-1 rounded-lg border border-line bg-canvas-soft px-4 py-3 backdrop-blur-sm">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-subtle">Candidate Answer</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">Candidate Answer</p>
                   <p className="mt-1.5 text-sm leading-6 text-muted italic">
                     &ldquo;I handled many difficult customers and always tried to resolve issues quickly.&rdquo;
                   </p>
@@ -907,10 +1140,10 @@ export default function LandingPage() {
             },
           ].map((card) => (
             <div key={card.title} className="rounded-xl border border-line bg-canvas-soft p-6 backdrop-blur-sm">
-              <p className="mb-4 text-sm font-black uppercase tracking-[0.18em] text-subtle">{card.title}</p>
+              <p className="mb-4 text-sm font-black uppercase tracking-[0.18em] text-muted">{card.title}</p>
               <div className="space-y-3">
                 <div className="rounded-xl bg-fg/[0.05] p-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-subtle">Candidate</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted">Candidate</p>
                   <p className="mt-1 text-sm leading-5 text-muted">&ldquo;{card.candidate}&rdquo;</p>
                 </div>
                 <div className="rounded-xl border border-danger/20 bg-danger/[0.07] p-3">
@@ -922,7 +1155,7 @@ export default function LandingPage() {
           ))}
         </div>
 
-        <p className="mx-auto mt-8 max-w-xl text-center text-sm leading-7 text-subtle">
+        <p className="mx-auto mt-8 max-w-xl text-center text-sm leading-7 text-muted">
           WorkZo catches these mistakes before the real interview.
         </p>
       </section>
@@ -951,7 +1184,7 @@ export default function LandingPage() {
 
             {/* Card body */}
             <div className="grid gap-5 p-5 md:grid-cols-2">
-              {/* Left — Trust Score + Timeline */}
+              {/* Left: Trust Score + Timeline */}
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="grid h-20 w-20 shrink-0 place-items-center rounded-full border-[8px] border-brand/50 bg-brand/10">
@@ -959,12 +1192,12 @@ export default function LandingPage() {
                   </div>
                   <div>
                     <p className="text-sm font-black text-fg">Recruiter Trust Score</p>
-                    <p className="mt-0.5 text-xs text-subtle">/ 100</p>
+                    <p className="mt-0.5 text-xs text-muted">/ 100</p>
                   </div>
                 </div>
 
                 <div className="rounded-lg border border-line bg-fg/[0.03] p-4">
-                  <p className="mb-3 text-[10px] font-black uppercase tracking-[0.18em] text-subtle">
+                  <p className="mb-3 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
                     Trust Timeline
                   </p>
                   <div className="space-y-2.5">
@@ -976,7 +1209,7 @@ export default function LandingPage() {
                       { q: "Q5", v: 74, color: "bg-brand/60", drop: false },
                     ].map(({ q, v, color, drop }) => (
                       <div key={q} className="flex items-center gap-3">
-                        <p className="w-5 shrink-0 text-[11px] text-subtle">{q}</p>
+                        <p className="w-5 shrink-0 text-[11px] text-muted">{q}</p>
                         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-fg/10">
                           <div className={`h-full rounded-full ${color}`} style={{ width: `${v}%` }} />
                         </div>
@@ -990,7 +1223,7 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              {/* Right — Weakest Answer, Recruiter Thoughts, Improvement Plan */}
+              {/* Right: Weakest Answer, Recruiter Thoughts, Improvement Plan */}
               <div className="space-y-4">
                 <div className="rounded-lg border border-warning/20 bg-warning/[0.07] p-4">
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-warning">
@@ -1002,11 +1235,11 @@ export default function LandingPage() {
                 </div>
 
                 <div className="rounded-lg border border-line bg-fg/[0.04] p-4">
-                  <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-subtle">
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
                     Recruiter Thoughts
                   </p>
                   <p className="text-sm text-muted">Candidate sounds experienced.</p>
-                  <p className="mt-1 text-sm text-subtle">Evidence is missing.</p>
+                  <p className="mt-1 text-sm text-muted">Evidence is missing.</p>
                 </div>
 
                 <div className="rounded-lg border border-success/20 bg-success/[0.07] p-4">
@@ -1076,9 +1309,9 @@ export default function LandingPage() {
         <div className="mx-auto mt-8 max-w-4xl overflow-hidden rounded-xl border border-line bg-canvas-soft backdrop-blur-sm">
           {/* Table header */}
           <div className="grid grid-cols-[1fr_1fr_1fr] border-b border-line bg-fg/[0.04] px-5 py-3.5">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-subtle">Feature</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-muted">Feature</p>
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-brand">WorkZo AI</p>
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-subtle">Typical Apps</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-muted">Typical Apps</p>
           </div>
 
           {COMPARISON_ROWS.map(([feature, workzo, typical], i) => (
@@ -1126,11 +1359,11 @@ export default function LandingPage() {
             {/* Free */}
             <div className="flex flex-col rounded-xl border border-line bg-fg/[0.03] p-6">
               <div className="mb-5 h-6">
-                <span className="inline-flex items-center rounded-full border border-line bg-fg/5 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-subtle">
+                <span className="inline-flex items-center rounded-full border border-line bg-fg/5 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
                   Free forever
                 </span>
               </div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-subtle">Free</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-muted">Free</p>
               <h3 className="mt-1.5 text-lg font-black leading-snug text-fg">Start here</h3>
               <p className="mt-4 text-4xl font-black text-fg sm:text-3xl">{localizedPlans.free.amount}</p>
               <p className="mt-3 text-sm leading-6 text-muted">
@@ -1143,7 +1376,7 @@ export default function LandingPage() {
                   "CV-aware recruiter questions",
                   "Follow-ups based on what was said",
                   "Post-session breakdown",
-                  "3 recruiter personas",
+                  "4 recruiter personas",
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-2.5">
                     <CheckCircle2 className="mt-0.5 h-[15px] w-[15px] shrink-0 text-success" />
@@ -1154,7 +1387,7 @@ export default function LandingPage() {
                   {["Session history", "CV diagnostics", "Live AI recruiter"].map((item) => (
                     <div key={item} className="flex items-start gap-2.5">
                       <div className="mt-[5px] h-[6px] w-[6px] shrink-0 rounded-full bg-fg/15" />
-                      <span className="text-sm leading-[1.45] text-subtle">{item}</span>
+                      <span className="text-sm leading-[1.45] text-muted">{item}</span>
                     </div>
                   ))}
                 </div>
@@ -1174,15 +1407,15 @@ export default function LandingPage() {
                   Most popular
                 </span>
               </div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-subtle">Premium</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-muted">Premium</p>
               <h3 className="mt-1.5 text-lg font-black leading-snug text-fg">Full readiness system</h3>
               <div className="mt-4 flex flex-wrap items-baseline gap-2">
                 <span className="text-sm font-black text-subtle line-through decoration-2">{localizedPlans.premium.regular}</span>
                 <span className="text-4xl font-black text-fg sm:text-3xl">{localizedPlans.premium.amount}</span>
-                <span className="text-base text-subtle">/month</span>
+                <span className="text-base text-muted">/month</span>
               </div>
               <p className="mt-3 text-sm leading-6 text-muted">
-                Everything needed to close the gap — sessions, CV diagnostics, cover letters, and full history.
+                Everything needed to close the gap: sessions, CV diagnostics, cover letters, and full history.
               </p>
               <p className="mt-2 text-xs font-black text-success">
                 24-hour free trial · cancel anytime before charged
@@ -1219,12 +1452,12 @@ export default function LandingPage() {
                   Full system
                 </span>
               </div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-subtle">Premium Pro</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-muted">Premium Pro</p>
               <h3 className="mt-1.5 text-lg font-black leading-snug text-fg">Long-term career system</h3>
               <div className="mt-4 flex flex-wrap items-baseline gap-2">
                 <span className="text-sm font-black text-subtle line-through decoration-2">{localizedPlans.premiumPro.regular}</span>
                 <span className="text-4xl font-black text-fg sm:text-3xl">{localizedPlans.premiumPro.amount}</span>
-                <span className="text-base text-subtle">/month</span>
+                <span className="text-base text-muted">/month</span>
               </div>
               <p className="mt-3 text-sm leading-6 text-muted">
                 For candidates who want more than one-off prep. Builds session to session.
@@ -1272,12 +1505,12 @@ export default function LandingPage() {
           </div>
           <div className="space-y-2">
             {[
-              ["Is WorkZo just another question bank?", "No. The recruiter reacts to exactly what was said — follow-up questions, pushback, and trust scores change based on each answer. There are no preset scripts."],
-              ["How realistic are the recruiters?", "Each persona is built on real hiring patterns. German recruiters probe timelines and scope. US recruiters want ownership and metrics. The pressure is not random — it follows a logic."],
+              ["Is WorkZo just another question bank?", "No. The recruiter reacts to exactly what was said. Follow-up questions, pushback, and trust scores change based on each answer. There are no preset scripts."],
+              ["How realistic are the recruiters?", "Each persona is built on real hiring patterns. German recruiters probe timelines and scope. US recruiters want ownership and metrics. The pressure is not random. It follows a logic."],
               ["What does the trust score actually measure?", "Recruiter confidence, updated after each answer. A drop means something was vague, ownership was unclear, or a claim went unproven. The timeline shows exactly which answer caused it."],
               ["Does it read my actual CV?", "Yes. Upload or paste a CV and the recruiter asks about the specific roles, gaps, and claims in it. Generic prep tools cannot do that."],
-              ["What does the report show?", "Trust score per question, the exact moment confidence dropped, the follow-up that would have come next, and a specific improvement plan — not general tips."],
-              ["Which languages work?", "English, German, Dutch, French, Spanish, Italian, and Portuguese. The recruiter speaks in the selected language — not just the interface."],
+              ["What does the report show?", "Trust score per question, the exact moment confidence dropped, the follow-up that would have come next, and a specific improvement plan, not general tips."],
+              ["Which languages work?", "English, German, Dutch, French, Spanish, Italian, and Portuguese. The recruiter speaks in the selected language, not just the interface."],
             ].map(([question, answer]) => (
               <FaqItem key={question} question={question} answer={answer} />
             ))}

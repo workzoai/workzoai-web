@@ -275,7 +275,7 @@ export default function PricingPage() {
         </div>
 
         <section className="mx-auto mt-10 max-w-4xl text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/8 px-3 py-1.5 text-xs font-black uppercase tracking-[0.20em] text-brand">
+          <div className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/8 px-3 py-1.5 text-xs font-black uppercase tracking-[0.20em] text-muted">
             <Sparkles className="h-3.5 w-3.5" />
             Monthly and yearly plans
           </div>
@@ -342,7 +342,7 @@ export default function PricingPage() {
                   isPremium ? "border-brand/50 bg-canvas" : "border-line bg-fg/[0.03]",
                 )}
               >
-                {/* Badge — always takes same height so cards align */}
+                {/* Badge: always takes same height so cards align */}
                 <div className="mb-5 h-6">
                   {plan.badge && (
                     <span className={cn(
@@ -350,8 +350,8 @@ export default function PricingPage() {
                       isFree
                         ? "border border-line bg-fg/5 text-subtle"
                         : isPremium
-                          ? "bg-brand/20 text-brand"
-                          : "bg-brand/15 text-brand",
+                          ? "bg-brand/20 text-muted"
+                          : "bg-brand/15 text-muted",
                     )}>
                       {plan.badge}
                     </span>
@@ -375,7 +375,7 @@ export default function PricingPage() {
                   </p>
                 )}
                 {isPro && (
-                  <p className="mt-2 text-xs font-black text-brand">
+                  <p className="mt-2 text-xs font-black text-muted">
                     2 free live recruiter minutes included
                   </p>
                 )}
@@ -395,7 +395,7 @@ export default function PricingPage() {
                     </div>
                   ))}
 
-                  {/* Not-included — muted, no XCircle */}
+                  {/* Not-included: muted, no XCircle */}
                   {plan.notIncluded.length > 0 && (
                     <div className="mt-4 space-y-2.5 border-t border-line pt-4">
                       {plan.notIncluded.map((item) => (
@@ -408,7 +408,7 @@ export default function PricingPage() {
                   )}
                 </div>
 
-                {/* CTA — always at bottom */}
+                {/* CTA: always at bottom */}
                 <button
                   type="button"
                   onClick={() => choosePlan(card.id)}
@@ -449,7 +449,7 @@ export default function PricingPage() {
 
         <section className="mt-14 overflow-hidden rounded-lg border border-line bg-fg/[0.03]">
           <div className="border-b border-line p-6">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-brand">Plan breakdown</p>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-muted">Plan breakdown</p>
             <h2 className="mt-2 text-2xl font-black sm:text-3xl">What each plan actually includes</h2>
           </div>
           <div className="overflow-x-auto">
@@ -464,8 +464,8 @@ export default function PricingPage() {
                 <div key={row.label} className={cn("grid grid-cols-[1.35fr_0.75fr_0.85fr_0.95fr] px-5 py-4 text-sm", index % 2 === 0 ? "bg-fg/[0.025]" : "bg-transparent")}>
                   <p className="font-bold text-fg">{row.label}</p>
                   <p className="text-muted">{row.free}</p>
-                  <p className="font-black text-brand">{row.premium}</p>
-                  <p className="font-black text-brand">{row.premiumPro}</p>
+                  <p className="font-black text-muted">{row.premium}</p>
+                  <p className="font-black text-muted">{row.premiumPro}</p>
                 </div>
               ))}
             </div>
@@ -510,8 +510,8 @@ export default function PricingPage() {
               )}>{item.icon}</div>
               <p className={cn(
                 "mt-4 text-[10px] font-black uppercase tracking-[0.18em]",
-                item.accent === "blue" ? "text-brand" :
-                item.accent === "violet" ? "text-brand" :
+                item.accent === "blue" ? "text-muted" :
+                item.accent === "violet" ? "text-muted" :
                 "text-success"
               )}>{item.subtitle}</p>
               <h3 className="mt-1 text-lg font-black">{item.title}</h3>

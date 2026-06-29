@@ -6,17 +6,17 @@ import { ArrowLeft, ArrowRight, ChevronDown, Sparkles } from "lucide-react";
 import WorkZoFooter from "@/components/WorkZoFooter";
 
 const faqs = [
-  { q: "How does WorkZo AI work?", cat: "product", a: "You upload or paste your CV and the job description you are targeting. WorkZo AI builds an AI recruiter that asks follow-up questions based on your actual experience — not a generic question bank. After each answer you see a live trust score and exactly why it rose or fell." },
-  { q: "Is this a real recruiter?", cat: "product", a: "No. WorkZo AI is interview preparation. It simulates realistic recruiter-style conversations to help you practise — it does not represent any employer and does not guarantee interviews or offers." },
+  { q: "How does WorkZo AI work?", cat: "product", a: "You upload or paste your CV and the job description you are targeting. WorkZo AI builds an AI recruiter that asks follow-up questions based on your actual experience, not a generic question bank. After each answer you see a live trust score and exactly why it rose or fell." },
+  { q: "Is this a real recruiter?", cat: "product", a: "No. WorkZo AI is interview preparation. It simulates realistic recruiter-style conversations to help you practise: it does not represent any employer and does not guarantee interviews or offers." },
   { q: "What makes WorkZo AI different?", cat: "product", a: "Most tools give you a list of generic questions. WorkZo reads your CV and JD, then asks follow-up questions based on what you actually said. If you claim experience not in your CV, the recruiter challenges it in real time. The trust score updates as you answer so you know exactly what is working." },
   { q: "What is in the Free plan?", cat: "plans", a: "Free gives you 2 voice AI interviews per month, a basic interview score, and standard recruiters. It lets you experience the engine before upgrading." },
   { q: "What does Premium unlock?", cat: "plans", a: "Premium (€19.99/month) gives you 50 voice interviews, full advanced reports, Improve CV with ATS keyword analysis, Cover Letter generation, Job Assist with fit scores and likely questions, Career Brain memory, and performance tracking." },
   { q: "What is Premium Pro?", cat: "plans", a: "Premium Pro (€39.99/month) is the complete career acceleration system. Unlimited voice interviews, 60 Live AI Recruiter minutes, 7 premium personas, AI Career Coach, 30/60/90 day career roadmaps, Replay Intelligence, and priority AI models." },
   { q: "Can I cancel anytime?", cat: "plans", a: "Yes. No lock-in. Cancel at any time and keep access until the end of your billing period." },
   { q: "Does it work for any job or industry?", cat: "global", a: "Yes. WorkZo AI adapts to the job description you provide. It has been tested across tech, finance, sales, customer success, consulting, data, product, and support roles." },
-  { q: "What languages are supported?", cat: "global", a: "English, German, Dutch, French, Spanish, Italian, and Portuguese. The recruiter conducts the full interview in your selected language — not just the UI translation." },
+  { q: "What languages are supported?", cat: "global", a: "English, German, Dutch, French, Spanish, Italian, and Portuguese. The recruiter conducts the full interview in your selected language, not just the UI translation." },
   { q: "How does WorkZo AI handle my CV data?", cat: "privacy", a: "Your CV and job context are used only to generate practice questions within your session. We do not share your data with employers. You can request deletion at any time by emailing support@workzoai.com." },
-  { q: "How accurate is the recruiter feedback?", cat: "product", a: "The feedback is AI-generated coaching guidance. It helps improve structure, evidence, ownership, and clarity — but it is not a real hiring decision. Validate important feedback with a human mentor or career coach." },
+  { q: "How accurate is the recruiter feedback?", cat: "product", a: "The feedback is AI-generated coaching guidance. It helps improve structure, evidence, ownership, and clarity: but it is not a real hiring decision. Validate important feedback with a human mentor or career coach." },
 ];
 
 const cats = [
@@ -58,12 +58,12 @@ export default function FaqPage() {
         </Link>
 
         <header className="mt-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-brand">
+          <div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-muted">
             <Sparkles className="h-3.5 w-3.5" /> FAQ
           </div>
           <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-3xl">Frequently asked questions</h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-muted">
-            Everything you need to know about WorkZo AI — the product, the plans, your data, and how the intelligence works.
+            Everything you need to know about WorkZo AI: the product, the plans, your data, and how the intelligence works.
           </p>
         </header>
 

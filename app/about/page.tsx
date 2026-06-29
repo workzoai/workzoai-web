@@ -24,7 +24,7 @@ const principles = [
   {
     icon: Mic,
     title: "Realistic recruiter practice",
-    body: "Real follow-up questions based on what you actually say — not a generic question bank. Every session adapts to your CV and the exact role you applied for.",
+    body: "Real follow-up questions based on what you actually say, not a generic question bank. Every session adapts to your CV and the exact role you applied for.",
   },
   {
     icon: TrendingUp,
@@ -66,7 +66,7 @@ export default function AboutPage() {
           </Link>
 
           <div className="mt-12 grid items-center gap-10 lg:grid-cols-[1fr_1.4fr]">
-            {/* Photo — compact, professional headshot style */}
+            {/* Photo: compact, professional headshot style */}
             <div className="mx-auto w-full max-w-[260px] lg:mx-0 lg:max-w-[280px]">
               <div className="relative overflow-hidden rounded-2xl border border-line shadow-xl shadow-brand/40">
                 <div className="relative aspect-[3/4] overflow-hidden bg-canvas">
@@ -82,14 +82,14 @@ export default function AboutPage() {
                 {/* Name badge pinned to bottom of photo */}
                 <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pb-4 pt-10">
                   <p className="text-sm font-black text-fg leading-tight">Haritha Vijayakumar</p>
-                  <p className="text-xs text-brand font-semibold mt-0.5">Founder, WorkZo AI</p>
+                  <p className="text-xs text-muted font-semibold mt-0.5">Founder, WorkZo AI</p>
                 </div>
               </div>
             </div>
 
             {/* Bio */}
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-2 text-xs font-black uppercase tracking-[0.24em] text-brand">
+              <div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-2 text-xs font-black uppercase tracking-[0.24em] text-muted">
                 <Sparkles className="h-4 w-4" />
                 The founder
               </div>
@@ -97,7 +97,7 @@ export default function AboutPage() {
               <h1 className="mt-6 text-4xl font-black tracking-[-0.05em] sm:text-4xl">
                 Haritha<br />Vijayakumar
               </h1>
-              <p className="mt-3 text-xl font-black text-brand">
+              <p className="mt-3 text-xl font-black text-muted">
                 Founder & Builder, WorkZo AI
               </p>
 
@@ -141,12 +141,12 @@ export default function AboutPage() {
       <section className="px-5 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto max-w-3xl text-center">
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-brand">The problem</p>
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-muted">The problem</p>
             <h2 className="mt-3 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
               Most people lose interviews they were qualified for.
             </h2>
             <p className="mt-5 text-base leading-8 text-muted">
-              The gap between being qualified and getting the offer comes down to one thing: how you communicate under pressure. Existing prep tools give you more questions to memorise. WorkZo gives you a mirror — showing recruiter trust rising and falling in real time, so you know exactly what to fix.
+              The gap between being qualified and getting the offer comes down to one thing: how you communicate under pressure. Existing prep tools give you more questions to memorise. WorkZo gives you a mirror: showing recruiter trust rising and falling in real time, so you know exactly what to fix.
             </p>
           </div>
 
@@ -170,7 +170,7 @@ export default function AboutPage() {
       {/* ── Journey ── */}
       <section className="px-5 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl rounded-lg border border-line bg-fg/[0.025] p-8 sm:p-10">
-          <p className="text-xs font-black uppercase tracking-[0.24em] text-brand">The journey</p>
+          <p className="text-xs font-black uppercase tracking-[0.24em] text-muted">The journey</p>
           <h2 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">From idea to product</h2>
 
           <div className="mt-8 space-y-0">
@@ -185,7 +185,7 @@ export default function AboutPage() {
                   )}
                 </div>
                 <div className="pb-8">
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-brand">{m.year}</p>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-muted">{m.year}</p>
                   <p className="mt-1 text-sm leading-6 text-muted">{m.event}</p>
                 </div>
               </div>
@@ -197,12 +197,12 @@ export default function AboutPage() {
       {/* ── Values ── */}
       <section className="px-5 pb-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl rounded-lg border border-line bg-fg/[0.035] p-8 sm:p-10">
-          <p className="text-xs font-black uppercase tracking-[0.24em] text-brand">What we stand for</p>
+          <p className="text-xs font-black uppercase tracking-[0.24em] text-muted">What we stand for</p>
           <h2 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">Built on a few simple beliefs</h2>
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {[
-              "Practice should feel like the real interview — not a quiz.",
+              "Practice should feel like the real interview, not a quiz.",
               "Every candidate deserves to know why they failed, not just that they did.",
               "The best prep tool is one that gets smarter the more you use it.",
             ].map((item) => (

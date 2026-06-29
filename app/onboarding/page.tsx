@@ -73,7 +73,7 @@ const companyStyles: CompanyStyle[] = ["Realistic", "Startup", "Corporate", "Tec
 const recruiters: { key: RecruiterKey; name: string; role: string; avatar: string; quote: string; description: string }[] = [
   { key: "friendly_hr", name: "Sarah", role: "Friendly HR", avatar: "👩🏻‍💼", quote: "I'd love to understand how you work with people.", description: "Warm, supportive, and communication-focused. Good for all experience levels." },
   { key: "analytical_hiring_manager", name: "Daniel", role: "Hiring Manager", avatar: "👨🏻‍💼", quote: "Can you prove the business impact behind that answer?", description: "Evidence-driven and focused on measurable impact." },
-  { key: "startup_recruiter", name: "Priya", role: "Supportive Recruiter", avatar: "👩🏽‍💼", quote: "What did you learn from that experience — and how has it shaped how you work?", description: "Warm and growth-focused. Great for freshers, career changers, and first interviews." },
+  { key: "startup_recruiter", name: "Priya", role: "Supportive Recruiter", avatar: "👩🏽‍💼", quote: "What did you learn from that experience, and how has it shaped how you work?", description: "Warm and growth-focused. Great for freshers, career changers, and first interviews." },
   { key: "german_corporate", name: "Markus", role: "Corporate Recruiter", avatar: "👨🏼‍💼", quote: "Please keep the answer concise and relevant.", description: "Structured, professional, and process-oriented." },
   { key: "faang_hiring_manager", name: "Alex Chen", role: "Technical Interviewer", avatar: "👨🏻‍💻", quote: "Walk me through the trade-off you made and how you measured success.", description: "Technical depth, system design, and code review. Includes a live code workspace. Ideal for engineers and coding bootcamp graduates." },
 ];
@@ -81,7 +81,7 @@ const recruiters: { key: RecruiterKey; name: string; role: string; avatar: strin
 const proRecruiters: { key: RecruiterKey; name: string; role: string; avatar: string; quote: string; description: string }[] = [
   { key: "startup_founder", name: "Zoe Park", role: "Startup Founder", avatar: "👩🏻‍🚀", quote: "What broke, what did you own, and what would you do differently at 10x scale?", description: "Moves fast, hates buzzwords, rewards radical ownership. Expects you to talk about failure honestly." },
   { key: "consulting_partner", name: "James Harrington", role: "Consulting Partner", avatar: "👨🏻‍💼", quote: "Structure your answer. Situation, what was at stake, and your recommendation.", description: "Case-style pressure, frameworks, and structured delivery. Will redirect a rambling answer." },
-  { key: "sales_director", name: "Noah Jones", role: "Sales Director", avatar: "👨🏾‍💼", quote: "Give me a number. Revenue impact, quota attainment, deal size — be specific.", description: "Numbers-first, commercial mindset. Will push you to quantify everything." },
+  { key: "sales_director", name: "Noah Jones", role: "Sales Director", avatar: "👨🏾‍💼", quote: "Give me a number. Revenue impact, quota attainment, deal size: be specific.", description: "Numbers-first, commercial mindset. Will push you to quantify everything." },
   { key: "product_leader", name: "Aisha Patel", role: "Product Leader", avatar: "👩🏾‍💼", quote: "How did you decide what NOT to build, and what was the user evidence?", description: "User empathy, prioritisation, and cross-functional influence. Expects product sense." },
   { key: "executive_recruiter", name: "Victoria Stern", role: "Executive Recruiter", avatar: "👩🏼‍💼", quote: "What would your last manager say is your biggest development area? Be honest.", description: "Senior-level strategic questioning. Expects board-ready communication and leadership narrative." },
   { key: "enterprise_recruiter", name: "David Kimura", role: "Enterprise Recruiter", avatar: "👨🏻‍💼", quote: "How did you manage stakeholders at different levels? Give me a cross-functional example.", description: "Process, governance, and stakeholder management. Structured answers with clear escalation." },
@@ -344,19 +344,19 @@ function PersonaCard({ persona, selected, locked, pro, onClick }: {
           ? "cursor-not-allowed border-line bg-fg/[0.02] opacity-50 hover:opacity-70 hover:border-brand/20 hover:bg-brand/[0.05]"
           : selected
             ? pro
-              ? "border-brand/45 bg-brand/10 shadow-[0_0_28px_rgba(37, 99, 235,0.14)]"
-              : "border-brand/45 bg-brand/[0.09] shadow-[0_0_28px_rgba(37, 99, 235,0.13)]"
+              ? "border-brand bg-brand/20 shadow-[0_0_0_2px_rgba(37,99,235,0.5)] ring-2 ring-brand/40"
+              : "border-brand bg-brand/20 shadow-[0_0_0_2px_rgba(37,99,235,0.5)] ring-2 ring-brand/40"
             : "border-line bg-fg/[0.035] hover:bg-fg/[0.06] active:scale-[0.99]",
       )}
     >
       {pro && locked && (
-        <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full border border-brand/25 bg-brand/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-brand">
+        <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full border border-brand bg-brand px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-white">
           <Lock className="h-2.5 w-2.5" />Pro
         </span>
       )}
       {selected && !locked && (
         <span className={cn("absolute right-2.5 top-2.5 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em]",
-          pro ? "bg-brand/15 text-brand" : "bg-brand/15 text-brand")}>
+          pro ? "bg-brand/15 text-muted" : "bg-brand/15 text-muted")}>
           Selected
         </span>
       )}
@@ -386,8 +386,8 @@ function ProPersonaDropdown({ open, onToggle, isProUser, recruiter, onSelect, nu
         className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-3 text-left transition hover:bg-brand/[0.08]"
       >
         <Lock className="h-4 w-4 shrink-0 text-brand" />
-        <span className="text-sm font-black text-brand">Premium Pro personas</span>
-        <span className="rounded-full border border-brand/25 bg-brand/15 px-2 py-0.5 text-[10px] font-black text-brand">{proRecruiters.length}</span>
+        <span className="text-sm font-black text-muted">Premium Pro personas</span>
+        <span className="rounded-full border border-brand/25 bg-brand/15 px-2 py-0.5 text-[10px] font-black text-muted">{proRecruiters.length}</span>
         <span className="hidden text-xs text-subtle sm:inline">High-pressure interviewers for senior prep</span>
         {!isProUser && (
           <Link
@@ -418,7 +418,7 @@ function ProPersonaDropdown({ open, onToggle, isProUser, recruiter, onSelect, nu
             ))}
           </div>
           {!isProUser && (
-            <p className="mt-3 text-center text-xs font-bold text-subtle">
+            <p className="mt-3 text-center text-xs font-bold text-muted">
               These personas are visible to everyone, but interviewing with them requires{" "}
               <span className="text-brand">Premium Pro</span>.
             </p>
@@ -438,7 +438,7 @@ const readinessChecklist: { key: "cv" | "jd" | "role" | "style"; label: string }
 
 function readinessHint(readiness: number) {
   if (readiness >= 100) return "Fully personalised. The recruiter knows your story.";
-  if (readiness >= 75) return "Almost there — one more detail sharpens the questions.";
+  if (readiness >= 75) return "Almost there: one more detail sharpens the questions.";
   if (readiness >= 50) return "Good base. Add more context for sharper follow-ups.";
   return "Add your CV to unlock a personal interview.";
 }
@@ -479,7 +479,7 @@ function ReadinessRail({ readiness, checks, summaryLine, onStart, hideCta, onChe
             <span className="absolute inset-0 grid place-items-center text-xl font-black">{readiness}%</span>
           </div>
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-brand">Readiness</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted">Readiness</p>
             <p className="mt-1 text-sm font-bold leading-5 text-muted">{readinessHint(readiness)}</p>
           </div>
         </div>
@@ -504,14 +504,14 @@ function ReadinessRail({ readiness, checks, summaryLine, onStart, hideCta, onChe
                 )}
               >
                 <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full border transition",
-                  done ? "border-success/40 bg-success/15 text-success" : "border-line text-subtle")}>
+                  done ? "border-success/40 bg-success/15 text-success" : "border-line text-muted")}>
                   {done && <Check className="h-3 w-3" strokeWidth={3.5} />}
                 </span>
                 <span className="min-w-0">
                   <span className={cn("block font-bold", done ? "text-fg" : "text-muted")}>{item.label}</span>
-                  {!done && <span className="block text-[11px] text-subtle">{hints[item.key]}</span>}
+                  {!done && <span className="block text-[11px] text-muted">{hints[item.key]}</span>}
                 </span>
-                {canClick && <span className="ml-auto shrink-0 text-[10px] font-black uppercase tracking-wider text-brand">Add →</span>}
+                {canClick && <span className="ml-auto shrink-0 text-[10px] font-black uppercase tracking-wider text-muted">Add →</span>}
               </button>
             );
           })}
@@ -523,18 +523,18 @@ function ReadinessRail({ readiness, checks, summaryLine, onStart, hideCta, onChe
             <Sparkles className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-subtle">Your interview</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-muted">Your interview</p>
             <p className="mt-1.5 text-sm font-black leading-6 text-fg">{summaryLine}</p>
           </div>
         </div>
       </div>
-      {/* Prepare with Work-O-Bot — shown before Start Interview */}
+      {/* Prepare with Work-O-Bot: shown before Start Interview */}
       {!hideCta && (
         <div className="mt-3 rounded-xl border border-brand/15 bg-brand/[0.06] px-3 py-2.5">
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-brand">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">
             Before you start
           </p>
-          <p className="mt-1 text-[11px] leading-4 text-subtle">
+          <p className="mt-1 text-[11px] leading-4 text-muted">
             Not sure what to expect? Ask Work-O-Bot about likely questions, how to frame your experience, or how to handle tough topics.
           </p>
           <a
@@ -558,9 +558,9 @@ function ReadinessRail({ readiness, checks, summaryLine, onStart, hideCta, onChe
           <ArrowRight className="h-5 w-5" />
         </button>
       )}
-      <p className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-xs font-bold text-subtle">
+      <p className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-xs font-bold text-muted">
         <Lock className="h-3.5 w-3.5 text-success/80" />
-        Private — you can edit everything before starting.
+        Private: you can edit everything before starting.
       </p>
     </div>
   );
@@ -617,7 +617,7 @@ export default function OnboardingPage() {
   };
 
   const selectedPersona = [...recruiters, ...proRecruiters].find((item) => item.key === recruiter) || recruiters[1];
-  const summaryLine = `${selectedPersona.name} · ${selectedPersona.role} — ${companyStyle} style, ${market} market, in ${interviewLanguage}${role.trim() ? `, for a ${role.trim()} role` : ""}.`;
+  const summaryLine = `${selectedPersona.name} · ${selectedPersona.role}: ${companyStyle} style, ${market} market, in ${interviewLanguage}${role.trim() ? `, for a ${role.trim()} role` : ""}.`;
 
   function buildDraftSetup(): SetupState {
     const cvText = effectiveCvText.trim();
@@ -867,7 +867,7 @@ export default function OnboardingPage() {
     } catch (error) {
       const rawMsg = error instanceof Error ? error.message : "";
 
-      // Suppress abort/cancel errors — these happen when the request times out
+      // Suppress abort/cancel errors: these happen when the request times out
       // or the user navigates away. They are not actionable by the user.
       const isAbortError =
         error instanceof Error && (
@@ -877,7 +877,7 @@ export default function OnboardingPage() {
           rawMsg.toLowerCase().includes("cancel")
         );
       if (isAbortError) {
-        // Silently clear the uploading state — don't show anything
+        // Silently clear the uploading state: don't show anything
         return;
       }
 
@@ -954,7 +954,7 @@ export default function OnboardingPage() {
         <section className="mt-4 grid flex-1 items-start gap-4 xl:grid-cols-[1fr_360px]">
           <div className="flex min-w-0 flex-col gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.26em] text-brand/80">Interview setup</p>
+              <p className="text-xs font-black uppercase tracking-[0.26em] text-muted/80">Interview setup</p>
               <h1 className="mt-1.5 text-3xl font-black tracking-tight sm:text-4xl">Ready to practice?</h1>
               <p className="mt-1.5 text-sm leading-6 text-muted">Upload your CV, pick a role, and start. Works for freshers, career changers, and experienced professionals.</p>
             </div>
@@ -968,7 +968,7 @@ export default function OnboardingPage() {
                   </div>
                   <div>
                     <p className="text-sm font-black">Interview context</p>
-                    <p className="text-xs text-subtle">CV + job description make the recruiter ask about your real experience.</p>
+                    <p className="text-xs text-muted">CV + job description make the recruiter ask about your real experience.</p>
                   </div>
                 </div>
                 <button type="button" onClick={openContextModal} className="inline-flex h-10 items-center gap-2 rounded-xl border border-brand/30 bg-brand/15 px-4 text-sm font-black text-brand transition hover:bg-brand/25">
@@ -996,7 +996,7 @@ export default function OnboardingPage() {
               {(hasContext || uploading || aiCvStructuringStatus === "structuring") && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(uploading || aiCvStructuringStatus === "structuring") && (
-                    <span className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/[0.08] px-3 py-1.5 text-xs font-bold text-brand">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/[0.08] px-3 py-1.5 text-xs font-bold text-muted">
                       <span className="h-2 w-2 rounded-full bg-brand [animation:wzDotPulse_1.2s_ease-in-out_infinite]" />Reading your CV…
                     </span>
                   )}
@@ -1017,7 +1017,7 @@ export default function OnboardingPage() {
               {uploadError && !contextModalOpen && (
                 uploadError.includes("sign in") ? (
                   <div className="mt-3 rounded-lg border border-brand/20 bg-brand/10 p-4">
-                    <p className="text-sm text-brand">Sign in to upload your CV and get a personalised interview.</p>
+                    <p className="text-sm text-muted">Sign in to upload your CV and get a personalised interview.</p>
                     <a
                       href="/login"
                       className="mt-3 inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-black text-on-brand transition hover:bg-brand"
@@ -1034,13 +1034,13 @@ export default function OnboardingPage() {
             {/* 2 · role + company */}
             <div className="grid gap-3 sm:grid-cols-2">
               <div id="wz-section-role" className="rounded-[22px] border border-line bg-fg/[0.032] p-4 backdrop-blur-2xl">
-                <label htmlFor="wz-target-role" className="text-[11px] font-black uppercase tracking-[0.24em] text-subtle">Target role</label>
-                <p className="mt-0.5 text-xs text-subtle">The recruiter tailors every question to this role</p>
+                <label htmlFor="wz-target-role" className="text-[11px] font-black uppercase tracking-[0.24em] text-muted">Target role</label>
+                <p className="mt-0.5 text-xs text-muted">The recruiter tailors every question to this role</p>
                 <input id="wz-target-role" value={role} onChange={(e) => setRole(e.target.value)} onBlur={requestPersist} placeholder="e.g. Customer Success Manager" className="mt-2.5 h-12 w-full rounded-xl border border-line bg-canvas-soft px-4 text-[15px] font-bold text-fg outline-none placeholder:text-subtle focus:border-brand/50" />
               </div>
               <div className="rounded-[22px] border border-line bg-fg/[0.032] p-4 backdrop-blur-2xl">
-                <label htmlFor="wz-target-company" className="text-[11px] font-black uppercase tracking-[0.24em] text-subtle">Target company <span className="normal-case tracking-normal text-subtle">· optional</span></label>
-                <p className="mt-0.5 text-xs text-subtle">Adds company-specific context to questions</p>
+                <label htmlFor="wz-target-company" className="text-[11px] font-black uppercase tracking-[0.24em] text-muted">Target company <span className="normal-case tracking-normal text-muted">· optional</span></label>
+                <p className="mt-0.5 text-xs text-muted">Adds company-specific context to questions</p>
                 <input id="wz-target-company" value={companyName} onChange={(e) => setCompanyName(e.target.value)} onBlur={requestPersist} placeholder="e.g. Google, Siemens, a startup" className="mt-2.5 h-12 w-full rounded-xl border border-line bg-canvas-soft px-4 text-[15px] font-bold text-fg outline-none placeholder:text-subtle focus:border-brand/50" />
               </div>
             </div>
@@ -1049,39 +1049,39 @@ export default function OnboardingPage() {
             <div className="rounded-[22px] border border-line bg-fg/[0.032] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-2xl sm:p-5">
               <div className="grid gap-5 lg:grid-cols-3">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-subtle">Market</p>
-                  <p className="mt-0.5 text-[11px] text-subtle">Sets interview norms for that region</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-muted">Market</p>
+                  <p className="mt-0.5 text-[11px] text-muted">Sets interview norms for that region</p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     {markets.map((item) => (
                       <button key={item.label} type="button" onClick={() => { setMarket(item.label); requestPersist(); }}
                         className={cn("rounded-xl border px-3 py-2 text-[13px] font-black transition active:scale-[0.97]",
-                          market === item.label ? "border-brand/45 bg-brand/[0.13] text-on-brand shadow-[0_0_22px_rgba(37, 99, 235,0.14)]" : "border-line bg-fg/[0.04] text-muted hover:bg-fg/[0.08]")}>
+                          market === item.label ? "border-blue-800 bg-blue-800 text-white font-black" : "border-line bg-fg/[0.04] text-muted hover:bg-fg/[0.08]")}>
                         <span className="mr-1.5">{item.flag}</span>{item.label}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div id="wz-section-style">
-                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-subtle">Company style</p>
-                  <p className="mt-0.5 text-[11px] text-subtle">Sets the interview pressure and focus</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-muted">Company style</p>
+                  <p className="mt-0.5 text-[11px] text-muted">Sets the interview pressure and focus</p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     {companyStyles.map((item) => (
                       <button key={item} type="button" onClick={() => { setCompanyStyle(item); requestPersist(); }}
                         className={cn("rounded-xl border px-3 py-2 text-[13px] font-black transition active:scale-[0.97]",
-                          companyStyle === item ? "border-brand/45 bg-brand/[0.14] text-on-brand shadow-[0_0_22px_rgba(37, 99, 235,0.16)]" : "border-line bg-fg/[0.04] text-muted hover:bg-fg/[0.08]")}>
+                          companyStyle === item ? "border-blue-800 bg-blue-800 text-white font-black" : "border-line bg-fg/[0.04] text-muted hover:bg-fg/[0.08]")}>
                         {item}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-subtle">Language</p>
-                  <p className="mt-0.5 text-[11px] text-subtle">The whole interview runs in this language</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-muted">Language</p>
+                  <p className="mt-0.5 text-[11px] text-muted">The whole interview runs in this language</p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     {interviewLanguages.map((item) => (
                       <button key={item.label} type="button" onClick={() => { setInterviewLanguage(item.label); requestPersist(); }}
                         className={cn("rounded-xl border px-3 py-2 text-[13px] font-black transition active:scale-[0.97]",
-                          interviewLanguage === item.label ? "border-brand/50 bg-brand/[0.15] text-on-brand shadow-[0_0_22px_rgba(59,130,246,0.16)]" : "border-line bg-fg/[0.04] text-muted hover:bg-fg/[0.08]")}>
+                          interviewLanguage === item.label ? "border-blue-800 bg-blue-800 text-white font-black" : "border-line bg-fg/[0.04] text-muted hover:bg-fg/[0.08]")}>
                         {item.nativeLabel}
                       </button>
                     ))}
@@ -1093,12 +1093,12 @@ export default function OnboardingPage() {
             {/* 4 · recruiter */}
             <div className="rounded-[22px] border border-line bg-fg/[0.032] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-2xl sm:p-5">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] font-black uppercase tracking-[0.24em] text-subtle">Recruiter personality</p>
-                <span className="hidden rounded-full border border-brand/15 bg-brand/[0.08] px-3 py-1 text-xs font-black text-brand sm:inline-flex">
+                <p className="text-[11px] font-black uppercase tracking-[0.24em] text-muted">Recruiter personality</p>
+                <span className="hidden rounded-full border border-brand/15 bg-brand/[0.08] px-3 py-1 text-xs font-black text-muted sm:inline-flex">
                   {selectedPersona.name} · {selectedPersona.role}
                 </span>
               </div>
-              <p className="mt-1 text-[11px] text-subtle">New to interviews? Start with Priya or Sarah — they focus on potential, not just experience.</p>
+              <p className="mt-1 text-[11px] text-muted">New to interviews? Start with Priya or Sarah: they focus on potential, not just experience.</p>
               <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
                 {recruiters.map((item) => (
                   <PersonaCard key={item.key} persona={item} selected={recruiter === item.key}
@@ -1160,9 +1160,9 @@ export default function OnboardingPage() {
 
             {isSignedIn === false ? (
               <div className="mt-5 flex min-h-[108px] flex-col items-center justify-center rounded-lg border-[1.5px] border-dashed border-line bg-fg/[0.03] p-4 text-center">
-                <Upload className="h-7 w-7 text-subtle" />
+                <Upload className="h-7 w-7 text-muted" />
                 <span className="mt-2 block text-sm font-black text-muted">Upload your CV</span>
-                <span className="mt-1 block text-xs text-subtle">Requires an account</span>
+                <span className="mt-1 block text-xs text-muted">Requires an account</span>
                 <a
                   href="/login"
                   className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-black text-on-brand transition hover:bg-brand"
@@ -1177,9 +1177,9 @@ export default function OnboardingPage() {
                 {uploading ? (
                   <><Upload className="h-7 w-7 text-brand" /><span className="mt-2 block text-sm font-black">Reading your CV…</span></>
                 ) : manualCv && fileName ? (
-                  <><Check className="h-7 w-7 text-success" strokeWidth={2.5} /><span className="mt-2 block text-sm font-black text-success">{fileName}</span><span className="mt-1 block text-xs text-subtle">Click to replace</span></>
+                  <><Check className="h-7 w-7 text-success" strokeWidth={2.5} /><span className="mt-2 block text-sm font-black text-success">{fileName}</span><span className="mt-1 block text-xs text-muted">Click to replace</span></>
                 ) : (
-                  <><Upload className="h-7 w-7 text-brand" /><span className="mt-2 block text-sm font-black">Upload your CV</span><span className="mt-1 block text-xs text-subtle">PDF, DOCX or TXT</span></>
+                  <><Upload className="h-7 w-7 text-brand" /><span className="mt-2 block text-sm font-black">Upload your CV</span><span className="mt-1 block text-xs text-muted">PDF, DOCX or TXT</span></>
                 )}
               </label>
             )}
@@ -1187,7 +1187,7 @@ export default function OnboardingPage() {
             {uploadError && (
               (uploadError.includes("sign in") ? (
                 <div className="mt-3 rounded-lg border border-brand/20 bg-brand/10 p-4">
-                  <p className="text-sm text-brand">Sign in to upload your CV and get a personalised interview.</p>
+                  <p className="text-sm text-muted">Sign in to upload your CV and get a personalised interview.</p>
                   <a
                     href="/login"
                     className="mt-3 inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-black text-on-brand transition hover:bg-brand"
@@ -1210,7 +1210,7 @@ export default function OnboardingPage() {
 
             <details className="mt-3 rounded-lg border border-line bg-canvas-soft p-4">
               <summary className="cursor-pointer text-sm font-black text-fg">Paste or edit CV text manually</summary>
-              <p className="mt-2 text-xs leading-5 text-subtle">Use this if the upload missed something important.</p>
+              <p className="mt-2 text-xs leading-5 text-muted">Use this if the upload missed something important.</p>
               <textarea
                 value={effectiveCvText}
                 onChange={(e) => {
@@ -1230,7 +1230,7 @@ export default function OnboardingPage() {
             </details>
 
             <div className="mt-4">
-              <label htmlFor="wz-jd-draft" className="text-[11px] font-black uppercase tracking-[0.24em] text-subtle">Job description</label>
+              <label htmlFor="wz-jd-draft" className="text-[11px] font-black uppercase tracking-[0.24em] text-muted">Job description</label>
               <textarea id="wz-jd-draft" value={jdDraft} onChange={(e) => setJdDraft(e.target.value)} rows={5}
                 placeholder="Paste the job description here so the recruiter can ask job-specific follow-ups…"
                 className="mt-2 w-full resize-none rounded-lg border border-line bg-canvas-soft p-4 text-sm leading-6 text-fg outline-none placeholder:text-subtle focus:border-brand/50" />

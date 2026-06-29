@@ -302,7 +302,7 @@ function normalizeDbInterviewResult(row: DbInterviewResultRow | null | undefined
 
 async function fetchLatestDbInterviewResult(): Promise<StoredResult | null> {
   try {
-    // 6-second timeout — if the DB call hangs (e.g. due to a flood of other API calls),
+    // 6-second timeout: if the DB call hangs (e.g. due to a flood of other API calls),
     // fall through to local storage immediately rather than showing the spinner forever.
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
@@ -416,7 +416,7 @@ function buildPairs(result: StoredResult) {
     }
   }
 
-  // Filter out greeting exchanges and one-word fillers — the opening
+  // Filter out greeting exchanges and one-word fillers: the opening
   // "Hi, how are you?" / "Good, thanks. How are you?" exchange is not a
   // substantive answer and should never be scored or displayed as Q1.
   const isGreetingAnswer = (answer: string): boolean => {
@@ -442,15 +442,30 @@ function countFillers(text: string) {
 }
 
 function hasMetric(text: string) {
-  return /\b\d+\s*(%|percent|k|m|million|thousand|x|times|users|customers|tickets|cases|incidents|hours|days|weeks|months|revenue|cost|sla|nps|csat)\b/i.test(text);
+  const t = text.toLowerCase();
+  // Numeric metrics (digits)
+  const numericMetric = /\b\d+\s*(%|percent|k|m|million|thousand|x|times|users|customers|tickets|cases|incidents|hours|days|weeks|months|revenue|cost|sla|nps|csat|people|members|accounts|deals|calls|emails|projects|sites|stores|teams|points|score|rating|stars)\b/.test(t);
+  // Written-out numbers (speech-to-text often writes these out)
+  const writtenNumber = /\b(one hundred|fifty|forty|thirty|twenty|fifteen|ten|five|double|triple|half|twice|three times|four times|first|second|third)\b/.test(t);
+  // Percentage phrases spoken naturally
+  const percentPhrase = /\b(\d+\s*percent|\d+\s*%|percent reduction|percent improvement|percent increase|percentage|by half|doubled|tripled|halved)\b/.test(t);
+  // Scale/scope indicators that imply measurement
+  const scaleIndicator = /\b(over \d+|more than \d+|less than \d+|up to \d+|around \d+|approximately \d+|about \d+|nearly \d+|roughly \d+|\d+ to \d+)\b/.test(t);
+  return numericMetric || percentPhrase || scaleIndicator || (writtenNumber && /\b(customers|users|tickets|people|accounts|percent|days|weeks|hours|minutes|months|years)\b/.test(t));
 }
 
 function hasOwnership(text: string) {
-  return /\b(i|my|me|personally)\b/i.test(text) && /\b(led|owned|built|created|designed|implemented|resolved|improved|managed|delivered|automated|analyzed|coordinated|handled|trained|supported)\b/i.test(text);
+  const t = text.toLowerCase();
+  // First person present - spoken answers use "I" frequently
+  const firstPerson = /\b(i |i've|i was|i am|i did|i had|i have|i would|i worked|i made|i took|i went|my |me |myself|personally)/.test(t);
+  // Action verbs - broad list covering spoken casual language
+  const actionVerb = /\b(led|owned|built|created|designed|implemented|resolved|improved|managed|delivered|automated|analyzed|coordinated|handled|trained|supported|was responsible|took ownership|took care|worked on|fixed|solved|helped|ensured|made sure|set up|put together|came up with|figured out|reached out|followed up|dealt with|took over|stepped in|ran the|in charge|oversaw|spearheaded|initiated|launched|developed|wrote|deployed|tested|reviewed|identified|diagnosed)\b/.test(t);
+  return firstPerson && actionVerb;
 }
 
 function hasResult(text: string) {
-  return /\b(result|impact|outcome|after|therefore|as a result|which led|improved|reduced|increased|saved|resolved|delivered|achieved)\b/i.test(text) || hasMetric(text);
+  const t = text.toLowerCase();
+  return /\b(result|impact|outcome|after that|therefore|as a result|which led|improved|reduced|increased|saved|resolved|delivered|achieved|ended up|turned out|at the end|in the end|finally|eventually|so now|and now|that helped|that allowed|they were happy|customer was happy|problem was solved|issue was fixed|it worked|it helped|worked out|went well|was successful|got the|received|won|closed|completed|finished|launched|shipped)\b/.test(t) || hasMetric(t);
 }
 
 function detectRedFlags(answer: string) {
@@ -475,11 +490,11 @@ function analyzeAnswer(question: string, answer: string, index: number): AnswerI
   const resultPresent = hasResult(answer);
   const redFlags = detectRedFlags(answer);
 
-  // structureScore: base 20 — candidate earns points for substance, not just showing up
+  // structureScore: base 20: candidate earns points for substance, not just showing up
   const structureScore = clamp(20 + (words >= 40 ? 18 : words >= 20 ? 8 : 0) + (words <= 180 ? 10 : 0) + (ownershipPresent ? 18 : 0) + (resultPresent ? 20 : 0) + (metricPresent ? 10 : 0) - (words > 230 ? 8 : 0) - (fillerCount >= 5 ? 6 : 0));
-  // evidenceScore: base 15 — must be earned through actual content
+  // evidenceScore: base 15: must be earned through actual content
   const evidenceScore = clamp(15 + (metricPresent ? 38 : 0) + (ownershipPresent ? 22 : 0) + (resultPresent ? 20 : 0) + (words >= 60 ? 5 : 0) - (redFlags.length * 4));
-  // trustImpact: honest spread — good answers reward well, weak answers show clearly
+  // trustImpact: honest spread: good answers reward well, weak answers show clearly
   const trustImpact = clamp(35 + (ownershipPresent ? 22 : -10) + (metricPresent ? 20 : -10) + (resultPresent ? 15 : -5) + (words >= 50 ? 5 : words < 20 ? -8 : 0) - (redFlags.length * 5) - (fillerCount >= 5 ? 5 : 0));
 
   let weakness = "Good foundation; make the answer sharper with stronger structure.";
@@ -500,7 +515,7 @@ function analyzeAnswer(question: string, answer: string, index: number): AnswerI
             ? "The recruiter hears action, but needs a clearer final outcome."
             : "The recruiter hears a credible answer with evidence, ownership, and role relevance.";
 
-  // Contextual rewrite tip — reflects what was actually missing in THIS answer,
+  // Contextual rewrite tip: reflects what was actually missing in THIS answer,
   // so the coaching in the "Two moments" section feels specific, not generic.
   let rewrite: string;
   if (!answer || /not captured/i.test(answer)) {
@@ -508,18 +523,18 @@ function analyzeAnswer(question: string, answer: string, index: number): AnswerI
   } else if (words < 25) {
     rewrite = "Expand this answer: add the situation in one sentence, what you personally did, and one result. Aim for 60–90 seconds when spoken aloud.";
   } else if (!ownershipPresent && !metricPresent) {
-    rewrite = "Rewrite with 'I' as the subject: 'I decided...', 'I built...', 'I resolved...' — then close with one number that shows the impact.";
+    rewrite = "Rewrite with 'I' as the subject: 'I decided...', 'I built...', 'I resolved...': then close with one number that shows the impact.";
   } else if (!metricPresent) {
     rewrite = "Add one number to close this answer: time saved, customers helped, tickets resolved, revenue impact, or quality improvement. Even a rough estimate works.";
   } else if (!ownershipPresent) {
     rewrite = "Clarify your personal contribution: separate what the team did from what you specifically owned, decided, or delivered.";
   } else if (!resultPresent) {
-    rewrite = "Add a clear outcome sentence: 'As a result...' or 'This led to...' — then name what actually changed.";
+    rewrite = "Add a clear outcome sentence: 'As a result...' or 'This led to...': then name what actually changed.";
   } else {
-    // This is a strong answer — tip should reinforce what worked, not suggest a rewrite
+    // This is a strong answer: tip should reinforce what worked, not suggest a rewrite
     rewrite = metricPresent && ownershipPresent
       ? "Strong answer. To make it even sharper: lead with the result first, then explain how you got there. Recruiters remember the outcome."
-      : "Good structure here. Keep this answer in your preparation — it shows the pattern that builds recruiter trust.";
+      : "Good structure here. Keep this answer in your preparation: it shows the pattern that builds recruiter trust.";
   }
 
   return {
@@ -641,20 +656,30 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
     score?: { overall?: number; trust?: number; clarity?: number; confidence?: number; relevance?: number; communication?: number };
     answerQuality?: { evidenceScore?: number };
   };
-  // No artificial floor — if no data, score 0 not 58
+  // No artificial floor: if no data, score 0 not 58
   const evidenceQuality = numberOr(result.evidenceQuality, numberOr(resultRecord.answerQuality?.evidenceScore, answersCount > 0 ? average(answerInsights.map((item) => item.evidenceScore), 0) : 0));
   const trustScore = numberOr(result.trustScore, numberOr(resultRecord.score?.trust, answersCount > 0 ? average(answerInsights.map((item) => item.trustImpact), 0) : 0));
   const structureScore = answersCount > 0 ? average(answerInsights.map((item) => item.structureScore), 0) : 0;
-  // ownershipScore: honest — clear ownership gets high score, missing gets low score
+  // ownershipScore: honest: clear ownership gets high score, missing gets low score
   const ownershipScore = answersCount > 0
     ? average(answerInsights.map((item) => item.ownershipPresent ? 80 : 35), 50)
     : 50;
 
-  const communicationScore = numberOr(result.communicationScore, numberOr(resultRecord.score?.communication, clamp(structureScore + (averageWpm >= 110 && averageWpm <= 170 ? 8 : -4))));
-  const confidenceScore = numberOr(result.confidenceScore, numberOr(resultRecord.score?.confidence, clamp(trustScore - (answerInsights.some((item) => item.fillerCount >= 4) ? 8 : 0) + (ownershipScore >= 70 ? 4 : -3))));
-  const roleCompetencyScore = numberOr(result.roleCompetencyScore, numberOr(resultRecord.score?.relevance, clamp((evidenceQuality * 0.58) + (structureScore * 0.22) + (ownershipScore * 0.2))));
+  // Use transcript-derived scores as primary; fall back to stored values only if present
+  // Never use 0 as a fallback since 0 means "not measured" not "terrible performance"
+  const transcriptCommScore = answersCount > 0 ? clamp(structureScore + (averageWpm >= 110 && averageWpm <= 170 ? 8 : -4)) : null;
+  const transcriptConfScore = answersCount > 0 ? clamp(trustScore - (answerInsights.some((item) => item.fillerCount >= 4) ? 8 : 0) + (ownershipScore >= 70 ? 4 : -3)) : null;
+  const transcriptRoleScore = answersCount > 0 ? clamp((evidenceQuality * 0.58) + (structureScore * 0.22) + (ownershipScore * 0.2)) : null;
 
-  // Calculate from transcript first — this is always honest
+  const storedCommScore = resultRecord.score?.communication || result.communicationScore || null;
+  const storedConfScore = resultRecord.score?.confidence || result.confidenceScore || null;
+  const storedRoleScore = resultRecord.score?.relevance || result.roleCompetencyScore || null;
+
+  const communicationScore = transcriptCommScore ?? storedCommScore ?? 45;
+  const confidenceScore = transcriptConfScore ?? storedConfScore ?? 45;
+  const roleCompetencyScore = transcriptRoleScore ?? storedRoleScore ?? 45;
+
+  // Calculate from transcript first: this is always honest
   const calculatedScore = clamp((communicationScore * 0.22) + (confidenceScore * 0.18) + (roleCompetencyScore * 0.28) + (trustScore * 0.2) + (evidenceQuality * 0.12));
 
   // Only use the stored score if:
@@ -663,7 +688,9 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
   // Otherwise, the transcript-based calculation is more honest.
   const _rawStoredScore = result.overallScore ?? resultRecord.score?.overall;
   const storedScore: number | null = typeof _rawStoredScore === "number" ? _rawStoredScore : null;
-  const storedScoreIsDefault = storedScore !== null && storedScore >= 48 && storedScore <= 52;
+  // Treat stored scores of 0 OR exactly at the default signal range (48-52) as unreliable.
+  // Also treat very low stored scores (< 10) as likely unscored sessions.
+  const storedScoreIsDefault = storedScore === null || storedScore <= 5 || (storedScore >= 47 && storedScore <= 53);
   const overallScore = (answersCount >= 3 && storedScore !== null && !storedScoreIsDefault)
     ? clamp(storedScore)
     : calculatedScore;
@@ -867,9 +894,9 @@ function HiringCommitteeMemoCard({ memo }: { memo: WorkZoHiringCommitteeMemo }) 
           <div className="mt-2 space-y-1">{memo.evidenceAgainstHire.map((item) => <p key={item} className="text-xs leading-5 text-fg">• {item}</p>)}</div>
         </div>
         <div className="rounded-xl border border-line bg-canvas-soft p-3">
-          <p className="text-xs font-black text-brand">Recommendation</p>
+          <p className="text-xs font-black text-muted">Recommendation</p>
           <p className="mt-2 text-xs leading-5 text-fg">{memo.finalRecommendation}</p>
-          <div className="mt-2 space-y-1">{memo.nextRoundFocus.map((item) => <p key={item} className="rounded-lg bg-brand/10 px-2.5 py-1.5 text-xs leading-5 text-brand">{item}</p>)}</div>
+          <div className="mt-2 space-y-1">{memo.nextRoundFocus.map((item) => <p key={item} className="rounded-lg bg-brand/10 px-2.5 py-1.5 text-xs leading-5 text-muted">{item}</p>)}</div>
         </div>
       </div>
     </section>
@@ -900,18 +927,18 @@ function ShadowScoreSection({ scores }: { scores: WorkZoShadowScore[] }) {
 function WhatTheyHeardSection({ items }: { items: WorkZoWhatTheyHeard[] }) {
   return (
     <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
-      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-brand">What they heard</p>
+      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted">What they heard</p>
       <h2 className="mt-1 text-lg font-black text-fg">Your words vs. the interviewer’s interpretation</h2>
       <div className="mt-4 space-y-3">
         {items.map((item) => (
           <div key={item.id} className="grid gap-3 rounded-2xl border border-line bg-canvas-soft p-3 lg:grid-cols-2">
             <div className="rounded-xl bg-fg/[0.04] p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-subtle">You said</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">You said</p>
               <p className="mt-2 text-xs leading-5 text-fg">“{item.youSaid}”</p>
             </div>
             <div className="rounded-xl border border-brand/20 bg-brand/10 p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand">They inferred</p>
-              <p className="mt-2 text-xs leading-5 text-brand">{item.theyHeard}</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">They inferred</p>
+              <p className="mt-2 text-xs leading-5 text-muted">{item.theyHeard}</p>
               <p className="mt-2 text-[10px] leading-4 text-warning">Risk: {item.risk}</p>
               <p className="mt-1 text-[10px] leading-4 text-success">Stronger signal: {item.strongerSignal}</p>
             </div>
@@ -925,14 +952,14 @@ function WhatTheyHeardSection({ items }: { items: WorkZoWhatTheyHeard[] }) {
 function TargetedDrillsSection({ drills }: { drills: WorkZoSkillDrill[] }) {
   return (
     <section className="mt-4 rounded-2xl border border-brand/20 bg-brand/[0.06] p-5">
-      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-brand">Targeted skill drills</p>
+      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted">Targeted skill drills</p>
       <h2 className="mt-1 text-lg font-black text-fg">Train the weak signal, not the whole interview</h2>
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         {drills.map((drill) => (
           <Link key={drill.id} href={drill.href} className="group rounded-2xl border border-line bg-canvas-soft p-4 transition hover:bg-fg/[0.06]">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand">{drill.duration} · {drill.pressureLevel} pressure</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">{drill.duration} · {drill.pressureLevel} pressure</p>
                 <h3 className="mt-1 text-base font-black text-fg">{drill.title}</h3>
               </div>
               <ChevronRight className="h-4 w-4 text-subtle transition group-hover:text-fg shrink-0" />
@@ -959,7 +986,7 @@ function ScoreRing({ score, grade }: { score: number; grade: string }) {
       <div className="grid h-[5.25rem] w-[5.25rem] place-items-center rounded-full bg-canvas text-center">
         <div>
           <p className="text-3xl font-black text-fg">{score}</p>
-          <p className="text-[11px] font-black text-brand">{grade} / 100</p>
+          <p className="text-[11px] font-black text-muted">{grade} / 100</p>
         </div>
       </div>
     </div>
@@ -971,7 +998,7 @@ function MetricCard({ icon: Icon, label, value, note }: { icon: typeof Gauge; la
     <div className="rounded-2xl border border-line bg-fg/[0.035] p-4">
       <div className="flex items-center gap-2">
         <Icon className="h-4 w-4 text-brand" />
-        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-subtle">{label}</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-muted">{label}</p>
       </div>
       <p className="mt-3 text-3xl font-black text-fg">{value}%</p>
       <p className="mt-2 text-xs leading-5 text-muted">{note}</p>
@@ -984,7 +1011,7 @@ function Bar({ value, target, label, note }: { value: number; target?: number; l
     <div>
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-black text-fg">{label}</p>
-        <p className="text-sm font-black text-brand">{value}%{typeof target === "number" ? ` / ${target}%` : ""}</p>
+        <p className="text-sm font-black text-muted">{value}%{typeof target === "number" ? ` / ${target}%` : ""}</p>
       </div>
       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-fg/10">
         <div className="h-full rounded-full bg-gradient-to-r from-brand to-success" style={{ width: `${clamp(value)}%` }} />
@@ -1000,7 +1027,7 @@ function LockedPreview({ title, children, count }: { title: string; children: Re
       <div className="absolute right-6 top-6 grid h-14 w-14 place-items-center rounded-2xl bg-warning/15 text-warning">
         <Lock className="h-6 w-6" />
       </div>
-      <p className="text-xs font-black uppercase tracking-[0.28em] text-brand">Premium Preview</p>
+      <p className="text-xs font-black uppercase tracking-[0.28em] text-muted">Premium Preview</p>
       <h3 className="mt-3 pr-16 text-2xl font-black text-fg">{title}</h3>
       {count ? <p className="mt-3 text-sm font-black text-warning">{count}</p> : null}
       <div className="mt-6 select-none blur-[5px] pointer-events-none">{children}</div>
@@ -1076,7 +1103,7 @@ Give specific, actionable coaching. Be direct and practical. Keep your response 
         className="flex w-full items-center justify-between gap-4 p-4 text-left"
       >
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-brand">Question {index + 1}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted">Question {index + 1}</p>
           <h3 className="mt-1 text-base font-black text-fg">{item.question}</h3>
           <p className="mt-1 text-xs text-muted">Evidence {item.evidenceScore}% · Trust impact {item.trustImpact}% · {item.weakness}</p>
         </div>
@@ -1087,7 +1114,7 @@ Give specific, actionable coaching. Be direct and practical. Keep your response 
         <div className="border-t border-line p-4 space-y-3">
           <div className="grid gap-3 xl:grid-cols-3">
             <div className="rounded-xl bg-fg/[0.04] p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-subtle">Your answer</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-muted">Your answer</p>
               <p className="mt-2 text-xs leading-5 text-fg">{item.answer}</p>
             </div>
             <div className="rounded-xl border border-warning/20 bg-warning/10 p-3">
@@ -1109,7 +1136,7 @@ Give specific, actionable coaching. Be direct and practical. Keep your response 
             >
               <div className="flex items-center gap-2">
                 <span className="text-sm">🤖</span>
-                <p className="text-[11px] font-black text-brand">Ask Work-O-Bot about this answer</p>
+                <p className="text-[11px] font-black text-muted">Ask Work-O-Bot about this answer</p>
               </div>
               <ChevronDown className={cn("h-3.5 w-3.5 text-subtle transition", coachOpen && "rotate-180")} />
             </button>
@@ -1197,7 +1224,7 @@ function CareerBrainSection({ brain }: { brain: PhaseCCareerBrain }) {
         </div>
         <div className="grid h-14 w-14 place-items-center rounded-xl border border-success/20 bg-canvas-soft text-center">
           <p className="text-xl font-black text-success">{brain.probability.current}%</p>
-          <p className="-mt-1 text-[9px] font-black text-subtle">PROB.</p>
+          <p className="-mt-1 text-[9px] font-black text-muted">PROB.</p>
         </div>
       </div>
 
@@ -1238,12 +1265,12 @@ function CareerBrainSection({ brain }: { brain: PhaseCCareerBrain }) {
         </div>
 
         <div className="rounded-xl border border-line bg-canvas-soft p-3">
-          <p className="text-xs font-black text-brand">Cross-feature actions</p>
+          <p className="text-xs font-black text-muted">Cross-feature actions</p>
           <div className="mt-2 space-y-2">
             {brain.crossFeatureActions.map((item) => (
               <div key={`${item.feature}-${item.action}`} className="rounded-xl bg-brand/10 p-2.5">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-brand">{item.feature}</p>
-                <p className="mt-1 text-xs leading-5 text-brand/90">{item.action}</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-muted">{item.feature}</p>
+                <p className="mt-1 text-xs leading-5 text-muted/90">{item.action}</p>
               </div>
             ))}
           </div>
@@ -1252,20 +1279,20 @@ function CareerBrainSection({ brain }: { brain: PhaseCCareerBrain }) {
 
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
         <div className="rounded-xl border border-line bg-canvas-soft p-3">
-          <p className="text-xs font-black text-brand">Future recruiter memory challenges</p>
+          <p className="text-xs font-black text-muted">Future recruiter memory challenges</p>
           <div className="mt-2 space-y-1.5">
-            {brain.futureRecruiterChallenges.map((item) => <p key={item} className="rounded-xl bg-brand/10 px-2.5 py-2 text-xs leading-5 text-brand">"{item}"</p>)}
+            {brain.futureRecruiterChallenges.map((item) => <p key={item} className="rounded-xl bg-brand/10 px-2.5 py-2 text-xs leading-5 text-muted">"{item}"</p>)}
           </div>
         </div>
 
         <div className="rounded-xl border border-line bg-canvas-soft p-3">
-          <p className="text-xs font-black text-brand">Persistent career roadmap</p>
+          <p className="text-xs font-black text-muted">Persistent career roadmap</p>
           <div className="mt-2 space-y-2">
             {brain.roadmap.slice(0, 4).map((item) => (
               <div key={item.id} className="rounded-xl bg-brand/10 p-2.5">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-brand">{item.priority} · {item.estimatedGain}</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-muted">{item.priority} · {item.estimatedGain}</p>
                 <p className="mt-0.5 text-xs font-black text-fg">{item.title}</p>
-                <p className="mt-0.5 text-xs leading-5 text-brand/85">{item.action}</p>
+                <p className="mt-0.5 text-xs leading-5 text-muted/85">{item.action}</p>
               </div>
             ))}
           </div>
@@ -1276,7 +1303,7 @@ function CareerBrainSection({ brain }: { brain: PhaseCCareerBrain }) {
 }
 
 
-// ─── "Where the interview turned" — free tier conversion hook ─────────────
+// ─── "Where the interview turned": free tier conversion hook ─────────────
 function buildLostMoment(insights: AnswerInsight[]): {
   questionIndex: number;
   question: string;
@@ -1309,12 +1336,12 @@ function buildLostMoment(insights: AnswerInsight[]): {
     whatRecruiterThought = `"Useful background, but I don't know what they specifically owned or whether there was real impact."`;
   } else if (!item.metricPresent) {
     whatHappened = `You described the situation and action well, but left out any measurable result. The recruiter had to guess whether it worked.`;
-    whatRecruiterThought = `"Good story, but I need a number — time saved, customers helped, percentage improved — anything concrete."`;
+    whatRecruiterThought = `"Good story, but I need a number: time saved, customers helped, percentage improved: anything concrete."`;
   } else if (!item.ownershipPresent) {
     whatHappened = `The answer sounded like a team achievement, not a personal one. The recruiter lost confidence in your individual contribution.`;
     whatRecruiterThought = `"I'm not sure what they specifically did versus what the team did. I need to know their personal scope."`;
   } else if (item.wordCount < 25) {
-    whatHappened = `The answer ended too quickly — 25 words or fewer. The recruiter expected depth and got a summary.`;
+    whatHappened = `The answer ended too quickly: 25 words or fewer. The recruiter expected depth and got a summary.`;
     whatRecruiterThought = `"There's clearly more to this story. Why did they stop here?"`;
   } else if (item.wordCount > 230) {
     whatHappened = `The answer ran too long without landing on a clear result. The recruiter lost the thread before the punchline.`;
@@ -1323,9 +1350,9 @@ function buildLostMoment(insights: AnswerInsight[]): {
 
   // The follow-up the recruiter would have asked next
   let nextChallenge = "What was the measurable outcome of what you described?";
-  if (!item.ownershipPresent) nextChallenge = "What did YOU specifically do — not the team?";
+  if (!item.ownershipPresent) nextChallenge = "What did YOU specifically do, not the team?";
   if (item.wordCount < 25) nextChallenge = "Can you walk me through that in more detail?";
-  if (item.wordCount > 230) nextChallenge = "In one sentence — what was the actual result?";
+  if (item.wordCount > 230) nextChallenge = "In one sentence: what was the actual result?";
 
   return {
     questionIndex: index + 1,
@@ -1363,23 +1390,23 @@ function WhereLostSection({ insights, overallScore, isPremium }: {
             Question {moment.questionIndex} is where the recruiter's confidence dropped.
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">
-            Your trust score fell <span className="font-black text-danger">~{Math.min(moment.trustDrop, 22)} points</span> on this answer — more than any other moment in the session.
+            Your trust score fell <span className="font-black text-danger">~{Math.min(moment.trustDrop, 22)} points</span> on this answer: more than any other moment in the session.
           </p>
         </div>
         <div className="shrink-0 rounded-2xl border border-danger/20 bg-canvas-soft p-4 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-danger">Trust drop</p>
           <p className="mt-1 text-4xl font-black text-fg">−{Math.min(moment.trustDrop, 22)}</p>
-          <p className="text-xs text-subtle">pts on this answer</p>
+          <p className="text-xs text-muted">pts on this answer</p>
         </div>
       </div>
 
       {/* The question + answer */}
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl bg-fg/[0.04] p-5">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-subtle">The question</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">The question</p>
           <p className="mt-3 text-sm leading-7 text-fg">"{moment.question}"</p>
           <div className="mt-4 border-t border-line pt-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-subtle">Your answer</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">Your answer</p>
             <p className="mt-3 text-sm leading-7 text-muted italic">"{moment.answer.slice(0, 220)}{moment.answer.length > 220 ? "…" : ""}"</p>
           </div>
         </div>
@@ -1399,19 +1426,19 @@ function WhereLostSection({ insights, overallScore, isPremium }: {
         </div>
       </div>
 
-      {/* The next challenge — visible, not blurred */}
+      {/* The next challenge: visible, not blurred */}
       <div className="mt-5 rounded-2xl border border-line bg-fg/[0.03] p-5">
         <div className="flex items-start gap-3">
           <Zap className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
           <div>
             <p className="text-sm font-black text-fg">The question that would have come next</p>
             <p className="mt-2 text-sm leading-6 text-warning">"{moment.nextChallenge}"</p>
-            <p className="mt-2 text-xs text-subtle">This would have been the recruiter's next question. Can you answer it better next session?</p>
+            <p className="mt-2 text-xs text-muted">This would have been the recruiter's next question. Can you answer it better next session?</p>
           </div>
         </div>
       </div>
 
-      {/* Score benchmark — visible for free */}
+      {/* Score benchmark: visible for free */}
       {gap > 0 && (
         <div className="mt-5 rounded-2xl border border-brand/20 bg-brand/[0.06] p-5">
           <div className="flex items-center justify-between gap-4">
@@ -1419,13 +1446,13 @@ function WhereLostSection({ insights, overallScore, isPremium }: {
               <p className="text-sm font-black text-fg">The gap to the interview threshold</p>
               <p className="mt-1 text-xs leading-5 text-muted">
                 Candidates who get to the next round in <span className="text-fg font-black">{insights.length > 0 ? "your target role" : "this role"}</span> typically score above{" "}
-                <span className="font-black text-brand">{benchmarkScore}</span>. You scored{" "}
+                <span className="font-black text-muted">{benchmarkScore}</span>. You scored{" "}
                 <span className="font-black text-fg">{overallScore}</span>.
               </p>
             </div>
             <div className="shrink-0 text-right">
               <p className="text-3xl font-black text-fg">{gap > 0 ? `+${gap}` : "0"}</p>
-              <p className="text-xs text-subtle">pts needed</p>
+              <p className="text-xs text-muted">pts needed</p>
             </div>
           </div>
           <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-fg/10">
@@ -1434,7 +1461,7 @@ function WhereLostSection({ insights, overallScore, isPremium }: {
               style={{ width: `${clamp(overallScore)}%` }}
             />
           </div>
-          <div className="mt-1 flex justify-between text-[10px] text-subtle">
+          <div className="mt-1 flex justify-between text-[10px] text-muted">
             <span>0</span>
             <span className="text-brand">threshold: {benchmarkScore}</span>
             <span>100</span>
@@ -1448,7 +1475,7 @@ function WhereLostSection({ insights, overallScore, isPremium }: {
           <div className="select-none blur-[6px] pointer-events-none space-y-3">
             <p className="text-sm font-black text-fg">7 signals from this session</p>
             <div className="space-y-2">
-              {["Trust dropped 18pts when you said 'we managed the project' — no personal verb.", "Filler word spike on question 3 signalled low confidence.", "Answer 2 had a contradiction with your CV timeline — recruiter noted it.", "Missing metric on 4 of 5 answers. Top candidates include 1 number per story.", "Ownership language appeared in only 1 of {insights.length} answers."].map((line) => (
+              {["Trust dropped 18pts when you said 'we managed the project': no personal verb.", "Filler word spike on question 3 signalled low confidence.", "Answer 2 had a contradiction with your CV timeline: recruiter noted it.", "Missing metric on 4 of 5 answers. Top candidates include 1 number per story.", "Ownership language appeared in only 1 of {insights.length} answers."].map((line) => (
                 <p key={line} className="rounded-xl bg-fg/5 p-3 text-xs text-muted">• {line}</p>
               ))}
             </div>
@@ -1456,7 +1483,7 @@ function WhereLostSection({ insights, overallScore, isPremium }: {
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px]">
             <Lock className="h-7 w-7 text-warning mb-3" />
             <p className="text-sm font-black text-fg">All 7 recruiter signals</p>
-            <p className="mt-1 text-xs text-muted">Every moment the trust score moved — and why</p>
+            <p className="mt-1 text-xs text-muted">Every moment the trust score moved, and why</p>
             <button
               type="button"
               onClick={() => { if (typeof window !== "undefined") window.location.href = "/pricing?intent=results-signals"; }}
@@ -1501,7 +1528,7 @@ function UrgencyBanner({ remaining, roleLabel, targetMarket, overallScore }: {
             {" "}
             {gap > 0
               ? `At ${overallScore}/100, most recruiters for ${roleShort}${marketLabel} would not proceed to a second round.`
-              : `You are above the typical threshold for ${roleShort}${marketLabel} — keep practising to widen the gap.`}
+              : `You are above the typical threshold for ${roleShort}${marketLabel}: keep practising to widen the gap.`}
           </p>
         </div>
       </div>
@@ -1521,14 +1548,14 @@ function UpgradeStrip({ roleLabel }: { roleLabel: string }) {
     <div className="mt-5 overflow-hidden rounded-2xl border border-brand/30 bg-gradient-to-br from-brand/[0.14] via-brand/[0.10] to-brand/[0.08] p-5">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-2xl">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-brand">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-muted">
             Premium · from €19 / month
           </p>
           <h3 className="mt-2 text-xl font-black text-fg">
             The recruiter remembers. Next session picks up exactly where this one left off.
           </h3>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Premium tracks your weaknesses across every session and coaches you on the exact gap this interview revealed{roleLabel ? ` for ${roleLabel}` : ""}. The recruiter adapts to your pattern — not a generic script.
+            Premium tracks your weaknesses across every session and coaches you on the exact gap this interview revealed{roleLabel ? ` for ${roleLabel}` : ""}. The recruiter adapts to your pattern, not a generic script.
           </p>
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
             {[["Full session history", "Recruiter remembers your gaps"], ["Answer rewrites", "Top 10% version of your answers"], ["Targeted drills", "Train the weak signal, not everything"]].map(([title, desc]) => (
@@ -1543,7 +1570,7 @@ function UpgradeStrip({ roleLabel }: { roleLabel: string }) {
             <p className="text-xs leading-5 text-fg italic">
               "My trust score was 61 in session 1. After 4 sessions it was 84 and I got an offer the following week."
             </p>
-            <p className="mt-1.5 text-[10px] font-black text-subtle">
+            <p className="mt-1.5 text-[10px] font-black text-muted">
               Premium user · Customer Success Manager · Berlin
             </p>
           </div>
@@ -1557,9 +1584,9 @@ function UpgradeStrip({ roleLabel }: { roleLabel: string }) {
             }}
           >
             <Crown className="h-4 w-4" />
-            Unlock Premium — €19 / month
+            Unlock Premium: €19 / month
           </a>
-          <p className="text-xs text-subtle">Cancel anytime · No hidden fees · Stripe</p>
+          <p className="text-xs text-muted">Cancel anytime · No hidden fees · Stripe</p>
         </div>
       </div>
     </div>
@@ -1578,13 +1605,13 @@ function RealBlurredInsights({ insights, contradictions, redFlags }: {
   const noOwnership = insights.filter(i => !i.ownershipPresent);
   if (noOwnership.length) {
     const q = noOwnership[0];
-    signals.push(`Trust dropped on Q${insights.indexOf(q) + 1}: ownership language missing — recruiter couldn't identify what you personally did.`);
+    signals.push(`Trust dropped on Q${insights.indexOf(q) + 1}: ownership language missing: recruiter couldn't identify what you personally did.`);
   }
 
   const highFiller = insights.filter(i => i.fillerCount >= 3);
   if (highFiller.length) {
     const q = highFiller[0];
-    signals.push(`Filler word spike on Q${insights.indexOf(q) + 1} (${q.fillerCount} detected) — signals low confidence on this answer.`);
+    signals.push(`Filler word spike on Q${insights.indexOf(q) + 1} (${q.fillerCount} detected): signals low confidence on this answer.`);
   }
 
   if (contradictions.length) {
@@ -1593,12 +1620,12 @@ function RealBlurredInsights({ insights, contradictions, redFlags }: {
 
   const noMetric = insights.filter(i => !i.metricPresent);
   if (noMetric.length >= 2) {
-    signals.push(`Missing measurable outcome in ${noMetric.length} of ${insights.length} answers — top candidates include 1 number per story.`);
+    signals.push(`Missing measurable outcome in ${noMetric.length} of ${insights.length} answers: top candidates include 1 number per story.`);
   }
 
   const shortAnswers = insights.filter(i => i.wordCount < 25);
   if (shortAnswers.length) {
-    signals.push(`${shortAnswers.length} answer${shortAnswers.length > 1 ? "s" : ""} ended in under 25 words — recruiter needed more evidence before moving on.`);
+    signals.push(`${shortAnswers.length} answer${shortAnswers.length > 1 ? "s" : ""} ended in under 25 words: recruiter needed more evidence before moving on.`);
   }
 
   if (redFlags.length) {
@@ -1617,11 +1644,11 @@ function RealBlurredInsights({ insights, contradictions, redFlags }: {
     <div className="relative mt-5 overflow-hidden rounded-2xl border border-brand/20 bg-brand/[0.06]">
       {/* Partially visible top */}
       <div className="p-6 pb-0">
-        <p className="text-xs font-black uppercase tracking-[0.28em] text-brand">
+        <p className="text-xs font-black uppercase tracking-[0.28em] text-muted">
           All {signals.length + 2} recruiter trust signals from this session
         </p>
         <h3 className="mt-2 text-xl font-black text-fg">
-          Every moment trust moved — up or down
+          Every moment trust moved: up or down
         </h3>
         {/* First signal fully visible */}
         <div className="mt-4 rounded-2xl border border-line bg-canvas-soft p-4">
@@ -1658,9 +1685,9 @@ function RealBlurredInsights({ insights, contradictions, redFlags }: {
             className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 text-sm font-black text-on-brand hover:bg-brand transition shadow-lg shadow-brand/20"
           >
             <Crown className="h-4 w-4" />
-            Unlock Premium — €19 / month
+            Unlock Premium: €19 / month
           </a>
-          <p className="mt-2 text-xs text-subtle">Cancel anytime</p>
+          <p className="mt-2 text-xs text-muted">Cancel anytime</p>
         </div>
       </div>
     </div>
@@ -1738,7 +1765,7 @@ function EmailCapture({
       <div className="mt-6 rounded-[2rem] border border-success/25 bg-success/[0.07] p-6 text-center">
         <p className="text-lg font-black text-success">Report sent ✓</p>
         <p className="mt-2 text-sm text-muted">
-          Check your inbox — your 5-day improvement plan is on its way.
+          Check your inbox: your 5-day improvement plan is on its way.
         </p>
       </div>
     );
@@ -1781,7 +1808,7 @@ function EmailCapture({
             </button>
           </div>
           {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
-          <p className="mt-2 text-xs text-subtle">
+          <p className="mt-2 text-xs text-muted">
             We store your email to send the report and follow-up tips. Unsubscribe anytime.
           </p>
         </div>
@@ -1849,12 +1876,21 @@ export default function ResultsPage() {
         // Analytics should never block the report.
       }
 
-      // Read remaining free sessions for urgency banner
+      // Read authoritative remaining sessions for the result-page CTA.
+      // Do not use localStorage here: the dashboard, result page, and start API
+      // must all use the same server-backed quota source.
       try {
+        const planRes = await fetch("/api/account/plan", { cache: "no-store", credentials: "include" });
+        if (planRes.ok) {
+          const planData = await planRes.json();
+          setSessionsRemaining(Number(planData?.usage?.interviewsRemaining ?? 0));
+        } else {
+          const usage = getWorkZoUsageSummary();
+          setSessionsRemaining(usage.interviewsRemaining);
+        }
+      } catch {
         const usage = getWorkZoUsageSummary();
         setSessionsRemaining(usage.interviewsRemaining);
-      } catch {
-        // Non-blocking
       }
     }
 
@@ -1871,7 +1907,7 @@ export default function ResultsPage() {
   useEffect(() => {
     const fallbackTimer = setTimeout(() => {
       if (!mounted) {
-        console.warn("[WorkZo results] Plan gate timeout — mounting with local data");
+        console.warn("[WorkZo results] Plan gate timeout: mounting with local data");
         const localResult = readStoredResult();
         if (Object.keys(localResult).length > 0) {
           setResult(localResult);
@@ -1905,7 +1941,7 @@ export default function ResultsPage() {
     return (
       <main className="grid min-h-screen place-items-center bg-canvas px-5 text-fg">
         <div className="rounded-[2rem] border border-line bg-fg/[0.04] p-6 text-center">
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-brand">Loading interview debrief</p>
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-muted">Loading interview debrief</p>
           <p className="mt-3 text-sm leading-6 text-muted">Checking your saved database report first, then falling back to this device if needed.</p>
         </div>
       </main>
@@ -1917,9 +1953,9 @@ export default function ResultsPage() {
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-2xl border border-line bg-fg/5 px-4 py-3 text-sm font-black text-fg hover:bg-fg/10">
+            <Link href={!isPremium && sessionsRemaining <= 0 ? "/pricing" : "/onboarding"} className="inline-flex items-center gap-2 rounded-2xl border border-line bg-fg/5 px-4 py-3 text-sm font-black text-fg hover:bg-fg/10">
               <ArrowLeft className="h-4 w-4" />
-              New interview
+              {!isPremium && sessionsRemaining <= 0 ? "Upgrade to continue" : "New interview"}
             </Link>
             <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-2xl border border-line bg-fg/5 px-4 py-3 text-sm font-black text-fg hover:bg-fg/10">
               Dashboard
@@ -1970,7 +2006,7 @@ export default function ResultsPage() {
                 {isPremium ? "Recruiter decision simulation" : "Your recruiter-style feedback report"}
               </h1>
 
-              <p className="mt-3 text-base leading-7 text-brand">
+              <p className="mt-3 text-base leading-7 text-muted">
                 Current hiring confidence: <span className="font-black text-fg">{report.decision}</span>. Biggest blocker: <span className="font-black text-fg">{report.biggestBlocker}</span>.
               </p>
 
@@ -1980,7 +2016,7 @@ export default function ResultsPage() {
                 <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-warning/25 bg-warning/10 px-4 py-2.5">
                   <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
                   <p className="text-xs leading-5 text-warning">
-                    <span className="font-black">Very short session.</span> Only {report.answersCount} answer was captured — this debrief may not reflect your full ability. Complete a full session for an accurate result.
+                    <span className="font-black">Very short session.</span> Only {report.answersCount} answer was captured: this debrief may not reflect your full ability. Complete a full session for an accurate result.
                   </p>
                 </div>
               )}
@@ -2004,7 +2040,7 @@ export default function ResultsPage() {
               </div>
               <a href="/pricing?intent=top-teaser" className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-black text-on-brand hover:bg-brand transition">
                 <Crown className="h-3.5 w-3.5" />
-                See Premium — €19/mo
+                See Premium: €19/mo
               </a>
             </div>
           </div>
@@ -2024,19 +2060,19 @@ export default function ResultsPage() {
         <section className="mt-4 rounded-2xl border border-brand/15 bg-brand/[0.045] p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-brand">Deep analysis</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted">Deep analysis</p>
               <h2 className="mt-1 text-lg font-black">{phaseB.companyDNA.label}</h2>
               <p className="mt-1 max-w-4xl text-xs leading-5 text-muted">{phaseB.companyDNA.description}</p>
             </div>
             <div className="grid h-14 w-14 place-items-center rounded-xl border border-brand/20 bg-canvas-soft text-center">
-              <p className="text-xl font-black text-brand">{phaseB.trustAudit.overall}</p>
-              <p className="-mt-1 text-[9px] font-black text-subtle">TRUST</p>
+              <p className="text-xl font-black text-muted">{phaseB.trustAudit.overall}</p>
+              <p className="-mt-1 text-[9px] font-black text-muted">TRUST</p>
             </div>
           </div>
 
           <div className="mt-4 grid gap-3 lg:grid-cols-3">
             <div className="rounded-xl border border-line bg-canvas-soft p-3">
-              <p className="text-xs font-black text-brand">Company DNA alignment</p>
+              <p className="text-xs font-black text-muted">Company DNA alignment</p>
               <div className="mt-3 space-y-3">
                 {phaseB.companyDNA.dimensions.map((item) => (
                   <Bar key={item.label} label={item.label} value={item.score} target={item.target} note={item.note} />
@@ -2071,12 +2107,12 @@ export default function ResultsPage() {
 
         {!isPremium ? (
           <>
-            {/* ── THE WOW MOMENT — personalised signal first, before generic stats ── */}
+            {/* ── THE WOW MOMENT: personalised signal first, before generic stats ── */}
             {/* The first thing a free user reads is something specific to their session,
                 not a number. This is what makes it feel real. */}
             {report.answerInsights.length > 0 && (() => {
               // Find the most interesting moment: a trust drop, ownership gap, or
-              // filler spike — whichever happened earliest and is most specific.
+              // filler spike: whichever happened earliest and is most specific.
               const worstAnswer = [...report.answerInsights].sort((a, b) =>
                 (a.trustImpact ?? 0) - (b.trustImpact ?? 0)
               )[0];
@@ -2100,7 +2136,7 @@ export default function ResultsPage() {
 
               return (
                 <section className="mt-4 rounded-2xl border border-brand/25 bg-gradient-to-br from-brand/10 via-brand/8 to-slate-500/5 p-6">
-                  <p className="text-xs font-black uppercase tracking-[0.22em] text-brand">The recruiter noticed</p>
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-muted">The recruiter noticed</p>
                   <h2 className="mt-3 text-2xl font-black tracking-tight text-fg">
                     Two moments that defined this interview
                   </h2>
@@ -2154,15 +2190,15 @@ export default function ResultsPage() {
               );
             })()}
 
-            {/* ── Delivery stats — after the personal moment, not before ── */}
+            {/* ── Delivery stats: after the personal moment, not before ── */}
             <section className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
               <div className="rounded-2xl border border-line bg-fg/[0.035] p-5">
                 <h2 className="flex items-center gap-2 text-base font-black"><ShieldCheck className="h-4 w-4 text-success" />Delivery signals</h2>
                 <p className="mt-2 text-xs leading-5 text-muted">Estimated from transcript length, word count, and filler word detection.</p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-4">
-                  <div className="rounded-xl bg-canvas-soft p-3"><p className="text-xs text-muted">Speaking pace</p><p className="mt-1.5 text-xl font-black">{report.averageWpm || "—"} <span className="text-sm text-muted">WPM</span></p><p className="mt-0.5 text-[10px] text-subtle">{report.averageWpm ? (report.averageWpm >= 110 && report.averageWpm <= 170 ? "Good pace" : report.averageWpm < 110 ? "Too slow" : "Too fast") : "Not measured"}</p></div>
+                  <div className="rounded-xl bg-canvas-soft p-3"><p className="text-xs text-muted">Speaking pace</p><p className="mt-1.5 text-xl font-black">{report.averageWpm || "—"} <span className="text-sm text-muted">WPM</span></p><p className="mt-0.5 text-[10px] text-muted">{report.averageWpm ? (report.averageWpm >= 110 && report.averageWpm <= 170 ? "Good pace" : report.averageWpm < 110 ? "Too slow" : "Too fast") : "Not measured"}</p></div>
                   {(result.fillerWordCount ?? 0) >= 0 && (
-                    <div className="rounded-xl bg-canvas-soft p-3"><p className="text-xs text-muted">Filler words</p><p className="mt-1.5 text-xl font-black">{result.fillerWordCount ?? 0}</p><p className="mt-0.5 text-[10px] text-subtle">{(result.fillerWordCount ?? 0) === 0 ? "None detected" : (result.fillerWordCount ?? 0) <= 3 ? "Low — good" : (result.fillerWordCount ?? 0) <= 8 ? "Moderate" : "High — work on this"}</p></div>
+                    <div className="rounded-xl bg-canvas-soft p-3"><p className="text-xs text-muted">Filler words</p><p className="mt-1.5 text-xl font-black">{result.fillerWordCount ?? 0}</p><p className="mt-0.5 text-[10px] text-muted">{(result.fillerWordCount ?? 0) === 0 ? "None detected" : (result.fillerWordCount ?? 0) <= 3 ? "Low: good" : (result.fillerWordCount ?? 0) <= 8 ? "Moderate" : "High: work on this"}</p></div>
                   )}
                   <div className="rounded-xl bg-canvas-soft p-3"><p className="text-xs text-muted">Duration</p><p className="mt-1.5 text-xl font-black">{report.durationLabel}</p></div>
                   <div className="rounded-xl bg-canvas-soft p-3"><p className="text-xs text-muted">Answers</p><p className="mt-1.5 text-xl font-black">{report.answersCount}</p></div>
@@ -2181,7 +2217,7 @@ export default function ResultsPage() {
 
             <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
               <h2 className="flex items-center gap-2 text-base font-black"><Target className="h-4 w-4 text-brand" />What needs work</h2>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">{report.improvements.map((item) => <p key={item} className="rounded-xl bg-brand/10 px-3 py-2 text-xs leading-5 text-brand">{item}</p>)}</div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">{report.improvements.map((item) => <p key={item} className="rounded-xl bg-brand/10 px-3 py-2 text-xs leading-5 text-muted">{item}</p>)}</div>
             </section>
 
             <RealBlurredInsights
@@ -2263,7 +2299,7 @@ export default function ResultsPage() {
                 <div className="mt-4 space-y-3">
                   {report.improvementPlan.map((item) => (
                     <div key={item.priority} className="rounded-xl bg-brand/10 p-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-brand">{item.priority} · {item.gain}</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-muted">{item.priority} · {item.gain}</p>
                       <h3 className="mt-1 text-sm font-black text-fg">{item.title}</h3>
                       <p className="mt-1 text-xs leading-5 text-muted">{item.action}</p>
                     </div>
@@ -2278,7 +2314,7 @@ export default function ResultsPage() {
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 {report.audioSignals.map((item) => (
                   <div key={item.label} className="rounded-xl border border-line bg-canvas-soft p-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-subtle">{item.label}</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">{item.label}</p>
                     <p className="mt-1.5 text-2xl font-black text-fg">{item.value}</p>
                     <p className={cn("mt-1 text-[10px] font-black uppercase tracking-[0.14em]", item.risk === "high" ? "text-danger" : item.risk === "medium" ? "text-warning" : "text-success")}>{item.risk} risk</p>
                   </div>
@@ -2298,7 +2334,7 @@ export default function ResultsPage() {
           </>
         )}
 
-        {/* ── Readiness Score — Phase 3 ─────────────────────────────────── */}
+        {/* ── Readiness Score: Phase 3 ─────────────────────────────────── */}
         <ReadinessScorePanel
           isPremium={report.isPremium}
           interviewScore={report.overallScore}
@@ -2322,7 +2358,7 @@ export default function ResultsPage() {
               <p className="font-black text-fg">What to do next</p>
               <p className="mt-1.5 text-sm leading-5 text-muted">Retry the interview using the improvement roadmap and compare your next score.</p>
 
-              {/* Shareable moment card — viral mechanic */}
+              {/* Shareable moment card: viral mechanic */}
               {mounted && (() => {
                 try {
                   const raw = window.localStorage.getItem("workzo_shareable_moment");
@@ -2331,7 +2367,7 @@ export default function ResultsPage() {
                   if (!moment.shouldHighlight) return null;
                   return (
                     <div className="mt-5 rounded-2xl border border-brand/20 bg-brand/[0.07] p-5">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-brand">Memorable moment</p>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-muted">Memorable moment</p>
                       <h3 className="mt-2 text-lg font-black text-fg">{moment.shareTitle}</h3>
                       <p className="mt-2 text-sm leading-6 text-muted">{moment.shareText}</p>
                       <button
@@ -2340,7 +2376,7 @@ export default function ResultsPage() {
                           const btn = e.currentTarget;
                           if (btn.dataset.sharing === "1") return;
                           btn.dataset.sharing = "1";
-                          const text = `${moment.shareTitle}: "${moment.shareText}" — practiced with WorkZo AI`;
+                          const text = `${moment.shareTitle}: "${moment.shareText}": practiced with WorkZo AI`;
                           const done = () => { btn.dataset.sharing = ""; };
                           if (navigator.share) {
                             navigator.share({ title: "WorkZo AI Interview Moment", text }).then(done).catch(done);

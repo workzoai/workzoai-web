@@ -142,7 +142,7 @@ export default async function FeaturePage({ params }: { params: Promise<{ slug: 
         </Link>
 
         <section className="mt-10 rounded-lg border border-line bg-gradient-to-br from-brand/15 via-brand/10 to-white/[0.03] p-7 sm:p-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-brand">
+          <div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-muted">
             <Sparkles className="h-4 w-4" />
             {feature.eyebrow}
           </div>
@@ -175,7 +175,7 @@ export default async function FeaturePage({ params }: { params: Promise<{ slug: 
           </div>
 
           <div className="rounded-lg border border-brand/20 bg-brand/[0.08] p-6">
-            <p className="text-sm font-black uppercase tracking-[0.22em] text-brand">Premium unlock</p>
+            <p className="text-sm font-black uppercase tracking-[0.22em] text-muted">Premium unlock</p>
             <h2 className="mt-3 text-2xl font-black">What becomes available for paid users</h2>
             <div className="mt-5 space-y-3">
               {feature.premium.map((item) => (

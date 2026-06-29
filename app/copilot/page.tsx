@@ -311,7 +311,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
     if (numMatch) {
       nodes.push(
         <div key={i} className="mt-1 flex items-start gap-2.5 text-[13px] leading-6 text-muted">
-          <span className="min-w-[18px] shrink-0 font-bold text-brand/80">{numMatch[1]}.</span>
+          <span className="min-w-[18px] shrink-0 font-bold text-muted/80">{numMatch[1]}.</span>
           <span>{inlineFormat(numMatch[2])}</span>
         </div>
       );
@@ -497,7 +497,7 @@ export default function WorkOBotCopilotPage() {
             </div>
             <div>
               <p className="text-sm font-black">Work-O-Bot</p>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand/70">Career copilot</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted/70">Career copilot</p>
             </div>
           </div>
         </div>
@@ -569,7 +569,7 @@ export default function WorkOBotCopilotPage() {
                 {memory.map((item, i) => (
                   <div key={i} className={`rounded-xl border px-3 py-1.5 ${item.kind === "name" ? "border-line bg-fg/[0.05]" : item.kind === "jd" ? "border-brand/15 bg-brand/[0.05]" : "border-line bg-fg/[0.02]"}`}>
                     <p className="text-[9px] font-black uppercase tracking-[0.12em] text-subtle">{item.label}</p>
-                    <p className={`mt-0.5 truncate text-xs leading-5 ${item.kind === "name" ? "font-bold text-fg" : item.kind === "jd" ? "text-brand/80" : "text-muted"}`}>{item.value}</p>
+                    <p className={`mt-0.5 truncate text-xs leading-5 ${item.kind === "name" ? "font-bold text-fg" : item.kind === "jd" ? "text-muted/80" : "text-muted"}`}>{item.value}</p>
                   </div>
                 ))}
               </div>

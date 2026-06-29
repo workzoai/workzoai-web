@@ -53,7 +53,7 @@ function planLabel(plan: WorkZoPlanType) {
   return "Free";
 }
 
-// ── Action cards — all plans see all cards, locked ones go to pricing ────
+// ── Action cards: all plans see all cards, locked ones go to pricing ────
 const actionCards = [
   {
     title: "Start Interview",
@@ -143,10 +143,33 @@ export default function DashboardPage() {
   const [usage, setUsage] = useState<ReturnType<typeof getWorkZoUsageSummary> | null>(null);
 
   useEffect(() => {
+    let active = true;
     const p = normalizeWorkZoPlan(getWorkZoCurrentPlan());
     setPlan(p);
     setUsage(getWorkZoUsageSummary(p));
     setGreetingText(greeting());
+
+    fetch("/api/account/plan", { cache: "no-store", credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!active || !data) return;
+        const serverPlan = normalizeWorkZoPlan(data.plan || p);
+        const serverUsage = data.usage;
+        setPlan(serverPlan);
+        if (serverUsage) {
+          const localSummary = getWorkZoUsageSummary(serverPlan);
+          setUsage({
+            ...localSummary,
+            usage: {
+              ...localSummary.usage,
+              interviewsStarted: Number(serverUsage.interviewsStarted || 0),
+              interviewsCompleted: Number(serverUsage.interviewsCompleted || 0),
+            },
+            interviewsRemaining: Number(serverUsage.interviewsRemaining ?? localSummary.interviewsRemaining),
+          });
+        }
+      })
+      .catch(() => undefined);
       // Try to get first name from stored setup
       try {
         const keys = ["workzo-interview-setup-latest", "workzo_interview_setup", "workzoInterviewSetup"];
@@ -163,6 +186,9 @@ export default function DashboardPage() {
           }
         }
       } catch {}
+    return () => {
+      active = false;
+    };
   }, []);
 
   const limits = getWorkZoPlanLimits(plan);
@@ -170,7 +196,8 @@ export default function DashboardPage() {
   const isPro = plan === "premium_pro";
 
   const interviewsUsed = usage?.usage.interviewsStarted ?? 0;
-  const interviewsLeft = isPro ? "∞" : isPremium ? `${Math.max(0, 50 - interviewsUsed)} left` : `${Math.max(0, 2 - interviewsUsed)} left`;
+  const interviewsRemaining = usage?.interviewsRemaining ?? (isPro ? 999999 : isPremium ? Math.max(0, 50 - interviewsUsed) : Math.max(0, 2 - interviewsUsed));
+  const interviewsLeft = isPro ? "∞" : `${Math.max(0, interviewsRemaining)} left`;
 
   return (
     <main className="min-h-screen bg-canvas text-fg">
@@ -209,7 +236,7 @@ export default function DashboardPage() {
         {/* ── Header ── */}
         <header className="flex flex-wrap items-start justify-between gap-5 border-b border-line pb-7">
           <div>
-            <p className="text-sm text-subtle">{greetingText}{firstName ? `, ${firstName}` : ""}! 👋</p>
+            <p className="text-sm text-muted">{greetingText}{firstName ? `, ${firstName}` : ""}! 👋</p>
             <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">Your career workspace</h1>
             <p className="mt-2 text-sm text-muted">Track your progress and close the gap to your next offer.</p>
           </div>
@@ -272,7 +299,7 @@ export default function DashboardPage() {
           )}>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className={cn("text-[11px] font-black uppercase tracking-[0.2em]", isPremium ? "text-brand" : "text-brand")}>
+                <p className={cn("text-[11px] font-black uppercase tracking-[0.2em]", isPremium ? "text-muted" : "text-muted")}>
                   {isPremium ? "Upgrade to Premium Pro" : "Upgrade to Premium"}
                 </p>
                 <h2 className="mt-1.5 text-lg font-black">
@@ -297,9 +324,9 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {/* ── Action cards — all visible, locked if not on right plan ── */}
+        {/* ── Action cards: all visible, locked if not on right plan ── */}
         <section className="mt-8">
-          <h2 className="text-xs font-black uppercase tracking-[0.22em] text-subtle">Your tools</h2>
+          <h2 className="text-xs font-black uppercase tracking-[0.22em] text-muted">Your tools</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {actionCards.map((card) => {
               const allowed = canUseWorkZoFeature(plan, card.feature);
@@ -318,20 +345,20 @@ export default function DashboardPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className={cn("grid h-10 w-10 place-items-center rounded-xl", allowed ? card.bg : "bg-fg/[0.04]")}>
-                      <Icon className={cn("h-5 w-5", allowed ? card.accent : "text-subtle")} />
+                      <Icon className={cn("h-5 w-5", allowed ? card.accent : "text-muted")} />
                     </div>
                     {allowed
                       ? <ArrowRight className="h-4 w-4 text-subtle transition group-hover:text-muted" />
                       : (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-line bg-fg/5 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-subtle">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-line bg-fg/5 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-muted">
                           <Lock className="h-2.5 w-2.5" />
                           {WORKZO_PLAN_LIMITS[card.required].label}
                         </span>
                       )
                     }
                   </div>
-                  <h3 className={cn("mt-4 text-base font-black", allowed ? "text-fg" : "text-subtle")}>{card.title}</h3>
-                  <p className={cn("mt-1.5 text-sm leading-5", allowed ? "text-muted" : "text-subtle")}>
+                  <h3 className={cn("mt-4 text-base font-black", allowed ? "text-fg" : "text-muted")}>{card.title}</h3>
+                  <p className={cn("mt-1.5 text-sm leading-5", allowed ? "text-muted" : "text-muted")}>
                     {allowed ? card.detail : `Unlock with ${WORKZO_PLAN_LIMITS[card.required].label}`}
                   </p>
                 </Link>
@@ -347,7 +374,7 @@ export default function DashboardPage() {
           <div className="rounded-2xl border border-line bg-fg/[0.028] p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-subtle">Recent activity</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-muted">Recent activity</p>
                 <h2 className="mt-1 text-xl font-black">Your last sessions</h2>
               </div>
               <Link href="/history" className="text-xs font-black text-brand hover:text-brand">View all</Link>
@@ -359,7 +386,7 @@ export default function DashboardPage() {
           <div className="rounded-2xl border border-line bg-fg/[0.028] p-6">
             <div className="flex items-center gap-2">
               <Star className="h-4 w-4 text-brand" />
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-brand">Premium Pro tools</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-muted">Premium Pro tools</p>
             </div>
             <h2 className="mt-1 text-xl font-black">Advanced career layer</h2>
             <div className="mt-4 space-y-3">
@@ -371,15 +398,15 @@ export default function DashboardPage() {
                     "flex items-start gap-3 rounded-xl border p-3.5",
                     allowed ? "border-brand/20 bg-brand/[0.07]" : "border-line bg-fg/[0.02]"
                   )}>
-                    <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", allowed ? "bg-brand/15 text-brand" : "bg-fg/[0.04] text-subtle")}>
+                    <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", allowed ? "bg-brand/15 text-brand" : "bg-fg/[0.04] text-muted")}>
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className={cn("text-sm font-black", allowed ? "text-fg" : "text-subtle")}>{tool.title}</p>
-                        {!allowed && <Lock className="h-3 w-3 text-subtle" />}
+                        <p className={cn("text-sm font-black", allowed ? "text-fg" : "text-muted")}>{tool.title}</p>
+                        {!allowed && <Lock className="h-3 w-3 text-muted" />}
                       </div>
-                      <p className={cn("mt-0.5 text-xs leading-4", allowed ? "text-muted" : "text-subtle")}>{tool.detail}</p>
+                      <p className={cn("mt-0.5 text-xs leading-4", allowed ? "text-muted" : "text-muted")}>{tool.detail}</p>
                     </div>
                     {allowed && <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-brand" />}
                   </div>
@@ -402,9 +429,9 @@ export default function DashboardPage() {
               <Sparkles className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-brand">Interview tip</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-muted">Interview tip</p>
               <p className="mt-1 text-sm leading-6 text-muted">
-                Use the STAR method — Situation, Task, Action, Result — to structure every behavioural answer.
+                Use the STAR method: Situation, Task, Action, Result: to structure every behavioural answer.
                 Lead with the result first if your audience is senior. Recruiters remember the outcome, not the process.
               </p>
             </div>
@@ -416,7 +443,7 @@ export default function DashboardPage() {
   );
 }
 
-// ── Recent sessions — reads from localStorage ─────────────────────────────
+// ── Recent sessions: reads from localStorage ─────────────────────────────
 function RecentSessions({ plan }: { plan: WorkZoPlanType }) {
   const [sessions, setSessions] = useState<Array<{ id: string; targetRole: string; recruiterName: string; score: number | null; savedAt: string }>>([]);
 
@@ -447,9 +474,9 @@ function RecentSessions({ plan }: { plan: WorkZoPlanType }) {
   if (sessions.length === 0) {
     return (
       <div className="mt-5 rounded-xl border border-line bg-fg/[0.02] p-6 text-center">
-        <Mic className="mx-auto h-8 w-8 text-subtle" />
+        <Mic className="mx-auto h-8 w-8 text-muted" />
         <p className="mt-3 text-sm font-black text-muted">No sessions yet</p>
-        <p className="mt-1 text-xs text-subtle">Complete an interview to see your history here.</p>
+        <p className="mt-1 text-xs text-muted">Complete an interview to see your history here.</p>
         <Link href="/onboarding" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-black text-on-brand hover:bg-brand">
           Start first interview
         </Link>
@@ -467,17 +494,17 @@ function RecentSessions({ plan }: { plan: WorkZoPlanType }) {
             </div>
             <div>
               <p className="text-sm font-black text-fg">{s.targetRole}</p>
-              <p className="text-xs text-subtle">{s.recruiterName}</p>
+              <p className="text-xs text-muted">{s.recruiterName}</p>
             </div>
           </div>
           <div className="text-right">
             {s.score !== null && isPremium ? (
               <p className="text-sm font-black text-fg">
                 {typeof s.score === "object" ? (s.score as Record<string,number>)?.overall ?? "—" : s.score}
-                <span className="text-xs text-subtle">/100</span>
+                <span className="text-xs text-muted">/100</span>
               </p>
             ) : s.score !== null ? (
-              <p className="text-sm font-black text-subtle">Score hidden</p>
+              <p className="text-sm font-black text-muted">Score hidden</p>
             ) : null}
             <ArrowRight className="ml-auto mt-1 h-3.5 w-3.5 text-subtle transition group-hover:text-muted" />
           </div>
@@ -507,7 +534,7 @@ function Sidebar({ plan }: { plan: WorkZoPlanType }) {
         </div>
         <div>
           <p className="text-sm font-black">WorkZo <span className="text-brand">AI</span></p>
-          <p className="text-[10px] text-subtle">Career workspace</p>
+          <p className="text-[10px] text-muted">Career workspace</p>
         </div>
       </Link>
 
@@ -532,7 +559,7 @@ function Sidebar({ plan }: { plan: WorkZoPlanType }) {
                 <Icon className="h-4 w-4" />
                 {item.label}
               </span>
-              {locked && <Lock className="h-3 w-3 text-subtle" />}
+              {locked && <Lock className="h-3 w-3 text-muted" />}
             </Link>
           );
         })}
@@ -541,20 +568,20 @@ function Sidebar({ plan }: { plan: WorkZoPlanType }) {
       {/* Upgrade CTA for free users */}
       {plan === "free" && (
         <div className="mt-6 rounded-2xl border border-brand/20 bg-brand/10 p-4">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-brand">Upgrade to Premium</p>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">Upgrade to Premium</p>
           <p className="mt-1.5 text-xs leading-5 text-muted">50 interviews, CV tools, cover letters, Job Assist, and advanced reports.</p>
           <Link href="/pricing?plan=premium" className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-black text-on-brand hover:bg-brand">
-            <Crown className="h-3.5 w-3.5" /> Upgrade — €19.99/mo
+            <Crown className="h-3.5 w-3.5" /> Upgrade: €19.99/mo
           </Link>
         </div>
       )}
 
       {plan === "premium" && (
         <div className="mt-6 rounded-2xl border border-brand/20 bg-brand/10 p-4">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-brand">Upgrade to Pro</p>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">Upgrade to Pro</p>
           <p className="mt-1.5 text-xs leading-5 text-muted">AI Career Coach, Live AI Recruiter, roadmaps, and replay intelligence.</p>
           <Link href="/pricing?plan=premium_pro" className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-black text-on-brand hover:bg-brand">
-            <Star className="h-3.5 w-3.5" /> Upgrade — €39.99/mo
+            <Star className="h-3.5 w-3.5" /> Upgrade: €39.99/mo
           </Link>
         </div>
       )}
@@ -587,11 +614,11 @@ function MetricCard({
       locked ? "border-line bg-fg/[0.02]" : "border-line bg-fg/[0.035] hover:bg-fg/[0.05]"
     )}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-subtle">{label}</p>
-        {locked ? <Lock className="h-3.5 w-3.5 text-subtle" /> : <Icon className={cn("h-4 w-4", color)} />}
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-muted">{label}</p>
+        {locked ? <Lock className="h-3.5 w-3.5 text-muted" /> : <Icon className={cn("h-4 w-4", color)} />}
       </div>
-      <p className={cn("mt-3 text-3xl font-black", locked ? "text-subtle" : "text-fg")}>{locked ? "—" : value}</p>
-      <p className={cn("mt-1 text-xs", locked ? "text-subtle/70" : "text-subtle")}>{locked ? "Upgrade to unlock" : sub}</p>
+      <p className={cn("mt-3 text-3xl font-black", locked ? "text-muted" : "text-fg")}>{locked ? "—" : value}</p>
+      <p className={cn("mt-1 text-xs", locked ? "text-subtle/70" : "text-muted")}>{locked ? "Upgrade to unlock" : sub}</p>
     </div>
   );
 

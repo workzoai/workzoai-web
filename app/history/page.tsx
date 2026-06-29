@@ -6,13 +6,13 @@ import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import HistoryAnalyticsPing from "./HistoryAnalyticsPing";
 
 async function getPlanFromServer(): Promise<string> {
-  // Use server-backed DB plan — cannot be spoofed via devtools cookie manipulation.
+  // Use server-backed DB plan: cannot be spoofed via devtools cookie manipulation.
   // Falls back to cookie if the DB call fails (e.g. during Supabase maintenance).
   try {
     const resolved = await resolveWorkZoServerPlan();
     if (resolved.authenticated && resolved.plan) return resolved.plan;
   } catch {}
-  // Cookie fallback — lower security but better than showing nothing
+  // Cookie fallback: lower security but better than showing nothing
   try {
     const cookieStore = await cookies();
     const planCookie =
@@ -167,7 +167,7 @@ export default async function HistoryPage() {
         }`}>
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className={`text-xs font-bold uppercase tracking-[0.18em] ${isProPlan ? "text-brand" : "text-brand"}`}>
+              <p className={`text-xs font-bold uppercase tracking-[0.18em] ${isProPlan ? "text-muted" : "text-muted"}`}>
                 {isProPlan ? "Premium Pro · Unlimited history" : isPaidPlan ? "Premium · Full history" : "Free plan · 3 sessions"}
               </p>
               <h1 className="mt-2 text-3xl font-black sm:text-4xl">Interview History</h1>
@@ -187,7 +187,7 @@ export default async function HistoryPage() {
               </div>
               <div className="rounded-2xl border border-line bg-canvas-soft p-3">
                 <p className="text-xs text-muted">Plan</p>
-                <p className={`mt-1 truncate text-sm font-black ${isProPlan ? "text-brand" : isPaidPlan ? "text-brand" : "text-muted"}`}>{planLimits.label}</p>
+                <p className={`mt-1 truncate text-sm font-black ${isProPlan ? "text-muted" : isPaidPlan ? "text-muted" : "text-muted"}`}>{planLimits.label}</p>
               </div>
             </div>
           </div>
@@ -220,7 +220,7 @@ export default async function HistoryPage() {
                 <Lock className="h-5 w-5" />
               </div>
               <div className="flex-1">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-brand">Free plan — limited history</p>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-muted">Free plan: limited history</p>
                 <h2 className="mt-2 text-xl font-black text-fg">
                   {hiddenCount} older interview{hiddenCount === 1 ? "" : "s"} are locked
                 </h2>

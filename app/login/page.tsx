@@ -98,7 +98,7 @@ function LoginContent() {
     <>
       {isPremiumCheckout && (
         <div className="mb-6 rounded-lg border border-brand/20 bg-brand/10 p-4 text-center">
-          <p className="text-sm font-black text-brand">Sign in to continue to Premium checkout</p>
+          <p className="text-sm font-black text-muted">Sign in to continue to Premium checkout</p>
           <p className="mt-1 text-xs text-muted">You'll be redirected back after login</p>
         </div>
       )}

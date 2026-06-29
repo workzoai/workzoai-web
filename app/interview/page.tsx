@@ -73,7 +73,7 @@ import {
 import type { ResumeProfile } from "@/lib/workzoResumeParser";
 import dynamic from "next/dynamic";
 
-// Lazy-load Monaco — doesn't affect initial bundle for non-technical users
+// Lazy-load Monaco: doesn't affect initial bundle for non-technical users
 const CodePanel = dynamic(() => import("@/components/interview/CodePanel"), {
   ssr: false,
   loading: () => (
@@ -498,7 +498,7 @@ const navItems = [
 // ── CV-aware fallback questions ─────────────────────────────────────────────
 // These are used by the rule-engine fallback (when the LLM times out or the
 // Vapi path is unavailable). They are built dynamically from the candidate's
-// actual CV data so even the fallback path feels personalised — not generic.
+// actual CV data so even the fallback path feels personalised, not generic.
 // No hardcoded names, roles, or companies: everything comes from setup.
 function buildCvAwareQuestions(setup: InterviewSetup): string[] {
   const role = setup.targetRole || "this role";
@@ -515,24 +515,24 @@ function buildCvAwareQuestions(setup: InterviewSetup): string[] {
   const recentBullet = mostRecentJob?.bullets?.[0];
 
   const q1 = recentCompany
-    ? `Walk me through your background — starting with your time as ${recentTitle}${recentCompany ? ` at ${recentCompany}` : ""} — and explain what makes you right for ${role}.`
+    ? `Walk me through your background: starting with your time as ${recentTitle}${recentCompany ? ` at ${recentCompany}` : ""}, and explain what makes you right for ${role}.`
     : `Walk me through your background and explain what specifically makes you right for ${role}.`;
 
   const q2 = recentBullet
-    ? `You mentioned ${recentBullet.toLowerCase().slice(0, 60)}… — give me one concrete example of that in action: the situation, what you did personally, and the outcome.`
+    ? `You mentioned ${recentBullet.toLowerCase().slice(0, 60)}…: give me one concrete example of that in action: the situation, what you did personally, and the outcome.`
     : recentTitle
     ? `Give me one concrete example from your time as ${recentTitle}: the situation, what you personally did, and the measurable outcome.`
     : "Give me one concrete situation from your experience: what the problem was, what you personally did, and what changed as a result.";
 
   const q3 = secondJob
-    ? `You've worked across ${recentTitle} and ${secondJob.title || "other roles"} — what was the most difficult challenge you personally had to solve, and how did you approach it?`
+    ? `You've worked across ${recentTitle} and ${secondJob.title || "other roles"}: what was the most difficult challenge you personally had to solve, and how did you approach it?`
     : "What was the hardest problem you personally had to solve in your career, and what exactly did you do?";
 
   const q4 = topSkills
-    ? `You have experience with ${topSkills}. Walk me through a specific situation where that directly created a measurable result — not for the team, but for you personally.`
+    ? `You have experience with ${topSkills}. Walk me through a specific situation where that directly created a measurable result, not for the team, but for you personally.`
     : "What is the single most measurable result your work has produced? Give me the number, the context, and your exact contribution.";
 
-  const q5 = `Looking back at your experience, what would you do differently today — and how does that make you better prepared for ${role}?`;
+  const q5 = `Looking back at your experience, what would you do differently today, and how does that make you better prepared for ${role}?`;
 
   return [q1, q2, q3, q4, q5];
 }
@@ -1320,7 +1320,7 @@ function safeLocalStorageList(key: string) {
 }
 
 function isWorkZoPremiumUnlocked(plan: "free" | "premium" | "premium_pro") {
-  // Free users get premium intelligence and personas — only session count is limited.
+  // Free users get premium intelligence and personas: only session count is limited.
   return true;
 }
 
@@ -1671,10 +1671,10 @@ function buildLiveRecruiterThoughts(
 
 // A short, soft "go ahead" tone played exactly when the mic genuinely starts
 // capturing. The Web Speech API has an inherent cold-start lag between
-// .start() and actually receiving audio — that's a browser/engine limitation,
+// .start() and actually receiving audio: that's a browser/engine limitation,
 // not something fixable in app logic alone. The standard, proven mitigation
 // (same one Alexa/Google Assistant/Siri use) is a clear, consistent audio
-// cue people learn to wait for — it doesn't eliminate the underlying lag,
+// cue people learn to wait for: it doesn't eliminate the underlying lag,
 // but it eliminates the *guessing*, which is what actually causes people to
 // start talking too early and lose their first words.
 function playListeningChime() {
@@ -1702,12 +1702,12 @@ function playListeningChime() {
       } catch {}
     };
   } catch {
-    // Non-critical — silently skip if audio context isn't available.
+    // Non-critical: silently skip if audio context isn't available.
   }
 }
 
 // Catches answers that are technically 3+ words (so the raw word-count gate
-// misses them) but carry essentially no real content — audio-check fragments
+// misses them) but carry essentially no real content: audio-check fragments
 // like "hey can you" or "to you can you hear me" mid-interview. Strips known
 // filler/audio-check phrases out and checks what's actually left.
 function isLowContentAnswerFragment(value: string): boolean {
@@ -1782,7 +1782,7 @@ function preferredVoiceForRecruiter(
 // Scans CV text for date ranges like "2018 - 2020", "06/2016 to 2018",
 // "Jan 2019 – Present", and sums their durations in years. Used as a
 // fallback when a candidate's claimed years of experience isn't stated as
-// a literal phrase in the CV — most CVs only show per-job date ranges, not
+// a literal phrase in the CV: most CVs only show per-job date ranges, not
 // a precomputed total, so without this the verification check would flag
 // almost every honest candidate as "unverified" purely due to CV format.
 function estimateTotalYearsFromDateRanges(cvText: string): number | null {
@@ -1894,7 +1894,7 @@ function normalizedEvidenceText(setup: InterviewSetup) {
     .trim();
 }
 
-// CV-only evidence — used when checking claims about the candidate's OWN
+// CV-only evidence: used when checking claims about the candidate's OWN
 // background (companies worked at, roles held, years of experience).
 // Using cvText + jobDescription for these checks is a loophole: job
 // descriptions are full of the target role's title and required skills
@@ -2040,7 +2040,7 @@ function claimRootAlias(value: string) {
 
   // STT distortions: strip common company suffixes so "Acme Corp" and "Acme"
   // both normalize to the same root token for matching.
-  // This is generic — it works for any company name, not specific ones.
+  // This is generic: it works for any company name, not specific ones.
   const withoutSuffix = normalized.replace(/(?:corp|gmbh|ltd|inc|llc|co|group|ag|ug|kg|solutions|technologies|technology|systems|services|software|digital|global|international)$/, "").trim();
   if (withoutSuffix && withoutSuffix.length >= 3) return withoutSuffix;
 
@@ -2097,7 +2097,7 @@ function verifiedResumeFactBlock(setup: InterviewSetup) {
     : [];
 
   return [
-    "VERIFIED RESUME FACTS — AUTHORITATIVE:",
+    "VERIFIED RESUME FACTS: AUTHORITATIVE:",
     cvFacts.companies.length
       ? `Verified companies/employers: ${cvFacts.companies.join(", ")}.`
       : "Verified companies/employers: none extracted.",
@@ -2111,7 +2111,7 @@ function verifiedResumeFactBlock(setup: InterviewSetup) {
       ? `Verified skills/signals: ${cvFacts.skills.join(", ")}.`
       : "Verified skills/signals: none extracted.",
     "MANDATORY RULE: Never say you do not see, cannot verify, cannot confirm, do not see enough detail, not listed, not reflected in the CV, or need to pause for a company, employer, role, years-of-experience claim, education entry, project, achievement, responsibility, or skill if it is listed above or appears as a close speech-to-text variant of a listed fact.",
-    "Speech-to-text variants are common — if the candidate names a company that sounds like a verified employer, treat it as that employer and continue normally.",
+    "Speech-to-text variants are common: if the candidate names a company that sounds like a verified employer, treat it as that employer and continue normally.",
     "If the candidate says a verified company or role, ask about responsibilities, ownership, examples, challenges, metrics, and outcomes instead of challenging whether it exists or whether there is enough CV detail.",
   ].join("\n");
 }
@@ -2201,11 +2201,11 @@ function extractUnsupportedClaimReason(answer: string, setup: InterviewSetup) {
       // Fall back to summing employment date ranges found in the CV
       // (e.g. "2018 - 2020", "2016 to 2018") before concluding the claim
       // is unverified. Many CVs state duration only as date ranges per
-      // job, never as a literal "N years" phrase — without this check,
+      // job, never as a literal "N years" phrase: without this check,
       // a candidate whose CV genuinely supports their claimed experience
       // gets falsely challenged purely because of how their CV is worded.
       const totalYearsFromRanges = estimateTotalYearsFromDateRanges(cvEvidence);
-      // Allow some slack — total claimed experience often spans roles not
+      // Allow some slack: total claimed experience often spans roles not
       // captured as clean ranges (internships, freelance gaps, rounding),
       // so treat the claim as supported if it's within ~1.5 years of the
       // CV's own date-range total, rather than requiring an exact match.
@@ -2230,7 +2230,7 @@ function buildUnsupportedClaimChallenge(answer: string, setup: InterviewSetup) {
   const reason = extractUnsupportedClaimReason(answer, setup);
 
   if (!reason) {
-    return "Quick check before we continue — what evidence from your background supports that?";
+    return "Quick check before we continue: what evidence from your background supports that?";
   }
 
   // The years-of-experience case is the most common source of false
@@ -2238,7 +2238,7 @@ function buildUnsupportedClaimChallenge(answer: string, setup: InterviewSetup) {
   // anticipate), so it gets a noticeably gentler framing than company/role
   // mismatches, which are more clearly either right or wrong.
   if (/years of experience is not clearly stated/i.test(reason)) {
-    return `Quick check — ${reason}. Could you walk me through the roles or dates that add up to that, so I can follow along?`;
+    return `Quick check: ${reason}. Could you walk me through the roles or dates that add up to that, so I can follow along?`;
   }
 
   return `I want to make sure I understood that correctly. ${reason} Could you briefly clarify where this fits in your background, and then give me one concrete example from that experience?`;
@@ -2314,7 +2314,7 @@ function buildLocalizedGreeting(setup: InterviewSetup) {
     case "ta-IN":
       return hasRealName ? `வணக்கம் ${name}. இன்று நேர்காணலில் சேர்ந்ததற்கு நன்றி. எப்படி இருக்கிறீர்கள்?` : `வணக்கம். இன்று நேர்காணலில் சேர்ந்ததற்கு நன்றி. எப்படி இருக்கிறீர்கள்?`;
     default:
-      return `Hi ${name}. I'm ${setup.recruiterName || "Sarah"}, ${setup.recruiterTitle || "Senior Talent Partner"}. Thanks for joining today — how are you doing?`;
+      return `Hi ${name}. I'm ${setup.recruiterName || "Sarah"}, ${setup.recruiterTitle || "Senior Talent Partner"}. Thanks for joining today: how are you doing?`;
   }
 }
 
@@ -2354,7 +2354,7 @@ function buildLocalizedIntroQuestion(setup: InterviewSetup) {
     case "ta-IN":
       return `சரி. உங்கள் CV மற்றும் ${role} பொறுப்பை பார்த்தேன். ஆரம்பமாக, உங்களைச் சுருக்கமாக அறிமுகப்படுத்தி, உங்கள் அனுபவம் இந்த வாய்ப்புடன் எப்படி தொடர்புடையது என்பதை சொல்ல முடியுமா?`;
     default:
-      return `Great. I’ve had a look at your background and I can see you’re targeting a ${role} position. To get started, tell me about yourself — what you’ve been doing and what’s driving you toward this direction.`;
+      return `Great. I’ve had a look at your background and I can see you’re targeting a ${role} position. To get started, tell me about yourself: what you’ve been doing and what’s driving you toward this direction.`;
   }
 }
 
@@ -2415,7 +2415,7 @@ function earlyInterviewReply(
 function buildOpeningFlowInstruction(setup: InterviewSetup) {
   const language = normalizeInterviewLanguage(setup.language);
   return [
-    `OPENING FLOW — speak in ${language.label}.`,
+    `OPENING FLOW: speak in ${language.label}.`,
     "First message must only greet the candidate and ask how they are doing.",
     "After the candidate responds, acknowledge naturally and ask for a short self-introduction connected to the target role.",
     "Do not ask for metrics, proof, pressure questions, or challenges until after the candidate has given a real introduction answer.",
@@ -2436,7 +2436,7 @@ function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
     if (/The answer still sounds team-level/i.test(text))
       return "Die Antwort klingt noch zu sehr nach Teamleistung. Was genau hast du persönlich entschieden, gebaut, gelöst oder verantwortet?";
     if (/measurable impact|Now add measurable/i.test(text))
-      return "Die Geschichte ist klar. Jetzt brauche ich messbare Wirkung. Was hat sich nach deiner Arbeit verändert — Zeitersparnis, weniger Fehler, bessere Qualität, Kundenzufriedenheit oder ein Geschäftsergebnis?";
+      return "Die Geschichte ist klar. Jetzt brauche ich messbare Wirkung. Was hat sich nach deiner Arbeit verändert: Zeitersparnis, weniger Fehler, bessere Qualität, Kundenzufriedenheit oder ein Geschäftsergebnis?";
     if (/I need to pause there/i.test(text))
       return "Ich muss hier kurz stoppen. Diese Aussage kann ich aus deinem CV nicht klar verifizieren. Kannst du erklären, ob das offizielle Berufserfahrung, freiberufliche Arbeit, freiwillige Erfahrung, übertragbare Erfahrung oder nur ein Beispielszenario war?";
   }
@@ -2449,7 +2449,7 @@ function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
     if (/The answer still sounds team-level/i.test(text))
       return "Het antwoord klinkt nog te veel als teamniveau. Wat heb jij persoonlijk besloten, gebouwd, opgelost of geleverd?";
     if (/measurable impact|Now add measurable/i.test(text))
-      return "Het verhaal is duidelijk. Nu wil ik meetbare impact. Wat veranderde er na jouw werk — tijdwinst, minder fouten, betere kwaliteit, klanttevredenheid of een bedrijfsresultaat?";
+      return "Het verhaal is duidelijk. Nu wil ik meetbare impact. Wat veranderde er na jouw werk: tijdwinst, minder fouten, betere kwaliteit, klanttevredenheid of een bedrijfsresultaat?";
   }
 
   if (language.code === "fr-FR") {
@@ -2541,7 +2541,7 @@ function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
         text,
       )
     )
-      return "उदाहरण समझ आया। अब मापने योग्य प्रभाव बताइए — समय, टिकट, गुणवत्ता, ग्राहक संतुष्टि, लागत या परिणाम में क्या बदलाव आया?";
+      return "उदाहरण समझ आया। अब मापने योग्य प्रभाव बताइए: समय, टिकट, गुणवत्ता, ग्राहक संतुष्टि, लागत या परिणाम में क्या बदलाव आया?";
     if (/I need to pause there/i.test(text))
       return "मुझे यहाँ थोड़ी देर रुकना होगा। यह दावा आपके CV से स्पष्ट रूप से सत्यापित नहीं हो रहा है। कृपया बताएं कि यह आधिकारिक नौकरी, freelance काम, volunteer अनुभव, transferable experience या सिर्फ example scenario था?";
     if (/Thank you for being honest/i.test(text))
@@ -2560,7 +2560,7 @@ function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
         text,
       )
     )
-      return "உதாரணம் தெளிவாக உள்ளது. இப்போது அளவிடக்கூடிய தாக்கத்தைச் சொல்லுங்கள் — நேரம், தரம், வாடிக்கையாளர் திருப்தி, செலவு அல்லது முடிவில் என்ன மாறியது?";
+      return "உதாரணம் தெளிவாக உள்ளது. இப்போது அளவிடக்கூடிய தாக்கத்தைச் சொல்லுங்கள்: நேரம், தரம், வாடிக்கையாளர் திருப்தி, செலவு அல்லது முடிவில் என்ன மாறியது?";
   }
 
   // ── Languages added to complete full coverage ───────────────────────────────
@@ -2611,7 +2611,7 @@ function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
         text,
       )
     )
-      return "История понятна. Теперь добавьте измеримый результат. Что изменилось после вашей работы — время, качество, удовлетворённость клиентов, стоимость или бизнес-показатель?";
+      return "История понятна. Теперь добавьте измеримый результат. Что изменилось после вашей работы: время, качество, удовлетворённость клиентов, стоимость или бизнес-показатель?";
     if (/I need to pause there/i.test(text))
       return "Мне нужно уточнить. Это утверждение я не могу чётко подтвердить по вашему резюме. Поясните: это было официальное трудоустройство, фриланс, волонтёрство, переносимый опыт или просто пример?";
   }
@@ -2628,7 +2628,7 @@ function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
         text,
       )
     )
-      return "Hikâye net. Şimdi ölçülebilir bir etki ekleyin. Çalışmanızdan sonra ne değişti — zaman, kalite, müşteri memnuniyeti, maliyet veya bir iş sonucu?";
+      return "Hikâye net. Şimdi ölçülebilir bir etki ekleyin. Çalışmanızdan sonra ne değişti: zaman, kalite, müşteri memnuniyeti, maliyet veya bir iş sonucu?";
     if (/I need to pause there/i.test(text))
       return "Burada durmam gerekiyor. Bunu CV'nizden net olarak doğrulayamıyorum. Bunun resmi istihdam, serbest çalışma, gönüllülük, aktarılabilir deneyim mi yoksa yalnızca bir örnek senaryo mu olduğunu açıklar mısınız?";
   }
@@ -2642,22 +2642,22 @@ function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
 
   if (language.code === "ar-SA") {
     if (/I'm following you, but I need more detail/i.test(text))
-      return "أتابعك، لكنني أحتاج إلى مزيد من التفاصيل لتقييم المطابقة. أعطني موقفًا محددًا — ما الذي فعلته شخصيًا وما الذي تغير بعد ذلك.";
+      return "أتابعك، لكنني أحتاج إلى مزيد من التفاصيل لتقييم المطابقة. أعطني موقفًا محددًا: ما الذي فعلته شخصيًا وما الذي تغير بعد ذلك.";
     if (/The answer still sounds team-level/i.test(text))
       return "الإجابة لا تزال تبدو على مستوى الفريق. ماذا قررت أو بنيت أو حللت أو قدمت بشكل شخصي؟";
     if (/measurable impact|Give me one concrete metric/i.test(text))
-      return "القصة واضحة. الآن أضف تأثيرًا قابلًا للقياس — وقت موفر، أخطاء مخففة، رضا العملاء، تكلفة أو نتيجة أعمال.";
+      return "القصة واضحة. الآن أضف تأثيرًا قابلًا للقياس: وقت موفر، أخطاء مخففة، رضا العملاء، تكلفة أو نتيجة أعمال.";
     if (/I need to pause there/i.test(text))
       return "أحتاج إلى التوقف هنا. لا يمكنني التحقق من ذلك بوضوح من سيرتك الذاتية. هل يمكنك توضيح ما إذا كان هذا توظيفًا رسميًا أم عملًا حرًا أم تطوعًا أم خبرة قابلة للنقل أم مجرد سيناريو مثال؟";
   }
 
   if (language.code === "pl-PL") {
     if (/I'm following you, but I need more detail/i.test(text))
-      return "Rozumiem cię, ale potrzebuję więcej szczegółów, aby ocenić dopasowanie. Podaj konkretną sytuację — co ty osobiście zrobiłeś i co się po tym zmieniło.";
+      return "Rozumiem cię, ale potrzebuję więcej szczegółów, aby ocenić dopasowanie. Podaj konkretną sytuację: co ty osobiście zrobiłeś i co się po tym zmieniło.";
     if (/The answer still sounds team-level/i.test(text))
       return "Odpowiedź nadal brzmi jak praca zespołowa. Co ty osobiście zdecydowałeś, zbudowałeś, rozwiązałeś lub dostarczyłeś?";
     if (/measurable impact|Give me one concrete metric/i.test(text))
-      return "Historia jest jasna. Teraz dodaj mierzalny wpływ — zaoszczędzony czas, zmniejszone błędy, satysfakcja klientów, koszt lub wynik biznesowy.";
+      return "Historia jest jasna. Teraz dodaj mierzalny wpływ: zaoszczędzony czas, zmniejszone błędy, satysfakcja klientów, koszt lub wynik biznesowy.";
     if (/I need to pause there/i.test(text))
       return "Muszę się tu zatrzymać. Nie mogę tego wyraźnie zweryfikować na podstawie twojego CV. Czy możesz wyjaśnić, czy to było oficjalne zatrudnienie, praca freelancerska, wolontariat, przenoszalne doświadczenie, czy tylko przykładowy scenariusz?";
   }
@@ -2761,7 +2761,7 @@ function buildRecruiterReply(
       answer,
     )
   ) {
-    return "That gives me the story. What was the visible outcome — customer satisfaction, fewer escalations, faster resolution, better quality, or a clearer handover?";
+    return "That gives me the story. What was the visible outcome: customer satisfaction, fewer escalations, faster resolution, better quality, or a clearer handover?";
   }
 
   if (
@@ -2938,7 +2938,7 @@ function recruiterMoodColor(mood: RecruiterSignalState["mood"]) {
 }
 
 const defaultRecruiterSignal: RecruiterSignalState = {
-  // Start at neutral 50 — score must be EARNED through answers.
+  // Start at neutral 50: score must be EARNED through answers.
   // Starting at 78 meant any short/broken session showed 75-78 as "default".
   overall: 50,
   confidence: 50,
@@ -3106,7 +3106,7 @@ function normalizeInterviewLanguage(value?: string) {
       code: "de-DE",
       label: "German",
       instruction:
-        "Conduct the entire interview in German. Use professional, natural German throughout — questions, follow-ups, and feedback.",
+        "Conduct the entire interview in German. Use professional, natural German throughout: questions, follow-ups, and feedback.",
     };
   }
   if (
@@ -3414,7 +3414,7 @@ function extractCapitalizedPhrases(text: string) {
 // candidate's spoken answers). These produce short factual flags the
 // recruiter can naturally weave into follow-up questions, e.g. overlapping
 // jobs, duplicate degrees, or a CV that doesn't show the seniority the JD
-// asks for. Works for any CV — no hardcoded company/person names.
+// asks for. Works for any CV: no hardcoded company/person names.
 
 const MONTH_NAMES: Record<string, number> = {
   jan: 0,
@@ -3446,7 +3446,7 @@ const MONTH_NAMES: Record<string, number> = {
 type DateRange = { start: number; end: number; label: string };
 
 /**
- * parseDateRange — turns a free-text "dates" field (e.g. "Jan 2020 - Present",
+ * parseDateRange: turns a free-text "dates" field (e.g. "Jan 2020 - Present",
  * "2018-2020", "Mar 2018 – Jul 2022", "10/2015 - 06/2018") into a numeric
  * [start, end] range in "months since year 0" for easy overlap comparison.
  * Returns null if no recognizable year is found.
@@ -3521,7 +3521,7 @@ type CvCredibilityFlag = {
 };
 
 /**
- * extractCvCredibilityFlags — static, structure-based scan of the parsed
+ * extractCvCredibilityFlags: static, structure-based scan of the parsed
  * resumeProfile for things worth probing in an interview:
  *  - Two or more jobs/education entries with significantly overlapping date
  *    ranges (could be legitimate part-time/concurrent roles, but worth
@@ -3533,7 +3533,7 @@ type CvCredibilityFlag = {
  *    seniority implied by the job description (e.g. CV shows only "Intern"
  *    / "Assistant" titles but the JD is for a "Manager"/"Lead"/"Senior" role).
  *
- * Each flag is a short, factual note — never an accusation — so the
+ * Each flag is a short, factual note: never an accusation. the
  * recruiter persona can turn it into a natural, curious follow-up question.
  */
 function extractCvCredibilityFlags(setup: InterviewSetup): CvCredibilityFlag[] {
@@ -3561,7 +3561,7 @@ function extractCvCredibilityFlags(setup: InterviewSetup): CvCredibilityFlag[] {
       const overlapMonths = overlapEnd - overlapStart;
 
       // Ignore trivial 1-month overlaps from rounding (e.g. "Dec 2019" /
-      // "Jan 2020" boundary entries) — only flag overlaps of 3+ months,
+      // "Jan 2020" boundary entries): only flag overlaps of 3+ months,
       // which suggest genuinely concurrent roles.
       if (overlapMonths >= 3) {
         flags.push({
@@ -3845,15 +3845,15 @@ function buildCredibilityFollowUp(
   if (!flag) return "";
 
   if (flag.topic === "cv_overlapping_dates") {
-    return `I noticed your CV shows two roles with overlapping dates. ${flag.note} Can you walk me through how that worked — were these concurrent, or is one of the dates a typo?`;
+    return `I noticed your CV shows two roles with overlapping dates. ${flag.note} Can you walk me through how that worked: were these concurrent, or is one of the dates a typo?`;
   }
 
   if (flag.topic === "cv_duplicate_degree") {
-    return `Quick clarification on your education: ${flag.note} Could you explain how these two relate — was one a transfer, an exchange program, or something else?`;
+    return `Quick clarification on your education: ${flag.note} Could you explain how these two relate: was one a transfer, an exchange program, or something else?`;
   }
 
   if (flag.topic === "cv_seniority_gap") {
-    return `${flag.note} Tell me about a time you took on responsibilities beyond your formal title — that would help me understand your readiness for this level.`;
+    return `${flag.note} Tell me about a time you took on responsibilities beyond your formal title: that would help me understand your readiness for this level.`;
   }
 
   return "";
@@ -4036,7 +4036,7 @@ function buildClosingChallenge(
     ? memory.strengthsMentioned.slice(0, 2).join(" and ")
     : "your strongest relevant experience";
 
-  return `Before we wrap up, I want one final answer from you. Why should we choose you for this ${setup.targetRole} role over another candidate — using ${strengths} and one specific result? After that, do you have any questions for me about the role or next steps?`;
+  return `Before we wrap up, I want one final answer from you. Why should we choose you for this ${setup.targetRole} role over another candidate: using ${strengths} and one specific result? After that, do you have any questions for me about the role or next steps?`;
 }
 
 function cleanRecruiterFinalText(text: string, setup: InterviewSetup) {
@@ -4131,7 +4131,7 @@ function updateRecruiterMemoryState(
   const needsClosingChallenge =
     nextQuestionCount >= 15 && !previous.closingAsked;
   // readyForResults gates the end-of-interview transition.
-  // A raw question count alone is not enough — the recruiter must have
+  // A raw question count alone is not enough: the recruiter must have
   // issued a closing invitation ("do you have any questions") AND the
   // candidate must have replied. The count-only fallback is raised to 20
   // so a natural conversation is never cut short mid-exchange.
@@ -4209,7 +4209,7 @@ function buildMemoryAwareFollowUp(
   const analysis = analyzeAnswerSignals(answer, setup);
 
   // Only trigger closing after at least 10 real covered topics
-  // questionIndex can be inflated by short greetings — use askedTopics as truth
+  // questionIndex can be inflated by short greetings: use askedTopics as truth
   const realTopicsCount = memory.askedTopics?.length || 0;
   // Only trigger closing challenge in browser engine (non-Vapi) sessions
   // Vapi handles its own closing via the prompt instructions
@@ -4232,8 +4232,8 @@ function buildMemoryAwareFollowUp(
     !wasTopicCovered(memory, "metrics_recovery")
   ) {
     return memory.missingMetrics > 3
-      ? "Let's try a different angle — pick any task you did regularly. Roughly how often, how long, or by how much did it change something?"
-      : "You’ve given useful context. Do you have any rough scale for it — volume handled, response time, customer rating, tickets, or frequency? A rough number is enough.";
+      ? "Let's try a different angle: pick any task you did regularly. Roughly how often, how long, or by how much did it change something?"
+      : "You’ve given useful context. Do you have any rough scale for it: volume handled, response time, customer rating, tickets, or frequency? A rough number is enough.";
   }
 
   if (
@@ -4250,7 +4250,7 @@ function buildMemoryAwareFollowUp(
     !wasTopicCovered(memory, "specificity_recovery")
   ) {
     return memory.vagueAnswers > 3
-      ? "Pick just one moment — a single conversation, ticket, or task. What happened, step by step?"
+      ? "Pick just one moment: a single conversation, ticket, or task. What happened, step by step?"
       : "Let me stop you there and make this specific. Give me one real situation, one action you personally took, and one result.";
   }
 
@@ -4461,7 +4461,7 @@ function cleanVisibleTranscriptText(text: string) {
     removeRepeatedSpeechChunks(text)
       .replace(/\s+/g, " ")
       .replace(/\bhigh\s+/i, "Hi ")
-      // Founder-specific STT corrections removed — do not add personal names here
+      // Founder-specific STT corrections removed: do not add personal names here
       .replace(/\bHi,?\s+surrender\b/gi, "Hi there")
       .replace(/\bsurrender\b/gi, "there")
       .replace(/\s+([,.!?])/g, "$1")
@@ -4515,7 +4515,7 @@ function shouldMergeVisibleTranscript(
   // Recruiter-to-recruiter: only merge if this is a rapid streaming fragment
   // from the SAME reply (Vapi chunking), AND no candidate turn happened between
   // the two recruiter messages. If a candidate spoke, these are definitionally
-  // two separate exchanges and must never merge — confirmed from live testing
+  // two separate exchanges and must never merge: confirmed from live testing
   // where the greeting merged with the follow-up question after the candidate's
   // "Hi, how are you?" because both arrived within 4 seconds.
   if (hasHadCandidateTurnSinceLastRecruiter) return false;
@@ -4735,7 +4735,7 @@ function getWorkZoLiveCopilotInsight(input: {
   return {
     headline: "Processing answer",
     sayNext:
-      "Get ready for the follow-up — prepare a specific, evidence-based response.",
+      "Get ready for the follow-up: prepare a specific, evidence-based response.",
     recruiterConcern:
       input.recruiterConcern || "The recruiter is evaluating your last answer.",
     liveTip: "Think of one metric or outcome you can add to your next answer.",
@@ -4772,7 +4772,7 @@ export default function InterviewPage() {
 
       // Suppress all Krisp/Daily noise-cancellation runtime messages.
       // These are emitted by the Daily.js WebRTC layer and are not actionable
-      // — they indicate transient CPU load or processor lifecycle events, not
+      //: they indicate transient CPU load or processor lifecycle events, not
       // bugs in WorkZo code. Matching case-insensitively on "krisp" catches
       // all variants: "Error unloading krisp processor", "Krisp error: system
       // overload", "WASM_OR_WORKER_NOT_READY", etc.
@@ -4884,7 +4884,7 @@ export default function InterviewPage() {
     "free" | "premium" | "premium_pro"
   >("free");
   const [planLoading, setPlanLoading] = useState(true);
-  // Technical mode — premium/premium_pro only
+  // Technical mode: premium/premium_pro only
   const isTechnicalRecruiter = (id: string) =>
     id === "faang_hiring_manager" || id === "alex" || id.includes("faang");
   const [technicalMode, setTechnicalMode] = useState(() => isTechnicalRecruiter(setup.recruiterId || ""));
@@ -4892,7 +4892,7 @@ export default function InterviewPage() {
   const [codeLanguage, setCodeLanguage] = useState("python");
   const codeSnapshotRef = useRef("");
   const codeLanguageRef = useRef("python");
-  // First-time user hint — shown after the recruiter's opening line, dismissed permanently
+  // First-time user hint: shown after the recruiter's opening line, dismissed permanently
   const [showFirstTimeHint, setShowFirstTimeHint] = useState(false);
   const interviewSessionIdRef = useRef<string>(`workzo-session-${Date.now()}`);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -5014,7 +5014,7 @@ export default function InterviewPage() {
   const stopRequestedRef = useRef(false);
   const startListeningRef = useRef<(() => void | Promise<void>) | null>(null);
 
-  // Stops the recruiter speaking immediately — called by the interrupt button.
+  // Stops the recruiter speaking immediately: called by the interrupt button.
   // Important: this callback is declared before startListening, so it must call
   // startListening through a ref. Adding startListening directly to this
   // dependency array causes a runtime TDZ error:
@@ -5051,7 +5051,7 @@ export default function InterviewPage() {
   // Stores the currently playing TTS Audio element so the user can interrupt
   // the recruiter mid-speech by tapping the new stop button.
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
-  // V2 recruiter memory — persists competency tracker, concern resolution,
+  // V2 recruiter memory: persists competency tracker, concern resolution,
   // topic progression, and JD gaps across every turn of the interview.
   const recruiterMemoryV2Ref = useRef<unknown>(null);
   const vapiConnectedRef = useRef(false);
@@ -5076,7 +5076,7 @@ export default function InterviewPage() {
   // streaming (e.g. "Could you clarify... One... Two... Three...", six
   // separate bubbles in under 30 seconds). This is NOT the same as the
   // earlier bug where two genuinely DIFFERENT, unrelated replies got glued
-  // together with no separator — that fix (only merging candidate turns)
+  // together with no separator: that fix (only merging candidate turns)
   // stays in place. This adds back a narrow, time-boxed exception:
   // recruiter-to-recruiter merging is now allowed, but ONLY within a few
   // seconds of the previous recruiter line, which is what actually
@@ -5102,13 +5102,13 @@ export default function InterviewPage() {
     : 0;
   // interviewComplete: ONLY trigger on transcript-detected closing.
   // When Vapi is active, the browser engine memory (readyForResults) should
-  // NOT end the interview — Vapi controls the conversation and will issue
+  // NOT end the interview: Vapi controls the conversation and will issue
   // its own closing. We only end when the closing detection in the useEffect
   // below fires (closingInvitationSeenRef + candidate reply).
   // For browser-engine-only sessions (no Vapi), readyForResults is fine.
   const vapiIsActive = premiumVoiceStatus === "connected";
   const interviewComplete: boolean = vapiIsActive
-    ? false  // Vapi sessions: NEVER auto-end from memory state — only from transcript closing detection
+    ? false  // Vapi sessions: NEVER auto-end from memory state: only from transcript closing detection
     : recruiterMemory.readyForResults;
   const headerTitle = setup.targetCompany
     ? `${setup.targetRole} – ${setup.targetCompany}`
@@ -5310,6 +5310,11 @@ export default function InterviewPage() {
   useEffect(() => {
     if (status === "idle") return;
 
+    // Record interview start time for duration-based guards
+    if (interviewStartTimeRef.current === null) {
+      interviewStartTimeRef.current = Date.now();
+    }
+
     const timer = window.setInterval(() => {
       setElapsed((value) => value + 1);
     }, 1000);
@@ -5362,7 +5367,7 @@ export default function InterviewPage() {
           }
         }
       } catch {
-        // Network failure shouldn't block the interview — the server-side
+        // Network failure shouldn't block the interview: the server-side
         // limit is a backstop, not the only line of defense (client-side
         // check still runs first). Fail open here, not closed.
       }
@@ -5446,7 +5451,7 @@ export default function InterviewPage() {
         }
 
         // Check if a candidate turn happened between the previous recruiter
-        // message and this one — if so, these are separate exchanges, never merge.
+        // message and this one: if so, these are separate exchanges, never merge.
         const lastRecruiterIndex =
           cleanedItem.role === "recruiter"
             ? current.map((e) => e.role).lastIndexOf("recruiter")
@@ -5528,20 +5533,20 @@ export default function InterviewPage() {
 
   // Keep a ref mirror of the transcript so closures (recorder.onstop, async
   // speech-recognition handlers) can read the latest conversation history
-  // without stale-closure issues — same reasoning as questionIndexRef etc.
+  // without stale-closure issues: same reasoning as questionIndexRef etc.
   useEffect(() => {
     transcriptRef.current = transcript;
   }, [transcript]);
 
   // ── Live recruiter reply: real LLM for paid plans, rule engine for free ──
   // Free tier intentionally keeps the existing fast/free deterministic
-  // engine (buildRecruiterReply) — it's already a reasonable "try before
+  // engine (buildRecruiterReply): it's already a reasonable "try before
   // you buy" experience. Premium and Premium Pro get genuinely responsive,
   // LLM-generated replies that react to what was actually said instead of
   // selecting from a fixed list of canned strings. If the LLM call fails
   // or times out for any reason, this transparently falls back to the same
   // rule engine free users get, so a flaky API call never breaks the
-  // interview — it just quietly degrades to the old behavior for that turn.
+  // interview: it just quietly degrades to the old behavior for that turn.
   const getRecruiterReply = useCallback(
     async (answer: string): Promise<string> => {
       const currentSetup = setupRef.current;
@@ -5549,7 +5554,7 @@ export default function InterviewPage() {
       const fallback = (reason: string) => {
         const durationMs = Date.now() - callStartedAt;
         console.error(
-          `[interview] LLM reply NOT used this turn — using rule-engine fallback. reason="${reason}" durationMs=${durationMs}`,
+          `[interview] LLM reply NOT used this turn: using rule-engine fallback. reason="${reason}" durationMs=${durationMs}`,
         );
         trackWorkZoErrorEvent(
           "interview_reply_fallback",
@@ -5570,7 +5575,7 @@ export default function InterviewPage() {
         );
       };
 
-      // Free users get full GPT-4o intelligence — session count is enforced by /api/db/interview-session.
+      // Free users get full GPT-4o intelligence: session count is enforced by /api/db/interview-session.
 
       try {
         const signalAnalysis = analyzeAnswerSignals(answer, currentSetup);
@@ -5583,12 +5588,12 @@ export default function InterviewPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          // 8000ms was too tight — confirmed in live testing the LLM call
+          // 8000ms was too tight: confirmed in live testing the LLM call
           // legitimately takes >8s sometimes (more so as transcript/context
           // grows), which was dumping real answers into the robotic
           // deterministic fallback. 13s gives the call room to finish while
           // still bounding worst-case wait.
-          // 13s still failed once in testing (13021ms) — right at the edge.
+          // 13s still failed once in testing (13021ms): right at the edge.
           // Combined with the role-knowledge prompt trim (only the matching
           // role block is sent now, not all ~7), this should hit far less
           // often, but the cap itself needed more headroom regardless.
@@ -5599,14 +5604,14 @@ export default function InterviewPage() {
             // always fell back to its hardcoded default ("Tell me about
             // yourself"), regardless of what was actually just asked. That
             // caused real, on-topic answers to get rejected as "not
-            // addressing the question" — they were being compared against
+            // addressing the question": they were being compared against
             // the wrong question. This sends the actual last thing the
             // recruiter said, which is the real active question.
             currentQuestion:
               [...transcriptRef.current]
                 .reverse()
                 .find((item) => item.role === "recruiter")?.text || "",
-            // Only the last 10 turns are sent — GPT-4o needs recent thread
+            // Only the last 10 turns are sent: GPT-4o needs recent thread
             // context, not the entire interview transcript. Sending the full
             // history made every request's input larger (and slower) as the
             // interview progressed, compounding the latency problem.
@@ -5627,7 +5632,7 @@ export default function InterviewPage() {
             recruiterTitle: currentSetup.recruiterTitle,
             language: currentSetup.language,
             // Send structured profile so /api/interview/reply can build an explicit
-            // verified-employers list — preventing false "I cannot verify [employer]" challenges
+            // verified-employers list: preventing false "I cannot verify [employer]" challenges
             resumeProfile: currentSetup.resumeProfile || null,
             pressureStyle:
               recruiterProfiles[currentSetup.recruiterId]?.pressureStyle ||
@@ -5670,7 +5675,7 @@ export default function InterviewPage() {
             data.provider !== "unified_engine" &&
             data.provider !== "opening_guard"
           ) {
-            // The server itself fell back to its rule engine — still real text,
+            // The server itself fell back to its rule engine: still real text,
             // but worth knowing about. Not a hard failure, so no fallback() call.
             console.warn(
               `[interview] Server used "${data.provider}" instead of GPT-4o this turn. durationMs=${durationMs}`,
@@ -5790,7 +5795,7 @@ export default function InterviewPage() {
           if (interruptDecision.shouldInterrupt) {
             const wc = answer.trim().split(/\s+/).filter(Boolean).length;
             console.warn(
-              `[interview] decideWorkZoInterruption fired (recorder fallback) — reason=${interruptDecision.reason} wordCount=${wc} answerLength=${answer.length} answer="${answer}"`,
+              `[interview] decideWorkZoInterruption fired (recorder fallback): reason=${interruptDecision.reason} wordCount=${wc} answerLength=${answer.length} answer="${answer}"`,
             );
           }
           const baseReply = interruptDecision.shouldInterrupt
@@ -5819,9 +5824,9 @@ export default function InterviewPage() {
         // SpeechRecognition path above. A generous hard cap remains only as
         // a last-resort safety backstop, not the normal stop condition.
         const SILENCE_THRESHOLD_RMS = 0.012;
-        const SILENCE_STOP_MS = 3500; // 3.5s — thinking pauses and "uh," filler pauses are common
+        const SILENCE_STOP_MS = 3500; // 3.5s: thinking pauses and "uh," filler pauses are common
         const MIN_RECORDING_MS = 800; // ignore the initial silence while the mic warms up
-        const HARD_CAP_MS = 90000; // backstop only — should essentially never be hit
+        const HARD_CAP_MS = 90000; // backstop only: should essentially never be hit
         // Same "paused right after starting" problem as the primary path —
         // this path has no live transcript to count words from, so total
         // detected speech time is used as the proxy instead. One grace
@@ -5889,7 +5894,7 @@ export default function InterviewPage() {
 
           if (graceDeadline !== null) {
             if (rms > SILENCE_THRESHOLD_RMS) {
-              graceDeadline = null; // they kept talking — cancel the grace deadline, normal flow resumes
+              graceDeadline = null; // they kept talking: cancel the grace deadline, normal flow resumes
             } else if (Date.now() > graceDeadline) {
               stopRecording();
             }
@@ -5926,18 +5931,18 @@ export default function InterviewPage() {
     recognition.interimResults = true;
     recognition.lang = getSpeechRecognitionLang(setupRef.current);
 
-    // Silence timer — fires onend after sustained silence to submit the full answer.
+    // Silence timer: fires onend after sustained silence to submit the full answer.
     // continuous=true means the browser keeps listening through natural pauses;
     // we manually stop after sustained silence to submit the full answer.
     let silenceTimer: ReturnType<typeof setTimeout> | null = null;
     // Real interview answers include thinking pauses (people pause mid-story
     // while recalling details). 1400ms was tuned purely for responsiveness and
-    // was cutting candidates off mid-answer — confirmed from live testing.
+    // was cutting candidates off mid-answer: confirmed from live testing.
     // 2000ms is closer to a natural "I'm actually done" pause without
     // reintroducing the noticeable lag the original 2200ms had.
-    const SILENCE_MS = 3500; // 3.5s — matches the RMS path to avoid cutting off mid-thought
-    // People very often pause right after starting a hard question — "The
-    // hardest part was... [pause to think]" — confirmed from live testing
+    const SILENCE_MS = 3500; // 3.5s: matches the RMS path to avoid cutting off mid-thought
+    // People very often pause right after starting a hard question: "The
+    // hardest part was... [pause to think]": confirmed from live testing
     // where this produced a 3-word fragment ("this part is") submitted as a
     // complete answer. A flat silence threshold can't distinguish "done
     // talking" from "thinking about what to say next" when only a few words
@@ -5997,7 +6002,7 @@ export default function InterviewPage() {
         else interim += text;
       }
 
-      // Any new speech resets the silence timer — candidate is still speaking
+      // Any new speech resets the silence timer: candidate is still speaking
       resetSilenceTimer();
 
       if (interim.trim()) {
@@ -6005,7 +6010,7 @@ export default function InterviewPage() {
         lastInterimTextRef.current = cleanInterim;
         lastInterimUpdateAtRef.current = Date.now();
         setInterimText(cleanInterim);
-        // Live filler word counter — updates copilot panel in real time
+        // Live filler word counter: updates copilot panel in real time
         setFillerCount(
           countFillerWords(`${answerBufferRef.current} ${cleanInterim}`.trim()),
         );
@@ -6043,7 +6048,7 @@ export default function InterviewPage() {
       // a single ~90-word answer accidentally double-captured by the Web
       // Speech API (a known continuous-mode quirk) could silently read as
       // ~180 words to the interrupt check and cross the rambling threshold,
-      // while looking completely normal on screen — confirmed from live
+      // while looking completely normal on screen: confirmed from live
       // testing where a clean, complete answer got cut off immediately.
       const answer = removeRepeatedSpeechChunks(getStableCandidateAnswer());
       answerBufferRef.current = answer;
@@ -6096,7 +6101,7 @@ export default function InterviewPage() {
           window.setTimeout(
             () =>
               speakRecruiter(
-                "Sorry, I didn't quite catch that — go ahead and continue.",
+                "Sorry, I didn't quite catch that: go ahead and continue.",
               ),
             150,
           );
@@ -6115,7 +6120,7 @@ export default function InterviewPage() {
       applyRecruiterSignalUpdate(answer);
       setFillerCount(0); // reset for next answer
 
-      // Emotional memory engine — tracks vague answers, missing metrics, ownership patterns
+      // Emotional memory engine: tracks vague answers, missing metrics, ownership patterns
       const reaction = getWorkZoLiveReaction(answer);
       setRecruiterVisualState(reaction.visualState);
       setLiveReactionText(reaction.text);
@@ -6127,23 +6132,23 @@ export default function InterviewPage() {
       setEmotionalMemory(nextEmoMem);
       setStatus("thinking");
 
-      // Live interruption engine — recruiter can cut off rambling answers
+      // Live interruption engine: recruiter can cut off rambling answers
       const interruptDecision = decideWorkZoInterruption(answer);
       if (interruptDecision.shouldInterrupt) {
         const wc = answer.trim().split(/\s+/).filter(Boolean).length;
         console.warn(
-          `[interview] decideWorkZoInterruption fired — reason=${interruptDecision.reason} wordCount=${wc} answerLength=${answer.length} answer="${answer}"`,
+          `[interview] decideWorkZoInterruption fired: reason=${interruptDecision.reason} wordCount=${wc} answerLength=${answer.length} answer="${answer}"`,
         );
       }
       const baseReply = interruptDecision.shouldInterrupt
         ? interruptDecision.line
         : await getRecruiterReply(answer);
 
-      // Company simulation engine — adaptive pressure follow-ups based on detected mode.
+      // Company simulation engine: adaptive pressure follow-ups based on detected mode.
       // Only applies on the free-tier rule-engine path: paid plans already get a
       // genuinely responsive LLM reply via getRecruiterReply, and overriding that
       // with a generic templated question here would silently undo the point of
-      // the LLM integration — this was also the exact condition (missingMetrics >= 2)
+      // the LLM integration: this was also the exact condition (missingMetrics >= 2)
       // behind the "repeats the same sentence" bug found earlier in testing.
       const isFreeRuleEnginePath = false; // Free gets premium intelligence
       const simStyle =
@@ -6228,7 +6233,7 @@ export default function InterviewPage() {
 
       if (!audioEnabled) {
         // All startListening() delays below were reduced from 280-650ms to
-        // 50ms — eager candidates often start answering the instant the
+        // 50ms: eager candidates often start answering the instant the
         // recruiter stops talking, and the old delay was losing those first
         // words before the mic was even live. 50ms is just enough for React
         // state to settle, not a perceptible pause. The listening chime
@@ -6238,7 +6243,7 @@ export default function InterviewPage() {
         return;
       }
 
-      // Tier 2: ElevenLabs TTS — richer voice when browser TTS is active and key is set
+      // Tier 2: ElevenLabs TTS: richer voice when browser TTS is active and key is set
       if (
         typeof window !== "undefined" &&
         process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY &&
@@ -6249,11 +6254,11 @@ export default function InterviewPage() {
           window.setTimeout(() => startListening(), 50);
           return;
         } catch {
-          // ElevenLabs failed — fall through to browser TTS
+          // ElevenLabs failed: fall through to browser TTS
         }
       }
 
-      // Server-side OpenAI TTS route — keeps keys off the client and makes /api/tts the production fallback.
+      // Server-side OpenAI TTS route: keeps keys off the client and makes /api/tts the production fallback.
       if (audioEnabled && premiumVoiceStatus === "fallback") {
         try {
           const ttsRes = await fetch("/api/tts", {
@@ -6329,10 +6334,10 @@ export default function InterviewPage() {
               // Fall through to browser TTS below
             };
             await audio.play().catch(() => null);
-            if (!audio.paused) return; // ElevenLabs is playing — skip browser TTS
+            if (!audio.paused) return; // ElevenLabs is playing: skip browser TTS
           }
         } catch {
-          // ElevenLabs unavailable — fall through to browser TTS
+          // ElevenLabs unavailable: fall through to browser TTS
         }
       }
 
@@ -6453,7 +6458,7 @@ export default function InterviewPage() {
 
         // Push a real-time fact-check signal into the live Vapi call. The
         // deterministic check above is more reliable than asking the voice
-        // LLM to notice contradictions purely from its system prompt — this
+        // LLM to notice contradictions purely from its system prompt: this
         // gives it an explicit verdict to act on for its very next reply,
         // instead of relying on it to catch the mismatch unprompted.
         if (contradiction) {
@@ -6467,7 +6472,7 @@ export default function InterviewPage() {
             });
           } catch {
             // If the SDK version doesn't support send(), the prompt-level
-            // instructions remain the only safeguard — fail silently.
+            // instructions remain the only safeguard: fail silently.
           }
         }
 
@@ -6526,7 +6531,7 @@ export default function InterviewPage() {
   const analyzeVapiUserAnswer = useCallback((answer: string) => {
     if (!answer.trim()) return;
 
-    // Emotional memory engine — same as browser path
+    // Emotional memory engine: same as browser path
     const reaction = getWorkZoLiveReaction(answer);
     setRecruiterVisualState(reaction.visualState);
     setLiveReactionText(reaction.text);
@@ -6540,7 +6545,7 @@ export default function InterviewPage() {
     // Filler word count from Vapi transcript
     setFillerCount((prev) => prev + countFillerWords(answer));
 
-    // Interruption check — if Vapi's answer is rambling, record it
+    // Interruption check: if Vapi's answer is rambling, record it
     const interruptDecision = decideWorkZoInterruption(answer);
     if (interruptDecision.shouldInterrupt) {
       setRecruiterVisualState("interrupting");
@@ -6621,7 +6626,7 @@ export default function InterviewPage() {
         vapiStartingRef.current = false;
         setPremiumVoiceStatus("not_configured");
         setPremiumVoiceError("");
-        // BUG FIXED: this used to fail completely silently — no transcript
+        // BUG FIXED: this used to fail completely silently: no transcript
         // message, nothing visible, only a console.info easy to miss. That's
         // exactly why "fallback instead of Vapi" was confusing: there was no
         // way to tell WHY without opening devtools. Now it says specifically
@@ -6633,12 +6638,12 @@ export default function InterviewPage() {
             : null,
         ].filter(Boolean);
         console.warn(
-          `[interview] Vapi not configured — using fallback voice. Missing: ${missingPieces.join(", ") || "unknown (check NEXT_PUBLIC_WORKZO_VOICE_PROVIDER)"}`,
+          `[interview] Vapi not configured: using fallback voice. Missing: ${missingPieces.join(", ") || "unknown (check NEXT_PUBLIC_WORKZO_VOICE_PROVIDER)"}`,
         );
         addTranscript({
           role: "system",
           speaker: "System",
-          text: "Live AI voice isn't available right now — continuing with standard voice.",
+          text: "Live AI voice isn't available right now: continuing with standard voice.",
         });
         return false;
       }
@@ -6684,7 +6689,7 @@ export default function InterviewPage() {
             return;
 
           console.warn(
-            "WORKZO VAPI CONNECTION FAILED — switching to browser fallback",
+            "WORKZO VAPI CONNECTION FAILED: switching to browser fallback",
             {
               message: normalizedMessage,
               role: activeSetup.targetRole,
@@ -6779,7 +6784,7 @@ export default function InterviewPage() {
             vapiFinalUserTextRef.current = finalText;
             lastUserTranscriptRef.current = finalText;
 
-            // Live interruption check — surfaced visually via recruiter visual state
+            // Live interruption check: surfaced visually via recruiter visual state
             const liveInterrupt = shouldInterruptLive({
               transcript: finalText,
               duration: 0,
@@ -6851,7 +6856,7 @@ export default function InterviewPage() {
         const unsupportedClaimChallenge =
           localizedUnsupportedClaimChallenge(activeSetup);
 
-        // Build variableValues — ONLY include fields that the Vapi assistant
+        // Build variableValues: ONLY include fields that the Vapi assistant
         // template references as {{variables}}. Sending large instruction blobs
         // here (workzoStrictGrounding, pacingRules, etc.) pushes the payload
         // over Vapi's ~10KB limit and causes a 400 error on every call.
@@ -6874,7 +6879,7 @@ export default function InterviewPage() {
             detectCompanyInterviewStyle(activeSetup),
           ),
           // Pass structured profile so VAPI gets exact company names directly from
-          // resumeProfile.experience[].company — not from regex on cvText which
+          // resumeProfile.experience[].company, not from regex on cvText which
           // strips company names when they appear after a job title on the same line.
           resumeProfile: activeSetup.resumeProfile || null,
           // Global CV/JD grounding fix:
@@ -6897,7 +6902,7 @@ export default function InterviewPage() {
             "FULL JOB DESCRIPTION CONTEXT:",
             activeSetup.jobDescription || (activeSetup as any).jdText || "",
           ].join("\n"),
-          // Core grounding rules — kept concise
+          // Core grounding rules: kept concise
           workzoStrictGrounding: `${buildLanguageInstruction(activeSetup)} You are WorkZo AI's recruiter. The VERIFIED RESUME FACTS in cvSummary/cvText are authoritative. Never say you do not see, cannot verify, do not see enough detail, not listed, not reflected in the CV, or need to pause for an employer, role, timeline, education, project, skill, achievement, responsibility, or years-of-experience already listed there, including close speech-to-text variants of any listed employer name. For verified facts, ask positively about responsibilities, ownership, challenges, metrics, JD fit, and outcomes. If the answer is short, say "I see that listed; walk me through the responsibilities and results there" rather than challenging the CV. Challenge only claims that are truly absent from verified facts and raw CV context. Ask one question per turn. ${unsupportedClaimChallenge}`,
           strictGroundingRules: `${buildOpeningFlowInstruction(activeSetup)} VERIFIED RESUME FACTS are authoritative. Never challenge companies/roles/years listed there and never say the CV lacks detail for verified facts. Treat speech-to-text variants of listed employers as supported. Challenge only genuinely unsupported new claims. Ask one concise follow-up at a time.`,
           recruiterMustChallengeUnsupportedClaims:
@@ -6925,7 +6930,7 @@ export default function InterviewPage() {
             );
             setPremiumVoiceStatus("connecting");
             setPremiumVoiceError(
-              "Live voice is still connecting. Please wait — WorkZo will not switch to fallback unless the call truly fails.",
+              "Live voice is still connecting. Please wait: WorkZo will not switch to fallback unless the call truly fails.",
             );
 
             // Localhost/dev, cold starts, and Daily room creation can take
@@ -6967,7 +6972,7 @@ export default function InterviewPage() {
         // ── Vapi safe call-start payload ──────────────────────────────────
         // Vapi Web SDK start() accepts: client.start(assistantId, assistantOverrides).
         // variableValues, firstMessage, and transcriber must be direct fields of
-        // the second argument — never nested inside `assistantOverrides`.
+        // the second argument: never nested inside `assistantOverrides`.
         const localizedFirstMessage = buildLocalizedGreeting(activeSetup);
 
         const vapiStartOptions: Record<string, unknown> = {
@@ -7005,7 +7010,7 @@ export default function InterviewPage() {
         return true;
       } catch (error) {
         console.warn(
-          "WORKZO VAPI START FAILED — switching to browser fallback",
+          "WORKZO VAPI START FAILED: switching to browser fallback",
           {
             message: normalizeErrorMessage(error),
             role: activeSetup.targetRole,
@@ -7155,7 +7160,7 @@ export default function InterviewPage() {
         addTranscript({
           role: "system",
           speaker: "System",
-          text: "Interview restored. Voice reconnect failed — continuing with browser voice.",
+          text: "Interview restored. Voice reconnect failed: continuing with browser voice.",
         });
         startBrowserFallbackInterview(restoredSetup);
         return;
@@ -7204,6 +7209,11 @@ export default function InterviewPage() {
     // This keeps dashboard counters useful without letting stale browser data
     // block a different/new login.
     recordWorkZoInterviewStarted();
+
+    interviewStartTimeRef.current = Date.now();
+    closingHandledRef.current = false;
+    closingInvitationSeenRef.current = false;
+    turnsPastCapRef.current = 0;
 
     setWaitingRoomActive(true);
     setWaitingRoomStep(0);
@@ -7300,7 +7310,7 @@ export default function InterviewPage() {
         return;
       }
 
-      // Vapi failed — fall back to browser voice automatically
+      // Vapi failed: fall back to browser voice automatically
       addTranscript({
         role: "system",
         speaker: "System",
@@ -7476,6 +7486,9 @@ export default function InterviewPage() {
   );
 
   const endInterview = useCallback(() => {
+    stopRequestedRef.current = true;
+    try { stopListening(); } catch {}
+    try { stopPremiumVoice(); } catch {}
     window.setTimeout(() => {
       window.location.href = "/results";
     }, 250);
@@ -7516,13 +7529,13 @@ export default function InterviewPage() {
   // Interview." This watches the transcript content itself rather than
   // hooking into any one engine's reply path, so it works identically
   // whether the recruiter is the GPT-4o text engine, the browser-STT
-  // fallback, OR live Vapi voice — all three write into the same
+  // fallback, OR live Vapi voice: all three write into the same
   // `transcript` state via addTranscript.
   //
   // Trigger: once the recruiter has asked the closing "do you have any
   // questions for me" invitation AND the candidate has given their next
   // response to it, the interview wraps up with a warm closing line and
-  // then ends — not abruptly mid-question, and not by silently looping
+  // then ends, not abruptly mid-question, and not by silently looping
   // forever. This deliberately waits for that full exchange (rather than
   // cutting off the instant question 12 is reached) specifically so an
   // in-progress answer is never cut off unfinished.
@@ -7530,12 +7543,13 @@ export default function InterviewPage() {
   const closingHandledRef = useRef(false);
   // Backstop: the closing invitation is the preferred trigger, but a
   // conversation can get stuck (e.g. an extended CV-verification loop that
-  // never naturally progresses to closing — confirmed from live testing).
+  // never naturally progresses to closing: confirmed from live testing).
   // Counts candidate turns that happen once the question count is already
   // capped at 12, without a closing invitation showing up. After a
   // generous number of extra turns, force the same graceful wrap-up rather
   // than risk running forever.
   const turnsPastCapRef = useRef(0);
+  const interviewStartTimeRef = useRef<number | null>(null);
   const TURNS_PAST_CAP_BEFORE_FORCED_CLOSE = 10;
 
   useEffect(() => {
@@ -7554,10 +7568,37 @@ export default function InterviewPage() {
       // exchange is detected regardless of how each recruiter persona words it.
       const isClosingInvitation =
         /do you have any questions|any questions for me|questions about the role|questions for me before we wrap/i.test(last.text);
-      const isNaturalWrapUp =
-        /thank you for your time|thanks for your time|that('s| is) all (from my|on my) side|that covers everything|we'?ll (be in touch|follow up|reach out|get back|email|call)|best of luck|good luck with|look forward to (speaking|talking|connecting)|have a (great|good|wonderful) day|take care|bye/i.test(last.text);
+      // isNaturalWrapUp: must be UNAMBIGUOUSLY a closing statement.
+      // "We'll follow up" / "We'll reach out" are common mid-interview phrases.
+      // Require either a strong closing cluster OR the phrase combined with
+      // "next steps" / "hear from us" / "in touch soon" as a closing signal.
+      const text = last.text.toLowerCase();
+      const isNaturalWrapUp = (
+        // Unambiguous closing markers
+        /\bthat('s| is) all (from my|on my) side\b/i.test(last.text) ||
+        /\bthat covers everything (for today|from my side|on my end)?\b/i.test(last.text) ||
+        /\bbest of luck (with|in|on)\b/i.test(last.text) ||
+        /\bgood luck (with|in|on)\b/i.test(last.text) ||
+        // "Take care" / "bye" only when at the very end of the sentence
+        /\b(take care|goodbye|good bye|bye bye)[.!]?\s*$/i.test(last.text) ||
+        // "We'll be in touch" only combined with next-steps language
+        (/we'?ll be in touch/i.test(last.text) && /next step|hear from|follow.?up/i.test(last.text)) ||
+        // "Thank you for your time" only as a standalone closing (not "thanks for sharing")
+        (/thank you for (your time|joining|today|taking the time)/i.test(last.text) && /we'?ll|next step|look forward|best of luck|take care/i.test(last.text))
+      );
 
-      if (isClosingInvitation || isNaturalWrapUp) {
+      if (isNaturalWrapUp) {
+        closingHandledRef.current = true;
+        closingInvitationSeenRef.current = false;
+        stopRequestedRef.current = true;
+        stopListening();
+        stopPremiumVoice();
+        setStatus("ended");
+        window.setTimeout(() => { endInterview(); }, 1200);
+        return;
+      }
+
+      if (isClosingInvitation) {
         closingInvitationSeenRef.current = true;
         return;
       }
@@ -7565,13 +7606,23 @@ export default function InterviewPage() {
 
     const candidateExchangeAfterInvitation =
       closingInvitationSeenRef.current && last.role === "candidate";
+    // forcedCloseDueToStuckLoop: emergency exit ONLY.
+    // This should almost never fire in normal usage.
+    // questionIndex >= 28 (not 18) and 20 candidate turns past that.
+    // Vapi sessions easily have 25+ recruiter turns (greetings, acks, questions).
     const forcedCloseDueToStuckLoop =
       !closingInvitationSeenRef.current &&
       last.role === "candidate" &&
-      questionIndexRef.current >= 18 &&
-      (turnsPastCapRef.current += 1) >= TURNS_PAST_CAP_BEFORE_FORCED_CLOSE;
+      questionIndexRef.current >= 28 &&
+      (turnsPastCapRef.current += 1) >= 20;
 
-    if (candidateExchangeAfterInvitation || forcedCloseDueToStuckLoop) {
+    // Extra safety: don't close in first 7 minutes of a Vapi interview
+    // A real interview with closing phrases early is a false positive
+    const interviewDurationMs = Date.now() - (interviewStartTimeRef.current || Date.now());
+    const minimumInterviewMs = 7 * 60 * 1000; // 7 minutes
+    const durationSufficient = interviewDurationMs >= minimumInterviewMs;
+
+    if ((candidateExchangeAfterInvitation && durationSufficient) || forcedCloseDueToStuckLoop) {
       closingHandledRef.current = true;
       closingInvitationSeenRef.current = false;
 
@@ -7582,12 +7633,12 @@ export default function InterviewPage() {
       stopListening();
 
       // Build a personalised closing line using the recruiter's name and
-      // the candidate's first name. Always spoken — never a silent navigation.
+      // the candidate's first name. Always spoken: never a silent navigation.
       const recruiterFirstName = (setupRef.current.recruiterName || "").split(" ")[0] || "I";
       const candidateFirst = safeFirstName(setupRef.current.candidateName);
       const closingLine = candidateFirst
-        ? `That brings us to the end of our session, ${candidateFirst}. Thank you so much for your time today — it was great learning more about your background. We'll be in touch soon with next steps. Take care!`
-        : `That brings us to the end of our session. Thank you so much for your time today — it was a pleasure. We'll be in touch soon with next steps. Take care!`;
+        ? `That brings us to the end of our session, ${candidateFirst}. Thank you so much for your time today: it was great learning more about your background. We'll be in touch soon with next steps. Take care!`
+        : `That brings us to the end of our session. Thank you so much for your time today: it was a pleasure. We'll be in touch soon with next steps. Take care!`;
 
       addTranscript({
         role: "recruiter",
@@ -7597,7 +7648,7 @@ export default function InterviewPage() {
 
       if (audioEnabledRef.current && status !== "recruiter-speaking") {
         speakRecruiter(closingLine);
-        // Wait for TTS to finish before navigating — closing line is ~15 words,
+        // Wait for TTS to finish before navigating: closing line is ~15 words,
         // roughly 6–8 seconds at normal speech pace.
         window.setTimeout(() => { endInterview(); }, 9000);
       } else {
@@ -7883,7 +7934,7 @@ export default function InterviewPage() {
                   </div>
 
                   <div className="space-y-3">
-                    {/* Technical Mode toggle — shown when technical recruiter is active */}
+                    {/* Technical Mode toggle: shown when technical recruiter is active */}
                     {isTechnicalRecruiter(setup.recruiterId || setup.recruiterName || "") && (
                       <section>
                         <div className="mb-2 flex items-center justify-between gap-2">
@@ -7916,7 +7967,7 @@ export default function InterviewPage() {
                             className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${
                               technicalMode
                                 ? "bg-brand/20 text-brand"
-                                : "bg-fg/10 text-subtle"
+                                : "bg-fg/10 text-muted"
                             }`}
                           >
                             {technicalMode ? "On" : "Off"}
@@ -7986,7 +8037,7 @@ export default function InterviewPage() {
                               }}
                               className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
                                 selected
-                                  ? "border-brand/60 bg-brand/15 text-on-brand"
+                                  ? "border-blue-800 bg-blue-800 text-white font-black"
                                   : locked
                                     ? "border-warning/20 bg-warning/[0.06] text-warning/80"
                                     : "border-line bg-fg/[0.03] text-muted"
@@ -8049,7 +8100,7 @@ export default function InterviewPage() {
                               }}
                               className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
                                 interviewStyle === style
-                                  ? "border-brand/60 bg-brand/15 text-on-brand"
+                                  ? "border-blue-800 bg-blue-800 text-white font-black"
                                   : locked
                                     ? "border-warning/20 bg-warning/[0.06] text-warning/80"
                                     : "border-line bg-fg/[0.03] text-muted"
@@ -8086,7 +8137,7 @@ export default function InterviewPage() {
                         className="flex w-full items-center justify-between rounded-xl border border-line bg-fg/[0.03] px-3 py-1.5 text-sm"
                       >
                         <span>Voice On/Off</span>
-                        <span className={audioEnabled ? "font-black text-success" : "text-subtle"}>
+                        <span className={audioEnabled ? "font-black text-success" : "text-muted"}>
                           {audioEnabled ? "On" : "Off"}
                         </span>
                       </button>
@@ -8098,7 +8149,7 @@ export default function InterviewPage() {
                         className="flex w-full items-center justify-between rounded-xl border border-line bg-fg/[0.03] px-3 py-1.5 text-sm"
                       >
                         <span>Live AI voice</span>
-                        <span className={premiumVoiceEnabled ? "font-black text-success" : "text-subtle"}>
+                        <span className={premiumVoiceEnabled ? "font-black text-success" : "text-muted"}>
                           {premiumVoiceEnabled ? "On" : "Off"}
                         </span>
                       </button>
@@ -8137,7 +8188,7 @@ export default function InterviewPage() {
                             ? "Hide Transcript"
                             : "Show Live Transcript"}
                         </span>
-                        <span className={showTranscript ? "font-black text-success" : "text-subtle"}>
+                        <span className={showTranscript ? "font-black text-success" : "text-muted"}>
                           {showTranscript ? "On" : "Off"}
                         </span>
                       </button>
@@ -8149,7 +8200,7 @@ export default function InterviewPage() {
                         className="flex w-full items-center justify-between rounded-xl border border-line bg-fg/[0.03] px-3 py-1.5 text-sm workzo-transcript-body"
                       >
                         <span>Auto-scroll Transcript</span>
-                        <span className={autoScrollTranscript ? "font-black text-success" : "text-subtle"}>
+                        <span className={autoScrollTranscript ? "font-black text-success" : "text-muted"}>
                           {autoScrollTranscript ? "On" : "Off"}
                         </span>
                       </button>
@@ -8342,7 +8393,7 @@ export default function InterviewPage() {
         </header>
 
         {shareableMoment && status !== "idle" ? (
-          <div className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-lg border border-brand/20 bg-brand/[0.08] px-4 py-2.5 lg:mx-4">
+          <div className="fixed right-4 top-20 z-50 flex max-w-xs items-center justify-between gap-3 rounded-xl border border-brand/25 bg-canvas/95 px-4 py-3 shadow-lg shadow-black/20 backdrop-blur-xl">
             <div className="min-w-0">
               <p className="text-xs font-black text-brand">
                 {shareableMoment.title}
@@ -8358,11 +8409,11 @@ export default function InterviewPage() {
                   if (typeof navigator !== "undefined" && navigator.share) {
                     void navigator.share({
                       title: shareableMoment.title,
-                      text: `${shareableMoment.text} — Practice interview on WorkZo AI`,
+                      text: `${shareableMoment.text}: Practice interview on WorkZo AI`,
                     });
                   } else if (typeof navigator !== "undefined") {
                     void navigator.clipboard.writeText(
-                      `${shareableMoment.text} — Practice interview on WorkZo AI`,
+                      `${shareableMoment.text}: Practice interview on WorkZo AI`,
                     );
                   }
                 }}
@@ -8418,12 +8469,12 @@ export default function InterviewPage() {
           </section>
         ) : null}
 
-        {/* First-time user hint — shown once, dismissed permanently */}
+        {/* First-time user hint: shown once, dismissed permanently */}
         {showFirstTimeHint && (
           <div className="mx-4 mt-3 flex items-start gap-3 rounded-lg border border-brand/20 bg-brand/[0.06] px-4 py-3">
             <span className="mt-0.5 shrink-0 text-base text-brand">💡</span>
             <p className="flex-1 text-xs leading-5 text-brand">
-              The recruiter will ask questions — respond as you would in a real
+              The recruiter will ask questions: respond as you would in a real
               interview. Speak naturally, then pause. WorkZo listens
               automatically.
             </p>
@@ -8455,7 +8506,7 @@ export default function InterviewPage() {
           <aside className="hidden border-r border-line bg-canvas lg:flex lg:flex-col lg:min-h-0 lg:overflow-y-auto">
             {/* Interview flow steps */}
             <div className="p-4 border-b border-line">
-              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-subtle">Interview flow</p>
+              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted">Interview flow</p>
               <div className="mt-3 space-y-1">
                 {[
                   { n: 1, label: "Introduction", done: questionIndex >= 1 },
@@ -8467,13 +8518,13 @@ export default function InterviewPage() {
                 ].map((step) => (
                   <div key={step.n} className={cn(
                     "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition",
-                    step.done ? "text-success" : step.active ? "bg-brand/10 text-brand font-black" : "text-subtle"
+                    step.done ? "text-success" : step.active ? "bg-brand/10 text-brand font-black" : "text-muted"
                   )}>
                     <span className={cn(
                       "grid h-5 w-5 shrink-0 place-items-center rounded-full text-[9px] font-black border",
                       step.done ? "border-success/40 bg-success/15 text-success" :
                       step.active ? "border-brand/40 bg-brand/20 text-brand" :
-                      "border-line text-subtle"
+                      "border-line text-muted"
                     )}>
                       {step.done ? "✓" : step.n}
                     </span>
@@ -8493,7 +8544,7 @@ export default function InterviewPage() {
                   "Quantify your impact",
                   "Stay focused and concise",
                 ].map((tip) => (
-                  <div key={tip} className="flex items-start gap-2 text-xs text-subtle">
+                  <div key={tip} className="flex items-start gap-2 text-xs text-muted">
                     <span className="mt-0.5 text-success">✓</span>
                     {tip}
                   </div>
@@ -8510,7 +8561,7 @@ export default function InterviewPage() {
                   { key: "R", label: "Repeat question" },
                   { key: "T", label: "Toggle transcript" },
                 ].map(({ key, label }) => (
-                  <div key={key} className="flex items-center justify-between gap-2 text-xs text-subtle">
+                  <div key={key} className="flex items-center justify-between gap-2 text-xs text-muted">
                     <span>{label}</span>
                     <kbd className="rounded border border-line bg-fg/[0.04] px-1.5 py-0.5 text-[9px] font-black text-muted">{key}</kbd>
                   </div>
@@ -8520,7 +8571,7 @@ export default function InterviewPage() {
 
             {/* Connection status at bottom */}
             <div className="mt-auto border-t border-line p-4">
-              <div className="flex items-center gap-2 text-xs text-subtle">
+              <div className="flex items-center gap-2 text-xs text-muted">
                 <span className="h-1.5 w-1.5 rounded-full bg-success" />
                 Connection good
               </div>
@@ -8528,7 +8579,7 @@ export default function InterviewPage() {
           </aside>
 
           <div className="flex flex-col lg:h-full lg:min-h-0">
-            <section className="relative shrink-0 overflow-hidden bg-canvas h-[380px] sm:h-[450px] lg:h-[58%] lg:min-h-[380px] lg:max-h-[640px]">
+            <section className="relative shrink-0 overflow-hidden bg-canvas h-[340px] sm:h-[390px] lg:h-[50%] lg:min-h-[320px] lg:max-h-[520px]">
               <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-brand/20 blur-3xl" />
               <div className="absolute inset-0">
                 <Image
@@ -8544,8 +8595,8 @@ export default function InterviewPage() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/10 to-black/0" />
 
               {waitingRoomActive ? (
-                <div className="absolute inset-0 z-20 flex items-center justify-center bg-canvas/80 p-4 backdrop-blur-md">
-                  <div className="w-full max-w-xl rounded-xl border border-line bg-canvas/95 p-5 shadow-2xl">
+                <div className="absolute inset-0 z-20 flex items-start justify-center overflow-y-auto bg-canvas/80 p-3 pt-4 backdrop-blur-md">
+                  <div className="w-full max-w-xl rounded-xl border border-line bg-canvas/95 p-4 shadow-2xl">
                     <p className="text-[11px] font-black uppercase tracking-[0.22em] text-brand">
                       Interview waiting room
                     </p>
@@ -8555,14 +8606,14 @@ export default function InterviewPage() {
                     <p className="mt-2 text-sm leading-6 text-muted">
                       {simulationPersona.openingFrame}
                     </p>
-                    <div className="mt-5 space-y-3">
+                    <div className="mt-3 space-y-2">
                       {waitingRoomSteps.map((step, index) => {
                         const active = index === waitingRoomStep;
                         const done = index < waitingRoomStep;
                         return (
                           <div
                             key={step.label}
-                            className={`rounded-lg border p-3 transition ${active ? "border-brand/35 bg-brand/10" : done ? "border-success/25 bg-success/10" : "border-line bg-fg/[0.03]"}`}
+                            className={`rounded-lg border p-2.5 transition ${active ? "border-brand/35 bg-brand/10" : done ? "border-success/25 bg-success/10" : "border-line bg-fg/[0.03]"}`}
                           >
                             <div className="flex items-center gap-3">
                               <span
@@ -8587,7 +8638,7 @@ export default function InterviewPage() {
                 </div>
               ) : null}
 
-              {/* Recruiter visual state overlay — powered by workzoPremiumExperienceEngine */}
+              {/* Recruiter visual state overlay: powered by workzoPremiumExperienceEngine */}
               {recruiterVisualState !== "waiting" &&
                 recruiterVisualState !== "listening" &&
                 status !== "idle" && (
@@ -8638,7 +8689,7 @@ export default function InterviewPage() {
                 )}
               </div>
 
-              {/* Recruiter visual state overlay — emotional reaction ring */}
+              {/* Recruiter visual state overlay: emotional reaction ring */}
               {scoreReady &&
                 recruiterVisualState !== "waiting" &&
                 recruiterVisualState !== "listening" && (
@@ -8682,12 +8733,12 @@ export default function InterviewPage() {
                 </div>
               ) : null}
 
-              <div className="absolute bottom-[4.5rem] left-5">
-                <div className="flex items-center gap-2 text-lg font-black">
+              <div className="absolute bottom-[4.5rem] left-5 max-w-[80%] rounded-2xl bg-black/35 px-4 py-3 backdrop-blur-sm">
+                <div className="flex items-center gap-2 text-lg font-black text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
                   {setup.recruiterName}
                   <CheckCircle2 className="h-5 w-5 fill-brand text-brand" />
                 </div>
-                <p className="mt-1 truncate text-xs text-fg sm:text-sm">
+                <p className="mt-1 truncate text-xs text-white/85 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] sm:text-sm">
                   {setup.recruiterTitle}
                 </p>
                 <p className="mt-2 text-xs font-bold text-success">
@@ -8744,7 +8795,7 @@ export default function InterviewPage() {
                   {showTranscript ? "▲" : "▼"}
                 </span>
               </button>
-              {/* Auto-scroll toggle — outside the button to avoid nested button HTML error */}
+              {/* Auto-scroll toggle: outside the button to avoid nested button HTML error */}
               <div className="hidden items-center gap-2 border-b border-line px-5 py-1.5 text-xs text-subtle sm:flex justify-end">
                 Auto-scroll
                 <button
@@ -8817,7 +8868,7 @@ export default function InterviewPage() {
                   </div>
 
                   <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-1.5 text-xs text-muted sm:px-5">
-                    <span>AI-generated transcript — may contain errors.</span>
+                    <span>AI-generated transcript: may contain errors.</span>
                     <button
                       onClick={() => setTranscript([])}
                       className="hover:text-fg"
@@ -8834,9 +8885,9 @@ export default function InterviewPage() {
               )}
             </section>
 
-            {/* ── BOTTOM CONTROLS BAR — settings removed (in header), progress removed (in right panel) ── */}
+            {/* ── BOTTOM CONTROLS BAR: settings removed (in header), progress removed (in right panel) ── */}
 
-            {/* Bottom control bar removed — shortcuts shown in left sidebar */}
+            {/* Bottom control bar removed: shortcuts shown in left sidebar */}
 
           </div>
 
@@ -8861,7 +8912,7 @@ export default function InterviewPage() {
                       </>
                     ) : (
                       <>
-                        <div className="text-2xl font-black text-subtle">
+                        <div className="text-2xl font-black text-muted">
                           ·
                         </div>
                       </>
@@ -8886,12 +8937,12 @@ export default function InterviewPage() {
                       <div key={item.label}>
                         <div className="flex items-center justify-between gap-2 mb-0.5">
                           <span
-                            className={`text-[11px] ${scoreReady ? "text-muted" : "text-subtle"}`}
+                            className={`text-[11px] ${scoreReady ? "text-muted" : "text-muted"}`}
                           >
                             {item.label}
                           </span>
                           <span
-                            className={`text-[11px] font-black ${scoreReady ? "text-fg" : "text-subtle"}`}
+                            className={`text-[11px] font-black ${scoreReady ? "text-fg" : "text-muted"}`}
                           >
                             {item.value}
                           </span>
@@ -8923,7 +8974,7 @@ export default function InterviewPage() {
               className="flex-1 border-b border-line bg-canvas p-4 overflow-hidden"
             >
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-subtle">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">
                   Session signals
                 </p>
                 <span className="inline-block h-2 w-2 rounded-full bg-brand" />
@@ -8931,7 +8982,7 @@ export default function InterviewPage() {
 
               <div className="mt-3 flex items-center justify-between rounded-xl border border-line bg-fg/[0.03] px-3 py-2">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-subtle">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted">
                     Mood
                   </p>
                   <p
@@ -8956,7 +9007,7 @@ export default function InterviewPage() {
                 </div>
               </div>
 
-              {/* Filler word count — observational only, no coaching hints during interview */}
+              {/* Filler word count: observational only, no coaching hints during interview */}
               {fillerWordCount > 0 && (
                 <div className="mt-2 rounded-xl border border-warning/15 bg-warning/[0.07] px-3 py-2">
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-warning">
@@ -8968,7 +9019,7 @@ export default function InterviewPage() {
                       detected this session
                     </span>
                   </p>
-                  <p className="mt-0.5 text-[11px] text-subtle">
+                  <p className="mt-0.5 text-[11px] text-muted">
                     Reviewed in full after the interview.
                   </p>
                 </div>
@@ -8977,12 +9028,12 @@ export default function InterviewPage() {
 
             <section className="bg-canvas p-4">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-subtle">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">
                   Progress
                 </p>
                 <span className="tabular-nums text-sm font-black text-fg">
                   {progress}
-                  <span className="text-subtle">%</span>
+                  <span className="text-muted">%</span>
                 </span>
               </div>
               <div className="mt-3 h-1 overflow-hidden rounded-full bg-fg/[0.07]">
@@ -8992,7 +9043,7 @@ export default function InterviewPage() {
                 />
               </div>
               <div className="mt-2 flex items-center justify-between gap-3">
-                <p className="text-[10px] text-subtle">{progress}%</p>
+                <p className="text-[10px] text-muted">{progress}%</p>
                 {interviewComplete ? (
                   <Link
                     href="/results"

@@ -499,7 +499,7 @@ INTERVIEW TIP:
         <section className="mt-6 rounded-lg border border-brand/15 bg-gradient-to-br from-brand/[0.14] via-canvas to-canvas p-5 sm:p-7">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/[0.08] px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-brand">
+              <div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/[0.08] px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-muted">
                 <Sparkles className="h-3.5 w-3.5" /> Job Search Hub
               </div>
               <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-3xl">Find relevant jobs faster.</h1>
@@ -618,12 +618,12 @@ INTERVIEW TIP:
             <div className="rounded-lg border border-brand/15 bg-brand/[0.045] p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-brand">Prepare for this job</p>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-muted">Prepare for this job</p>
                   <h2 className="mt-2 text-2xl font-black">{phaseA.hiringRecommendation}</h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">{phaseA.recruiterScan.firstImpression}</p>
                 </div>
                 <div className="grid h-16 w-16 place-items-center rounded-lg border border-brand/20 bg-canvas-soft text-center">
-                  <p className="text-2xl font-black text-brand">{phaseA.readinessScore}</p>
+                  <p className="text-2xl font-black text-muted">{phaseA.readinessScore}</p>
                   <p className="-mt-2 text-[10px] font-black text-subtle">READY</p>
                 </div>
               </div>
@@ -680,19 +680,19 @@ INTERVIEW TIP:
             <div className="rounded-lg border border-brand/15 bg-brand/[0.045] p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-brand">Phase 2 job intelligence</p>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-muted">Phase 2 job intelligence</p>
                   <h2 className="mt-2 text-2xl font-black">{phaseB.consistency.status}</h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">{phaseB.companyDNA.interviewStyle}</p>
                 </div>
                 <div className="grid h-16 w-16 place-items-center rounded-lg border border-brand/20 bg-canvas-soft text-center">
-                  <p className="text-2xl font-black text-brand">{phaseB.trustAudit.overall}</p>
+                  <p className="text-2xl font-black text-muted">{phaseB.trustAudit.overall}</p>
                   <p className="-mt-2 text-[10px] font-black text-subtle">TRUST</p>
                 </div>
               </div>
 
               <div className="mt-5 grid gap-3 lg:grid-cols-3">
                 <div className="rounded-lg border border-line bg-canvas-soft p-4">
-                  <p className="text-sm font-black text-brand">Company DNA</p>
+                  <p className="text-sm font-black text-muted">Company DNA</p>
                   <p className="mt-2 text-sm leading-6 text-muted">{phaseB.companyDNA.label}</p>
                   <div className="mt-3 space-y-2">
                     {phaseB.companyDNA.dimensions.slice(0, 4).map((item) => (
@@ -822,17 +822,17 @@ INTERVIEW TIP:
                     </div>
                     {jobAnalysis[job.id] ? (
                       <div className="mt-3 rounded-lg border border-brand/15 bg-brand/[0.07] p-4">
-                        <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-brand">AI fit analysis</p>
+                        <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-muted">AI fit analysis</p>
                         <pre className="whitespace-pre-wrap text-xs leading-5 text-muted">{jobAnalysis[job.id]}</pre>
                       </div>
                     ) : null}
                     {jobQuestions[job.id] ? (
                       <div className="mt-3 rounded-lg border border-brand/15 bg-brand/[0.07] p-4">
-                        <p className="mb-3 text-[10px] font-black uppercase tracking-[0.18em] text-brand">Likely interview questions ({jobQuestions[job.id].length})</p>
+                        <p className="mb-3 text-[10px] font-black uppercase tracking-[0.18em] text-muted">Likely interview questions ({jobQuestions[job.id].length})</p>
                         <ol className="space-y-2">
                           {jobQuestions[job.id].map((q, i) => (
                             <li key={i} className="flex items-start gap-2 text-xs leading-5 text-muted">
-                              <span className="shrink-0 rounded bg-brand/15 px-1.5 py-0.5 text-[10px] font-black text-brand">{i + 1}</span>
+                              <span className="shrink-0 rounded bg-brand/15 px-1.5 py-0.5 text-[10px] font-black text-muted">{i + 1}</span>
                               {q}
                             </li>
                           ))}
@@ -896,17 +896,17 @@ INTERVIEW TIP:
                 <Link href="/cv" className="group rounded-lg border border-line bg-canvas-soft p-4 hover:bg-fg/[0.05]">
                   <p className="font-black">Improve CV first</p>
                   <p className="mt-2 text-sm leading-6 text-muted">Make your profile stronger before applying.</p>
-                  <span className="mt-3 inline-flex items-center gap-2 text-xs font-black text-brand">Open CV <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" /></span>
+                  <span className="mt-3 inline-flex items-center gap-2 text-xs font-black text-muted">Open CV <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" /></span>
                 </Link>
                 <Link href="/cover-letter" className="group rounded-lg border border-line bg-canvas-soft p-4 hover:bg-fg/[0.05]">
                   <p className="font-black">Create cover letter</p>
                   <p className="mt-2 text-sm leading-6 text-muted">Prepare a tailored letter for selected jobs.</p>
-                  <span className="mt-3 inline-flex items-center gap-2 text-xs font-black text-brand">Create letter <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" /></span>
+                  <span className="mt-3 inline-flex items-center gap-2 text-xs font-black text-muted">Create letter <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" /></span>
                 </Link>
                 <Link href="/interview" className="group rounded-lg border border-line bg-canvas-soft p-4 hover:bg-fg/[0.05]">
                   <p className="font-black">Practice interview</p>
                   <p className="mt-2 text-sm leading-6 text-muted">Use target jobs to prepare answers.</p>
-                  <span className="mt-3 inline-flex items-center gap-2 text-xs font-black text-brand">Start practice <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" /></span>
+                  <span className="mt-3 inline-flex items-center gap-2 text-xs font-black text-muted">Start practice <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" /></span>
                 </Link>
               </div>
             </div>

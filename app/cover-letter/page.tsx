@@ -122,12 +122,12 @@ export default function CoverLetterWorkspacePage() {
             <div className="mt-6 rounded-xl border border-brand/15 bg-brand/[0.045] p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-brand">Application intelligence</p>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-muted">Application intelligence</p>
                   <h2 className="mt-2 text-xl font-black">{phaseA.hiringRecommendation}</h2>
                   <p className="mt-2 text-sm leading-6 text-muted">{phaseA.recruiterScan.firstImpression}</p>
                 </div>
                 <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-brand/20 bg-canvas-soft text-center">
-                  <p className="text-xl font-black text-brand">{phaseA.readinessScore}</p>
+                  <p className="text-xl font-black text-muted">{phaseA.readinessScore}</p>
                   <p className="-mt-2 text-[9px] font-black text-subtle">READY</p>
                 </div>
               </div>
@@ -162,12 +162,12 @@ export default function CoverLetterWorkspacePage() {
             <div className="mt-6 rounded-xl border border-brand/15 bg-brand/[0.045] p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-brand">Phase 2 letter intelligence</p>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-muted">Phase 2 letter intelligence</p>
                   <h2 className="mt-2 text-xl font-black">{phaseB.companyDNA.label}</h2>
                   <p className="mt-2 text-sm leading-6 text-muted">{phaseB.companyDNA.coverLetterRule}</p>
                 </div>
                 <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-brand/20 bg-canvas-soft text-center">
-                  <p className="text-xl font-black text-brand">{phaseB.coverLetter.riskScore}</p>
+                  <p className="text-xl font-black text-muted">{phaseB.coverLetter.riskScore}</p>
                   <p className="-mt-2 text-[9px] font-black text-subtle">SAFE</p>
                 </div>
               </div>
