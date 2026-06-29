@@ -37,20 +37,20 @@ const quickFeatures = [
 const TESTIMONIALS = [
   {
     quote: "I’d been getting to final rounds and bombing. WorkZo showed me my trust score dropped every time I answered ownership questions. Two sessions later I had a framework — got an offer the following week.",
-    name: "Amir K.",
+    name: "Fayaz Ahmed",
     role: "Product Manager",
     location: "London",
     score: 84,
     // Stable AI-generated face via randomuser.me — replace with real photo when available
-    avatar: "https://randomuser.me/api/portraits/men/32.jpg",
+    avatar: "",
   },
   {
     quote: "The follow-up questions are what got me. I’d give an answer I thought was fine, then Sarah would ask ‘what was the measurable outcome?’ and I’d realise I had nothing. Fixed that in three sessions.",
-    name: "Rachel L.",
+    name: "Johanna De Vries",
     role: "Senior Data Analyst",
     location: "Amsterdam",
     score: 79,
-    avatar: "https://randomuser.me/api/portraits/women/44.jpg",
+    avatar: "",
   },
   {
     quote: "Finally, an interview practice tool that feels like talking to a real recruiter. The feedback was actionable, and I felt more prepared after just a few sessions.",
@@ -503,7 +503,7 @@ function TestimonialsSection() {
 
               {/* Quote */}
               <p className="mt-4 flex-1 text-sm leading-7 text-white/75 italic">
-                &ldquo;{t.quote}&rdquo;
+                “{t.quote}”
               </p>
 
               {/* Score pill */}

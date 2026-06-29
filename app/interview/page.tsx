@@ -8698,36 +8698,31 @@ export default function InterviewPage() {
                     Transcript
                   </h2>
                   <span className="h-2 w-2 rounded-full bg-red-400" />
-                  <span className="text-base text-white leading-7 font-medium">
+                  <span className="text-sm text-slate-400 font-medium">
                     {transcriptMessageCount} message
                     {transcriptMessageCount === 1 ? "" : "s"}
                   </span>
                 </div>
-                <span className="text-[10px] font-black text-slate-500 lg:hidden">
-                  {showTranscript ? "▲" : "▼"}
-                </span>
+                <div className="flex items-center gap-3">
+                  <div className="hidden items-center gap-2 text-xs text-slate-500 sm:flex">
+                    Auto-scroll
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setAutoScrollTranscript((value) => !value); }}
+                      className={`relative h-4 w-7 rounded-full transition ${autoScrollTranscript ? "bg-blue-500" : "bg-white/15"}`}
+                    >
+                      <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition ${autoScrollTranscript ? "right-0.5" : "left-0.5"}`} />
+                    </button>
+                  </div>
+                  <span className="text-[10px] font-black text-slate-500 lg:hidden">
+                    {showTranscript ? "▲" : "▼"}
+                  </span>
+                </div>
               </button>
 
               {showTranscript ||
               (typeof window !== "undefined" && window.innerWidth >= 1024) ? (
                 <>
-                  <div className="hidden h-10 items-center justify-end border-b border-white/10 px-5 sm:flex">
-                    <div className="flex items-center gap-3 text-base text-white leading-7 font-medium">
-                      Auto-scroll
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setAutoScrollTranscript((value) => !value)
-                        }
-                        className={`relative h-5 w-9 rounded-full ${autoScrollTranscript ? "bg-blue-500" : "bg-white/15"}`}
-                      >
-                        <span
-                          className={`absolute top-1 h-3 w-3 rounded-full bg-white transition ${autoScrollTranscript ? "right-1" : "left-1"}`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-
                   <div
                     className="overflow-y-auto px-4 py-1 lg:flex-1 lg:min-h-0 workzo-hide-scrollbar"
                     style={{ maxHeight: "100%" }}
