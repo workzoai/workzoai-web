@@ -39,14 +39,14 @@ export default function DeleteDataPage() {
 
   return (
     <>
-      <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
+      <main className="min-h-screen bg-canvas px-5 py-8 text-fg">
         <div className="mx-auto max-w-4xl">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-black text-slate-300 hover:text-white">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-black text-muted hover:text-fg">
             <ArrowLeft className="h-4 w-4" /> Back home
           </Link>
 
-          <section className="mt-10 rounded-lg border border-white/10 bg-white/[0.04] p-8">
-            <div className="grid h-14 w-14 place-items-center rounded-lg bg-red-400/10 text-red-200">
+          <section className="mt-10 rounded-lg border border-line bg-fg/[0.04] p-8">
+            <div className="grid h-14 w-14 place-items-center rounded-lg bg-danger/10 text-danger">
               <Trash2 className="h-7 w-7" />
             </div>
 
@@ -54,7 +54,7 @@ export default function DeleteDataPage() {
               Delete my data
             </h1>
 
-            <p className="mt-4 text-base leading-8 text-slate-300">
+            <p className="mt-4 text-base leading-8 text-muted">
               You can clear local WorkZo AI data from this browser immediately.
               For account, cloud history, or billing-related deletion requests,
               contact support.

@@ -5,6 +5,7 @@ import CookieConsentBanner from "@/components/privacy/CookieConsentBanner";
 import WorkZoFounderAnalyticsTracker from "@/components/WorkZoFounderAnalyticsTracker";
 import { AppLanguageProvider } from "@/lib/workzoAppLanguage";
 import WorkOBotRouteGate from "@/components/WorkOBotRouteGate";
+import { ThemeProvider, THEME_NO_FLASH_SCRIPT } from "@/lib/workzoTheme";
 
 
 export const metadata: Metadata = {
@@ -51,13 +52,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
-        <LegacyStoragePrivacyCleanup />
-        <WorkZoFounderAnalyticsTracker />
-        {children}
-        <WorkOBotRouteGate />
-        <CookieConsentBanner />
+        <script dangerouslySetInnerHTML={{ __html: THEME_NO_FLASH_SCRIPT }} />
+        <ThemeProvider>
+          <LegacyStoragePrivacyCleanup />
+          <WorkZoFounderAnalyticsTracker />
+          {children}
+          <WorkOBotRouteGate />
+          <CookieConsentBanner />
+        </ThemeProvider>
       </body>
     </html>
   );

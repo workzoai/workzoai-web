@@ -220,14 +220,14 @@ function renderMarkdown(text: string): React.ReactNode[] {
     const parts = cleaned.split(/(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_|`[^`]+`)/g);
     return parts.map((part, idx) => {
       if ((part.startsWith("**") && part.endsWith("**")) || (part.startsWith("__") && part.endsWith("__"))) {
-        return <strong key={idx} className="font-semibold text-white">{part.slice(2, -2)}</strong>;
+        return <strong key={idx} className="font-semibold text-fg">{part.slice(2, -2)}</strong>;
       }
       if ((part.startsWith("*") && part.endsWith("*") && part.length > 2) ||
           (part.startsWith("_") && part.endsWith("_") && part.length > 2)) {
-        return <em key={idx} className="italic text-slate-300">{part.slice(1, -1)}</em>;
+        return <em key={idx} className="italic text-muted">{part.slice(1, -1)}</em>;
       }
       if (part.startsWith("`") && part.endsWith("`")) {
-        return <code key={idx} className="rounded bg-white/10 px-1 py-0.5 font-mono text-[11px] text-cyan-300">{part.slice(1, -1)}</code>;
+        return <code key={idx} className="rounded bg-fg/10 px-1 py-0.5 font-mono text-[11px] text-brand">{part.slice(1, -1)}</code>;
       }
       return part;
     });
@@ -239,7 +239,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
 
     // Horizontal rule
     if (/^---+$/.test(line.trim())) {
-      nodes.push(<hr key={i} className="my-3 border-white/[0.08]" />);
+      nodes.push(<hr key={i} className="my-3 border-line" />);
       i++; continue;
     }
 
@@ -248,10 +248,10 @@ function renderMarkdown(text: string): React.ReactNode[] {
     if (hMatch) {
       const level = hMatch[1].length;
       const cls = level === 1
-        ? "mt-4 mb-2 text-base font-black text-cyan-100"
+        ? "mt-4 mb-2 text-base font-black text-brand"
         : level === 2
-          ? "mt-3 mb-1.5 text-[13px] font-black text-slate-100"
-          : "mt-2.5 mb-1 text-[11px] font-black uppercase tracking-wide text-slate-300";
+          ? "mt-3 mb-1.5 text-[13px] font-black text-fg"
+          : "mt-2.5 mb-1 text-[11px] font-black uppercase tracking-wide text-muted";
       nodes.push(<p key={i} className={cls}>{inlineFormat(hMatch[2])}</p>);
       i++; continue;
     }
@@ -266,7 +266,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
         i++;
       }
       nodes.push(
-        <blockquote key={`bq-${blockKey}`} className="my-2 rounded-r-xl border-l-2 border-cyan-400/50 bg-white/[0.03] py-2 pl-3 pr-2 text-[12px] italic leading-6 text-slate-300">
+        <blockquote key={`bq-${blockKey}`} className="my-2 rounded-r-xl border-l-2 border-brand/50 bg-fg/[0.03] py-2 pl-3 pr-2 text-[12px] italic leading-6 text-muted">
           {qLines.map((ql, qi) => (
             <span key={qi}>{inlineFormat(ql)}{qi < qLines.length - 1 ? <br /> : null}</span>
           ))}
@@ -288,12 +288,12 @@ function renderMarkdown(text: string): React.ReactNode[] {
         .map(r => r.split("|").slice(1, -1).map(c => c.trim()));
       if (rows.length > 0) {
         nodes.push(
-          <div key={`tbl-${tableKey}`} className="my-3 overflow-x-auto rounded-lg border border-white/10 text-[12px]">
+          <div key={`tbl-${tableKey}`} className="my-3 overflow-x-auto rounded-lg border border-line text-[12px]">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-white/[0.06]">
+                <tr className="bg-fg/[0.06]">
                   {rows[0].map((cell, ci) => (
-                    <th key={ci} className="border-b border-white/10 px-3 py-2 text-left font-bold text-slate-100">
+                    <th key={ci} className="border-b border-line px-3 py-2 text-left font-bold text-fg">
                       {inlineFormat(cell)}
                     </th>
                   ))}
@@ -301,9 +301,9 @@ function renderMarkdown(text: string): React.ReactNode[] {
               </thead>
               <tbody>
                 {rows.slice(1).map((row, ri) => (
-                  <tr key={ri} className={ri % 2 === 0 ? "" : "bg-white/[0.025]"}>
+                  <tr key={ri} className={ri % 2 === 0 ? "" : "bg-fg/[0.025]"}>
                     {row.map((cell, ci) => (
-                      <td key={ci} className="border-b border-white/[0.05] px-3 py-2 text-slate-300">
+                      <td key={ci} className="border-b border-line px-3 py-2 text-muted">
                         {inlineFormat(cell)}
                       </td>
                     ))}
@@ -324,10 +324,10 @@ function renderMarkdown(text: string): React.ReactNode[] {
       const isNested = checkMatch[1].length > 0;
       nodes.push(
         <div key={i} className={`flex items-start gap-2.5 text-[13px] leading-6 ${isNested ? "ml-5 mt-0.5" : "mt-1"}`}>
-          <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-cyan-400 bg-cyan-400/20 text-cyan-300" : "border-white/20 bg-white/[0.04] text-transparent"}`}>
+          <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-brand bg-brand/20 text-brand" : "border-line bg-fg/[0.04] text-transparent"}`}>
             {checked && <span className="text-[9px] font-black">✓</span>}
           </span>
-          <span className={checked ? "text-slate-500 line-through" : "text-slate-300"}>{inlineFormat(checkMatch[3])}</span>
+          <span className={checked ? "text-subtle line-through" : "text-muted"}>{inlineFormat(checkMatch[3])}</span>
         </div>
       );
       i++; continue;
@@ -338,8 +338,8 @@ function renderMarkdown(text: string): React.ReactNode[] {
     if (bulletMatch) {
       const isNested = bulletMatch[1].length > 0;
       nodes.push(
-        <div key={i} className={`flex items-start gap-2 text-[13px] leading-6 text-slate-300 ${isNested ? "ml-5 mt-0.5" : "mt-1"}`}>
-          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400/70" />
+        <div key={i} className={`flex items-start gap-2 text-[13px] leading-6 text-muted ${isNested ? "ml-5 mt-0.5" : "mt-1"}`}>
+          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand/70" />
           <span>{inlineFormat(bulletMatch[2])}</span>
         </div>
       );
@@ -350,8 +350,8 @@ function renderMarkdown(text: string): React.ReactNode[] {
     const numMatch = raw.match(/^(\d+)\. (.+)/);
     if (numMatch) {
       nodes.push(
-        <div key={i} className="mt-1 flex items-start gap-2.5 text-[13px] leading-6 text-slate-300">
-          <span className="min-w-[18px] shrink-0 font-bold text-cyan-400/80">{numMatch[1]}.</span>
+        <div key={i} className="mt-1 flex items-start gap-2.5 text-[13px] leading-6 text-muted">
+          <span className="min-w-[18px] shrink-0 font-bold text-brand/80">{numMatch[1]}.</span>
           <span>{inlineFormat(numMatch[2])}</span>
         </div>
       );
@@ -366,7 +366,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
 
     // Plain paragraph
     nodes.push(
-      <p key={i} className="text-[13px] leading-6 text-slate-200">
+      <p key={i} className="text-[13px] leading-6 text-fg">
         {inlineFormat(line)}
       </p>
     );
@@ -508,16 +508,16 @@ export default function WorkOBotFloating({
           setOpen(true);
           setMinimized(false);
         }}
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+22px)] right-5 z-[80] flex h-16 items-center gap-3 rounded-full border border-cyan-300/25 bg-[#061225]/92 px-5 text-white shadow-[0_22px_70px_rgba(14,165,233,0.30)] backdrop-blur-2xl transition hover:scale-[1.02] active:scale-[0.98]"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+22px)] right-5 z-[80] flex h-16 items-center gap-3 rounded-full border border-brand/25 bg-canvas/92 px-5 text-fg shadow-[0_22px_70px_rgba(14,165,233,0.30)] backdrop-blur-2xl transition hover:scale-[1.02] active:scale-[0.98]"
         aria-label="Open Work-O-Bot"
       >
-        <span className="relative grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_34px_rgba(34,211,238,0.34)]">
+        <span className="relative grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-brand to-brand shadow-[0_0_34px_rgba(37, 99, 235,0.34)]">
           <Bot className="h-6 w-6" />
-          <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#061225] bg-emerald-300" />
+          <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-line bg-success" />
         </span>
         <span className="hidden text-left sm:block">
           <span className="block text-sm font-black">Work-O-Bot</span>
-          <span className="block text-xs font-semibold text-cyan-200/80">
+          <span className="block text-xs font-semibold text-brand/80">
             {contextLabel}
           </span>
         </span>
@@ -528,21 +528,21 @@ export default function WorkOBotFloating({
   return (
     <section
       className={cn(
-        "fixed z-[90] flex flex-col overflow-hidden border border-white/[0.08] bg-[#061225]/94 text-white shadow-[0_30px_100px_rgba(0,0,0,0.46)] backdrop-blur-2xl",
+        "fixed z-[90] flex flex-col overflow-hidden border border-line bg-canvas/94 text-fg shadow-[0_30px_100px_rgba(0,0,0,0.46)] backdrop-blur-2xl",
         compact
           ? "inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+14px)] h-[min(640px,calc(100vh-100px))] rounded-[26px] sm:left-auto sm:right-5 sm:w-[390px]"
           : "inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+14px)] h-[min(680px,calc(100vh-100px))] rounded-[28px] sm:left-auto sm:right-5 sm:w-[430px]",
         minimized && "h-auto sm:w-[340px]",
       )}
     >
-      <header className="flex items-center justify-between border-b border-white/[0.07] bg-white/[0.035] px-4 py-3">
+      <header className="flex items-center justify-between border-b border-line bg-fg/[0.035] px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_28px_rgba(34,211,238,0.30)]">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand to-brand shadow-[0_0_28px_rgba(37, 99, 235,0.30)]">
             <Bot className="h-6 w-6" />
           </div>
           <div className="min-w-0">
             <p className="truncate text-base font-black">Work-O-Bot</p>
-            <p className="truncate text-xs font-bold uppercase tracking-[0.18em] text-cyan-200/80">
+            <p className="truncate text-xs font-bold uppercase tracking-[0.18em] text-brand/80">
               {contextLabel}
             </p>
           </div>
@@ -553,7 +553,7 @@ export default function WorkOBotFloating({
             <button
               type="button"
               onClick={clearChat}
-              className="hidden rounded-xl border border-white/[0.08] bg-white/[0.04] px-2.5 py-1.5 text-[11px] font-black text-slate-300 hover:text-white sm:block"
+              className="hidden rounded-xl border border-line bg-fg/[0.04] px-2.5 py-1.5 text-[11px] font-black text-muted hover:text-fg sm:block"
               aria-label="Clear conversation"
             >
               New chat
@@ -562,7 +562,7 @@ export default function WorkOBotFloating({
           <button
             type="button"
             onClick={() => setMinimized((value) => !value)}
-            className="grid h-9 w-9 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-slate-300 hover:text-white"
+            className="grid h-9 w-9 place-items-center rounded-xl border border-line bg-fg/[0.04] text-muted hover:text-fg"
             aria-label="Minimize Work-O-Bot"
           >
             <Minimize2 className="h-4 w-4" />
@@ -570,7 +570,7 @@ export default function WorkOBotFloating({
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="grid h-9 w-9 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-slate-300 hover:text-white"
+            className="grid h-9 w-9 place-items-center rounded-xl border border-line bg-fg/[0.04] text-muted hover:text-fg"
             aria-label="Close Work-O-Bot"
           >
             <X className="h-4 w-4" />
@@ -583,7 +583,7 @@ export default function WorkOBotFloating({
           {/* Quick-action mode chips — these just set the "lens" for the next
               message (and are sent to the API as a hint), they no longer
               gate or reset the conversation. */}
-          <div className="flex gap-2 overflow-x-auto border-b border-white/[0.06] bg-white/[0.02] px-3 py-2 [scrollbar-width:none]">
+          <div className="flex gap-2 overflow-x-auto border-b border-line bg-fg/[0.02] px-3 py-2 [scrollbar-width:none]">
             {modeOptions.map((item) => {
               const Icon = item.icon;
               const active = item.id === mode;
@@ -597,8 +597,8 @@ export default function WorkOBotFloating({
                   className={cn(
                     "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-black transition",
                     active
-                      ? "border-cyan-300/35 bg-cyan-400/15 text-cyan-100"
-                      : "border-white/[0.07] bg-white/[0.03] text-slate-400 hover:text-slate-200",
+                      ? "border-brand/35 bg-brand/15 text-brand"
+                      : "border-line bg-fg/[0.03] text-muted hover:text-fg",
                   )}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -608,7 +608,7 @@ export default function WorkOBotFloating({
             })}
             <Link
               href={`/copilot?mode=${encodeURIComponent(mode)}`}
-              className="ml-auto flex shrink-0 items-center gap-1 rounded-full border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-[11px] font-black text-cyan-100 hover:bg-white/[0.07]"
+              className="ml-auto flex shrink-0 items-center gap-1 rounded-full border border-line bg-fg/[0.03] px-3 py-1.5 text-[11px] font-black text-brand hover:bg-fg/[0.07]"
             >
               Full page
             </Link>
@@ -617,17 +617,17 @@ export default function WorkOBotFloating({
           {/* Chat thread */}
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? (
-              <div className="rounded-xl border border-cyan-300/14 bg-cyan-400/[0.055] p-4">
+              <div className="rounded-xl border border-brand/14 bg-brand/[0.055] p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-black">{activeMode.label} mode</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-300">
+                    <p className="mt-1 text-xs leading-5 text-muted">
                       Context: {targetRole} · {targetMarket}
                     </p>
                   </div>
                 </div>
 
-                <p className="mt-3 text-xs leading-5 text-slate-400">
+                <p className="mt-3 text-xs leading-5 text-muted">
                   Ask anything career-related — CV feedback, interview answers, job search
                   strategy, cover letters, recruiter messages, salary talk, or general advice.
                   Switch the chip above any time to change focus.
@@ -636,7 +636,7 @@ export default function WorkOBotFloating({
                 <button
                   type="button"
                   onClick={() => sendMessage(starterPrompt(mode, targetRole))}
-                  className="mt-3 w-full rounded-lg border border-white/[0.07] bg-white/[0.045] px-3 py-2 text-left text-xs font-semibold text-slate-200 hover:bg-white/[0.075]"
+                  className="mt-3 w-full rounded-lg border border-line bg-fg/[0.045] px-3 py-2 text-left text-xs font-semibold text-fg hover:bg-fg/[0.075]"
                 >
                   Try: {starterPrompt(mode, targetRole)}
                 </button>
@@ -654,8 +654,8 @@ export default function WorkOBotFloating({
                     className={cn(
                       "mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full",
                       item.role === "user"
-                        ? "bg-white/[0.08] text-slate-300"
-                        : "bg-gradient-to-br from-blue-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(34,211,238,0.30)]",
+                        ? "bg-fg/[0.08] text-muted"
+                        : "bg-gradient-to-br from-brand to-brand text-on-brand shadow-[0_0_18px_rgba(37, 99, 235,0.30)]",
                     )}
                   >
                     {item.role === "user" ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
@@ -664,8 +664,8 @@ export default function WorkOBotFloating({
                     className={cn(
                       "max-w-[82%] rounded-xl px-4 py-2.5",
                       item.role === "user"
-                        ? "rounded-tr-md bg-cyan-400/15 text-sm leading-6 text-cyan-50 whitespace-pre-line"
-                        : "rounded-tl-md border border-white/[0.07] bg-black/24",
+                        ? "rounded-tr-md bg-brand/15 text-sm leading-6 text-brand whitespace-pre-line"
+                        : "rounded-tl-md border border-line bg-canvas-soft",
                     )}
                   >
                     {item.role === "user"
@@ -679,11 +679,11 @@ export default function WorkOBotFloating({
 
             {loading && (
               <div className="flex items-start gap-2.5">
-                <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 text-white shadow-[0_0_18px_rgba(34,211,238,0.30)]">
+                <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand to-brand text-on-brand shadow-[0_0_18px_rgba(37, 99, 235,0.30)]">
                   <Bot className="h-3.5 w-3.5" />
                 </div>
-                <div className="flex items-center gap-2 rounded-xl rounded-tl-md border border-white/[0.07] bg-black/24 px-4 py-2.5 text-sm text-slate-400">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-200" />
+                <div className="flex items-center gap-2 rounded-xl rounded-tl-md border border-line bg-canvas-soft px-4 py-2.5 text-sm text-muted">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-brand" />
                   Thinking…
                 </div>
               </div>
@@ -691,7 +691,7 @@ export default function WorkOBotFloating({
           </div>
 
           {/* Composer */}
-          <div className="border-t border-white/[0.06] bg-white/[0.02] p-3">
+          <div className="border-t border-line bg-fg/[0.02] p-3">
             <div className="flex items-end gap-2">
               <textarea
                 value={message}
@@ -704,19 +704,19 @@ export default function WorkOBotFloating({
                 }}
                 placeholder={placeholderForMode(mode)}
                 rows={1}
-                className="max-h-28 min-h-[44px] flex-1 resize-none rounded-lg border border-white/[0.08] bg-slate-950/70 p-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/35"
+                className="max-h-28 min-h-[44px] flex-1 resize-none rounded-lg border border-line bg-canvas/70 p-3 text-sm leading-6 text-fg outline-none placeholder:text-subtle focus:border-brand/35"
               />
               <button
                 type="button"
                 onClick={() => void sendMessage()}
                 disabled={loading || !message.trim()}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-gradient-to-r from-blue-500 to-cyan-400 text-white shadow-[0_16px_42px_rgba(14,165,233,0.26)] transition hover:scale-[1.04] disabled:cursor-not-allowed disabled:opacity-50"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-gradient-to-r from-brand to-brand text-on-brand shadow-[0_16px_42px_rgba(14,165,233,0.26)] transition hover:scale-[1.04] disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Send"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </button>
             </div>
-            {error && <p className="mt-2 text-[11px] font-semibold text-amber-300">{error}</p>}
+            {error && <p className="mt-2 text-[11px] font-semibold text-warning">{error}</p>}
           </div>
         </>
       )}

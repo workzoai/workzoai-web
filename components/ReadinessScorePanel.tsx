@@ -39,43 +39,43 @@ function DimensionBar({
   showDetail: boolean;
 }) {
   const color =
-    !dim.available ? "bg-white/10" :
-    dim.score >= 80 ? "bg-emerald-400" :
-    dim.score >= 62 ? "bg-blue-400" :
-    dim.score >= 45 ? "bg-amber-400" : "bg-rose-400";
+    !dim.available ? "bg-fg/10" :
+    dim.score >= 80 ? "bg-success" :
+    dim.score >= 62 ? "bg-brand" :
+    dim.score >= 45 ? "bg-warning" : "bg-danger";
 
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-sm font-black text-white">{dim.label}</span>
+        <span className="text-sm font-black text-fg">{dim.label}</span>
         <div className="flex items-center gap-2">
           {dim.available && (
             <span className={cn(
               "rounded-lg px-2 py-0.5 text-[10px] font-black",
-              dim.grade === "A" ? "bg-emerald-400/10 text-emerald-300" :
-              dim.grade === "B" ? "bg-blue-400/10 text-blue-300" :
-              dim.grade === "C" ? "bg-amber-400/10 text-amber-300" :
-              "bg-rose-400/10 text-rose-300",
+              dim.grade === "A" ? "bg-success/10 text-success" :
+              dim.grade === "B" ? "bg-brand/10 text-brand" :
+              dim.grade === "C" ? "bg-warning/10 text-warning" :
+              "bg-danger/10 text-danger",
             )}>
               {dim.grade}
             </span>
           )}
-          <span className="text-sm font-black text-white w-16 text-right">
+          <span className="text-sm font-black text-fg w-16 text-right">
             {dim.available ? `${dim.score}/100` : "—"}
           </span>
         </div>
       </div>
-      <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+      <div className="h-2 bg-fg/10 rounded-full overflow-hidden">
         <div
           className={cn("h-full rounded-full transition-all duration-500", color)}
           style={{ width: dim.available ? `${clamp(dim.score)}%` : "0%" }}
         />
       </div>
       {showDetail && dim.available && dim.topInsight && (
-        <p className="mt-1.5 text-xs leading-5 text-slate-400">{dim.topInsight}</p>
+        <p className="mt-1.5 text-xs leading-5 text-muted">{dim.topInsight}</p>
       )}
       {showDetail && !dim.available && (
-        <p className="mt-1.5 text-xs text-slate-500">{dim.topInsight}</p>
+        <p className="mt-1.5 text-xs text-subtle">{dim.topInsight}</p>
       )}
     </div>
   );
@@ -94,11 +94,11 @@ function ReadinessRing({ score, label }: { score: number; label: string }) {
       className="grid h-32 w-32 shrink-0 place-items-center rounded-full"
       style={{ background: `conic-gradient(${color} ${deg}deg, rgba(255,255,255,0.08) 0deg)` }}
     >
-      <div className="grid h-[6rem] w-[6rem] place-items-center rounded-full bg-[#0a0a1a] text-center">
+      <div className="grid h-[6rem] w-[6rem] place-items-center rounded-full bg-canvas text-center">
         <div>
-          <p className="text-3xl font-black text-white">{score}</p>
-          <p className="text-[10px] font-black text-slate-400">/100</p>
-          <p className="text-[10px] font-black text-blue-300 mt-0.5">{label}</p>
+          <p className="text-3xl font-black text-fg">{score}</p>
+          <p className="text-[10px] font-black text-muted">/100</p>
+          <p className="text-[10px] font-black text-brand mt-0.5">{label}</p>
         </div>
       </div>
     </div>
@@ -142,13 +142,13 @@ function HistorySparkline({ history }: { history: ReadinessHistoryEntry[] }) {
       <div>
         <p className={cn(
           "text-xs font-black",
-          trend.trend === "improving" ? "text-emerald-300" :
-          trend.trend === "declining" ? "text-rose-300" : "text-slate-300",
+          trend.trend === "improving" ? "text-success" :
+          trend.trend === "declining" ? "text-danger" : "text-muted",
         )}>
           {trend.trend === "improving" ? `+${trend.delta} pts` :
            trend.trend === "declining" ? `${trend.delta} pts` : "Stable"}
         </p>
-        <p className="text-[10px] text-slate-500">{history.length} sessions</p>
+        <p className="text-[10px] text-subtle">{history.length} sessions</p>
       </div>
     </div>
   );
@@ -254,11 +254,11 @@ export default function ReadinessScorePanel({
   // ── Compact mode (dashboard widget) ─────────────────────────────────────────
   if (compact) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+      <div className="rounded-2xl border border-line bg-fg/[0.035] p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-300">Readiness Score</p>
-            <p className="mt-0.5 text-sm text-slate-400">{readiness.label}</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-brand">Readiness Score</p>
+            <p className="mt-0.5 text-sm text-muted">{readiness.label}</p>
           </div>
           <ReadinessRing score={readiness.overall} label={readiness.grade} />
         </div>
@@ -267,19 +267,19 @@ export default function ReadinessScorePanel({
         <div className="space-y-2 mb-4">
           {([dims.cv, dims.interview, dims.technical, dims.communication, dims.jdFit] as ReadinessDimension[]).map((dim) => (
             <div key={dim.label} className="flex items-center gap-2">
-              <span className="w-24 text-xs text-slate-400">{dim.label}</span>
-              <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+              <span className="w-24 text-xs text-muted">{dim.label}</span>
+              <div className="flex-1 h-1 bg-fg/10 rounded-full overflow-hidden">
                 <div
                   className={cn("h-full rounded-full",
-                    !dim.available ? "bg-white/5" :
-                    dim.score >= 80 ? "bg-emerald-400" :
-                    dim.score >= 62 ? "bg-blue-400" :
-                    dim.score >= 45 ? "bg-amber-400" : "bg-rose-400"
+                    !dim.available ? "bg-fg/5" :
+                    dim.score >= 80 ? "bg-success" :
+                    dim.score >= 62 ? "bg-brand" :
+                    dim.score >= 45 ? "bg-warning" : "bg-danger"
                   )}
                   style={{ width: dim.available ? `${clamp(dim.score)}%` : "0%" }}
                 />
               </div>
-              <span className="w-10 text-right text-xs font-black text-white">
+              <span className="w-10 text-right text-xs font-black text-fg">
                 {dim.available ? `${dim.score}` : "—"}
               </span>
             </div>
@@ -289,8 +289,8 @@ export default function ReadinessScorePanel({
         {history.length >= 2 && <HistorySparkline history={history} />}
 
         <div className="mt-4 flex items-center justify-between">
-          <p className="text-xs text-slate-500 max-w-[60%]">{readiness.nextAction}</p>
-          <Link href="/results" className="inline-flex items-center gap-1.5 text-xs font-black text-blue-300 hover:text-blue-100">
+          <p className="text-xs text-subtle max-w-[60%]">{readiness.nextAction}</p>
+          <Link href="/results" className="inline-flex items-center gap-1.5 text-xs font-black text-brand hover:text-brand">
             Full report <ChevronRight className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -300,30 +300,30 @@ export default function ReadinessScorePanel({
 
   // ── Full mode (results page) ──────────────────────────────────────────────────
   return (
-    <section className="mt-6 rounded-2xl border border-blue-400/20 bg-blue-500/[0.05] p-6">
+    <section className="mt-6 rounded-2xl border border-brand/20 bg-brand/[0.05] p-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-5">
           <ReadinessRing score={readiness.overall} label={readiness.grade} />
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-300">Interview Readiness Score</p>
-            <h2 className="mt-1 text-2xl font-black text-white">{readiness.label}</h2>
+            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-brand">Interview Readiness Score</p>
+            <h2 className="mt-1 text-2xl font-black text-fg">{readiness.label}</h2>
             <p className={cn(
               "mt-1 text-sm font-black",
-              readiness.readyForLiveInterview ? "text-emerald-300" : "text-amber-300",
+              readiness.readyForLiveInterview ? "text-success" : "text-warning",
             )}>
               {readiness.readyForLiveInterview ? "✓ Ready for live interviews" : "⚡ More practice recommended"}
             </p>
             {readiness.estimatedOfferProbability > 0 && (
-              <p className="mt-1 text-xs text-slate-400">
-                Estimated offer probability: <span className="font-black text-white">{readiness.estimatedOfferProbability}%</span>
+              <p className="mt-1 text-xs text-muted">
+                Estimated offer probability: <span className="font-black text-fg">{readiness.estimatedOfferProbability}%</span>
               </p>
             )}
           </div>
         </div>
         {history.length >= 2 && (
           <div className="shrink-0">
-            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Progress</p>
+            <p className="text-[10px] font-black uppercase tracking-wider text-subtle mb-2">Progress</p>
             <HistorySparkline history={history} />
           </div>
         )}
@@ -332,11 +332,11 @@ export default function ReadinessScorePanel({
       {/* Five dimensions */}
       <div className="mt-6 space-y-4">
         <div className="flex items-center justify-between">
-          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-400">Score Breakdown</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted">Score Breakdown</p>
           <button
             type="button"
             onClick={() => setShowDetail(!showDetail)}
-            className="text-[10px] font-black text-slate-500 hover:text-slate-300"
+            className="text-[10px] font-black text-subtle hover:text-muted"
           >
             {showDetail ? "Hide detail" : "Show detail"}
           </button>
@@ -350,50 +350,50 @@ export default function ReadinessScorePanel({
 
       {/* Insights row */}
       <div className="mt-5 grid gap-3 md:grid-cols-2">
-        <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
+        <div className="rounded-xl border border-success/20 bg-success/[0.06] p-4">
           <div className="flex items-start gap-2">
-            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300 mt-0.5" />
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-success mt-0.5" />
             <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-emerald-300">Top strength</p>
-              <p className="mt-1.5 text-xs leading-5 text-emerald-50">{readiness.topStrength}</p>
+              <p className="text-[10px] font-black uppercase tracking-wider text-success">Top strength</p>
+              <p className="mt-1.5 text-xs leading-5 text-success">{readiness.topStrength}</p>
             </div>
           </div>
         </div>
-        <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.06] p-4">
+        <div className="rounded-xl border border-warning/20 bg-warning/[0.06] p-4">
           <div className="flex items-start gap-2">
-            <Zap className="h-4 w-4 shrink-0 text-amber-300 mt-0.5" />
+            <Zap className="h-4 w-4 shrink-0 text-warning mt-0.5" />
             <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-amber-300">Biggest gap</p>
-              <p className="mt-1.5 text-xs leading-5 text-amber-50">{readiness.biggestGap}</p>
+              <p className="text-[10px] font-black uppercase tracking-wider text-warning">Biggest gap</p>
+              <p className="mt-1.5 text-xs leading-5 text-warning">{readiness.biggestGap}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Next action */}
-      <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+      <div className="mt-4 rounded-xl border border-line bg-canvas-soft p-4">
         <div className="flex items-start gap-3">
-          <TrendingUp className="h-4 w-4 shrink-0 text-blue-300 mt-0.5" />
+          <TrendingUp className="h-4 w-4 shrink-0 text-brand mt-0.5" />
           <div>
-            <p className="text-xs font-black text-white">Next action to improve your score</p>
-            <p className="mt-1 text-xs leading-5 text-slate-300">{readiness.nextAction}</p>
+            <p className="text-xs font-black text-fg">Next action to improve your score</p>
+            <p className="mt-1 text-xs leading-5 text-muted">{readiness.nextAction}</p>
           </div>
         </div>
       </div>
 
       {/* CTA: technical assessment if not done */}
       {!dims.technical.available && (
-        <div className="mt-4 rounded-xl border border-violet-400/20 bg-violet-500/[0.07] p-4 flex items-center justify-between gap-4">
+        <div className="mt-4 rounded-xl border border-brand/20 bg-brand/[0.07] p-4 flex items-center justify-between gap-4">
           <div className="flex items-start gap-3">
-            <BarChart3 className="h-4 w-4 shrink-0 text-violet-300 mt-0.5" />
+            <BarChart3 className="h-4 w-4 shrink-0 text-brand mt-0.5" />
             <div>
-              <p className="text-xs font-black text-violet-200">Technical score not yet assessed</p>
-              <p className="mt-1 text-xs text-slate-400">Complete the technical assessment to unlock your full readiness profile. It takes {isPremium ? "10–12" : "5"} minutes.</p>
+              <p className="text-xs font-black text-brand">Technical score not yet assessed</p>
+              <p className="mt-1 text-xs text-muted">Complete the technical assessment to unlock your full readiness profile. It takes {isPremium ? "10–12" : "5"} minutes.</p>
             </div>
           </div>
           <Link
             href="/technical-assessment"
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-violet-500 px-3.5 py-2 text-xs font-black text-white hover:bg-violet-400 transition"
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-2 text-xs font-black text-on-brand hover:bg-brand transition"
           >
             Take test <ArrowRight className="h-3.5 w-3.5" />
           </Link>
@@ -402,17 +402,17 @@ export default function ReadinessScorePanel({
 
       {/* Premium gate for full breakdown */}
       {!isPremium && (
-        <div className="mt-4 relative overflow-hidden rounded-xl border border-violet-400/20 bg-violet-500/[0.06] p-4">
+        <div className="mt-4 relative overflow-hidden rounded-xl border border-brand/20 bg-brand/[0.06] p-4">
           <div className="select-none blur-[4px] pointer-events-none space-y-2">
-            <p className="text-xs font-black text-white">Readiness trend over 8 sessions</p>
-            <div className="h-8 bg-white/10 rounded-full" />
-            <p className="text-xs text-slate-300">Improvement target: +12 pts to reach 'Interview Ready'</p>
+            <p className="text-xs font-black text-fg">Readiness trend over 8 sessions</p>
+            <div className="h-8 bg-fg/10 rounded-full" />
+            <p className="text-xs text-muted">Improvement target: +12 pts to reach 'Interview Ready'</p>
           </div>
           <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
             <div className="text-center">
-              <Lock className="h-5 w-5 text-amber-200 mx-auto mb-2" />
-              <p className="text-xs font-black text-white">Trend tracking — Premium</p>
-              <Link href="/pricing?intent=readiness-trend" className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-black text-white hover:bg-blue-400">
+              <Lock className="h-5 w-5 text-warning mx-auto mb-2" />
+              <p className="text-xs font-black text-fg">Trend tracking — Premium</p>
+              <Link href="/pricing?intent=readiness-trend" className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-black text-on-brand hover:bg-brand">
                 <Crown className="h-3.5 w-3.5" /> Upgrade
               </Link>
             </div>

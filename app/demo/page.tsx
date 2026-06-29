@@ -77,31 +77,31 @@ export default function DemoPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#04080f] text-white">
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,rgba(34,211,238,0.08),transparent_55%)]" />
+    <main className="min-h-screen bg-canvas text-fg">
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,rgba(37, 99, 235,0.08),transparent_55%)]" />
 
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-blue-500 text-white">
+            <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand text-on-brand">
               <Sparkles className="h-4 w-4" />
             </div>
-            <span className="text-xl font-black">WorkZo <span className="text-blue-400">AI</span></span>
+            <span className="text-xl font-black">WorkZo <span className="text-brand">AI</span></span>
           </Link>
-          <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-black text-white hover:bg-blue-400">
+          <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-black text-on-brand hover:bg-brand">
             Start with your CV <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
 
         <div className="mt-10 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
+          <div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-brand">
             <Sparkles className="h-3.5 w-3.5" /> Interactive demo
           </div>
           <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-4xl">
             Try a recruiter question
           </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-400">
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-muted">
             Pick a role and recruiter to hear a sample question. In the real interview, questions are built from <em>your</em> CV — not a generic bank.
           </p>
         </div>
@@ -110,8 +110,8 @@ export default function DemoPage() {
         <div className="mt-12 grid gap-6 lg:grid-cols-[340px_1fr]">
           {/* Config panel */}
           <div className="space-y-5">
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] p-5">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Target role</p>
+            <div className="rounded-xl border border-line bg-fg/[0.04] p-5">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-muted mb-3">Target role</p>
               <div className="grid gap-2">
                 {demoRoles.map((r) => (
                   <button
@@ -120,8 +120,8 @@ export default function DemoPage() {
                     onClick={() => { setRole(r.id); setQuestionIndex(0); }}
                     className={`rounded-xl border px-4 py-3 text-left text-sm font-black transition ${
                       role === r.id
-                        ? "border-blue-400/50 bg-blue-500/15 text-blue-100"
-                        : "border-white/10 bg-black/20 text-slate-400 hover:text-white hover:border-white/20"
+                        ? "border-brand/50 bg-brand/15 text-brand"
+                        : "border-line bg-canvas-soft text-muted hover:text-fg hover:border-line"
                     }`}
                   >
                     {r.label}
@@ -130,8 +130,8 @@ export default function DemoPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] p-5">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Recruiter</p>
+            <div className="rounded-xl border border-line bg-fg/[0.04] p-5">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-muted mb-3">Recruiter</p>
               <div className="grid grid-cols-2 gap-2">
                 {recruiters.map((r) => (
                   <button
@@ -140,13 +140,13 @@ export default function DemoPage() {
                     onClick={() => { setRecruiter(r.id); setQuestionIndex(0); }}
                     className={`rounded-xl border p-3 text-left transition ${
                       recruiter === r.id
-                        ? "border-blue-400/50 bg-blue-500/15"
-                        : "border-white/10 bg-black/20 hover:border-white/20"
+                        ? "border-brand/50 bg-brand/15"
+                        : "border-line bg-canvas-soft hover:border-line"
                     }`}
                   >
                     <img src={r.image} alt={r.name} className="h-10 w-10 rounded-xl object-cover" />
-                    <p className="mt-2 text-sm font-black text-white">{r.name}</p>
-                    <p className="mt-0.5 text-[11px] text-slate-400">{r.style}</p>
+                    <p className="mt-2 text-sm font-black text-fg">{r.name}</p>
+                    <p className="mt-0.5 text-[11px] text-muted">{r.style}</p>
                   </button>
                 ))}
               </div>
@@ -154,7 +154,7 @@ export default function DemoPage() {
 
             <Link
               href="/onboarding"
-              className="block w-full rounded-lg bg-white px-5 py-4 text-center text-sm font-black text-slate-950 hover:bg-blue-50"
+              className="block w-full rounded-lg bg-fg px-5 py-4 text-center text-sm font-black text-canvas hover:bg-brand hover:text-on-brand"
             >
               Start real interview with my CV
               <ArrowRight className="ml-2 inline h-4 w-4" />
@@ -164,24 +164,24 @@ export default function DemoPage() {
           {/* Question panel */}
           <div className="flex flex-col gap-5">
             {/* Recruiter header */}
-            <div className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.04] p-5">
+            <div className="flex items-center gap-4 rounded-xl border border-line bg-fg/[0.04] p-5">
               <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg">
                 <Image src={activeRecruiter.image} alt={activeRecruiter.name} fill className="object-cover" />
               </div>
               <div>
                 <p className="text-lg font-black">{activeRecruiter.name}</p>
-                <p className="text-sm text-slate-400">{activeRecruiter.style} · {activeRole.label}</p>
+                <p className="text-sm text-muted">{activeRecruiter.style} · {activeRole.label}</p>
               </div>
-              <div className="ml-auto flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                <span className="text-xs font-black text-emerald-200">Demo</span>
+              <div className="ml-auto flex items-center gap-2 rounded-full border border-success/20 bg-success/10 px-3 py-1.5">
+                <span className="h-2 w-2 rounded-full bg-success" />
+                <span className="text-xs font-black text-success">Demo</span>
               </div>
             </div>
 
             {/* Question */}
-            <div className="flex-1 rounded-xl border border-white/10 bg-[#08111f] p-7">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200 mb-5">Question {questionIndex + 1} of {questions.length}</p>
-              <p className="text-2xl font-black leading-snug text-white sm:text-3xl">
+            <div className="flex-1 rounded-xl border border-line bg-canvas p-7">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-brand mb-5">Question {questionIndex + 1} of {questions.length}</p>
+              <p className="text-2xl font-black leading-snug text-fg sm:text-3xl">
                 {activeQuestion}
               </p>
 
@@ -190,7 +190,7 @@ export default function DemoPage() {
                   type="button"
                   onClick={speakQuestion}
                   disabled={speaking}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-500 px-5 py-4 text-sm font-black text-white hover:bg-blue-400 disabled:opacity-60"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand px-5 py-4 text-sm font-black text-on-brand hover:bg-brand disabled:opacity-60"
                 >
                   {speaking ? <Volume2 className="h-4 w-4 animate-pulse" /> : <Play className="h-4 w-4" />}
                   {speaking ? "Speaking…" : "Hear the question"}
@@ -198,7 +198,7 @@ export default function DemoPage() {
                 <button
                   type="button"
                   onClick={nextQuestion}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.05] px-5 py-4 text-sm font-black text-slate-200 hover:bg-white/10"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-line bg-fg/[0.05] px-5 py-4 text-sm font-black text-fg hover:bg-fg/10"
                 >
                   Next question
                   <ArrowRight className="h-4 w-4" />
@@ -215,10 +215,10 @@ export default function DemoPage() {
               ].map((item) => {
                 const Icon = item.icon;
                 return (
-                  <div key={item.text} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                    <Icon className="h-4 w-4 text-blue-300 mb-2" />
-                    <p className="text-sm font-black text-white leading-4">{item.text}</p>
-                    <p className="mt-1 text-[11px] text-slate-500">{item.sub}</p>
+                  <div key={item.text} className="rounded-lg border border-line bg-fg/[0.03] p-4">
+                    <Icon className="h-4 w-4 text-brand mb-2" />
+                    <p className="text-sm font-black text-fg leading-4">{item.text}</p>
+                    <p className="mt-1 text-[11px] text-subtle">{item.sub}</p>
                   </div>
                 );
               })}
@@ -227,18 +227,18 @@ export default function DemoPage() {
         </div>
 
         {/* CTA */}
-        <div className="mt-14 rounded-lg border border-blue-300/20 bg-blue-500/[0.07] p-8 text-center">
+        <div className="mt-14 rounded-lg border border-brand/20 bg-brand/[0.07] p-8 text-center">
           <h2 className="text-3xl font-black tracking-tight">The real interview reads your CV.</h2>
-          <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-slate-300">
+          <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-muted">
             The demo shows sample questions. The real interview uses your actual CV and job description — so every follow-up is specific to your experience.
           </p>
           <Link
             href="/onboarding"
-            className="mt-7 inline-flex items-center gap-2 rounded-lg bg-blue-500 px-7 py-4 text-sm font-black text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400"
+            className="mt-7 inline-flex items-center gap-2 rounded-lg bg-brand px-7 py-4 text-sm font-black text-on-brand shadow-lg shadow-brand/20 hover:bg-brand"
           >
             Start with my CV <ArrowRight className="h-4 w-4" />
           </Link>
-          <p className="mt-4 text-xs text-slate-500">Free · No credit card · 2 interviews per month</p>
+          <p className="mt-4 text-xs text-subtle">Free · No credit card · 2 interviews per month</p>
         </div>
       </div>
 

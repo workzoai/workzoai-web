@@ -180,14 +180,14 @@ function renderMarkdown(text: string): React.ReactNode[] {
     const parts = cleaned.split(/(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_|`[^`]+`)/g);
     return parts.map((part, idx) => {
       if ((part.startsWith("**") && part.endsWith("**")) || (part.startsWith("__") && part.endsWith("__"))) {
-        return <strong key={idx} className="font-semibold text-white">{part.slice(2, -2)}</strong>;
+        return <strong key={idx} className="font-semibold text-fg">{part.slice(2, -2)}</strong>;
       }
       if ((part.startsWith("*") && part.endsWith("*") && part.length > 2) ||
           (part.startsWith("_") && part.endsWith("_") && part.length > 2)) {
-        return <em key={idx} className="italic text-slate-300">{part.slice(1, -1)}</em>;
+        return <em key={idx} className="italic text-muted">{part.slice(1, -1)}</em>;
       }
       if (part.startsWith("`") && part.endsWith("`")) {
-        return <code key={idx} className="rounded bg-white/10 px-1 py-0.5 font-mono text-[11px] text-cyan-300">{part.slice(1, -1)}</code>;
+        return <code key={idx} className="rounded bg-fg/10 px-1 py-0.5 font-mono text-[11px] text-brand">{part.slice(1, -1)}</code>;
       }
       return part;
     });
@@ -199,7 +199,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
 
     // Horizontal rule
     if (/^---+$/.test(line.trim())) {
-      nodes.push(<hr key={i} className="my-3 border-white/[0.08]" />);
+      nodes.push(<hr key={i} className="my-3 border-line" />);
       i++; continue;
     }
 
@@ -208,10 +208,10 @@ function renderMarkdown(text: string): React.ReactNode[] {
     if (hMatch) {
       const level = hMatch[1].length;
       const cls = level === 1
-        ? "mt-4 mb-2 text-base font-black text-cyan-100"
+        ? "mt-4 mb-2 text-base font-black text-brand"
         : level === 2
-          ? "mt-3 mb-1.5 text-[13px] font-black text-slate-100"
-          : "mt-2.5 mb-1 text-[11px] font-black uppercase tracking-wide text-slate-300";
+          ? "mt-3 mb-1.5 text-[13px] font-black text-fg"
+          : "mt-2.5 mb-1 text-[11px] font-black uppercase tracking-wide text-muted";
       nodes.push(<p key={i} className={cls}>{inlineFormat(hMatch[2])}</p>);
       i++; continue;
     }
@@ -226,7 +226,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
         i++;
       }
       nodes.push(
-        <blockquote key={`bq-${blockKey}`} className="my-2 rounded-r-xl border-l-2 border-cyan-400/50 bg-white/[0.03] py-2 pl-3 pr-2 text-[12px] italic leading-6 text-slate-300">
+        <blockquote key={`bq-${blockKey}`} className="my-2 rounded-r-xl border-l-2 border-brand/50 bg-fg/[0.03] py-2 pl-3 pr-2 text-[12px] italic leading-6 text-muted">
           {qLines.map((ql, qi) => (
             <span key={qi}>{inlineFormat(ql)}{qi < qLines.length - 1 ? <br /> : null}</span>
           ))}
@@ -248,12 +248,12 @@ function renderMarkdown(text: string): React.ReactNode[] {
         .map(r => r.split("|").slice(1, -1).map(c => c.trim()));
       if (rows.length > 0) {
         nodes.push(
-          <div key={`tbl-${tableKey}`} className="my-3 overflow-x-auto rounded-lg border border-white/10 text-[12px]">
+          <div key={`tbl-${tableKey}`} className="my-3 overflow-x-auto rounded-lg border border-line text-[12px]">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-white/[0.06]">
+                <tr className="bg-fg/[0.06]">
                   {rows[0].map((cell, ci) => (
-                    <th key={ci} className="border-b border-white/10 px-3 py-2 text-left font-bold text-slate-100">
+                    <th key={ci} className="border-b border-line px-3 py-2 text-left font-bold text-fg">
                       {inlineFormat(cell)}
                     </th>
                   ))}
@@ -261,9 +261,9 @@ function renderMarkdown(text: string): React.ReactNode[] {
               </thead>
               <tbody>
                 {rows.slice(1).map((row, ri) => (
-                  <tr key={ri} className={ri % 2 === 0 ? "" : "bg-white/[0.025]"}>
+                  <tr key={ri} className={ri % 2 === 0 ? "" : "bg-fg/[0.025]"}>
                     {row.map((cell, ci) => (
-                      <td key={ci} className="border-b border-white/[0.05] px-3 py-2 text-slate-300">
+                      <td key={ci} className="border-b border-line px-3 py-2 text-muted">
                         {inlineFormat(cell)}
                       </td>
                     ))}
@@ -284,10 +284,10 @@ function renderMarkdown(text: string): React.ReactNode[] {
       const isNested = checkMatch[1].length > 0;
       nodes.push(
         <div key={i} className={`flex items-start gap-2.5 text-[13px] leading-6 ${isNested ? "ml-5 mt-0.5" : "mt-1"}`}>
-          <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-cyan-400 bg-cyan-400/20 text-cyan-300" : "border-white/20 bg-white/[0.04] text-transparent"}`}>
+          <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-brand bg-brand/20 text-brand" : "border-line bg-fg/[0.04] text-transparent"}`}>
             {checked && <span className="text-[9px] font-black">✓</span>}
           </span>
-          <span className={checked ? "text-slate-500 line-through" : "text-slate-300"}>{inlineFormat(checkMatch[3])}</span>
+          <span className={checked ? "text-subtle line-through" : "text-muted"}>{inlineFormat(checkMatch[3])}</span>
         </div>
       );
       i++; continue;
@@ -298,8 +298,8 @@ function renderMarkdown(text: string): React.ReactNode[] {
     if (bulletMatch) {
       const isNested = bulletMatch[1].length > 0;
       nodes.push(
-        <div key={i} className={`flex items-start gap-2 text-[13px] leading-6 text-slate-300 ${isNested ? "ml-5 mt-0.5" : "mt-1"}`}>
-          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400/70" />
+        <div key={i} className={`flex items-start gap-2 text-[13px] leading-6 text-muted ${isNested ? "ml-5 mt-0.5" : "mt-1"}`}>
+          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand/70" />
           <span>{inlineFormat(bulletMatch[2])}</span>
         </div>
       );
@@ -310,8 +310,8 @@ function renderMarkdown(text: string): React.ReactNode[] {
     const numMatch = raw.match(/^(\d+)\. (.+)/);
     if (numMatch) {
       nodes.push(
-        <div key={i} className="mt-1 flex items-start gap-2.5 text-[13px] leading-6 text-slate-300">
-          <span className="min-w-[18px] shrink-0 font-bold text-cyan-400/80">{numMatch[1]}.</span>
+        <div key={i} className="mt-1 flex items-start gap-2.5 text-[13px] leading-6 text-muted">
+          <span className="min-w-[18px] shrink-0 font-bold text-brand/80">{numMatch[1]}.</span>
           <span>{inlineFormat(numMatch[2])}</span>
         </div>
       );
@@ -326,7 +326,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
 
     // Plain paragraph
     nodes.push(
-      <p key={i} className="text-[13px] leading-6 text-slate-200">
+      <p key={i} className="text-[13px] leading-6 text-fg">
         {inlineFormat(line)}
       </p>
     );
@@ -483,33 +483,33 @@ export default function WorkOBotCopilotPage() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#050a12] text-white">
+    <div className="flex h-screen flex-col overflow-hidden bg-canvas text-fg">
 
       {/* Top bar */}
-      <header className="flex shrink-0 items-center justify-between border-b border-white/[0.07] bg-[#050a12]/90 px-4 py-3 backdrop-blur-xl">
+      <header className="flex shrink-0 items-center justify-between border-b border-line bg-canvas/90 px-4 py-3 backdrop-blur-xl">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-slate-400 transition hover:text-white">
+          <Link href="/dashboard" className="grid h-9 w-9 place-items-center rounded-xl border border-line text-muted transition hover:text-fg">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="flex items-center gap-2.5">
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.3)]">
+            <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand to-brand shadow-[0_0_20px_rgba(37, 99, 235,0.3)]">
               <Bot className="h-5 w-5" />
             </div>
             <div>
               <p className="text-sm font-black">Work-O-Bot</p>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-200/70">Career copilot</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand/70">Career copilot</p>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="hidden items-center gap-1.5 sm:flex">
             {FEATURE_LINKS.map(({ href, label, icon: Icon }) => (
-              <Link key={href} href={href} className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/[0.08] hover:text-white">
+              <Link key={href} href={href} className="flex items-center gap-1.5 rounded-xl border border-line bg-fg/[0.04] px-3 py-1.5 text-xs font-bold text-muted transition hover:bg-fg/[0.08] hover:text-fg">
                 <Icon className="h-3.5 w-3.5" />{label}
               </Link>
             ))}
           </div>
-          <button type="button" onClick={startNewChat} className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-slate-400 transition hover:text-white">
+          <button type="button" onClick={startNewChat} className="flex items-center gap-1.5 rounded-xl border border-line bg-fg/[0.04] px-3 py-1.5 text-xs font-bold text-muted transition hover:text-fg">
             <Plus className="h-3.5 w-3.5" />New chat
           </button>
         </div>
@@ -519,11 +519,11 @@ export default function WorkOBotCopilotPage() {
       <div className="flex min-h-0 flex-1">
 
         {/* ── Left sidebar: history + memory ───────────────────────────── */}
-        <aside className="hidden w-64 shrink-0 flex-col border-r border-white/[0.06] bg-[#040810] lg:flex">
+        <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-canvas lg:flex">
 
           {/* New chat */}
-          <div className="shrink-0 border-b border-white/[0.06] p-3">
-            <button type="button" onClick={startNewChat} className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2.5 text-xs font-black text-slate-300 transition hover:bg-white/[0.07] hover:text-white">
+          <div className="shrink-0 border-b border-line p-3">
+            <button type="button" onClick={startNewChat} className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-fg/[0.04] px-3 py-2.5 text-xs font-black text-muted transition hover:bg-fg/[0.07] hover:text-fg">
               <Plus className="h-3.5 w-3.5" />New chat
             </button>
           </div>
@@ -532,21 +532,21 @@ export default function WorkOBotCopilotPage() {
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
             {history.length > 0 ? (
               <>
-                <p className="mb-1 px-2 pt-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Recent</p>
+                <p className="mb-1 px-2 pt-1 text-[10px] font-black uppercase tracking-[0.2em] text-subtle">Recent</p>
                 {history.map((conv) => (
                   <div
                     key={conv.id}
                     onClick={() => loadConversation(conv)}
-                    className={`group relative mb-0.5 flex cursor-pointer items-start rounded-xl px-3 py-2.5 transition ${activeId === conv.id ? "bg-white/[0.08] text-white" : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200"}`}
+                    className={`group relative mb-0.5 flex cursor-pointer items-start rounded-xl px-3 py-2.5 transition ${activeId === conv.id ? "bg-fg/[0.08] text-fg" : "text-muted hover:bg-fg/[0.04] hover:text-fg"}`}
                   >
                     <div className="min-w-0 flex-1 pr-5">
                       <p className="truncate text-xs font-semibold leading-5">{conv.title}</p>
-                      <p className="text-[10px] text-slate-600">{relativeTime(conv.updatedAt)}</p>
+                      <p className="text-[10px] text-subtle">{relativeTime(conv.updatedAt)}</p>
                     </div>
                     <button
                       type="button"
                       onClick={(e) => deleteConversation(conv.id, e)}
-                      className="absolute right-2 top-2.5 opacity-0 transition group-hover:opacity-100 text-slate-600 hover:text-red-400"
+                      className="absolute right-2 top-2.5 opacity-0 transition group-hover:opacity-100 text-subtle hover:text-danger"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -555,21 +555,21 @@ export default function WorkOBotCopilotPage() {
               </>
             ) : (
               <div className="px-3 py-4 text-center">
-                <p className="text-xs text-slate-600">No conversations yet.</p>
-                <p className="mt-0.5 text-[11px] text-slate-700">Start chatting to build history.</p>
+                <p className="text-xs text-subtle">No conversations yet.</p>
+                <p className="mt-0.5 text-[11px] text-subtle">Start chatting to build history.</p>
               </div>
             )}
           </div>
 
           {/* Memory panel */}
           {memory.length > 0 && (
-            <div className="shrink-0 border-t border-white/[0.06] p-3">
-              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">What I know</p>
+            <div className="shrink-0 border-t border-line p-3">
+              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-subtle">What I know</p>
               <div className="space-y-1.5">
                 {memory.map((item, i) => (
-                  <div key={i} className={`rounded-xl border px-3 py-1.5 ${item.kind === "name" ? "border-white/[0.10] bg-white/[0.05]" : item.kind === "jd" ? "border-cyan-300/15 bg-cyan-400/[0.05]" : "border-white/[0.06] bg-white/[0.02]"}`}>
-                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-600">{item.label}</p>
-                    <p className={`mt-0.5 truncate text-xs leading-5 ${item.kind === "name" ? "font-bold text-white" : item.kind === "jd" ? "text-cyan-200/80" : "text-slate-300"}`}>{item.value}</p>
+                  <div key={i} className={`rounded-xl border px-3 py-1.5 ${item.kind === "name" ? "border-line bg-fg/[0.05]" : item.kind === "jd" ? "border-brand/15 bg-brand/[0.05]" : "border-line bg-fg/[0.02]"}`}>
+                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-subtle">{item.label}</p>
+                    <p className={`mt-0.5 truncate text-xs leading-5 ${item.kind === "name" ? "font-bold text-fg" : item.kind === "jd" ? "text-brand/80" : "text-muted"}`}>{item.value}</p>
                   </div>
                 ))}
               </div>
@@ -585,11 +585,11 @@ export default function WorkOBotCopilotPage() {
             {isEmpty ? (
               <div className="mx-auto max-w-2xl">
                 <div className="mb-8 text-center">
-                  <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_40px_rgba(34,211,238,0.3)]">
+                  <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-xl bg-gradient-to-br from-brand to-brand shadow-[0_0_40px_rgba(37, 99, 235,0.3)]">
                     <Bot className="h-8 w-8" />
                   </div>
                   <h1 className="text-2xl font-black">Ask Work-O-Bot anything</h1>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                  <p className="mt-2 text-sm leading-6 text-muted">
                     Career advice, interview prep, salary negotiation, job search strategy — whatever you need.
                     {memory.length > 0 && " I already have your CV and JD loaded."}
                   </p>
@@ -597,15 +597,15 @@ export default function WorkOBotCopilotPage() {
                 <div className="grid gap-2 sm:grid-cols-2">
                   {SUGGESTIONS.map(({ label, action }) => (
                     <button key={label} type="button" onClick={() => void send(label, action)}
-                      className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-left text-sm text-slate-300 transition hover:border-cyan-300/25 hover:bg-cyan-400/[0.06] hover:text-white">
+                      className="rounded-lg border border-line bg-fg/[0.03] px-4 py-3 text-left text-sm text-muted transition hover:border-brand/25 hover:bg-brand/[0.06] hover:text-on-brand">
                       {label}
                     </button>
                   ))}
                 </div>
-                <p className="mt-6 text-center text-xs text-slate-600">
+                <p className="mt-6 text-center text-xs text-subtle">
                   For structured tools, use{" "}
                   {FEATURE_LINKS.map(({ href, label }, i) => (
-                    <span key={href}><Link href={href} className="text-slate-500 underline hover:text-slate-300">{label}</Link>{i < FEATURE_LINKS.length - 1 ? ", " : ""}</span>
+                    <span key={href}><Link href={href} className="text-subtle underline hover:text-muted">{label}</Link>{i < FEATURE_LINKS.length - 1 ? ", " : ""}</span>
                   ))}.
                 </p>
               </div>
@@ -613,10 +613,10 @@ export default function WorkOBotCopilotPage() {
               <div className="mx-auto max-w-2xl space-y-4">
                 {messages.map((msg) => (
                   <div key={msg.id} className={`flex items-start gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-                    <div className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${msg.role === "user" ? "bg-white/[0.08]" : "bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_16px_rgba(34,211,238,0.25)]"}`}>
-                      {msg.role === "user" ? <User className="h-4 w-4 text-slate-300" /> : <Bot className="h-4 w-4 text-white" />}
+                    <div className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${msg.role === "user" ? "bg-fg/[0.08]" : "bg-gradient-to-br from-brand to-brand shadow-[0_0_16px_rgba(37, 99, 235,0.25)]"}`}>
+                      {msg.role === "user" ? <User className="h-4 w-4 text-muted" /> : <Bot className="h-4 w-4 text-fg" />}
                     </div>
-                    <div className={`max-w-[85%] rounded-xl px-4 py-3 ${msg.role === "user" ? "rounded-tr-md bg-cyan-400/15 text-sm leading-6 text-cyan-50 whitespace-pre-line" : "rounded-tl-md border border-white/[0.07] bg-white/[0.04]"}`}>
+                    <div className={`max-w-[85%] rounded-xl px-4 py-3 ${msg.role === "user" ? "rounded-tr-md bg-brand/15 text-sm leading-6 text-brand whitespace-pre-line" : "rounded-tl-md border border-line bg-fg/[0.04]"}`}>
                       {msg.role === "user"
                         ? msg.content
                         : <div className="space-y-0.5">{renderMarkdown(msg.content)}</div>
@@ -626,11 +626,11 @@ export default function WorkOBotCopilotPage() {
                 ))}
                 {loading && (
                   <div className="flex items-start gap-3">
-                    <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 shadow-[0_0_16px_rgba(34,211,238,0.25)]">
-                      <Bot className="h-4 w-4 text-white" />
+                    <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand to-brand shadow-[0_0_16px_rgba(37, 99, 235,0.25)]">
+                      <Bot className="h-4 w-4 text-fg" />
                     </div>
-                    <div className="flex items-center gap-2 rounded-xl rounded-tl-md border border-white/[0.07] bg-white/[0.04] px-4 py-3 text-sm text-slate-400">
-                      <Loader2 className="h-4 w-4 animate-spin text-cyan-300" />Thinking…
+                    <div className="flex items-center gap-2 rounded-xl rounded-tl-md border border-line bg-fg/[0.04] px-4 py-3 text-sm text-muted">
+                      <Loader2 className="h-4 w-4 animate-spin text-brand" />Thinking…
                     </div>
                   </div>
                 )}
@@ -639,9 +639,9 @@ export default function WorkOBotCopilotPage() {
           </div>
 
           {/* Input */}
-          <div className="shrink-0 border-t border-white/[0.07] bg-[#050a12]/80 px-4 py-4 backdrop-blur-xl">
+          <div className="shrink-0 border-t border-line bg-canvas/80 px-4 py-4 backdrop-blur-xl">
             <div className="mx-auto max-w-2xl">
-              {error && <p className="mb-2 text-xs font-semibold text-amber-300">{error}</p>}
+              {error && <p className="mb-2 text-xs font-semibold text-warning">{error}</p>}
               <div className="flex items-end gap-3">
                 <div className="relative flex-1">
                   <textarea
@@ -651,16 +651,16 @@ export default function WorkOBotCopilotPage() {
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(input); } }}
                     placeholder="Ask anything about your career, CV, interviews, salary, applications…"
                     rows={1}
-                    className="max-h-36 min-h-[52px] w-full resize-none rounded-lg border border-white/[0.10] bg-white/[0.05] px-4 py-3.5 pr-10 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/35 focus:bg-white/[0.07]"
+                    className="max-h-36 min-h-[52px] w-full resize-none rounded-lg border border-line bg-fg/[0.05] px-4 py-3.5 pr-10 text-sm leading-6 text-fg outline-none placeholder:text-subtle focus:border-brand/35 focus:bg-fg/[0.07]"
                   />
-                  <Sparkles className="absolute bottom-4 right-3 h-3.5 w-3.5 text-slate-700" />
+                  <Sparkles className="absolute bottom-4 right-3 h-3.5 w-3.5 text-subtle" />
                 </div>
                 <button type="button" onClick={() => void send(input)} disabled={loading || !input.trim()}
-                  className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-lg bg-gradient-to-r from-blue-500 to-cyan-400 text-white shadow-[0_8px_30px_rgba(14,165,233,0.3)] transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-40">
+                  className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-lg bg-gradient-to-r from-brand to-brand text-on-brand shadow-[0_8px_30px_rgba(14,165,233,0.3)] transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-40">
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                 </button>
               </div>
-              <p className="mt-2 text-center text-[10px] text-slate-700">
+              <p className="mt-2 text-center text-[10px] text-subtle">
                 Work-O-Bot uses your CV and JD context · Shift+Enter for new line · Answers are AI-generated
               </p>
             </div>

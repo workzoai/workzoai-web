@@ -77,50 +77,50 @@ function getStateCopy(state: RecruiterPresenceState, mood: RecruiterPresenceMood
 function getMoodStyles(mood: RecruiterPresenceMood, state: RecruiterPresenceState) {
   if (state === "recovering_connection") {
     return {
-      aura: "from-amber-400/24 via-orange-400/12 to-transparent",
-      ring: "border-amber-300/28 shadow-[0_0_70px_rgba(251,191,36,0.16)]",
-      chip: "border-amber-300/20 bg-amber-400/10 text-amber-100",
-      dot: "bg-amber-300 shadow-[0_0_18px_rgba(251,191,36,.75)]",
-      bar: "from-amber-400 via-orange-300 to-rose-400",
+      aura: "from-warning/24 via-warning/12 to-transparent",
+      ring: "border-warning/28 shadow-[0_0_70px_rgba(251,191,36,0.16)]",
+      chip: "border-warning/20 bg-warning/10 text-warning",
+      dot: "bg-warning shadow-[0_0_18px_rgba(251,191,36,.75)]",
+      bar: "from-warning via-warning to-danger",
     };
   }
 
   if (state === "interrupting" || mood === "pressuring") {
     return {
-      aura: "from-rose-500/24 via-orange-400/12 to-transparent",
-      ring: "border-rose-300/24 shadow-[0_0_80px_rgba(244,63,94,0.18)]",
-      chip: "border-rose-300/20 bg-rose-400/10 text-rose-100",
-      dot: "bg-rose-300 shadow-[0_0_18px_rgba(251,113,133,.75)]",
-      bar: "from-rose-500 via-orange-300 to-amber-300",
+      aura: "from-danger/24 via-warning/12 to-transparent",
+      ring: "border-danger/24 shadow-[0_0_80px_rgba(244,63,94,0.18)]",
+      chip: "border-danger/20 bg-danger/10 text-danger",
+      dot: "bg-danger shadow-[0_0_18px_rgba(251,113,133,.75)]",
+      bar: "from-danger via-warning to-warning",
     };
   }
 
   if (state === "skeptical" || mood === "skeptical") {
     return {
-      aura: "from-violet-500/22 via-blue-500/10 to-transparent",
-      ring: "border-violet-300/22 shadow-[0_0_76px_rgba(139,92,246,0.17)]",
-      chip: "border-violet-300/18 bg-violet-400/10 text-violet-100",
-      dot: "bg-violet-300 shadow-[0_0_18px_rgba(167,139,250,.70)]",
-      bar: "from-violet-500 via-blue-400 to-cyan-300",
+      aura: "from-brand/22 via-brand/10 to-transparent",
+      ring: "border-brand/22 shadow-[0_0_76px_rgba(37, 99, 235,0.17)]",
+      chip: "border-brand/18 bg-brand/10 text-brand",
+      dot: "bg-brand shadow-[0_0_18px_rgba(167,139,250,.70)]",
+      bar: "from-brand via-brand to-brand",
     };
   }
 
   if (state === "interested" || mood === "interested" || mood === "impressed") {
     return {
-      aura: "from-emerald-400/22 via-cyan-300/14 to-transparent",
-      ring: "border-emerald-300/22 shadow-[0_0_80px_rgba(16,185,129,0.18)]",
-      chip: "border-emerald-300/20 bg-emerald-400/10 text-emerald-100",
-      dot: "bg-emerald-300 shadow-[0_0_18px_rgba(52,211,153,.80)]",
-      bar: "from-emerald-400 via-cyan-300 to-blue-400",
+      aura: "from-success/22 via-brand/14 to-transparent",
+      ring: "border-success/22 shadow-[0_0_80px_rgba(16,185,129,0.18)]",
+      chip: "border-success/20 bg-success/10 text-success",
+      dot: "bg-success shadow-[0_0_18px_rgba(52,211,153,.80)]",
+      bar: "from-success via-brand to-brand",
     };
   }
 
   return {
-    aura: "from-blue-500/22 via-cyan-300/10 to-transparent",
-    ring: "border-cyan-300/18 shadow-[0_0_76px_rgba(37,99,235,0.18)]",
-    chip: "border-cyan-300/18 bg-cyan-400/8 text-cyan-100",
-    dot: "bg-cyan-300 shadow-[0_0_18px_rgba(34,211,238,.75)]",
-    bar: "from-blue-500 via-cyan-300 to-violet-400",
+    aura: "from-brand/22 via-brand/10 to-transparent",
+    ring: "border-brand/18 shadow-[0_0_76px_rgba(37,99,235,0.18)]",
+    chip: "border-brand/18 bg-brand/8 text-brand",
+    dot: "bg-brand shadow-[0_0_18px_rgba(37, 99, 235,.75)]",
+    bar: "from-brand via-brand to-brand",
   };
 }
 
@@ -164,7 +164,7 @@ export default function RecruiterPresence({
   return (
     <section
       className={cn(
-        "relative overflow-hidden rounded-[34px] border border-white/[0.08] bg-[#050b16]/88 p-4 text-white shadow-[0_28px_100px_rgba(0,0,0,0.34)] backdrop-blur-2xl",
+        "relative overflow-hidden rounded-[34px] border border-line bg-canvas/88 p-4 text-fg shadow-[0_28px_100px_rgba(0,0,0,0.34)] backdrop-blur-2xl",
         className,
       )}
     >
@@ -260,8 +260,8 @@ export default function RecruiterPresence({
       <div className={cn("wz-presence-aura pointer-events-none absolute left-1/2 top-[38%] h-[360px] w-[360px] -translate-x-1/2 rounded-full bg-gradient-to-b blur-[72px]", styles.aura)} />
 
       <div className="relative z-10 grid gap-4 md:grid-cols-[1fr_0.82fr]">
-        <div className={cn("relative min-h-[320px] overflow-hidden rounded-[30px] border bg-black/24", styles.ring)}>
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-[430px] w-[430px] rounded-full border border-white/10 opacity-30 wz-presence-halo" />
+        <div className={cn("relative min-h-[320px] overflow-hidden rounded-[30px] border bg-canvas-soft", styles.ring)}>
+          <div className="pointer-events-none absolute left-1/2 top-1/2 h-[430px] w-[430px] rounded-full border border-line opacity-30 wz-presence-halo" />
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_34%,rgba(255,255,255,0.10),transparent_26%),linear-gradient(180deg,transparent_45%,rgba(2,6,23,0.82)_100%)]" />
 
           <Image
@@ -279,23 +279,23 @@ export default function RecruiterPresence({
             priority={false}
           />
 
-          <div className="pointer-events-none absolute left-1/2 top-[35%] h-8 w-[46%] -translate-x-1/2 rounded-full bg-slate-950/70 blur-md wz-blink" />
-          <div className="pointer-events-none absolute left-1/2 top-[34%] h-8 w-[38%] rounded-full bg-cyan-200/20 blur-2xl wz-eye-shift" />
+          <div className="pointer-events-none absolute left-1/2 top-[35%] h-8 w-[46%] -translate-x-1/2 rounded-full bg-canvas/70 blur-md wz-blink" />
+          <div className="pointer-events-none absolute left-1/2 top-[34%] h-8 w-[38%] rounded-full bg-brand/20 blur-2xl wz-eye-shift" />
 
           {isActiveSpeaking && (
-            <div className="pointer-events-none absolute left-1/2 top-[58%] h-9 w-28 -translate-x-1/2 rounded-full bg-cyan-300/20 blur-2xl" />
+            <div className="pointer-events-none absolute left-1/2 top-[58%] h-9 w-28 -translate-x-1/2 rounded-full bg-brand/20 blur-2xl" />
           )}
 
           {visualState === "typing_notes" && (
-            <div className="pointer-events-none absolute bottom-24 left-8 right-8 overflow-hidden rounded-lg border border-white/10 bg-black/38 p-3 backdrop-blur-xl">
-              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200/80">Typing notes</div>
-              <div className="relative mt-2 h-1 overflow-hidden rounded-full bg-white/10">
-                <span className="wz-note-line absolute inset-y-0 w-1/3 rounded-full bg-cyan-300/70" />
+            <div className="pointer-events-none absolute bottom-24 left-8 right-8 overflow-hidden rounded-lg border border-line bg-canvas-soft p-3 backdrop-blur-xl">
+              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-brand/80">Typing notes</div>
+              <div className="relative mt-2 h-1 overflow-hidden rounded-full bg-fg/10">
+                <span className="wz-note-line absolute inset-y-0 w-1/3 rounded-full bg-brand/70" />
               </div>
             </div>
           )}
 
-          <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-[#020617]/92 via-[#020617]/34 to-transparent p-5">
+          <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-canvas/92 via-canvas/34 to-transparent p-5">
             <div className={cn("inline-flex max-w-full items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-black backdrop-blur-xl", styles.chip)}>
               <span className={cn("h-2.5 w-2.5 rounded-full", styles.dot)} />
               <span className="truncate">{recruiterName} · {recruiterRole}</span>
@@ -303,11 +303,11 @@ export default function RecruiterPresence({
           </div>
         </div>
 
-        <div className="flex min-h-[320px] flex-col rounded-[28px] border border-white/[0.08] bg-white/[0.035] p-4 backdrop-blur-xl">
+        <div className="flex min-h-[320px] flex-col rounded-[28px] border border-line bg-fg/[0.035] p-4 backdrop-blur-xl">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Recruiter presence</p>
-              <h3 className="mt-2 text-2xl font-black tracking-[-0.03em] text-white">{stateCopy}</h3>
+              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-muted">Recruiter presence</p>
+              <h3 className="mt-2 text-2xl font-black tracking-[-0.03em] text-fg">{stateCopy}</h3>
             </div>
             <div className={cn("grid h-11 w-11 place-items-center rounded-lg border", styles.chip)}>
               {visualState === "thinking" || visualState === "typing_notes" ? (
@@ -324,7 +324,7 @@ export default function RecruiterPresence({
             </div>
           </div>
 
-          <p className="mt-3 text-sm leading-6 text-slate-300">{recruiterCaption}</p>
+          <p className="mt-3 text-sm leading-6 text-muted">{recruiterCaption}</p>
 
           <div className="mt-5 flex h-[38px] items-end gap-[7px]" aria-hidden="true">
             {waveform.map((height, index) => (
@@ -343,17 +343,17 @@ export default function RecruiterPresence({
           </div>
 
           <div className="mt-auto pt-5">
-            <div className="rounded-lg border border-white/[0.07] bg-black/20 px-4 py-3">
-              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-slate-400">
+            <div className="rounded-lg border border-line bg-canvas-soft px-4 py-3">
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-muted">
                 <Pause className="h-3.5 w-3.5" />
                 Live behavior
               </div>
-              <div className="mt-2 flex items-center gap-2 text-sm font-bold text-slate-200">
+              <div className="mt-2 flex items-center gap-2 text-sm font-bold text-fg">
                 {(visualState === "thinking" || visualState === "typing_notes") && (
                   <>
                     <span>Thinking</span>
                     {[0, 1, 2].map((dot) => (
-                      <span key={dot} className="wz-dot h-1.5 w-1.5 rounded-full bg-cyan-300" style={{ animation: "wzThinkingDots 1.1s ease-in-out infinite" }} />
+                      <span key={dot} className="wz-dot h-1.5 w-1.5 rounded-full bg-brand" style={{ animation: "wzThinkingDots 1.1s ease-in-out infinite" }} />
                     ))}
                   </>
                 )}
@@ -376,18 +376,18 @@ export default function RecruiterPresence({
 function Metric({ label, value, tone }: { label: string; value: number; tone: "trust" | "interest" | "pressure" }) {
   const gradient =
     tone === "pressure"
-      ? "from-rose-500 via-orange-400 to-amber-300"
+      ? "from-danger via-warning to-warning"
       : tone === "interest"
-        ? "from-emerald-400 via-cyan-300 to-blue-400"
-        : "from-blue-500 via-cyan-300 to-violet-400";
+        ? "from-success via-brand to-brand"
+        : "from-brand via-brand to-brand";
 
   return (
     <div>
-      <div className="flex items-center justify-between text-xs font-black text-slate-300">
+      <div className="flex items-center justify-between text-xs font-black text-muted">
         <span>{label}</span>
         <span>{value}</span>
       </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-fg/10">
         <div className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-700", gradient)} style={{ width: `${value}%` }} />
       </div>
     </div>

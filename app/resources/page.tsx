@@ -17,17 +17,17 @@ export const metadata = {
 
 export default function ResourcesPage() {
   return (
-    <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
+    <main className="min-h-screen bg-canvas px-5 py-8 text-fg">
       <div className="mx-auto max-w-6xl">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-black text-slate-300 hover:text-white">
+        <Link href="/" className="inline-flex items-center gap-2 text-sm font-black text-muted hover:text-fg">
           <ArrowLeft className="h-4 w-4" />
           Back home
         </Link>
 
         <section className="mt-10 text-center">
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-cyan-200">Resources</p>
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-brand">Resources</p>
           <h1 className="mt-4 text-4xl font-black tracking-[-0.04em] sm:text-4xl">Everything you need to understand WorkZo AI.</h1>
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-300">
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-muted">
             Product information, support, legal pages, updates, and launch resources in one place.
           </p>
         </section>
@@ -36,13 +36,13 @@ export default function ResourcesPage() {
           {resources.map((item) => {
             const Icon = item.icon;
             return (
-              <Link key={item.href} href={item.href} className="group rounded-lg border border-white/10 bg-white/[0.04] p-6 transition hover:-translate-y-1 hover:border-blue-300/30 hover:bg-white/[0.07]">
-                <div className="grid h-12 w-12 place-items-center rounded-lg bg-blue-500/10 text-blue-200">
+              <Link key={item.href} href={item.href} className="group rounded-lg border border-line bg-fg/[0.04] p-6 transition hover:-translate-y-1 hover:border-brand/30 hover:bg-fg/[0.07]">
+                <div className="grid h-12 w-12 place-items-center rounded-lg bg-brand/10 text-brand">
                   <Icon className="h-6 w-6" />
                 </div>
                 <h2 className="mt-5 text-xl font-black">{item.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">{item.text}</p>
-                <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-blue-200 group-hover:text-blue-100">
+                <p className="mt-2 text-sm leading-6 text-muted">{item.text}</p>
+                <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-brand group-hover:text-brand">
                   Open
                   <ArrowRight className="h-4 w-4" />
                 </span>

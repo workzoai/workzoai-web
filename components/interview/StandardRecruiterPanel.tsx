@@ -17,7 +17,7 @@ export default function StandardRecruiterPanel({
   recruiterName = "Recruiter",
 }: StandardRecruiterPanelProps) {
   return (
-    <div className="absolute inset-0 bg-slate-950">
+    <div className="absolute inset-0 bg-canvas">
       <img
         src={getRecruiterImage(recruiterName)}
         alt={`${recruiterName} recruiter`}

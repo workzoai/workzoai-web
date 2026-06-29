@@ -79,15 +79,15 @@ function LoginContent() {
   if (status === "sent") {
     return (
       <div className="text-center">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-xl bg-emerald-400/15 text-emerald-200">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-xl bg-success/15 text-success">
           <Mail className="h-8 w-8" />
         </div>
         <h2 className="mt-6 text-3xl font-black">Check your inbox</h2>
-        <p className="mt-3 text-base leading-7 text-slate-300">
-          We sent a login link to <span className="font-black text-white">{email}</span>. Click it to sign in.
+        <p className="mt-3 text-base leading-7 text-muted">
+          We sent a login link to <span className="font-black text-fg">{email}</span>. Click it to sign in.
         </p>
-        <p className="mt-3 text-sm text-slate-500">Check your spam folder if you don't see it within a minute.</p>
-        <button type="button" onClick={() => setStatus("idle")} className="mt-6 text-sm font-black text-blue-300 hover:text-white">
+        <p className="mt-3 text-sm text-subtle">Check your spam folder if you don't see it within a minute.</p>
+        <button type="button" onClick={() => setStatus("idle")} className="mt-6 text-sm font-black text-brand hover:text-fg">
           Use a different email
         </button>
       </div>
@@ -97,22 +97,22 @@ function LoginContent() {
   return (
     <>
       {isPremiumCheckout && (
-        <div className="mb-6 rounded-lg border border-blue-300/20 bg-blue-500/10 p-4 text-center">
-          <p className="text-sm font-black text-blue-200">Sign in to continue to Premium checkout</p>
-          <p className="mt-1 text-xs text-slate-400">You'll be redirected back after login</p>
+        <div className="mb-6 rounded-lg border border-brand/20 bg-brand/10 p-4 text-center">
+          <p className="text-sm font-black text-brand">Sign in to continue to Premium checkout</p>
+          <p className="mt-1 text-xs text-muted">You'll be redirected back after login</p>
         </div>
       )}
 
       <div className="text-center">
-        <div className="mx-auto grid h-14 w-14 place-items-center rounded-lg bg-blue-500/15 text-blue-200">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-lg bg-brand/15 text-brand">
           <LockKeyhole className="h-7 w-7" />
         </div>
         <h1 className="mt-5 text-3xl font-black sm:text-4xl">Sign in to WorkZo AI</h1>
-        <p className="mt-3 text-sm leading-6 text-slate-400">No password needed. We send a magic link to your email.</p>
+        <p className="mt-3 text-sm leading-6 text-muted">No password needed. We send a magic link to your email.</p>
       </div>
 
       {errorMsg && (
-        <div className="mt-5 rounded-xl border border-red-300/20 bg-red-400/10 px-4 py-3 text-sm font-bold text-red-200">
+        <div className="mt-5 rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm font-bold text-danger">
           {errorMsg}
         </div>
       )}
@@ -122,7 +122,7 @@ function LoginContent() {
         type="button"
         onClick={signInWithGoogle}
         disabled={status === "loading"}
-        className="mt-7 flex w-full items-center justify-center gap-3 rounded-lg border border-white/10 bg-white/[0.06] px-5 py-3.5 text-sm font-black text-white transition hover:bg-white/[0.1] disabled:opacity-60"
+        className="mt-7 flex w-full items-center justify-center gap-3 rounded-lg border border-line bg-fg/[0.06] px-5 py-3.5 text-sm font-black text-fg transition hover:bg-fg/[0.1] disabled:opacity-60"
       >
         {status === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : (
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
@@ -136,39 +136,39 @@ function LoginContent() {
       </button>
 
       <div className="relative my-5 flex items-center gap-3">
-        <div className="h-px flex-1 bg-white/[0.08]" />
-        <span className="text-xs text-slate-500">or</span>
-        <div className="h-px flex-1 bg-white/[0.08]" />
+        <div className="h-px flex-1 bg-fg/[0.08]" />
+        <span className="text-xs text-subtle">or</span>
+        <div className="h-px flex-1 bg-fg/[0.08]" />
       </div>
 
       {/* Email */}
       <form onSubmit={signInWithEmail} className="space-y-3">
         <label className="block">
-          <span className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-400">Email address</span>
+          <span className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-muted">Email address</span>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
             placeholder="you@example.com"
-            className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-5 py-3.5 text-sm text-white placeholder-slate-500 outline-none transition focus:border-blue-400/60 focus:bg-white/[0.08]"
+            className="w-full rounded-lg border border-line bg-fg/[0.05] px-5 py-3.5 text-sm text-fg placeholder-slate-500 outline-none transition focus:border-brand/60 focus:bg-fg/[0.08]"
           />
         </label>
         <button
           type="submit"
           disabled={status === "loading" || !email.trim()}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400 disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-5 py-3.5 text-sm font-black text-on-brand shadow-lg shadow-brand/20 transition hover:bg-brand disabled:opacity-60"
         >
           {status === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Send magic link <ArrowRight className="h-4 w-4" />
         </button>
       </form>
 
-      <p className="mt-6 text-center text-xs text-slate-500">
+      <p className="mt-6 text-center text-xs text-subtle">
         By signing in you agree to our{" "}
-        <Link href="/legal/terms" className="hover:text-white">Terms</Link>
+        <Link href="/legal/terms" className="hover:text-fg">Terms</Link>
         {" "}and{" "}
-        <Link href="/legal/privacy" className="hover:text-white">Privacy Policy</Link>.
+        <Link href="/legal/privacy" className="hover:text-fg">Privacy Policy</Link>.
       </p>
     </>
   );
@@ -176,29 +176,29 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <main className="min-h-screen bg-[#04080f] text-white">
+    <main className="min-h-screen bg-canvas text-fg">
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_left,rgba(59,130,246,0.1),transparent_50%),radial-gradient(ellipse_at_bottom_right,rgba(99,102,241,0.08),transparent_50%)]" />
 
       <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-12">
         {/* Logo */}
         <Link href="/" className="mb-8 flex items-center justify-center gap-3">
           <Image src="/workzo_icon.png" alt="WorkZo AI" width={40} height={40} className="rounded-xl" />
-          <span className="text-xl font-black">WorkZo <span className="text-blue-400">AI</span></span>
+          <span className="text-xl font-black">WorkZo <span className="text-brand">AI</span></span>
         </Link>
 
-        <div className="rounded-lg border border-white/10 bg-white/[0.04] p-7 shadow-2xl shadow-black/20">
+        <div className="rounded-lg border border-line bg-fg/[0.04] p-7 shadow-2xl shadow-black/20">
           <Suspense fallback={
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
+              <Loader2 className="h-6 w-6 animate-spin text-brand" />
             </div>
           }>
             <LoginContent />
           </Suspense>
         </div>
 
-        <p className="mt-6 text-center text-sm text-slate-500">
+        <p className="mt-6 text-center text-sm text-subtle">
           No account?{" "}
-          <Link href="/onboarding" className="font-black text-slate-300 hover:text-white">
+          <Link href="/onboarding" className="font-black text-muted hover:text-fg">
             Start free — no signup needed
           </Link>
         </p>
