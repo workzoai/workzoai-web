@@ -4122,15 +4122,21 @@ function updateRecruiterMemoryState(
       "Positive pattern: stronger evidence and ownership are emerging.";
 
   const nextQuestionCount = previous.askedTopics.length;
+  // Don't close until at least 12 topics have been covered
   const needsClosingChallenge =
-    nextQuestionCount >= 10 && !previous.closingAsked;
+    nextQuestionCount >= 12 && !previous.closingAsked;
   // readyForResults gates the end-of-interview transition.
   // A raw question count alone is not enough — the recruiter must have
   // issued a closing invitation ("do you have any questions") AND the
   // candidate must have replied. The count-only fallback is raised to 20
   // so a natural conversation is never cut short mid-exchange.
+  // readyForResults: only trigger after a PROPER closing exchange.
+  // - closingAsked must be true (recruiter issued "do you have any questions?")
+  // - candidate must have had at least 10 real answered topics
+  // - OR hard cap at 20 topics (true emergency exit only)
+  // This prevents cutting the interview short at question 4-5.
   const readyForResults =
-    (previous.closingAsked && nextQuestionCount >= 8) ||
+    (previous.closingAsked && nextQuestionCount >= 10) ||
     nextQuestionCount >= 20 ||
     previous.readyForResults;
 
@@ -7846,15 +7852,15 @@ export default function InterviewPage() {
                   </div>
 
                   <div className="space-y-3">
-                    {/* Technical Mode toggle — premium only */}
-                    {premiumUnlocked && (
+                    {/* Technical Mode toggle — shown when technical recruiter is active */}
+                    {isTechnicalRecruiter(setup.recruiterId || setup.recruiterName || "") && (
                       <section>
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-violet-200">
                             Technical Mode
                           </p>
-                          <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-200">
-                            Premium
+                          <span className="rounded-full border border-blue-300/20 bg-blue-400/10 px-2 py-0.5 text-[10px] font-black text-blue-200">
+                            Alex only
                           </span>
                         </div>
                         <button

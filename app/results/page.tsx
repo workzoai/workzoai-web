@@ -475,9 +475,12 @@ function analyzeAnswer(question: string, answer: string, index: number): AnswerI
   const resultPresent = hasResult(answer);
   const redFlags = detectRedFlags(answer);
 
-  const structureScore = clamp(36 + (words >= 35 ? 14 : 0) + (words <= 180 ? 16 : 0) + (ownershipPresent ? 14 : 0) + (resultPresent ? 16 : 0) - (words > 230 ? 12 : 0));
-  const evidenceScore = clamp(30 + (metricPresent ? 35 : 0) + (ownershipPresent ? 18 : 0) + (resultPresent ? 17 : 0) - (redFlags.length * 3));
-  const trustImpact = clamp(44 + (ownershipPresent ? 18 : -8) + (metricPresent ? 18 : -12) + (resultPresent ? 12 : -6) - (redFlags.length * 5));
+  // structureScore: base 20 — candidate earns points for substance, not just showing up
+  const structureScore = clamp(20 + (words >= 40 ? 18 : words >= 20 ? 8 : 0) + (words <= 180 ? 10 : 0) + (ownershipPresent ? 18 : 0) + (resultPresent ? 20 : 0) + (metricPresent ? 10 : 0) - (words > 230 ? 8 : 0) - (fillerCount >= 5 ? 6 : 0));
+  // evidenceScore: base 15 — must be earned through actual content
+  const evidenceScore = clamp(15 + (metricPresent ? 38 : 0) + (ownershipPresent ? 22 : 0) + (resultPresent ? 20 : 0) + (words >= 60 ? 5 : 0) - (redFlags.length * 4));
+  // trustImpact: honest spread — good answers reward well, weak answers show clearly
+  const trustImpact = clamp(35 + (ownershipPresent ? 22 : -10) + (metricPresent ? 20 : -10) + (resultPresent ? 15 : -5) + (words >= 50 ? 5 : words < 20 ? -8 : 0) - (redFlags.length * 5) - (fillerCount >= 5 ? 5 : 0));
 
   let weakness = "Good foundation; make the answer sharper with stronger structure.";
   if (!metricPresent) weakness = "Missing measurable evidence.";
@@ -638,10 +641,14 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
     score?: { overall?: number; trust?: number; clarity?: number; confidence?: number; relevance?: number; communication?: number };
     answerQuality?: { evidenceScore?: number };
   };
-  const evidenceQuality = numberOr(result.evidenceQuality, numberOr(resultRecord.answerQuality?.evidenceScore, average(answerInsights.map((item) => item.evidenceScore), 58)));
-  const trustScore = numberOr(result.trustScore, numberOr(resultRecord.score?.trust, average(answerInsights.map((item) => item.trustImpact), 62)));
-  const structureScore = average(answerInsights.map((item) => item.structureScore), 60);
-  const ownershipScore = average(answerInsights.map((item) => item.ownershipPresent ? 78 : 48), 58);
+  // No artificial floor — if no data, score 0 not 58
+  const evidenceQuality = numberOr(result.evidenceQuality, numberOr(resultRecord.answerQuality?.evidenceScore, answersCount > 0 ? average(answerInsights.map((item) => item.evidenceScore), 0) : 0));
+  const trustScore = numberOr(result.trustScore, numberOr(resultRecord.score?.trust, answersCount > 0 ? average(answerInsights.map((item) => item.trustImpact), 0) : 0));
+  const structureScore = answersCount > 0 ? average(answerInsights.map((item) => item.structureScore), 0) : 0;
+  // ownershipScore: honest — clear ownership gets high score, missing gets low score
+  const ownershipScore = answersCount > 0
+    ? average(answerInsights.map((item) => item.ownershipPresent ? 80 : 35), 50)
+    : 50;
 
   const communicationScore = numberOr(result.communicationScore, numberOr(resultRecord.score?.communication, clamp(structureScore + (averageWpm >= 110 && averageWpm <= 170 ? 8 : -4))));
   const confidenceScore = numberOr(result.confidenceScore, numberOr(resultRecord.score?.confidence, clamp(trustScore - (answerInsights.some((item) => item.fillerCount >= 4) ? 8 : 0) + (ownershipScore >= 70 ? 4 : -3))));

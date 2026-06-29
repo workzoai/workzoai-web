@@ -75,7 +75,7 @@ const recruiters: { key: RecruiterKey; name: string; role: string; avatar: strin
   { key: "analytical_hiring_manager", name: "Daniel", role: "Hiring Manager", avatar: "👨🏻‍💼", quote: "Can you prove the business impact behind that answer?", description: "Evidence-driven and focused on measurable impact." },
   { key: "startup_recruiter", name: "Priya", role: "Supportive Recruiter", avatar: "👩🏽‍💼", quote: "What did you learn from that experience — and how has it shaped how you work?", description: "Warm and growth-focused. Great for freshers, career changers, and first interviews." },
   { key: "german_corporate", name: "Markus", role: "Corporate Recruiter", avatar: "👨🏼‍💼", quote: "Please keep the answer concise and relevant.", description: "Structured, professional, and process-oriented." },
-  { key: "faang_hiring_manager", name: "Alex Chen", role: "Technical Interviewer", avatar: "👨🏻‍💻", quote: "Walk me through the trade-off you made and how you measured success.", description: "Probes technical depth, system design, and structured reasoning. Expects data and trade-offs." },
+  { key: "faang_hiring_manager", name: "Alex Chen", role: "Technical Interviewer", avatar: "👨🏻‍💻", quote: "Walk me through the trade-off you made and how you measured success.", description: "Technical depth, system design, and code review. Includes a live code workspace. Ideal for engineers and coding bootcamp graduates." },
 ];
 
 const proRecruiters: { key: RecruiterKey; name: string; role: string; avatar: string; quote: string; description: string }[] = [
