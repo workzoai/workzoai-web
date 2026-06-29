@@ -661,9 +661,9 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
   // 1. We have enough answers (3+) to trust it was a real session
   // 2. The stored score is meaningfully different from the default signal (50)
   // Otherwise, the transcript-based calculation is more honest.
-  const storedScore = numberOr(result.overallScore, resultRecord.score?.overall);
-  const storedScoreIsDefault = storedScore !== null && storedScore !== undefined && (storedScore >= 48 && storedScore <= 52);
-  const overallScore = (answersCount >= 3 && storedScore && !storedScoreIsDefault)
+  const storedScore: number | null = numberOr(result.overallScore, resultRecord.score?.overall) ?? null;
+  const storedScoreIsDefault = storedScore !== null && (storedScore >= 48 && storedScore <= 52);
+  const overallScore = (answersCount >= 3 && storedScore !== null && !storedScoreIsDefault)
     ? clamp(storedScore)
     : calculatedScore;
 
