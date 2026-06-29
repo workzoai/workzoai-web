@@ -77,8 +77,8 @@ import dynamic from "next/dynamic";
 const CodePanel = dynamic(() => import("@/components/interview/CodePanel"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full min-h-[300px] items-center justify-center rounded-lg border border-white/10 bg-[#0d1117]">
-      <span className="text-xs text-slate-600 font-black uppercase tracking-widest animate-pulse">
+    <div className="flex h-full min-h-[300px] items-center justify-center rounded-lg border border-line bg-canvas">
+      <span className="text-xs text-subtle font-black uppercase tracking-widest animate-pulse">
         Loading editor…
       </span>
     </div>
@@ -1179,11 +1179,11 @@ function buildSetupFromStorage(): InterviewSetup {
 }
 
 function toneClass(tone: string) {
-  if (tone === "emerald") return "bg-emerald-400/15 text-emerald-300";
-  if (tone === "blue") return "bg-blue-400/15 text-blue-300";
-  if (tone === "violet") return "bg-violet-400/15 text-violet-300";
-  if (tone === "orange") return "bg-orange-400/15 text-orange-300";
-  return "bg-white/10 text-slate-300";
+  if (tone === "emerald") return "bg-success/15 text-success";
+  if (tone === "blue") return "bg-brand/15 text-brand";
+  if (tone === "violet") return "bg-brand/15 text-brand";
+  if (tone === "orange") return "bg-warning/15 text-warning";
+  return "bg-fg/10 text-muted";
 }
 
 function recruiterObjectPosition(recruiterId: string, recruiterName: string) {
@@ -1629,16 +1629,16 @@ function recruiterStatusTone(
   signal: RecruiterSignalState,
   scoreReady: boolean,
 ) {
-  if (!scoreReady) return "border-blue-300/20 bg-blue-400/10 text-blue-200";
+  if (!scoreReady) return "border-brand/20 bg-brand/10 text-brand";
   if (signal.mood === "Impressed")
-    return "border-emerald-300/20 bg-emerald-400/10 text-emerald-200";
+    return "border-success/20 bg-success/10 text-success";
   if (signal.mood === "Engaged")
-    return "border-blue-300/20 bg-blue-400/10 text-blue-200";
+    return "border-brand/20 bg-brand/10 text-brand";
   if (signal.mood === "Concerned")
-    return "border-amber-300/20 bg-amber-400/10 text-amber-200";
+    return "border-warning/20 bg-warning/10 text-warning";
   if (signal.mood === "Doubtful")
-    return "border-red-300/20 bg-red-400/10 text-red-200";
-  return "border-slate-300/20 bg-slate-400/10 text-slate-200";
+    return "border-danger/20 bg-danger/10 text-danger";
+  return "border-slate-300/20 bg-slate-400/10 text-fg";
 }
 
 function buildLiveRecruiterThoughts(
@@ -2930,11 +2930,11 @@ function updateRecruiterSignalState(
 }
 
 function recruiterMoodColor(mood: RecruiterSignalState["mood"]) {
-  if (mood === "Impressed") return "text-emerald-300";
-  if (mood === "Engaged") return "text-blue-300";
-  if (mood === "Concerned") return "text-amber-300";
-  if (mood === "Doubtful") return "text-red-300";
-  return "text-slate-300";
+  if (mood === "Impressed") return "text-success";
+  if (mood === "Engaged") return "text-brand";
+  if (mood === "Concerned") return "text-warning";
+  if (mood === "Doubtful") return "text-danger";
+  return "text-muted";
 }
 
 const defaultRecruiterSignal: RecruiterSignalState = {
@@ -7734,15 +7734,15 @@ export default function InterviewPage() {
 
   if (!setupLoaded) {
     return (
-      <main className="min-h-screen overflow-x-hidden bg-[#050b14] text-white">
+      <main className="min-h-screen overflow-x-hidden bg-canvas text-fg">
         <div className="grid min-h-screen place-items-center px-5">
-          <section className="w-full max-w-md rounded-lg border border-white/10 bg-white/[0.03] p-6 shadow-2xl">
+          <section className="w-full max-w-md rounded-lg border border-line bg-fg/[0.03] p-6 shadow-2xl">
             <div className="flex items-center gap-4">
-              <div className="grid h-16 w-16 place-items-center rounded-lg border border-blue-300/20 bg-blue-400/10">
-                <Mic className="h-7 w-7 text-blue-200" />
+              <div className="grid h-16 w-16 place-items-center rounded-lg border border-brand/20 bg-brand/10">
+                <Mic className="h-7 w-7 text-brand" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-brand">
                   Preparing interview room
                 </p>
                 <h1 className="mt-1 text-2xl font-black">
@@ -7752,12 +7752,12 @@ export default function InterviewPage() {
             </div>
 
             <div className="mt-6 space-y-3">
-              <div className="h-3 w-3/4 animate-pulse rounded-full bg-white/10" />
-              <div className="h-3 w-1/2 animate-pulse rounded-full bg-white/10" />
-              <div className="min-h-[220px] animate-pulse rounded-lg border border-white/10 bg-black/20" />
+              <div className="h-3 w-3/4 animate-pulse rounded-full bg-fg/10" />
+              <div className="h-3 w-1/2 animate-pulse rounded-full bg-fg/10" />
+              <div className="min-h-[220px] animate-pulse rounded-lg border border-line bg-canvas-soft" />
             </div>
 
-            <p className="mt-5 text-base leading-6 text-white leading-7 font-medium">
+            <p className="mt-5 text-base leading-6 text-fg leading-7 font-medium">
               Setting up your recruiter, CV context, and interview
               configuration.
             </p>
@@ -7768,15 +7768,15 @@ export default function InterviewPage() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#050b14] text-white lg:h-screen lg:overflow-hidden">
+    <main className="min-h-screen overflow-x-hidden bg-canvas text-fg lg:h-screen lg:overflow-hidden">
       <section className="grid min-h-screen grid-rows-[64px_1fr] lg:h-full lg:min-h-0 lg:grid-rows-[70px_1fr]">
-        <header className="flex items-center justify-between gap-2 border-b border-white/10 px-3 sm:px-5">
+        <header className="flex items-center justify-between gap-2 border-b border-line px-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-2 sm:gap-5">
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() => window.history.back()}
-                className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.03] text-slate-200 transition hover:bg-white/[0.08] hover:text-white"
+                className="grid h-10 w-10 place-items-center rounded-xl border border-line bg-fg/[0.03] text-fg transition hover:bg-fg/[0.08] hover:text-fg"
                 aria-label="Go back"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -7792,23 +7792,23 @@ export default function InterviewPage() {
                   className="rounded-xl"
                 />
                 <span className="hidden text-2xl font-black tracking-tight sm:inline">
-                  WorkZo <span className="text-blue-400">AI</span>
+                  WorkZo <span className="text-brand">AI</span>
                 </span>
               </Link>
             </div>
 
-            <div className="hidden h-9 w-px bg-white/10 sm:block" />
+            <div className="hidden h-9 w-px bg-fg/10 sm:block" />
 
             <div className="flex min-w-0 items-center gap-3">
               <div className="min-w-0">
                 <h1 className="line-clamp-2 max-w-[190px] text-sm font-black leading-tight sm:max-w-[520px] sm:truncate sm:text-lg sm:leading-normal lg:max-w-[680px] lg:text-xl">
                   {headerTitle}
                 </h1>
-                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-300 sm:hidden">
+                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-success sm:hidden">
                   {recruiterStatus}
                 </p>
               </div>
-              <span className="hidden h-2.5 w-2.5 rounded-full bg-emerald-400 sm:block" />
+              <span className="hidden h-2.5 w-2.5 rounded-full bg-success sm:block" />
               <span
                 className={`hidden rounded-full border px-2.5 py-1 text-xs font-black uppercase sm:block ${recruiterStatusTone(recruiterSignal, scoreReady)}`}
               >
@@ -7818,7 +7818,7 @@ export default function InterviewPage() {
           </div>
 
           <div className="flex items-center gap-2 lg:gap-4">
-            <div className="hidden items-center gap-2 text-sm text-slate-200 md:flex">
+            <div className="hidden items-center gap-2 text-sm text-fg md:flex">
               <Clock3 className="h-4 w-4" />
               {formattedElapsed}
             </div>
@@ -7827,14 +7827,14 @@ export default function InterviewPage() {
               <Link
                 href="/results"
                 onClick={() => saveInterviewResult("paused")}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 px-3 text-sm font-black sm:h-10 sm:gap-2 sm:px-4"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-success to-brand px-3 text-sm font-black sm:h-10 sm:gap-2 sm:px-4"
               >
                 Results
               </Link>
             ) : status === "idle" ? (
               <button
                 onClick={startInterview}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-violet-600 px-3 text-sm font-black sm:h-10 sm:gap-2 sm:px-4"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand to-brand px-3 text-sm font-black sm:h-10 sm:gap-2 sm:px-4"
               >
                 <Play className="h-4 w-4" />
                 {hasRecoveredSessionReady ? "Resume" : "Start"}
@@ -7842,7 +7842,7 @@ export default function InterviewPage() {
             ) : (
               <button
                 onClick={endInterview}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-red-500/40 px-3 text-sm font-black text-red-300 sm:h-10 sm:gap-2 sm:px-4 lg:px-5"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-danger/40 px-3 text-sm font-black text-danger sm:h-10 sm:gap-2 sm:px-4 lg:px-5"
               >
                 <PhoneOff className="h-4 w-4" />
                 <PremiumUsageBadge compact />
@@ -7852,10 +7852,10 @@ export default function InterviewPage() {
 
             <button
               onClick={() => setAudioEnabled((value) => !value)}
-              className="hidden h-10 w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.03] sm:grid"
+              className="hidden h-10 w-12 place-items-center rounded-xl border border-line bg-fg/[0.03] sm:grid"
             >
               <Volume2
-                className={`h-5 w-5 ${audioEnabled ? "" : "text-slate-200"}`}
+                className={`h-5 w-5 ${audioEnabled ? "" : "text-fg"}`}
               />
             </button>
             <div className="relative hidden sm:block">
@@ -7865,19 +7865,19 @@ export default function InterviewPage() {
                   setSettingsOpen((value) => !value);
                   setMoreOpen(false);
                 }}
-                className="grid h-10 w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.08]"
+                className="grid h-10 w-12 place-items-center rounded-xl border border-line bg-fg/[0.03] transition hover:bg-fg/[0.08]"
                 aria-label="Interview settings"
               >
                 <Settings className="h-5 w-5" />
               </button>
 
               {settingsOpen ? (
-                <div className="absolute right-0 top-12 z-50 max-h-[min(620px,calc(100vh-108px))] w-[320px] overflow-y-auto rounded-lg workzo-hide-scrollbar border border-white/10 bg-[#091323]/95 p-4 shadow-2xl backdrop-blur-xl">
+                <div className="absolute right-0 top-12 z-50 max-h-[min(620px,calc(100vh-108px))] w-[320px] overflow-y-auto rounded-lg workzo-hide-scrollbar border border-line bg-canvas/95 p-4 shadow-2xl backdrop-blur-xl">
                   <div className="mb-3">
-                    <p className="text-sm font-black text-white">
+                    <p className="text-sm font-black text-fg">
                       Interview Settings
                     </p>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-muted">
                       Adjust only this interview room.
                     </p>
                   </div>
@@ -7887,10 +7887,10 @@ export default function InterviewPage() {
                     {isTechnicalRecruiter(setup.recruiterId || setup.recruiterName || "") && (
                       <section>
                         <div className="mb-2 flex items-center justify-between gap-2">
-                          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-violet-200">
+                          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-brand">
                             Technical Mode
                           </p>
-                          <span className="rounded-full border border-blue-300/20 bg-blue-400/10 px-2 py-0.5 text-[10px] font-black text-blue-200">
+                          <span className="rounded-full border border-brand/20 bg-brand/10 px-2 py-0.5 text-[10px] font-black text-brand">
                             Alex only
                           </span>
                         </div>
@@ -7899,15 +7899,15 @@ export default function InterviewPage() {
                           onClick={() => setTechnicalMode((v) => !v)}
                           className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left transition ${
                             technicalMode
-                              ? "border-violet-400/30 bg-violet-500/10"
-                              : "border-white/10 bg-white/[0.03]"
+                              ? "border-brand/30 bg-brand/10"
+                              : "border-line bg-fg/[0.03]"
                           }`}
                         >
                           <div>
-                            <p className="text-xs font-black text-white">
+                            <p className="text-xs font-black text-fg">
                               💻 Code workspace
                             </p>
-                            <p className="mt-0.5 text-[10px] leading-4 text-slate-400">
+                            <p className="mt-0.5 text-[10px] leading-4 text-muted">
                               Show a live code editor. The recruiter reacts to
                               your code.
                             </p>
@@ -7915,8 +7915,8 @@ export default function InterviewPage() {
                           <span
                             className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${
                               technicalMode
-                                ? "bg-violet-400/20 text-violet-200"
-                                : "bg-white/10 text-slate-500"
+                                ? "bg-brand/20 text-brand"
+                                : "bg-fg/10 text-subtle"
                             }`}
                           >
                             {technicalMode ? "On" : "Off"}
@@ -7926,11 +7926,11 @@ export default function InterviewPage() {
                     )}
                     <section>
                       <div className="mb-2 flex items-center justify-between gap-2">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-brand">
                           Recruiter
                         </p>
                         {!premiumUnlocked ? (
-                          <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black text-amber-200">
+                          <span className="rounded-full border border-warning/20 bg-warning/10 px-2 py-0.5 text-[10px] font-black text-warning">
                             Premium available
                           </span>
                         ) : null}
@@ -7986,21 +7986,21 @@ export default function InterviewPage() {
                               }}
                               className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
                                 selected
-                                  ? "border-blue-400/60 bg-blue-500/15 text-white"
+                                  ? "border-brand/60 bg-brand/15 text-on-brand"
                                   : locked
-                                    ? "border-amber-300/20 bg-amber-400/[0.06] text-amber-100/80"
-                                    : "border-white/10 bg-white/[0.03] text-slate-300"
+                                    ? "border-warning/20 bg-warning/[0.06] text-warning/80"
+                                    : "border-line bg-fg/[0.03] text-muted"
                               }`}
                             >
                               <span className="flex items-center justify-between gap-2">
                                 <span>{recruiter.name}</span>
                                 {locked ? (
-                                  <span className="text-[10px] text-amber-200">
+                                  <span className="text-[10px] text-warning">
                                     PRO
                                   </span>
                                 ) : null}
                               </span>
-                              <span className="mt-0.5 block text-[11px] font-semibold text-slate-200">
+                              <span className="mt-0.5 block text-[11px] font-semibold text-fg">
                                 {recruiter.label}
                               </span>
                             </button>
@@ -8011,11 +8011,11 @@ export default function InterviewPage() {
 
                     <section>
                       <div className="mb-2 flex items-center justify-between gap-2">
-                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-brand">
                           Interview Atmosphere
                         </p>
                         {!premiumUnlocked ? (
-                          <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black text-amber-200">
+                          <span className="rounded-full border border-warning/20 bg-warning/10 px-2 py-0.5 text-[10px] font-black text-warning">
                             Premium pressure
                           </span>
                         ) : null}
@@ -8049,16 +8049,16 @@ export default function InterviewPage() {
                               }}
                               className={`rounded-xl border px-3 py-2 text-left text-sm font-bold ${
                                 interviewStyle === style
-                                  ? "border-violet-400/60 bg-violet-500/15 text-white"
+                                  ? "border-brand/60 bg-brand/15 text-on-brand"
                                   : locked
-                                    ? "border-amber-300/20 bg-amber-400/[0.06] text-amber-100/80"
-                                    : "border-white/10 bg-white/[0.03] text-slate-300"
+                                    ? "border-warning/20 bg-warning/[0.06] text-warning/80"
+                                    : "border-line bg-fg/[0.03] text-muted"
                               }`}
                             >
                               <span className="flex items-center justify-between gap-2">
                                 <span>{style}</span>
                                 {locked ? (
-                                  <span className="text-[10px] text-amber-200">
+                                  <span className="text-[10px] text-warning">
                                     PRO
                                   </span>
                                 ) : null}
@@ -8068,7 +8068,7 @@ export default function InterviewPage() {
                         })}
                       </div>
                       {!premiumUnlocked ? (
-                        <p className="mt-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.06] p-2 text-xs leading-5 text-amber-100/80">
+                        <p className="mt-2 rounded-xl border border-warning/15 bg-warning/[0.06] p-2 text-xs leading-5 text-warning/80">
                           Free interviews include Sarah, Daniel, Supportive, and
                           Realistic. Premium unlocks Priya, Markus, Challenging,
                           and Brutal interview pressure.
@@ -8077,16 +8077,16 @@ export default function InterviewPage() {
                     </section>
 
                     <section className="space-y-3">
-                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-brand">
                         Voice Settings
                       </p>
                       <button
                         type="button"
                         onClick={() => setAudioEnabled((value) => !value)}
-                        className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
+                        className="flex w-full items-center justify-between rounded-xl border border-line bg-fg/[0.03] px-3 py-1.5 text-sm"
                       >
                         <span>Voice On/Off</span>
-                        <span className={audioEnabled ? "font-black text-emerald-400" : "text-slate-500"}>
+                        <span className={audioEnabled ? "font-black text-success" : "text-subtle"}>
                           {audioEnabled ? "On" : "Off"}
                         </span>
                       </button>
@@ -8095,17 +8095,17 @@ export default function InterviewPage() {
                         onClick={() =>
                           setPremiumVoiceEnabled((value) => !value)
                         }
-                        className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
+                        className="flex w-full items-center justify-between rounded-xl border border-line bg-fg/[0.03] px-3 py-1.5 text-sm"
                       >
                         <span>Live AI voice</span>
-                        <span className={premiumVoiceEnabled ? "font-black text-emerald-400" : "text-slate-500"}>
+                        <span className={premiumVoiceEnabled ? "font-black text-success" : "text-subtle"}>
                           {premiumVoiceEnabled ? "On" : "Off"}
                         </span>
                       </button>
-                      <label className="block rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm">
+                      <label className="block rounded-xl border border-line bg-fg/[0.03] px-3 py-1.5 text-sm">
                         <div className="mb-2 flex items-center justify-between">
                           <span>Voice Speed</span>
-                          <span className="text-slate-400">
+                          <span className="text-muted">
                             {voiceSpeed.toFixed(2)}x
                           </span>
                         </div>
@@ -8124,20 +8124,20 @@ export default function InterviewPage() {
                     </section>
 
                     <section className="space-y-2">
-                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-brand">
                         Transcript
                       </p>
                       <button
                         type="button"
                         onClick={() => setShowTranscript((value) => !value)}
-                        className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm workzo-transcript-panel"
+                        className="flex w-full items-center justify-between rounded-xl border border-line bg-fg/[0.03] px-3 py-1.5 text-sm workzo-transcript-panel"
                       >
                         <span>
                           {showTranscript
                             ? "Hide Transcript"
                             : "Show Live Transcript"}
                         </span>
-                        <span className={showTranscript ? "font-black text-emerald-400" : "text-slate-500"}>
+                        <span className={showTranscript ? "font-black text-success" : "text-subtle"}>
                           {showTranscript ? "On" : "Off"}
                         </span>
                       </button>
@@ -8146,10 +8146,10 @@ export default function InterviewPage() {
                         onClick={() =>
                           setAutoScrollTranscript((value) => !value)
                         }
-                        className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm workzo-transcript-body"
+                        className="flex w-full items-center justify-between rounded-xl border border-line bg-fg/[0.03] px-3 py-1.5 text-sm workzo-transcript-body"
                       >
                         <span>Auto-scroll Transcript</span>
-                        <span className={autoScrollTranscript ? "font-black text-emerald-400" : "text-slate-500"}>
+                        <span className={autoScrollTranscript ? "font-black text-success" : "text-subtle"}>
                           {autoScrollTranscript ? "On" : "Off"}
                         </span>
                       </button>
@@ -8157,25 +8157,25 @@ export default function InterviewPage() {
 
                     <section
                       style={{ display: showCopilot ? undefined : "none" }}
-                      className="rounded-lg border border-white/10 bg-[#0b1527] p-3.5 overflow-visible"
+                      className="rounded-lg border border-line bg-canvas p-3.5 overflow-visible"
                     >
                       <div className="flex items-center justify-between">
-                        <h2 className="text-base font-black text-blue-300">
+                        <h2 className="text-base font-black text-brand">
                           Live Copilot
                         </h2>
                         <button
                           type="button"
                           onClick={() => setShowCopilot((value) => !value)}
-                          className={`relative h-6 w-11 rounded-full transition-colors ${showCopilot ? "bg-blue-500" : "bg-white/20"}`}
+                          className={`relative h-6 w-11 rounded-full transition-colors ${showCopilot ? "bg-brand" : "bg-fg/20"}`}
                           aria-label="Toggle Live Copilot"
                         >
                           <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all ${showCopilot ? "right-1" : "left-1"}`} />
                         </button>
                       </div>
 
-                      <div className="mt-2 grid grid-cols-[1fr_auto] gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+                      <div className="mt-2 grid grid-cols-[1fr_auto] gap-3 rounded-xl border border-line bg-fg/[0.03] p-2.5">
                         <div>
-                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted">
                             Recruiter mood
                           </p>
                           <p
@@ -8184,27 +8184,27 @@ export default function InterviewPage() {
                             {scoreReady ? recruiterSignal.mood : "Waiting"}
                           </p>
                         </div>
-                        <div className="text-right text-[11px] text-slate-300">
+                        <div className="text-right text-[11px] text-muted">
                           <p>
                             Trust{" "}
-                            <span className="font-bold text-white">
+                            <span className="font-bold text-fg">
                               {scoreReady ? recruiterSignal.trust : "—"}
                             </span>
                           </p>
                           <p>
                             Interest{" "}
-                            <span className="font-bold text-white">
+                            <span className="font-bold text-fg">
                               {scoreReady ? recruiterSignal.interest : "—"}
                             </span>
                           </p>
                         </div>
                       </div>
 
-                      <div className="mt-2 rounded-xl border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-2">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
+                      <div className="mt-2 rounded-xl border border-success/15 bg-success/[0.07] px-3 py-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-success">
                           Say next
                         </p>
-                        <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-100">
+                        <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-fg">
                           {scoreReady
                             ? recruiterSignal.trust < 60
                               ? "Clarify the claim, then give one verified example."
@@ -8213,18 +8213,18 @@ export default function InterviewPage() {
                         </p>
                       </div>
 
-                      <div className="mt-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-2">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-200">
+                      <div className="mt-2 rounded-xl border border-warning/15 bg-warning/[0.07] px-3 py-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-warning">
                           Recruiter concern
                         </p>
-                        <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-100">
+                        <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-fg">
                           {scoreReady
                             ? recruiterMemory.liveNote ||
                               recruiterSignal.concern
                             : "Waiting for evidence, ownership, and measurable impact."}
                         </p>
                         {recruiterMemory.patterns.length ? (
-                          <p className="mt-1 line-clamp-1 text-[11px] text-amber-100/80">
+                          <p className="mt-1 line-clamp-1 text-[11px] text-warning/80">
                             Patterns detected:{" "}
                             {
                               recruiterMemory.patterns[
@@ -8235,15 +8235,15 @@ export default function InterviewPage() {
                         ) : null}
                       </div>
 
-                      <div className="mt-2 rounded-xl border border-blue-300/15 bg-blue-400/[0.07] px-3 py-2">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-200">
+                      <div className="mt-2 rounded-xl border border-brand/15 bg-brand/[0.07] px-3 py-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-brand">
                           Live recruiter thoughts
                         </p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           {liveRecruiterThoughts.map((thought) => (
                             <span
                               key={thought}
-                              className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-slate-200"
+                              className="rounded-full border border-line bg-fg/[0.04] px-2 py-1 text-[11px] text-fg"
                             >
                               {thought}
                             </span>
@@ -8253,14 +8253,14 @@ export default function InterviewPage() {
                     </section>
 
                     <section className="space-y-2">
-                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-brand">
                         Interview Controls
                       </p>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
                           onClick={stopListening}
-                          className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200"
+                          className="rounded-xl border border-line bg-fg/[0.03] px-3 py-1.5 text-sm font-bold text-fg"
                         >
                           Pause
                         </button>
@@ -8271,7 +8271,7 @@ export default function InterviewPage() {
                               getRecruiterQuestions(setupRef.current)[Math.max(0, questionIndex)],
                             )
                           }
-                          className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200"
+                          className="rounded-xl border border-line bg-fg/[0.03] px-3 py-1.5 text-sm font-bold text-fg"
                         >
                           Restart question
                         </button>
@@ -8279,19 +8279,19 @@ export default function InterviewPage() {
                     </section>
 
                     <section>
-                      <p className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                      <p className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-brand">
                         Accessibility
                       </p>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
-                          className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200"
+                          className="rounded-xl border border-line bg-fg/[0.03] px-3 py-1.5 text-sm font-bold text-fg"
                         >
                           Larger text
                         </button>
                         <button
                           type="button"
-                          className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-bold text-slate-200"
+                          className="rounded-xl border border-line bg-fg/[0.03] px-3 py-1.5 text-sm font-bold text-fg"
                         >
                           High contrast
                         </button>
@@ -8309,14 +8309,14 @@ export default function InterviewPage() {
                   setMoreOpen((value) => !value);
                   setSettingsOpen(false);
                 }}
-                className="grid h-10 w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.08]"
+                className="grid h-10 w-12 place-items-center rounded-xl border border-line bg-fg/[0.03] transition hover:bg-fg/[0.08]"
                 aria-label="More interview actions"
               >
                 <MoreVertical className="h-5 w-5" />
               </button>
 
               {moreOpen ? (
-                <div className="absolute right-0 top-12 z-50 w-52 rounded-lg border border-white/10 bg-[#091323]/95 p-2 shadow-2xl backdrop-blur-xl">
+                <div className="absolute right-0 top-12 z-50 w-52 rounded-lg border border-line bg-canvas/95 p-2 shadow-2xl backdrop-blur-xl">
                   {[
                     "Take Notes",
                     "Report Issue",
@@ -8329,10 +8329,10 @@ export default function InterviewPage() {
                       onClick={
                         item === "Exit Interview" ? endInterview : undefined
                       }
-                      className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-200 hover:bg-white/[0.06]"
+                      className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-fg hover:bg-fg/[0.06]"
                     >
                       {item}
-                      <ChevronRight className="h-4 w-4 text-slate-200" />
+                      <ChevronRight className="h-4 w-4 text-fg" />
                     </button>
                   ))}
                 </div>
@@ -8342,12 +8342,12 @@ export default function InterviewPage() {
         </header>
 
         {shareableMoment && status !== "idle" ? (
-          <div className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-lg border border-violet-300/20 bg-violet-500/[0.08] px-4 py-2.5 lg:mx-4">
+          <div className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-lg border border-brand/20 bg-brand/[0.08] px-4 py-2.5 lg:mx-4">
             <div className="min-w-0">
-              <p className="text-xs font-black text-violet-200">
+              <p className="text-xs font-black text-brand">
                 {shareableMoment.title}
               </p>
-              <p className="mt-0.5 truncate text-xs text-slate-400">
+              <p className="mt-0.5 truncate text-xs text-muted">
                 {shareableMoment.text}
               </p>
             </div>
@@ -8366,14 +8366,14 @@ export default function InterviewPage() {
                     );
                   }
                 }}
-                className="rounded-xl bg-violet-500 px-3 py-1.5 text-xs font-black text-white hover:bg-violet-400"
+                className="rounded-xl bg-brand px-3 py-1.5 text-xs font-black text-on-brand hover:bg-brand"
               >
                 Share
               </button>
               <button
                 type="button"
                 onClick={() => setShareableMoment(null)}
-                className="text-slate-400 hover:text-white text-xs px-2"
+                className="text-muted hover:text-fg text-xs px-2"
               >
                 ✕
               </button>
@@ -8382,18 +8382,18 @@ export default function InterviewPage() {
         ) : null}
 
         {recoverySnapshot && !recoveryNoticeDismissed && status === "idle" ? (
-          <section className="mx-3 mt-3 rounded-lg border border-amber-300/25 bg-amber-400/10 p-4 text-amber-50 lg:mx-4">
+          <section className="mx-3 mt-3 rounded-lg border border-warning/25 bg-warning/10 p-4 text-warning lg:mx-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-black">Resume previous interview?</p>
-                <p className="mt-1 text-xs leading-5 text-amber-100/80">
+                <p className="mt-1 text-xs leading-5 text-warning/80">
                   Role: {recoverySnapshot.setup.targetRole || "Interview Role"}{" "}
                   · Recruiter:{" "}
                   {recoverySnapshot.setup.recruiterName || "AI Recruiter"} ·{" "}
                   {getRecoveryProgressLabel(recoverySnapshot)} ·{" "}
                   {getRecoverySavedLabel(recoverySnapshot)}
                 </p>
-                <p className="mt-1 text-xs leading-5 text-amber-100/70">
+                <p className="mt-1 text-xs leading-5 text-warning/70">
                   Click Resume Interview to restore the transcript, trust score,
                   recruiter memory, and continue from the last saved question.
                 </p>
@@ -8402,14 +8402,14 @@ export default function InterviewPage() {
                 <button
                   type="button"
                   onClick={restoreInterviewSnapshot}
-                  className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-black text-slate-950"
+                  className="rounded-xl bg-warning px-4 py-2 text-sm font-black text-slate-950"
                 >
                   Resume Interview
                 </button>
                 <button
                   type="button"
                   onClick={discardInterviewSnapshot}
-                  className="rounded-xl border border-amber-200/25 px-4 py-2 text-sm font-black text-amber-50"
+                  className="rounded-xl border border-warning/25 px-4 py-2 text-sm font-black text-warning"
                 >
                   Start Fresh
                 </button>
@@ -8420,9 +8420,9 @@ export default function InterviewPage() {
 
         {/* First-time user hint — shown once, dismissed permanently */}
         {showFirstTimeHint && (
-          <div className="mx-4 mt-3 flex items-start gap-3 rounded-lg border border-blue-400/20 bg-blue-400/[0.06] px-4 py-3">
-            <span className="mt-0.5 shrink-0 text-base text-blue-300">💡</span>
-            <p className="flex-1 text-xs leading-5 text-blue-200">
+          <div className="mx-4 mt-3 flex items-start gap-3 rounded-lg border border-brand/20 bg-brand/[0.06] px-4 py-3">
+            <span className="mt-0.5 shrink-0 text-base text-brand">💡</span>
+            <p className="flex-1 text-xs leading-5 text-brand">
               The recruiter will ask questions — respond as you would in a real
               interview. Speak naturally, then pause. WorkZo listens
               automatically.
@@ -8431,7 +8431,7 @@ export default function InterviewPage() {
               type="button"
               onClick={dismissFirstTimeHint}
               aria-label="Dismiss hint"
-              className="ml-2 shrink-0 text-white/30 transition hover:text-white/70"
+              className="ml-2 shrink-0 text-subtle transition hover:text-muted"
             >
               ✕
             </button>
@@ -8440,8 +8440,8 @@ export default function InterviewPage() {
 
         {/* Technical mode: show code panel between recruiter video and sidebar */}
         {technicalMode && (
-          <div className="border-b border-white/[0.06] bg-[#060d18] px-4 pb-3 pt-2">
-            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-violet-400">
+          <div className="border-b border-line bg-canvas px-4 pb-3 pt-2">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-brand">
               Code Workspace · Technical Mode
             </p>
             <div className="h-[340px] lg:h-[420px]">
@@ -8452,10 +8452,10 @@ export default function InterviewPage() {
         <div className="grid grid-cols-1 overflow-x-hidden lg:min-h-0 lg:h-full lg:grid-cols-[200px_1fr_320px] lg:overflow-hidden">
 
           {/* ── LEFT SIDEBAR: Interview flow + tips ── */}
-          <aside className="hidden border-r border-white/[0.07] bg-[#040810] lg:flex lg:flex-col lg:min-h-0 lg:overflow-y-auto">
+          <aside className="hidden border-r border-line bg-canvas lg:flex lg:flex-col lg:min-h-0 lg:overflow-y-auto">
             {/* Interview flow steps */}
-            <div className="p-4 border-b border-white/[0.07]">
-              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-600">Interview flow</p>
+            <div className="p-4 border-b border-line">
+              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-subtle">Interview flow</p>
               <div className="mt-3 space-y-1">
                 {[
                   { n: 1, label: "Introduction", done: questionIndex >= 1 },
@@ -8467,13 +8467,13 @@ export default function InterviewPage() {
                 ].map((step) => (
                   <div key={step.n} className={cn(
                     "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition",
-                    step.done ? "text-emerald-300" : step.active ? "bg-blue-500/10 text-blue-200 font-black" : "text-slate-600"
+                    step.done ? "text-success" : step.active ? "bg-brand/10 text-brand font-black" : "text-subtle"
                   )}>
                     <span className={cn(
                       "grid h-5 w-5 shrink-0 place-items-center rounded-full text-[9px] font-black border",
-                      step.done ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300" :
-                      step.active ? "border-blue-400/40 bg-blue-500/20 text-blue-300" :
-                      "border-white/[0.08] text-slate-600"
+                      step.done ? "border-success/40 bg-success/15 text-success" :
+                      step.active ? "border-brand/40 bg-brand/20 text-brand" :
+                      "border-line text-subtle"
                     )}>
                       {step.done ? "✓" : step.n}
                     </span>
@@ -8484,8 +8484,8 @@ export default function InterviewPage() {
             </div>
 
             {/* Interview tips */}
-            <div className="p-4 border-b border-white/[0.07]">
-              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-600 mb-3">Tips</p>
+            <div className="p-4 border-b border-line">
+              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-subtle mb-3">Tips</p>
               <div className="space-y-2">
                 {[
                   "Use the STAR method",
@@ -8493,8 +8493,8 @@ export default function InterviewPage() {
                   "Quantify your impact",
                   "Stay focused and concise",
                 ].map((tip) => (
-                  <div key={tip} className="flex items-start gap-2 text-xs text-slate-500">
-                    <span className="mt-0.5 text-emerald-500">✓</span>
+                  <div key={tip} className="flex items-start gap-2 text-xs text-subtle">
+                    <span className="mt-0.5 text-success">✓</span>
                     {tip}
                   </div>
                 ))}
@@ -8503,33 +8503,33 @@ export default function InterviewPage() {
 
             {/* Keyboard shortcuts */}
             <div className="p-4">
-              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-600 mb-3">Shortcuts</p>
+              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-subtle mb-3">Shortcuts</p>
               <div className="space-y-2">
                 {[
                   { key: "Space", label: "Push to talk" },
                   { key: "R", label: "Repeat question" },
                   { key: "T", label: "Toggle transcript" },
                 ].map(({ key, label }) => (
-                  <div key={key} className="flex items-center justify-between gap-2 text-xs text-slate-500">
+                  <div key={key} className="flex items-center justify-between gap-2 text-xs text-subtle">
                     <span>{label}</span>
-                    <kbd className="rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-black text-slate-400">{key}</kbd>
+                    <kbd className="rounded border border-line bg-fg/[0.04] px-1.5 py-0.5 text-[9px] font-black text-muted">{key}</kbd>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Connection status at bottom */}
-            <div className="mt-auto border-t border-white/[0.07] p-4">
-              <div className="flex items-center gap-2 text-xs text-slate-600">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            <div className="mt-auto border-t border-line p-4">
+              <div className="flex items-center gap-2 text-xs text-subtle">
+                <span className="h-1.5 w-1.5 rounded-full bg-success" />
                 Connection good
               </div>
             </div>
           </aside>
 
           <div className="flex flex-col lg:h-full lg:min-h-0">
-            <section className="relative shrink-0 overflow-hidden bg-[#08101c] h-[380px] sm:h-[450px] lg:h-[58%] lg:min-h-[380px] lg:max-h-[640px]">
-              <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-blue-500/20 blur-3xl" />
+            <section className="relative shrink-0 overflow-hidden bg-canvas h-[380px] sm:h-[450px] lg:h-[58%] lg:min-h-[380px] lg:max-h-[640px]">
+              <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-brand/20 blur-3xl" />
               <div className="absolute inset-0">
                 <Image
                   src={setup.recruiterImage}
@@ -8544,15 +8544,15 @@ export default function InterviewPage() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/10 to-black/0" />
 
               {waitingRoomActive ? (
-                <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050b14]/80 p-4 backdrop-blur-md">
-                  <div className="w-full max-w-xl rounded-xl border border-white/10 bg-[#0b1527]/95 p-5 shadow-2xl">
-                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-200">
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-canvas/80 p-4 backdrop-blur-md">
+                  <div className="w-full max-w-xl rounded-xl border border-line bg-canvas/95 p-5 shadow-2xl">
+                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-brand">
                       Interview waiting room
                     </p>
-                    <h2 className="mt-2 text-xl font-black text-white">
+                    <h2 className="mt-2 text-xl font-black text-fg">
                       {simulationPersona.name} is preparing your interview
                     </h2>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">
+                    <p className="mt-2 text-sm leading-6 text-muted">
                       {simulationPersona.openingFrame}
                     </p>
                     <div className="mt-5 space-y-3">
@@ -8562,19 +8562,19 @@ export default function InterviewPage() {
                         return (
                           <div
                             key={step.label}
-                            className={`rounded-lg border p-3 transition ${active ? "border-blue-300/35 bg-blue-500/10" : done ? "border-emerald-300/25 bg-emerald-500/10" : "border-white/10 bg-white/[0.03]"}`}
+                            className={`rounded-lg border p-3 transition ${active ? "border-brand/35 bg-brand/10" : done ? "border-success/25 bg-success/10" : "border-line bg-fg/[0.03]"}`}
                           >
                             <div className="flex items-center gap-3">
                               <span
-                                className={`grid h-7 w-7 place-items-center rounded-full text-xs font-black ${done ? "bg-emerald-400 text-slate-950" : active ? "bg-blue-400 text-slate-950 animate-pulse" : "bg-white/10 text-slate-400"}`}
+                                className={`grid h-7 w-7 place-items-center rounded-full text-xs font-black ${done ? "bg-success text-slate-950" : active ? "bg-brand text-on-brand animate-pulse" : "bg-fg/10 text-muted"}`}
                               >
                                 {done ? "✓" : index + 1}
                               </span>
                               <div>
-                                <p className="text-sm font-black text-white">
+                                <p className="text-sm font-black text-fg">
                                   {step.label}
                                 </p>
-                                <p className="mt-0.5 text-xs leading-5 text-slate-400">
+                                <p className="mt-0.5 text-xs leading-5 text-muted">
                                   {step.detail}
                                 </p>
                               </div>
@@ -8594,16 +8594,16 @@ export default function InterviewPage() {
                   <div
                     className={`absolute left-1/2 top-[28%] -translate-x-1/2 rounded-full border px-4 py-1.5 text-xs font-black backdrop-blur-sm transition-all duration-500 ${
                       recruiterVisualState === "skeptical"
-                        ? "border-amber-300/30 bg-amber-400/20 text-amber-200"
+                        ? "border-warning/30 bg-warning/20 text-warning"
                         : recruiterVisualState === "interested"
-                          ? "border-emerald-300/30 bg-emerald-400/20 text-emerald-200"
+                          ? "border-success/30 bg-success/20 text-success"
                           : recruiterVisualState === "interrupting"
-                            ? "border-red-300/40 bg-red-500/25 text-red-200 animate-pulse"
+                            ? "border-danger/40 bg-danger/25 text-danger animate-pulse"
                             : recruiterVisualState === "typing_notes"
-                              ? "border-blue-300/30 bg-blue-400/20 text-blue-200"
+                              ? "border-brand/30 bg-brand/20 text-brand"
                               : recruiterVisualState === "thinking"
-                                ? "border-slate-300/20 bg-slate-400/15 text-slate-300"
-                                : "border-white/10 bg-black/30 text-slate-300"
+                                ? "border-slate-300/20 bg-slate-400/15 text-muted"
+                                : "border-line bg-canvas-soft text-muted"
                     }`}
                   >
                     {recruiterVisualState === "skeptical" && "🤔 Sceptical"}
@@ -8615,8 +8615,8 @@ export default function InterviewPage() {
                   </div>
                 )}
 
-              <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-black/50 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-emerald-300 backdrop-blur-sm">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.9)]" />{" "}
+              <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-success/30 bg-canvas-soft px-3 py-1.5 text-xs font-black uppercase tracking-wider text-success backdrop-blur-sm">
+                <span className="inline-block h-2 w-2 rounded-full bg-success shadow-[0_0_16px_rgba(52,211,153,0.9)]" />{" "}
                 {waitingRoomActive
                   ? "CONNECTING"
                   : status === "recruiter-speaking"
@@ -8630,7 +8630,7 @@ export default function InterviewPage() {
                   <button
                     type="button"
                     onClick={stopRecruiterSpeaking}
-                    className="ml-3 inline-flex items-center gap-1.5 rounded-full bg-amber-400/15 px-3 py-0.5 text-[11px] font-black uppercase tracking-wider text-amber-300 ring-1 ring-amber-400/30 transition hover:bg-amber-400/25 active:scale-95"
+                    className="ml-3 inline-flex items-center gap-1.5 rounded-full bg-warning/15 px-3 py-0.5 text-[11px] font-black uppercase tracking-wider text-warning ring-1 ring-warning/30 transition hover:bg-warning/25 active:scale-95"
                     aria-label="Interrupt recruiter"
                   >
                     ✋ Interrupt
@@ -8645,13 +8645,13 @@ export default function InterviewPage() {
                   <div
                     className={`absolute inset-0 pointer-events-none transition-all duration-700 ${
                       recruiterVisualState === "interested"
-                        ? "ring-4 ring-inset ring-emerald-400/45"
+                        ? "ring-4 ring-inset ring-success/45"
                         : recruiterVisualState === "skeptical"
-                          ? "ring-4 ring-inset ring-amber-400/45"
+                          ? "ring-4 ring-inset ring-warning/45"
                           : recruiterVisualState === "interrupting"
-                            ? "ring-[6px] ring-inset ring-red-500/60"
+                            ? "ring-[6px] ring-inset ring-danger/60"
                             : recruiterVisualState === "typing_notes"
-                              ? "ring-4 ring-inset ring-blue-400/35"
+                              ? "ring-4 ring-inset ring-brand/35"
                               : ""
                     }`}
                   />
@@ -8664,12 +8664,12 @@ export default function InterviewPage() {
                   <div
                     className={`absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-lg border px-4 py-2 text-xs font-black shadow-2xl backdrop-blur-md z-10 transition-all duration-300 ${
                       recruiterVisualState === "interested"
-                        ? "border-emerald-300/25 bg-emerald-950/80 text-emerald-200"
+                        ? "border-success/25 bg-success/80 text-success"
                         : recruiterVisualState === "interrupting"
-                          ? "border-red-300/25 bg-red-950/85 text-red-200"
+                          ? "border-danger/25 bg-danger/85 text-danger"
                           : recruiterVisualState === "skeptical"
-                            ? "border-amber-300/25 bg-amber-950/80 text-amber-200"
-                            : "border-white/10 bg-black/70 text-slate-200"
+                            ? "border-warning/25 bg-warning/80 text-warning"
+                            : "border-line bg-canvas-soft text-fg"
                     }`}
                   >
                     {liveReactionText}
@@ -8677,7 +8677,7 @@ export default function InterviewPage() {
                 )}
 
               {premiumVoiceError ? (
-                <div className="absolute right-4 top-5 hidden max-w-[320px] rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100 lg:block">
+                <div className="absolute right-4 top-5 hidden max-w-[320px] rounded-xl border border-warning/20 bg-warning/10 px-3 py-2 text-xs leading-5 text-warning lg:block">
                   {premiumVoiceError}
                 </div>
               ) : null}
@@ -8685,12 +8685,12 @@ export default function InterviewPage() {
               <div className="absolute bottom-[4.5rem] left-5">
                 <div className="flex items-center gap-2 text-lg font-black">
                   {setup.recruiterName}
-                  <CheckCircle2 className="h-5 w-5 fill-blue-500 text-blue-500" />
+                  <CheckCircle2 className="h-5 w-5 fill-brand text-brand" />
                 </div>
-                <p className="mt-1 truncate text-xs text-white/80 sm:text-sm">
+                <p className="mt-1 truncate text-xs text-fg sm:text-sm">
                   {setup.recruiterTitle}
                 </p>
-                <p className="mt-2 text-xs font-bold text-emerald-200">
+                <p className="mt-2 text-xs font-bold text-success">
                   {waitingRoomActive
                     ? "Reviewing your resume"
                     : scoreReady
@@ -8702,7 +8702,7 @@ export default function InterviewPage() {
             </section>
 
             <section
-              className="border-t border-white/[0.08] bg-[#05090f] flex flex-col lg:flex-1 lg:min-h-0 lg:overflow-hidden"
+              className="border-t border-line bg-canvas flex flex-col lg:flex-1 lg:min-h-0 lg:overflow-hidden"
               id="workzo-transcript-section"
             >
               <button
@@ -8727,30 +8727,30 @@ export default function InterviewPage() {
                     return next;
                   });
                 }}
-                className="flex h-11 w-full items-center justify-between border-b border-white/[0.07] px-5 text-left"
+                className="flex h-11 w-full items-center justify-between border-b border-line px-5 text-left"
                 aria-expanded={showTranscript}
               >
                 <div className="flex items-center gap-3">
-                  <h2 className="text-sm font-black text-slate-200">
+                  <h2 className="text-sm font-black text-fg">
                     Transcript
                   </h2>
-                  <span className="h-2 w-2 rounded-full bg-red-400" />
-                  <span className="text-sm text-slate-400 font-medium">
+                  <span className="h-2 w-2 rounded-full bg-danger" />
+                  <span className="text-sm text-muted font-medium">
                     {transcriptMessageCount} message
                     {transcriptMessageCount === 1 ? "" : "s"}
                   </span>
                 </div>
-                <span className="text-[10px] font-black text-slate-500 lg:hidden">
+                <span className="text-[10px] font-black text-subtle lg:hidden">
                   {showTranscript ? "▲" : "▼"}
                 </span>
               </button>
               {/* Auto-scroll toggle — outside the button to avoid nested button HTML error */}
-              <div className="hidden items-center gap-2 border-b border-white/[0.07] px-5 py-1.5 text-xs text-slate-500 sm:flex justify-end">
+              <div className="hidden items-center gap-2 border-b border-line px-5 py-1.5 text-xs text-subtle sm:flex justify-end">
                 Auto-scroll
                 <button
                   type="button"
                   onClick={() => setAutoScrollTranscript((value) => !value)}
-                  className={`relative h-4 w-7 rounded-full transition ${autoScrollTranscript ? "bg-blue-500" : "bg-white/15"}`}
+                  className={`relative h-4 w-7 rounded-full transition ${autoScrollTranscript ? "bg-brand" : "bg-fg/15"}`}
                 >
                   <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition ${autoScrollTranscript ? "right-0.5" : "left-0.5"}`} />
                 </button>
@@ -8764,25 +8764,25 @@ export default function InterviewPage() {
                     style={{ maxHeight: "100%" }}
                   >
                     {visibleTranscriptItems.length || interimText ? (
-                      <div className="divide-y divide-white/8">
+                      <div className="divide-y divide-line">
                         {visibleTranscriptItems.map((line) => (
                           <div
                             key={line.id}
                             className="grid grid-cols-[80px_150px_1fr] gap-3 py-1 text-sm max-sm:grid-cols-1 max-sm:gap-1 max-sm:py-3"
                           >
-                            <span className="text-slate-400">{line.time}</span>
+                            <span className="text-muted">{line.time}</span>
                             <span
                               className={`font-semibold ${
                                 line.role === "candidate"
-                                  ? "text-blue-300"
+                                  ? "text-brand"
                                   : line.role === "recruiter"
-                                    ? "text-violet-300"
-                                    : "text-slate-400"
+                                    ? "text-brand"
+                                    : "text-muted"
                               }`}
                             >
                               {line.speaker}
                             </span>
-                            <span className="leading-6 text-slate-100 max-sm:line-clamp-none sm:line-clamp-2">
+                            <span className="leading-6 text-fg max-sm:line-clamp-none sm:line-clamp-2">
                               {line.text}
                             </span>
                           </div>
@@ -8790,11 +8790,11 @@ export default function InterviewPage() {
 
                         {interimText ? (
                           <div className="grid grid-cols-[80px_150px_1fr] gap-3 py-1 text-sm opacity-70 max-sm:grid-cols-1 max-sm:gap-1">
-                            <span className="text-slate-400">listening</span>
-                            <span className="font-semibold text-blue-300">
+                            <span className="text-muted">listening</span>
+                            <span className="font-semibold text-brand">
                               You
                             </span>
-                            <span className="leading-6 text-slate-100">
+                            <span className="leading-6 text-fg">
                               {interimText}
                             </span>
                           </div>
@@ -8803,8 +8803,8 @@ export default function InterviewPage() {
                         <div ref={transcriptEndRef} />
                       </div>
                     ) : (
-                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-base leading-6 text-white leading-7 font-medium">
-                        <p className="font-bold text-slate-100">
+                      <div className="rounded-xl border border-line bg-fg/[0.03] p-4 text-base leading-6 text-fg leading-7 font-medium">
+                        <p className="font-bold text-fg">
                           Interview transcript will appear here.
                         </p>
                         <p className="mt-1">
@@ -8816,18 +8816,18 @@ export default function InterviewPage() {
                     )}
                   </div>
 
-                  <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-t border-white/10 px-4 py-1.5 text-xs text-slate-400 sm:px-5">
+                  <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-1.5 text-xs text-muted sm:px-5">
                     <span>AI-generated transcript — may contain errors.</span>
                     <button
                       onClick={() => setTranscript([])}
-                      className="hover:text-white"
+                      className="hover:text-fg"
                     >
                       Clear Transcript
                     </button>
                   </div>
                 </>
               ) : (
-                <div className="px-4 py-3 text-base text-white sm:px-5 leading-7 font-medium">
+                <div className="px-4 py-3 text-base text-fg sm:px-5 leading-7 font-medium">
                   Transcript will appear here as the recruiter and candidate
                   speak.
                 </div>
@@ -8840,14 +8840,14 @@ export default function InterviewPage() {
 
           </div>
 
-          <aside className="flex flex-col gap-0 border-l border-white/[0.07] lg:min-h-0 lg:overflow-y-auto">
-            <section className="border-b border-white/[0.07] bg-[#05090f] p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-1.5">
-                <span className="text-blue-400">▌</span> Live Feedback
+          <aside className="flex flex-col gap-0 border-l border-line lg:min-h-0 lg:overflow-y-auto">
+            <section className="border-b border-line bg-canvas p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-subtle flex items-center gap-1.5">
+                <span className="text-brand">▌</span> Live Feedback
               </p>
               <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div
-                  className={`grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full border-[5px] bg-[#03070e] transition-all duration-500 ${scoreFlash === "up" ? "border-emerald-400 shadow-[0_0_0_6px_rgba(52,211,153,0.12)]" : scoreFlash === "down" ? "border-amber-400 shadow-[0_0_0_6px_rgba(251,191,36,0.12)]" : "border-blue-500/60"}`}
+                  className={`grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full border-[5px] bg-canvas transition-all duration-500 ${scoreFlash === "up" ? "border-success shadow-[0_0_0_6px_rgba(52,211,153,0.12)]" : scoreFlash === "down" ? "border-warning shadow-[0_0_0_6px_rgba(251,191,36,0.12)]" : "border-brand/60"}`}
                 >
                   <div className="text-center">
                     {scoreReady ? (
@@ -8855,20 +8855,20 @@ export default function InterviewPage() {
                         <div className="text-2xl font-black tabular-nums leading-none">
                           {recruiterSignal.overall}
                         </div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">
+                        <div className="text-[10px] text-subtle mt-0.5">
                           /100
                         </div>
                       </>
                     ) : (
                       <>
-                        <div className="text-2xl font-black text-slate-600">
+                        <div className="text-2xl font-black text-subtle">
                           ·
                         </div>
                       </>
                     )}
                     {scoreFlash ? (
                       <div
-                        className={`mt-1 text-[10px] font-black uppercase ${scoreFlash === "up" ? "text-emerald-300" : "text-amber-300"}`}
+                        className={`mt-1 text-[10px] font-black uppercase ${scoreFlash === "up" ? "text-success" : "text-warning"}`}
                       >
                         {scoreFlash === "up" ? "improved" : "check proof"}
                       </div>
@@ -8886,23 +8886,23 @@ export default function InterviewPage() {
                       <div key={item.label}>
                         <div className="flex items-center justify-between gap-2 mb-0.5">
                           <span
-                            className={`text-[11px] ${scoreReady ? "text-slate-400" : "text-slate-600"}`}
+                            className={`text-[11px] ${scoreReady ? "text-muted" : "text-subtle"}`}
                           >
                             {item.label}
                           </span>
                           <span
-                            className={`text-[11px] font-black ${scoreReady ? "text-white" : "text-slate-600"}`}
+                            className={`text-[11px] font-black ${scoreReady ? "text-fg" : "text-subtle"}`}
                           >
                             {item.value}
                           </span>
                         </div>
-                        <div className="h-1 overflow-hidden rounded-full bg-white/[0.07]">
+                        <div className="h-1 overflow-hidden rounded-full bg-fg/[0.07]">
                           <div
                             className={`h-full rounded-full transition-all duration-500 ${
                               toneClass(item.tone)
                                 .split(" ")
                                 .find((c) => c.startsWith("bg-")) ||
-                              "bg-blue-400"
+                              "bg-brand"
                             }`}
                             style={{
                               width: scoreReady
@@ -8920,18 +8920,18 @@ export default function InterviewPage() {
 
             <section
               style={{ display: showCopilot ? undefined : "none" }}
-              className="flex-1 border-b border-white/[0.07] bg-[#05090f] p-4 overflow-hidden"
+              className="flex-1 border-b border-line bg-canvas p-4 overflow-hidden"
             >
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-subtle">
                   Session signals
                 </p>
-                <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
+                <span className="inline-block h-2 w-2 rounded-full bg-brand" />
               </div>
 
-              <div className="mt-3 flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2">
+              <div className="mt-3 flex items-center justify-between rounded-xl border border-line bg-fg/[0.03] px-3 py-2">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-subtle">
                     Mood
                   </p>
                   <p
@@ -8940,16 +8940,16 @@ export default function InterviewPage() {
                     {scoreReady ? recruiterSignal.mood : "Waiting"}
                   </p>
                 </div>
-                <div className="text-right text-xs text-slate-300">
+                <div className="text-right text-xs text-muted">
                   <p>
                     Trust{" "}
-                    <span className="font-bold text-white">
+                    <span className="font-bold text-fg">
                       {scoreReady ? recruiterSignal.trust : "—"}
                     </span>
                   </p>
                   <p>
                     Interest{" "}
-                    <span className="font-bold text-white">
+                    <span className="font-bold text-fg">
                       {scoreReady ? recruiterSignal.interest : "—"}
                     </span>
                   </p>
@@ -8958,46 +8958,46 @@ export default function InterviewPage() {
 
               {/* Filler word count — observational only, no coaching hints during interview */}
               {fillerWordCount > 0 && (
-                <div className="mt-2 rounded-xl border border-amber-300/15 bg-amber-400/[0.07] px-3 py-2">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">
+                <div className="mt-2 rounded-xl border border-warning/15 bg-warning/[0.07] px-3 py-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-warning">
                     Filler words
                   </p>
-                  <p className="mt-1 text-sm font-black text-white">
+                  <p className="mt-1 text-sm font-black text-fg">
                     {fillerWordCount}
-                    <span className="ml-1 text-xs font-normal text-slate-400">
+                    <span className="ml-1 text-xs font-normal text-muted">
                       detected this session
                     </span>
                   </p>
-                  <p className="mt-0.5 text-[11px] text-slate-600">
+                  <p className="mt-0.5 text-[11px] text-subtle">
                     Reviewed in full after the interview.
                   </p>
                 </div>
               )}
             </section>
 
-            <section className="bg-[#05090f] p-4">
+            <section className="bg-canvas p-4">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-subtle">
                   Progress
                 </p>
-                <span className="tabular-nums text-sm font-black text-white">
+                <span className="tabular-nums text-sm font-black text-fg">
                   {progress}
-                  <span className="text-slate-500">%</span>
+                  <span className="text-subtle">%</span>
                 </span>
               </div>
-              <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.07]">
+              <div className="mt-3 h-1 overflow-hidden rounded-full bg-fg/[0.07]">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500"
+                  className="h-full rounded-full bg-gradient-to-r from-brand to-brand"
                   style={{ width: `${progress}%` }}
                 />
               </div>
               <div className="mt-2 flex items-center justify-between gap-3">
-                <p className="text-[10px] text-slate-600">{progress}%</p>
+                <p className="text-[10px] text-subtle">{progress}%</p>
                 {interviewComplete ? (
                   <Link
                     href="/results"
                     onClick={() => saveInterviewResult("paused")}
-                    className="rounded-lg bg-emerald-500/15 px-2.5 py-1 text-xs font-black text-emerald-200"
+                    className="rounded-lg bg-success/15 px-2.5 py-1 text-xs font-black text-success"
                   >
                     View Results
                   </Link>
@@ -9008,10 +9008,10 @@ export default function InterviewPage() {
         </div>
 
         {showCopilot && status !== "idle" ? (
-          <div className="fixed bottom-20 left-3 right-3 z-40 rounded-lg border border-blue-300/20 bg-[#07111f]/95 px-4 py-3 shadow-2xl backdrop-blur-xl lg:hidden">
+          <div className="fixed bottom-20 left-3 right-3 z-40 rounded-lg border border-brand/20 bg-canvas/95 px-4 py-3 shadow-2xl backdrop-blur-xl lg:hidden">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-brand">
                   Session signals
                 </p>
                 <p
@@ -9020,16 +9020,16 @@ export default function InterviewPage() {
                   {scoreReady ? recruiterSignal.mood : "Waiting"}
                 </p>
               </div>
-              <div className="shrink-0 text-right text-xs text-slate-300">
+              <div className="shrink-0 text-right text-xs text-muted">
                 <p>
                   Trust{" "}
-                  <span className="font-black text-white">
+                  <span className="font-black text-fg">
                     {scoreReady ? recruiterSignal.trust : "—"}
                   </span>
                 </p>
                 <p>
                   Interest{" "}
-                  <span className="font-black text-white">
+                  <span className="font-black text-fg">
                     {scoreReady ? recruiterSignal.interest : "—"}
                   </span>
                 </p>
@@ -9052,17 +9052,17 @@ export default function InterviewPage() {
           onClick={() => setSettingsOpen(false)}
         >
           <section
-            className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-[2rem] border border-white/10 bg-[#07111f] p-5 text-white shadow-2xl"
+            className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-[2rem] border border-line bg-canvas p-5 text-fg shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/20" />
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-fg/20" />
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-brand">
                   Interview settings
                 </p>
                 <h2 className="mt-1 text-xl font-black">Mobile controls</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-400">
+                <p className="mt-1 text-sm leading-6 text-muted">
                   Adjust the most important interview controls without opening
                   the desktop side panel.
                 </p>
@@ -9070,7 +9070,7 @@ export default function InterviewPage() {
               <button
                 type="button"
                 onClick={() => setSettingsOpen(false)}
-                className="rounded-lg border border-white/10 px-3 py-2 text-sm font-black text-slate-300"
+                className="rounded-lg border border-line px-3 py-2 text-sm font-black text-muted"
               >
                 Close
               </button>
@@ -9079,18 +9079,18 @@ export default function InterviewPage() {
               <button
                 type="button"
                 onClick={() => setAudioEnabled((value) => !value)}
-                className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-left"
+                className="flex items-center justify-between rounded-lg border border-line bg-fg/[0.04] px-4 py-3 text-left"
               >
                 <span>
                   <span className="block text-sm font-black">
                     Recruiter voice
                   </span>
-                  <span className="block text-xs text-slate-400">
+                  <span className="block text-xs text-muted">
                     Use spoken recruiter prompts
                   </span>
                 </span>
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-black ${audioEnabled ? "bg-emerald-400/15 text-emerald-200" : "bg-white/10 text-slate-400"}`}
+                  className={`rounded-full px-3 py-1 text-xs font-black ${audioEnabled ? "bg-success/15 text-success" : "bg-fg/10 text-muted"}`}
                 >
                   {audioEnabled ? "On" : "Off"}
                 </span>
@@ -9098,21 +9098,21 @@ export default function InterviewPage() {
               <button
                 type="button"
                 onClick={() => setShowTranscript((value) => !value)}
-                className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-left"
+                className="flex items-center justify-between rounded-lg border border-line bg-fg/[0.04] px-4 py-3 text-left"
               >
                 <span>
                   <span className="block text-sm font-black">Transcript</span>
-                  <span className="block text-xs text-slate-400">
+                  <span className="block text-xs text-muted">
                     Show or collapse live transcript
                   </span>
                 </span>
-                <span className="rounded-full bg-blue-400/15 px-3 py-1 text-xs font-black text-blue-200">
+                <span className="rounded-full bg-brand/15 px-3 py-1 text-xs font-black text-brand">
                   {showTranscript ? "Shown" : "Hidden"}
                 </span>
               </button>
               <Link
                 href="/dashboard"
-                className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-slate-300"
+                className="rounded-lg border border-line bg-fg/[0.04] px-4 py-3 text-sm font-black text-muted"
               >
                 Back to dashboard
               </Link>

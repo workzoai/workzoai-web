@@ -43,9 +43,9 @@ export default function FeedbackCapture({
 
   if (submitted) {
     return (
-      <div className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-5 text-emerald-50">
+      <div className="rounded-xl border border-success/20 bg-success/10 p-5 text-success">
         <p className="font-black">Thank you — saved.</p>
-        <p className="mt-1 text-sm leading-6 text-emerald-100/85">
+        <p className="mt-1 text-sm leading-6 text-success/85">
           Your feedback helps improve WorkZo before launch.
         </p>
       </div>
@@ -53,13 +53,13 @@ export default function FeedbackCapture({
   }
 
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.045] p-5 text-white backdrop-blur-2xl">
+    <div className="rounded-xl border border-line bg-fg/[0.045] p-5 text-fg backdrop-blur-2xl">
       <div className="flex items-center gap-3">
-        <Sparkles className="h-5 w-5 text-cyan-200" />
+        <Sparkles className="h-5 w-5 text-brand" />
         <h2 className="text-xl font-black">Help improve WorkZo</h2>
       </div>
 
-      <p className="mt-2 text-sm leading-6 text-slate-400">
+      <p className="mt-2 text-sm leading-6 text-muted">
         Leave quick feedback to help us improve WorkZo AI.
       </p>
 
@@ -67,20 +67,20 @@ export default function FeedbackCapture({
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         placeholder="Email optional"
-        className="mt-4 h-12 w-full rounded-lg border border-white/10 bg-slate-950/60 px-4 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
+        className="mt-4 h-12 w-full rounded-lg border border-line bg-canvas/60 px-4 text-sm text-fg outline-none placeholder:text-subtle focus:border-brand/40"
       />
 
       <textarea
         value={feedback}
         onChange={(event) => setFeedback(event.target.value)}
         placeholder="What felt realistic? What broke? What should improve?"
-        className="mt-3 h-28 w-full resize-none rounded-lg border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
+        className="mt-3 h-28 w-full resize-none rounded-lg border border-line bg-canvas/60 p-4 text-sm leading-6 text-fg outline-none placeholder:text-subtle focus:border-brand/40"
       />
 
       <button
         type="button"
         onClick={submitFeedback}
-        className="mt-3 inline-flex h-11 items-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-violet-600 px-5 text-sm font-black text-white"
+        className="mt-3 inline-flex h-11 items-center gap-2 rounded-lg bg-gradient-to-r from-brand to-brand px-5 text-sm font-black text-on-brand"
       >
         <Send className="h-4 w-4" />
         Save feedback

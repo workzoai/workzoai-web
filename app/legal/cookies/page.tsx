@@ -36,35 +36,35 @@ const sections = [
 
 export default function CookiePolicyPage() {
   return (
-    <main className="min-h-screen bg-[#050a12] text-white">
+    <main className="min-h-screen bg-canvas text-fg">
       <div className="mx-auto max-w-4xl px-5 py-10 sm:px-6">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-white">
+        <Link href="/" className="inline-flex items-center gap-2 text-sm font-bold text-muted hover:text-fg">
           <ArrowLeft className="h-4 w-4" /> Back home
         </Link>
 
         <div className="mt-10 flex items-start gap-5">
-          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-amber-400/10">
-            <Cookie className="h-7 w-7 text-amber-300" />
+          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-warning/10">
+            <Cookie className="h-7 w-7 text-warning" />
           </div>
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.26em] text-cyan-200">Legal</p>
+            <p className="text-xs font-black uppercase tracking-[0.26em] text-brand">Legal</p>
             <h1 className="mt-2 text-4xl font-black tracking-[-0.04em] sm:text-3xl">Cookie Policy</h1>
-            <p className="mt-3 text-sm leading-6 text-slate-400">Last updated: June 2026 · We use browser storage, not third-party ad trackers.</p>
+            <p className="mt-3 text-sm leading-6 text-muted">Last updated: June 2026 · We use browser storage, not third-party ad trackers.</p>
           </div>
         </div>
 
         <div className="mt-10 space-y-4">
           {sections.map((s) => (
-            <section key={s.title} className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-6">
-              <h2 className="text-base font-black text-white">{s.title}</h2>
-              <p className="mt-3 text-sm leading-7 text-slate-300">{s.body}</p>
+            <section key={s.title} className="rounded-xl border border-line bg-fg/[0.03] p-6">
+              <h2 className="text-base font-black text-fg">{s.title}</h2>
+              <p className="mt-3 text-sm leading-7 text-muted">{s.body}</p>
             </section>
           ))}
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link href="/legal/privacy" className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-slate-400 hover:text-white">Privacy Policy</Link>
-          <Link href="/legal/delete-data" className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-slate-400 hover:text-white">Delete My Data</Link>
+          <Link href="/legal/privacy" className="rounded-xl border border-line bg-fg/[0.03] px-4 py-2 text-sm text-muted hover:text-fg">Privacy Policy</Link>
+          <Link href="/legal/delete-data" className="rounded-xl border border-line bg-fg/[0.03] px-4 py-2 text-sm text-muted hover:text-fg">Delete My Data</Link>
         </div>
       </div>
       <WorkZoFooter />

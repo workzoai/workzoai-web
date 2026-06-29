@@ -74,19 +74,19 @@ const PLAN_CARDS: PlanCard[] = [
     id: "free",
     icon: <Rocket className="h-5 w-5" />,
     accent: "emerald",
-    buttonClass: "bg-white text-slate-950 hover:bg-blue-50",
+    buttonClass: "bg-fg text-canvas hover:bg-brand hover:text-on-brand",
   },
   {
     id: "premium",
     icon: <Crown className="h-5 w-5" />,
     accent: "blue",
-    buttonClass: "bg-blue-500 text-white hover:bg-blue-400 shadow-lg shadow-blue-500/20",
+    buttonClass: "bg-brand text-on-brand hover:bg-brand shadow-lg shadow-brand/20",
   },
   {
     id: "premium_pro",
     icon: <Star className="h-5 w-5" />,
     accent: "violet",
-    buttonClass: "bg-violet-500 text-white hover:bg-violet-400 shadow-lg shadow-violet-500/20",
+    buttonClass: "bg-brand text-on-brand hover:bg-brand shadow-lg shadow-brand/20",
   },
 ];
 
@@ -167,17 +167,17 @@ function PriceLine({ plan, billingCycle }: { plan: WorkZoPlanType; billingCycle:
     <div className="mt-5">
       {plan !== "free" && price.regular ? (
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="text-sm font-black text-white/35 line-through decoration-2">{price.regular}</span>
-          <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">
+          <span className="text-sm font-black text-subtle line-through decoration-2">{price.regular}</span>
+          <span className="rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-success">
             Launch offer
           </span>
         </div>
       ) : null}
-      <p className="text-4xl font-black tracking-[-0.04em] text-white sm:text-3xl">
-        {price.amount}<span className="text-base font-bold text-white/45">{suffix}</span>
+      <p className="text-4xl font-black tracking-[-0.04em] text-fg sm:text-3xl">
+        {price.amount}<span className="text-base font-bold text-subtle">{suffix}</span>
       </p>
       {plan !== "free" && billingCycle === "yearly" ? (
-        <p className="mt-2 text-xs font-black text-emerald-300">{price.savings}</p>
+        <p className="mt-2 text-xs font-black text-success">{price.savings}</p>
       ) : null}
     </div>
   );
@@ -257,17 +257,17 @@ export default function PricingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#050a12] px-4 py-8 text-white sm:px-6 lg:px-8">
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.24),transparent_70%),radial-gradient(ellipse_60%_40%_at_90%_100%,rgba(34,211,238,0.10),transparent_70%)]" />
+    <main className="min-h-screen bg-canvas px-4 py-8 text-fg sm:px-6 lg:px-8">
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.24),transparent_70%),radial-gradient(ellipse_60%_40%_at_90%_100%,rgba(37, 99, 235,0.10),transparent_70%)]" />
 
       <div className="mx-auto max-w-7xl">
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-3">
             <img src="/workzo_icon.png" alt="WorkZo AI" width={36} height={36} className="rounded-xl" />
-            <span className="hidden text-xl font-black sm:block">WorkZo <span className="text-blue-400">AI</span></span>
+            <span className="hidden text-xl font-black sm:block">WorkZo <span className="text-brand">AI</span></span>
           </Link>
           <div className="flex items-center gap-3">
-            <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-black text-slate-400 transition hover:text-white">
+            <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-black text-muted transition hover:text-fg">
               <ArrowLeft className="h-4 w-4" /> Back home
             </Link>
             <AuthNavButton />
@@ -275,18 +275,18 @@ export default function PricingPage() {
         </div>
 
         <section className="mx-auto mt-10 max-w-4xl text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-xs font-black uppercase tracking-[0.20em] text-cyan-100">
+          <div className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/8 px-3 py-1.5 text-xs font-black uppercase tracking-[0.20em] text-brand">
             <Sparkles className="h-3.5 w-3.5" />
             Monthly and yearly plans
           </div>
           <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-tight sm:text-4xl">
             Know what the offer costs. Then close the gap.
           </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-300">
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-muted">
             Free shows where the gap is. Premium closes it. Premium Pro builds on every session until the offer lands.
           </p>
 
-          <div className="mx-auto mt-8 inline-flex rounded-lg border border-white/10 bg-black/30 p-1">
+          <div className="mx-auto mt-8 inline-flex rounded-lg border border-line bg-canvas-soft p-1">
             {(["monthly", "yearly"] as WorkZoBillingCycle[]).map((cycle) => (
               <button
                 key={cycle}
@@ -294,7 +294,7 @@ export default function PricingPage() {
                 onClick={() => setBillingCycle(cycle)}
                 className={cn(
                   "rounded-xl px-5 py-2.5 text-sm font-black capitalize transition",
-                  billingCycle === cycle ? "bg-white text-slate-950" : "text-slate-300 hover:text-white",
+                  billingCycle === cycle ? "bg-white text-slate-950" : "text-muted hover:text-fg",
                 )}
               >
                 {cycle === "yearly" ? "Yearly · Save ~37%" : "Monthly"}
@@ -303,27 +303,27 @@ export default function PricingPage() {
           </div>
         </section>
 
-        <section className="mx-auto mt-8 max-w-3xl rounded-lg border border-white/10 bg-black/20 p-5 backdrop-blur-sm">
+        <section className="mx-auto mt-8 max-w-3xl rounded-lg border border-line bg-canvas-soft p-5 backdrop-blur-sm">
           <div className="flex items-start gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-cyan-400/10 text-cyan-200">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand">
               <Tag className="h-5 w-5" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-black text-white">Have a promo code?</p>
-              <p className="mt-1 text-xs leading-5 text-slate-400">Enter it here and WorkZo will carry it into checkout.</p>
+              <p className="text-sm font-black text-fg">Have a promo code?</p>
+              <p className="mt-1 text-xs leading-5 text-muted">Enter it here and WorkZo will carry it into checkout.</p>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                 <input
                   value={promoInput}
                   onChange={(event) => setPromoInput(event.target.value)}
                   onKeyDown={(event) => event.key === "Enter" && applyPromo()}
                   placeholder="Enter promo code"
-                  className="min-h-12 flex-1 rounded-lg border border-white/10 bg-black/30 px-4 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-cyan-300/50"
+                  className="min-h-12 flex-1 rounded-lg border border-line bg-canvas-soft px-4 text-sm font-bold text-fg outline-none placeholder:text-subtle focus:border-brand/50"
                 />
-                <button type="button" onClick={applyPromo} className="rounded-lg bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-300">
+                <button type="button" onClick={applyPromo} className="rounded-lg bg-brand px-5 py-3 text-sm font-black text-on-brand transition hover:bg-brand-strong">
                   Apply code
                 </button>
               </div>
-              {promo.message ? <p className={`mt-3 text-sm font-bold ${promo.valid ? "text-emerald-300" : "text-rose-300"}`}>{promo.message}</p> : null}
+              {promo.message ? <p className={`mt-3 text-sm font-bold ${promo.valid ? "text-success" : "text-danger"}`}>{promo.message}</p> : null}
             </div>
           </div>
         </section>
@@ -339,7 +339,7 @@ export default function PricingPage() {
                 key={card.id}
                 className={cn(
                   "flex flex-col rounded-xl border p-6",
-                  isPremium ? "border-blue-400/50 bg-[#080f1c]" : "border-white/[0.08] bg-white/[0.03]",
+                  isPremium ? "border-brand/50 bg-canvas" : "border-line bg-fg/[0.03]",
                 )}
               >
                 {/* Badge — always takes same height so cards align */}
@@ -348,10 +348,10 @@ export default function PricingPage() {
                     <span className={cn(
                       "inline-flex items-center rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em]",
                       isFree
-                        ? "border border-white/10 bg-white/5 text-white/40"
+                        ? "border border-line bg-fg/5 text-subtle"
                         : isPremium
-                          ? "bg-blue-500/20 text-blue-300"
-                          : "bg-violet-500/15 text-violet-300",
+                          ? "bg-brand/20 text-brand"
+                          : "bg-brand/15 text-brand",
                     )}>
                       {plan.badge}
                     </span>
@@ -359,29 +359,29 @@ export default function PricingPage() {
                 </div>
 
                 {/* Plan identity */}
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">{plan.label}</p>
-                <h2 className="mt-1.5 text-lg font-black leading-snug text-white">{plan.shortLabel}</h2>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-subtle">{plan.label}</p>
+                <h2 className="mt-1.5 text-lg font-black leading-snug text-fg">{plan.shortLabel}</h2>
 
                 {/* Price */}
                 <PriceLine plan={card.id} billingCycle={billingCycle} />
 
                 {/* Description */}
-                <p className="mt-3 text-sm leading-6 text-slate-400">{plan.description}</p>
+                <p className="mt-3 text-sm leading-6 text-muted">{plan.description}</p>
 
                 {/* Trial note */}
                 {isPremium && (
-                  <p className="mt-2 text-xs font-black text-emerald-400">
+                  <p className="mt-2 text-xs font-black text-success">
                     24-hour free trial · cancel anytime before charged
                   </p>
                 )}
                 {isPro && (
-                  <p className="mt-2 text-xs font-black text-violet-400">
+                  <p className="mt-2 text-xs font-black text-brand">
                     2 free live recruiter minutes included
                   </p>
                 )}
 
                 {/* Divider */}
-                <div className="my-5 h-px bg-white/[0.07]" />
+                <div className="my-5 h-px bg-fg/[0.07]" />
 
                 {/* Included features */}
                 <div className="flex-1 space-y-2.5">
@@ -389,19 +389,19 @@ export default function PricingPage() {
                     <div key={item} className="flex items-start gap-2.5">
                       <CheckCircle2 className={cn(
                         "mt-0.5 h-[15px] w-[15px] shrink-0",
-                        isPro ? "text-violet-400" : isPremium ? "text-blue-400" : "text-emerald-400",
+                        isPro ? "text-brand" : isPremium ? "text-brand" : "text-success",
                       )} />
-                      <span className="text-sm leading-[1.45] text-slate-200">{item}</span>
+                      <span className="text-sm leading-[1.45] text-fg">{item}</span>
                     </div>
                   ))}
 
                   {/* Not-included — muted, no XCircle */}
                   {plan.notIncluded.length > 0 && (
-                    <div className="mt-4 space-y-2.5 border-t border-white/[0.06] pt-4">
+                    <div className="mt-4 space-y-2.5 border-t border-line pt-4">
                       {plan.notIncluded.map((item) => (
                         <div key={item} className="flex items-start gap-2.5">
-                          <div className="mt-[5px] h-[6px] w-[6px] shrink-0 rounded-full bg-white/15" />
-                          <span className="text-sm leading-[1.45] text-slate-600">{item}</span>
+                          <div className="mt-[5px] h-[6px] w-[6px] shrink-0 rounded-full bg-fg/15" />
+                          <span className="text-sm leading-[1.45] text-subtle">{item}</span>
                         </div>
                       ))}
                     </div>
@@ -427,45 +427,45 @@ export default function PricingPage() {
         </section>
 
         {checkoutError ? (
-          <p className="mx-auto mt-6 max-w-3xl rounded-lg border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-center text-sm font-bold text-rose-100">
+          <p className="mx-auto mt-6 max-w-3xl rounded-lg border border-danger/20 bg-danger/10 px-4 py-3 text-center text-sm font-bold text-danger">
             {checkoutError}
           </p>
         ) : null}
 
-        <section className="mx-auto mt-8 flex max-w-3xl flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs font-bold text-slate-400">
+        <section className="mx-auto mt-8 flex max-w-3xl flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs font-bold text-muted">
           <span className="inline-flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-emerald-300" />
+            <ShieldCheck className="h-4 w-4 text-success" />
             Secure payment via Stripe
           </span>
           <span className="inline-flex items-center gap-2">
-            <History className="h-4 w-4 text-emerald-300" />
+            <History className="h-4 w-4 text-success" />
             Cancel anytime, no questions asked
           </span>
           <span className="inline-flex items-center gap-2">
-            <Tag className="h-4 w-4 text-emerald-300" />
+            <Tag className="h-4 w-4 text-success" />
             No hidden fees
           </span>
         </section>
 
-        <section className="mt-14 overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]">
-          <div className="border-b border-white/10 p-6">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">Plan breakdown</p>
+        <section className="mt-14 overflow-hidden rounded-lg border border-line bg-fg/[0.03]">
+          <div className="border-b border-line p-6">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-brand">Plan breakdown</p>
             <h2 className="mt-2 text-2xl font-black sm:text-3xl">What each plan actually includes</h2>
           </div>
           <div className="overflow-x-auto">
             <div className="min-w-[760px]">
-              <div className="grid grid-cols-[1.35fr_0.75fr_0.85fr_0.95fr] border-b border-white/10 bg-white/[0.04] px-5 py-4 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+              <div className="grid grid-cols-[1.35fr_0.75fr_0.85fr_0.95fr] border-b border-line bg-fg/[0.04] px-5 py-4 text-xs font-black uppercase tracking-[0.16em] text-muted">
                 <p>Feature</p>
                 <p>Free</p>
                 <p>Premium</p>
                 <p>Premium Pro</p>
               </div>
               {comparisonRows.map((row, index) => (
-                <div key={row.label} className={cn("grid grid-cols-[1.35fr_0.75fr_0.85fr_0.95fr] px-5 py-4 text-sm", index % 2 === 0 ? "bg-white/[0.025]" : "bg-transparent")}>
-                  <p className="font-bold text-white">{row.label}</p>
-                  <p className="text-slate-400">{row.free}</p>
-                  <p className="font-black text-blue-100">{row.premium}</p>
-                  <p className="font-black text-violet-100">{row.premiumPro}</p>
+                <div key={row.label} className={cn("grid grid-cols-[1.35fr_0.75fr_0.85fr_0.95fr] px-5 py-4 text-sm", index % 2 === 0 ? "bg-fg/[0.025]" : "bg-transparent")}>
+                  <p className="font-bold text-fg">{row.label}</p>
+                  <p className="text-muted">{row.free}</p>
+                  <p className="font-black text-brand">{row.premium}</p>
+                  <p className="font-black text-brand">{row.premiumPro}</p>
                 </div>
               ))}
             </div>
@@ -498,24 +498,24 @@ export default function PricingPage() {
           ].map((item) => (
             <div key={item.title} className={cn(
               "rounded-xl border p-6",
-              item.accent === "blue" ? "border-blue-300/20 bg-blue-500/[0.05]" :
-              item.accent === "violet" ? "border-violet-300/20 bg-violet-500/[0.05]" :
-              "border-white/10 bg-white/[0.03]"
+              item.accent === "blue" ? "border-brand/20 bg-brand/[0.05]" :
+              item.accent === "violet" ? "border-brand/20 bg-brand/[0.05]" :
+              "border-line bg-fg/[0.03]"
             )}>
               <div className={cn(
                 "grid h-11 w-11 place-items-center rounded-lg",
-                item.accent === "blue" ? "bg-blue-400/15 text-blue-200" :
-                item.accent === "violet" ? "bg-violet-400/15 text-violet-200" :
-                "bg-emerald-400/15 text-emerald-200"
+                item.accent === "blue" ? "bg-brand/15 text-brand" :
+                item.accent === "violet" ? "bg-brand/15 text-brand" :
+                "bg-success/15 text-success"
               )}>{item.icon}</div>
               <p className={cn(
                 "mt-4 text-[10px] font-black uppercase tracking-[0.18em]",
-                item.accent === "blue" ? "text-blue-300" :
-                item.accent === "violet" ? "text-violet-300" :
-                "text-emerald-300"
+                item.accent === "blue" ? "text-brand" :
+                item.accent === "violet" ? "text-brand" :
+                "text-success"
               )}>{item.subtitle}</p>
               <h3 className="mt-1 text-lg font-black">{item.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">{item.text}</p>
+              <p className="mt-2 text-sm leading-6 text-muted">{item.text}</p>
             </div>
           ))}
         </section>

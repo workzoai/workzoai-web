@@ -327,43 +327,43 @@ export default function FeatureWorkspace({ featureKey }: { featureKey: FeatureKe
   const filename = featureKey === "cv" ? "workzo-improved-cv.txt" : featureKey === "cover" ? "workzo-cover-letter.txt" : "workzo-job-search-plan.txt";
 
   return (
-    <main className="min-h-screen bg-[#020817] text-white">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.15),transparent_32%),radial-gradient(circle_at_top_right,rgba(124,58,237,0.16),transparent_32%),linear-gradient(180deg,#020817,#050914_50%,#020617)]" />
+    <main className="min-h-screen bg-canvas text-fg">
+      <div className="pointer-events-none fixed inset-0 dark:bg-[radial-gradient(circle_at_top_left,rgba(37, 99, 235,0.15),transparent_32%),radial-gradient(circle_at_top_right,rgba(37, 99, 235,0.16),transparent_32%),linear-gradient(180deg,#020817,#050914_50%,#020617)]" />
       <div className="relative mx-auto max-w-[1500px] px-4 py-4 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 rounded-[30px] border border-white/[0.08] bg-[#071225]/82 p-4 shadow-[0_24px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:p-5 lg:flex-row lg:items-center lg:justify-between">
-          <Link href="/dashboard" className="inline-flex items-center gap-3 text-sm font-black text-slate-300 hover:text-white">
+        <header className="flex flex-col gap-4 rounded-[30px] border border-line bg-canvas/82 p-4 shadow-[0_24px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+          <Link href="/dashboard" className="inline-flex items-center gap-3 text-sm font-black text-muted hover:text-fg">
             <ArrowLeft className="h-5 w-5" /> Back to dashboard
           </Link>
           <Link href="/" className="flex items-center gap-3">
             <Image src="/workzo_icon.png" alt="WorkZo AI" width={42} height={42} className="rounded-lg" priority />
             <span className="text-2xl font-black">
-              WorkZo <span className="text-blue-400">AI</span>
+              WorkZo <span className="text-brand">AI</span>
             </span>
           </Link>
         </header>
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <div className="rounded-[34px] border border-cyan-300/14 bg-[#071225]/86 p-6 shadow-[0_30px_100px_rgba(0,0,0,0.42)] backdrop-blur-2xl sm:p-8">
-            <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/[0.07] px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-cyan-100">
+          <div className="rounded-[34px] border border-brand/14 bg-canvas/86 p-6 shadow-[0_30px_100px_rgba(0,0,0,0.42)] backdrop-blur-2xl sm:p-8">
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/[0.07] px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-brand">
               <Icon className="h-4 w-4" /> {feature.badge}
             </span>
             <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-3xl">{feature.title}</h1>
-            <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-300">{feature.subtitle}</p>
+            <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">{feature.subtitle}</p>
 
-            <div className="mt-5 rounded-[22px] border border-emerald-300/12 bg-emerald-400/[0.055] p-4 text-sm leading-6 text-emerald-100">
+            <div className="mt-5 rounded-[22px] border border-success/12 bg-success/[0.055] p-4 text-sm leading-6 text-success">
               <div className="flex items-center gap-2 font-black"><CheckCircle2 className="h-4 w-4" /> Onboarding context auto-loaded</div>
-              <p className="mt-1 text-emerald-100/80">You can edit the fields below before generating the final output.</p>
+              <p className="mt-1 text-success/80">You can edit the fields below before generating the final output.</p>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-2">
               {feature.chips.map((chip) => (
-                <span key={chip} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold text-slate-200">{chip}</span>
+                <span key={chip} className="rounded-full border border-line bg-fg/[0.05] px-3 py-2 text-xs font-bold text-fg">{chip}</span>
               ))}
             </div>
 
             {featureKey === "cv" && (
               <div className="mt-6">
-                <span className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Choose CV template</span>
+                <span className="text-xs font-black uppercase tracking-[0.22em] text-muted">Choose CV template</span>
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
                   {(Object.keys(templates) as TemplateKey[]).map((key) => (
                     <button
@@ -375,11 +375,11 @@ export default function FeatureWorkspace({ featureKey }: { featureKey: FeatureKe
                       }}
                       className={cn(
                         "rounded-lg border p-4 text-left transition",
-                        template === key ? "border-cyan-300/35 bg-cyan-400/[0.09]" : "border-white/[0.08] bg-white/[0.035] hover:bg-white/[0.06]",
+                        template === key ? "border-brand/35 bg-brand/[0.09]" : "border-line bg-fg/[0.035] hover:bg-fg/[0.06]",
                       )}
                     >
                       <p className="font-black">{templates[key].label}</p>
-                      <p className="mt-1 text-xs leading-5 text-slate-400">{templates[key].description}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted">{templates[key].description}</p>
                     </button>
                   ))}
                 </div>
@@ -388,57 +388,57 @@ export default function FeatureWorkspace({ featureKey }: { featureKey: FeatureKe
 
             <div className="mt-8 space-y-5">
               <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">{feature.inputOneLabel}</span>
-                <textarea value={inputOne} onChange={(e) => setInputOne(e.target.value)} placeholder={feature.inputOnePlaceholder} className="mt-3 h-56 w-full resize-none rounded-[24px] border border-white/[0.08] bg-[#050b18] p-5 text-sm leading-7 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/30" />
+                <span className="text-xs font-black uppercase tracking-[0.22em] text-muted">{feature.inputOneLabel}</span>
+                <textarea value={inputOne} onChange={(e) => setInputOne(e.target.value)} placeholder={feature.inputOnePlaceholder} className="mt-3 h-56 w-full resize-none rounded-[24px] border border-line bg-canvas p-5 text-sm leading-7 text-fg outline-none placeholder:text-subtle focus:border-brand/30" />
               </label>
 
               <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">{feature.inputTwoLabel}</span>
-                <textarea value={inputTwo} onChange={(e) => setInputTwo(e.target.value)} placeholder={feature.inputTwoPlaceholder} className="mt-3 h-40 w-full resize-none rounded-[24px] border border-white/[0.08] bg-[#050b18] p-5 text-sm leading-7 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/30" />
+                <span className="text-xs font-black uppercase tracking-[0.22em] text-muted">{feature.inputTwoLabel}</span>
+                <textarea value={inputTwo} onChange={(e) => setInputTwo(e.target.value)} placeholder={feature.inputTwoPlaceholder} className="mt-3 h-40 w-full resize-none rounded-[24px] border border-line bg-canvas p-5 text-sm leading-7 text-fg outline-none placeholder:text-subtle focus:border-brand/30" />
               </label>
 
-              <button onClick={handleGenerate} disabled={!canRun || loading} className={cn("flex h-14 w-full items-center justify-center rounded-lg text-sm font-black transition", canRun ? "bg-gradient-to-r from-blue-500 to-violet-600 hover:scale-[1.01]" : "cursor-not-allowed bg-white/[0.06] text-slate-500")}>
+              <button onClick={handleGenerate} disabled={!canRun || loading} className={cn("flex h-14 w-full items-center justify-center rounded-lg text-sm font-black transition", canRun ? "bg-gradient-to-r from-brand to-brand hover:scale-[1.01]" : "cursor-not-allowed bg-fg/[0.06] text-subtle")}>
                 {loading ? "Working..." : feature.primary}<ArrowRight className="ml-2 h-5 w-5" />
               </button>
             </div>
           </div>
 
           <div className="flex flex-col gap-6">
-            <section className="min-h-[560px] rounded-[34px] border border-white/[0.08] bg-[#0b1323]/86 p-6 shadow-[0_30px_100px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:p-8">
+            <section className="min-h-[560px] rounded-[34px] border border-line bg-canvas/86 p-6 shadow-[0_30px_100px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:p-8">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">Preview · Edit · Download</p>
+                  <p className="text-xs font-black uppercase tracking-[0.24em] text-brand">Preview · Edit · Download</p>
                   <h2 className="mt-2 text-3xl font-black">{feature.outputTitle}</h2>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => navigator.clipboard?.writeText(output)} className="inline-flex h-11 items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.05] px-4 text-sm font-black text-slate-200 hover:text-white"><Copy className="h-4 w-4" /> Copy</button>
-                  <button onClick={() => downloadText(filename, output)} className="inline-flex h-11 items-center gap-2 rounded-lg border border-cyan-300/15 bg-cyan-400/[0.08] px-4 text-sm font-black text-cyan-100 hover:bg-cyan-400/[0.12]"><Download className="h-4 w-4" /> Download</button>
+                  <button onClick={() => navigator.clipboard?.writeText(output)} className="inline-flex h-11 items-center gap-2 rounded-lg border border-line bg-fg/[0.05] px-4 text-sm font-black text-fg hover:text-fg"><Copy className="h-4 w-4" /> Copy</button>
+                  <button onClick={() => downloadText(filename, output)} className="inline-flex h-11 items-center gap-2 rounded-lg border border-brand/15 bg-brand/[0.08] px-4 text-sm font-black text-brand hover:bg-brand/[0.12]"><Download className="h-4 w-4" /> Download</button>
                 </div>
               </div>
 
-              <textarea value={output} onChange={(e) => setOutput(e.target.value)} className="mt-6 min-h-[420px] w-full resize-y rounded-[26px] border border-white/[0.07] bg-[#050b18] p-6 font-mono text-sm leading-7 text-slate-200 outline-none focus:border-cyan-300/25" />
+              <textarea value={output} onChange={(e) => setOutput(e.target.value)} className="mt-6 min-h-[420px] w-full resize-y rounded-[26px] border border-line bg-canvas p-6 font-mono text-sm leading-7 text-fg outline-none focus:border-brand/25" />
             </section>
 
             {featureKey === "jobs" && (
-              <section className="rounded-[30px] border border-white/[0.08] bg-[#0b1323]/82 p-6">
-                <div className="flex items-center gap-3"><Briefcase className="h-5 w-5 text-cyan-200" /><h3 className="text-2xl font-black">Open live job searches</h3></div>
+              <section className="rounded-[30px] border border-line bg-canvas/82 p-6">
+                <div className="flex items-center gap-3"><Briefcase className="h-5 w-5 text-brand" /><h3 className="text-2xl font-black">Open live job searches</h3></div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {jobLinks.map((link) => (
-                    <a key={link.label} href={link.href} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.045] px-4 py-4 text-sm font-black text-slate-200 hover:bg-white/[0.08] hover:text-white">
-                      {link.label}<ExternalLink className="h-4 w-4 text-cyan-200" />
+                    <a key={link.label} href={link.href} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg border border-line bg-fg/[0.045] px-4 py-4 text-sm font-black text-fg hover:bg-fg/[0.08] hover:text-fg">
+                      {link.label}<ExternalLink className="h-4 w-4 text-brand" />
                     </a>
                   ))}
                 </div>
               </section>
             )}
 
-            <section className="rounded-[30px] border border-cyan-300/14 bg-cyan-400/[0.055] p-6">
+            <section className="rounded-[30px] border border-brand/14 bg-brand/[0.055] p-6">
               <div className="flex items-start gap-4">
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-600"><Bot className="h-5 w-5" /></span>
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand to-brand"><Bot className="h-5 w-5" /></span>
                 <div>
                   <h3 className="text-2xl font-black">Need broader career help?</h3>
-                  <p className="mt-2 text-slate-300">Use this dedicated workspace for focused output, or open Work-O-Bot for broader career strategy.</p>
-                  <Link href="/copilot" className="mt-4 inline-flex h-12 items-center rounded-lg bg-white/[0.08] px-5 text-sm font-black hover:bg-white/[0.12]">
+                  <p className="mt-2 text-muted">Use this dedicated workspace for focused output, or open Work-O-Bot for broader career strategy.</p>
+                  <Link href="/copilot" className="mt-4 inline-flex h-12 items-center rounded-lg bg-fg/[0.08] px-5 text-sm font-black hover:bg-fg/[0.12]">
                     Open Work-O-Bot <Wand2 className="ml-2 h-4 w-4" />
                   </Link>
                 </div>

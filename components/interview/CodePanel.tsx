@@ -123,14 +123,14 @@ export default function CodePanel({ onCodeChange }: CodePanelProps) {
   const prompts = COMPLEXITY_PROMPTS[language] || [];
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-white/10 bg-[#0d1117] overflow-hidden">
+    <div className="flex h-full flex-col rounded-lg border border-line bg-canvas overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
+      <div className="flex items-center justify-between border-b border-line px-4 py-2">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+          <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">
             Code Workspace
           </span>
-          <span className="rounded border border-blue-400/20 bg-blue-500/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-blue-300">
+          <span className="rounded border border-brand/20 bg-brand/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-brand">
             Live
           </span>
         </div>
@@ -142,8 +142,8 @@ export default function CodePanel({ onCodeChange }: CodePanelProps) {
               onClick={() => handleLanguageChange(lang)}
               className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wide transition ${
                 language === lang
-                  ? "bg-blue-500/20 text-blue-300 border border-blue-400/30"
-                  : "text-slate-500 hover:text-slate-300"
+                  ? "bg-brand/20 text-brand border border-brand/30"
+                  : "text-subtle hover:text-muted"
               }`}
             >
               {lang}
@@ -182,10 +182,10 @@ export default function CodePanel({ onCodeChange }: CodePanelProps) {
       </div>
 
       {/* Run bar */}
-      <div className="flex items-center justify-between border-t border-white/10 bg-[#0a0e17] px-4 py-2">
+      <div className="flex items-center justify-between border-t border-line bg-canvas px-4 py-2">
         <div className="flex items-center gap-2">
           {prompts.map((p) => (
-            <span key={p} className="rounded border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-[9px] text-slate-600">
+            <span key={p} className="rounded border border-line bg-fg/[0.03] px-2 py-1 text-[9px] text-subtle">
               {p}
             </span>
           ))}
@@ -194,11 +194,11 @@ export default function CodePanel({ onCodeChange }: CodePanelProps) {
           type="button"
           onClick={runCode}
           disabled={running || !code.trim()}
-          className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-[11px] font-black text-white transition hover:bg-emerald-400 disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-lg bg-success px-3 py-1.5 text-[11px] font-black text-on-brand transition hover:bg-success disabled:opacity-40"
         >
           {running ? (
             <>
-              <span className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              <span className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-line border-t-white" />
               Running...
             </>
           ) : (
@@ -209,16 +209,16 @@ export default function CodePanel({ onCodeChange }: CodePanelProps) {
 
       {/* Output panel */}
       {output !== null && (
-        <div className={`border-t px-4 py-3 max-h-32 overflow-y-auto ${outputError ? "border-red-500/20 bg-red-500/[0.05]" : "border-emerald-500/20 bg-emerald-500/[0.04]"}`}>
+        <div className={`border-t px-4 py-3 max-h-32 overflow-y-auto ${outputError ? "border-danger/20 bg-danger/[0.05]" : "border-success/20 bg-success/[0.04]"}`}>
           <div className="flex items-center justify-between mb-1.5">
-            <span className={`text-[9px] font-black uppercase tracking-wide ${outputError ? "text-red-400" : "text-emerald-400"}`}>
+            <span className={`text-[9px] font-black uppercase tracking-wide ${outputError ? "text-danger" : "text-success"}`}>
               {outputError ? "Error" : "Output"}
             </span>
-            <button type="button" onClick={() => setOutput(null)} className="text-[9px] text-slate-600 hover:text-slate-400">
+            <button type="button" onClick={() => setOutput(null)} className="text-[9px] text-subtle hover:text-muted">
               Clear
             </button>
           </div>
-          <pre className={`text-[11px] leading-5 font-mono whitespace-pre-wrap ${outputError ? "text-red-200" : "text-emerald-100"}`}>
+          <pre className={`text-[11px] leading-5 font-mono whitespace-pre-wrap ${outputError ? "text-danger" : "text-success"}`}>
             {output}
           </pre>
         </div>

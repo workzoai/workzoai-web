@@ -17,10 +17,10 @@ export default function PremiumUsageBadge({ compact = false, label }: { compact?
 
   if (!mounted || !summary) {
     return (
-      <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-slate-300">
-        <Crown className="h-4 w-4 text-slate-400" />
+      <div className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/5 px-3 py-2 text-xs font-black text-muted">
+        <Crown className="h-4 w-4 text-muted" />
         <span>Plan</span>
-        {!compact ? <span className="text-slate-500">loading</span> : null}
+        {!compact ? <span className="text-subtle">loading</span> : null}
       </div>
     );
   }
@@ -30,10 +30,10 @@ export default function PremiumUsageBadge({ compact = false, label }: { compact?
   const remaining = isFounderMode ? "Usage limits disabled" : `${summary.interviewsRemaining}/${summary.limits.interviewsPerMonth} interviews left`;
 
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-slate-200">
-      <Crown className={isFounderMode ? "h-4 w-4 text-violet-200" : "h-4 w-4 text-amber-200"} />
+    <div className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/5 px-3 py-2 text-xs font-black text-fg">
+      <Crown className={isFounderMode ? "h-4 w-4 text-brand" : "h-4 w-4 text-warning"} />
       <span>{displayLabel}</span>
-      {!compact ? <span className="text-slate-400">{remaining}</span> : null}
+      {!compact ? <span className="text-muted">{remaining}</span> : null}
     </div>
   );
 }

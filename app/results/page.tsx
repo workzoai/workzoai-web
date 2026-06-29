@@ -213,7 +213,7 @@ function cleanText(value: unknown, fallback = "") {
   return value.replace(/\s+/g, " ").trim() || fallback;
 }
 
-function numberOr(value: unknown, fallback: number) {
+function numberOr<T>(value: unknown, fallback: T): number | T {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
@@ -836,7 +836,7 @@ function RiskTone({ risk }: { risk: "low" | "medium" | "high" }) {
   return (
     <span className={cn(
       "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em]",
-      risk === "high" ? "bg-rose-400/10 text-rose-200" : risk === "medium" ? "bg-amber-400/10 text-amber-100" : "bg-emerald-400/10 text-emerald-200",
+      risk === "high" ? "bg-danger/10 text-danger" : risk === "medium" ? "bg-warning/10 text-warning" : "bg-success/10 text-success",
     )}>
       {risk} risk
     </span>
@@ -845,31 +845,31 @@ function RiskTone({ risk }: { risk: "low" | "medium" | "high" }) {
 
 function HiringCommitteeMemoCard({ memo }: { memo: WorkZoHiringCommitteeMemo }) {
   return (
-    <section className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-400/[0.075] p-5">
+    <section className="mt-5 rounded-2xl border border-warning/20 bg-warning/[0.075] p-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-amber-200">Confidential hiring committee memo</p>
-          <h2 className="mt-2 text-xl font-black text-white">{memo.headline}</h2>
-          <p className="mt-2 max-w-4xl text-sm leading-6 text-amber-50/90">{memo.recruiterSummary}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-warning">Confidential hiring committee memo</p>
+          <h2 className="mt-2 text-xl font-black text-fg">{memo.headline}</h2>
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-warning/90">{memo.recruiterSummary}</p>
         </div>
-        <div className="rounded-xl border border-amber-300/20 bg-black/25 p-3 text-center shrink-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">Panel confidence</p>
-          <p className="mt-1 text-3xl font-black text-white">{memo.confidence}%</p>
+        <div className="rounded-xl border border-warning/20 bg-canvas-soft p-3 text-center shrink-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-warning">Panel confidence</p>
+          <p className="mt-1 text-3xl font-black text-fg">{memo.confidence}%</p>
         </div>
       </div>
       <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-xs font-black text-emerald-100">Evidence for hire</p>
-          <div className="mt-2 space-y-1">{memo.evidenceForHire.map((item) => <p key={item} className="text-xs leading-5 text-slate-200">• {item}</p>)}</div>
+        <div className="rounded-xl border border-line bg-canvas-soft p-3">
+          <p className="text-xs font-black text-success">Evidence for hire</p>
+          <div className="mt-2 space-y-1">{memo.evidenceForHire.map((item) => <p key={item} className="text-xs leading-5 text-fg">• {item}</p>)}</div>
         </div>
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-xs font-black text-rose-100">Panel concerns</p>
-          <div className="mt-2 space-y-1">{memo.evidenceAgainstHire.map((item) => <p key={item} className="text-xs leading-5 text-slate-200">• {item}</p>)}</div>
+        <div className="rounded-xl border border-line bg-canvas-soft p-3">
+          <p className="text-xs font-black text-danger">Panel concerns</p>
+          <div className="mt-2 space-y-1">{memo.evidenceAgainstHire.map((item) => <p key={item} className="text-xs leading-5 text-fg">• {item}</p>)}</div>
         </div>
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-xs font-black text-blue-100">Recommendation</p>
-          <p className="mt-2 text-xs leading-5 text-slate-200">{memo.finalRecommendation}</p>
-          <div className="mt-2 space-y-1">{memo.nextRoundFocus.map((item) => <p key={item} className="rounded-lg bg-blue-400/10 px-2.5 py-1.5 text-xs leading-5 text-blue-50">{item}</p>)}</div>
+        <div className="rounded-xl border border-line bg-canvas-soft p-3">
+          <p className="text-xs font-black text-brand">Recommendation</p>
+          <p className="mt-2 text-xs leading-5 text-fg">{memo.finalRecommendation}</p>
+          <div className="mt-2 space-y-1">{memo.nextRoundFocus.map((item) => <p key={item} className="rounded-lg bg-brand/10 px-2.5 py-1.5 text-xs leading-5 text-brand">{item}</p>)}</div>
         </div>
       </div>
     </section>
@@ -878,18 +878,18 @@ function HiringCommitteeMemoCard({ memo }: { memo: WorkZoHiringCommitteeMemo }) 
 
 function ShadowScoreSection({ scores }: { scores: WorkZoShadowScore[] }) {
   return (
-    <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-400">Shadow score</p>
-      <h2 className="mt-1 text-lg font-black text-white">What an internal recruiter would quietly score</h2>
+    <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
+      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted">Shadow score</p>
+      <h2 className="mt-1 text-lg font-black text-fg">What an internal recruiter would quietly score</h2>
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {scores.map((item) => (
-          <div key={item.label} className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <div key={item.label} className="rounded-xl border border-line bg-canvas-soft p-3">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-black text-white">{item.label}</p>
+              <p className="text-sm font-black text-fg">{item.label}</p>
               <RiskTone risk={item.risk} />
             </div>
-            <p className="mt-3 text-3xl font-black text-white">{item.score}%</p>
-            <p className="mt-2 text-xs leading-5 text-slate-400">{item.internalMeaning}</p>
+            <p className="mt-3 text-3xl font-black text-fg">{item.score}%</p>
+            <p className="mt-2 text-xs leading-5 text-muted">{item.internalMeaning}</p>
           </div>
         ))}
       </div>
@@ -899,21 +899,21 @@ function ShadowScoreSection({ scores }: { scores: WorkZoShadowScore[] }) {
 
 function WhatTheyHeardSection({ items }: { items: WorkZoWhatTheyHeard[] }) {
   return (
-    <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-200">What they heard</p>
-      <h2 className="mt-1 text-lg font-black text-white">Your words vs. the interviewer’s interpretation</h2>
+    <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
+      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-brand">What they heard</p>
+      <h2 className="mt-1 text-lg font-black text-fg">Your words vs. the interviewer’s interpretation</h2>
       <div className="mt-4 space-y-3">
         {items.map((item) => (
-          <div key={item.id} className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 lg:grid-cols-2">
-            <div className="rounded-xl bg-white/[0.04] p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">You said</p>
-              <p className="mt-2 text-xs leading-5 text-slate-200">“{item.youSaid}”</p>
+          <div key={item.id} className="grid gap-3 rounded-2xl border border-line bg-canvas-soft p-3 lg:grid-cols-2">
+            <div className="rounded-xl bg-fg/[0.04] p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-subtle">You said</p>
+              <p className="mt-2 text-xs leading-5 text-fg">“{item.youSaid}”</p>
             </div>
-            <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">They inferred</p>
-              <p className="mt-2 text-xs leading-5 text-cyan-50">{item.theyHeard}</p>
-              <p className="mt-2 text-[10px] leading-4 text-amber-100">Risk: {item.risk}</p>
-              <p className="mt-1 text-[10px] leading-4 text-emerald-100">Stronger signal: {item.strongerSignal}</p>
+            <div className="rounded-xl border border-brand/20 bg-brand/10 p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand">They inferred</p>
+              <p className="mt-2 text-xs leading-5 text-brand">{item.theyHeard}</p>
+              <p className="mt-2 text-[10px] leading-4 text-warning">Risk: {item.risk}</p>
+              <p className="mt-1 text-[10px] leading-4 text-success">Stronger signal: {item.strongerSignal}</p>
             </div>
           </div>
         ))}
@@ -924,23 +924,23 @@ function WhatTheyHeardSection({ items }: { items: WorkZoWhatTheyHeard[] }) {
 
 function TargetedDrillsSection({ drills }: { drills: WorkZoSkillDrill[] }) {
   return (
-    <section className="mt-4 rounded-2xl border border-violet-300/20 bg-violet-500/[0.06] p-5">
-      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-violet-200">Targeted skill drills</p>
-      <h2 className="mt-1 text-lg font-black text-white">Train the weak signal, not the whole interview</h2>
+    <section className="mt-4 rounded-2xl border border-brand/20 bg-brand/[0.06] p-5">
+      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-brand">Targeted skill drills</p>
+      <h2 className="mt-1 text-lg font-black text-fg">Train the weak signal, not the whole interview</h2>
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         {drills.map((drill) => (
-          <Link key={drill.id} href={drill.href} className="group rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:bg-white/[0.06]">
+          <Link key={drill.id} href={drill.href} className="group rounded-2xl border border-line bg-canvas-soft p-4 transition hover:bg-fg/[0.06]">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-200">{drill.duration} · {drill.pressureLevel} pressure</p>
-                <h3 className="mt-1 text-base font-black text-white">{drill.title}</h3>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand">{drill.duration} · {drill.pressureLevel} pressure</p>
+                <h3 className="mt-1 text-base font-black text-fg">{drill.title}</h3>
               </div>
-              <ChevronRight className="h-4 w-4 text-slate-500 transition group-hover:text-white shrink-0" />
+              <ChevronRight className="h-4 w-4 text-subtle transition group-hover:text-fg shrink-0" />
             </div>
-            <p className="mt-2 text-xs leading-5 text-slate-300">{drill.prompt}</p>
-            <p className="mt-2 rounded-xl bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-50">Recruiter pushback: “{drill.recruiterPushback}”</p>
+            <p className="mt-2 text-xs leading-5 text-muted">{drill.prompt}</p>
+            <p className="mt-2 rounded-xl bg-warning/10 px-3 py-2 text-xs leading-5 text-warning">Recruiter pushback: “{drill.recruiterPushback}”</p>
             <div className="mt-3 flex flex-wrap gap-1.5">
-              {drill.successCriteria.map((item) => <span key={item} className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold text-slate-300">{item}</span>)}
+              {drill.successCriteria.map((item) => <span key={item} className="rounded-full border border-line bg-fg/[0.04] px-2 py-0.5 text-[10px] font-bold text-muted">{item}</span>)}
             </div>
           </Link>
         ))}
@@ -956,10 +956,10 @@ function ScoreRing({ score, grade }: { score: number; grade: string }) {
       className="grid h-28 w-28 shrink-0 place-items-center rounded-full"
       style={{ background: `conic-gradient(#3b82f6 ${angle}deg, rgba(255,255,255,0.14) 0deg)` }}
     >
-      <div className="grid h-[5.25rem] w-[5.25rem] place-items-center rounded-full bg-[#120b3d] text-center">
+      <div className="grid h-[5.25rem] w-[5.25rem] place-items-center rounded-full bg-canvas text-center">
         <div>
-          <p className="text-3xl font-black text-white">{score}</p>
-          <p className="text-[11px] font-black text-blue-100">{grade} / 100</p>
+          <p className="text-3xl font-black text-fg">{score}</p>
+          <p className="text-[11px] font-black text-brand">{grade} / 100</p>
         </div>
       </div>
     </div>
@@ -968,13 +968,13 @@ function ScoreRing({ score, grade }: { score: number; grade: string }) {
 
 function MetricCard({ icon: Icon, label, value, note }: { icon: typeof Gauge; label: string; value: number; note: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+    <div className="rounded-2xl border border-line bg-fg/[0.035] p-4">
       <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-blue-300" />
-        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{label}</p>
+        <Icon className="h-4 w-4 text-brand" />
+        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-subtle">{label}</p>
       </div>
-      <p className="mt-3 text-3xl font-black text-white">{value}%</p>
-      <p className="mt-2 text-xs leading-5 text-slate-400">{note}</p>
+      <p className="mt-3 text-3xl font-black text-fg">{value}%</p>
+      <p className="mt-2 text-xs leading-5 text-muted">{note}</p>
     </div>
   );
 }
@@ -983,33 +983,33 @@ function Bar({ value, target, label, note }: { value: number; target?: number; l
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-black text-white">{label}</p>
-        <p className="text-sm font-black text-blue-100">{value}%{typeof target === "number" ? ` / ${target}%` : ""}</p>
+        <p className="text-sm font-black text-fg">{label}</p>
+        <p className="text-sm font-black text-brand">{value}%{typeof target === "number" ? ` / ${target}%` : ""}</p>
       </div>
-      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
-        <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-300" style={{ width: `${clamp(value)}%` }} />
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-fg/10">
+        <div className="h-full rounded-full bg-gradient-to-r from-brand to-success" style={{ width: `${clamp(value)}%` }} />
       </div>
-      {note ? <p className="mt-1.5 text-xs leading-5 text-slate-400">{note}</p> : null}
+      {note ? <p className="mt-1.5 text-xs leading-5 text-muted">{note}</p> : null}
     </div>
   );
 }
 
 function LockedPreview({ title, children, count }: { title: string; children: React.ReactNode; count?: string }) {
   return (
-    <div className="relative overflow-hidden rounded-[2rem] border border-violet-300/15 bg-violet-500/[0.08] p-6">
-      <div className="absolute right-6 top-6 grid h-14 w-14 place-items-center rounded-2xl bg-amber-300/15 text-amber-100">
+    <div className="relative overflow-hidden rounded-[2rem] border border-brand/15 bg-brand/[0.08] p-6">
+      <div className="absolute right-6 top-6 grid h-14 w-14 place-items-center rounded-2xl bg-warning/15 text-warning">
         <Lock className="h-6 w-6" />
       </div>
-      <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-200">Premium Preview</p>
-      <h3 className="mt-3 pr-16 text-2xl font-black text-white">{title}</h3>
-      {count ? <p className="mt-3 text-sm font-black text-amber-200">{count}</p> : null}
+      <p className="text-xs font-black uppercase tracking-[0.28em] text-brand">Premium Preview</p>
+      <h3 className="mt-3 pr-16 text-2xl font-black text-fg">{title}</h3>
+      {count ? <p className="mt-3 text-sm font-black text-warning">{count}</p> : null}
       <div className="mt-6 select-none blur-[5px] pointer-events-none">{children}</div>
       <button
         type="button"
         onClick={() => {
           if (typeof window !== "undefined") window.location.href = "/pricing?intent=results-report";
         }}
-        className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400"
+        className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-brand px-5 py-3 text-sm font-black text-on-brand hover:bg-brand"
       >
         <Crown className="h-4 w-4" />
         Upgrade to unlock
@@ -1069,39 +1069,39 @@ Give specific, actionable coaching. Be direct and practical. Keep your response 
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+    <div className="overflow-hidden rounded-2xl border border-line bg-canvas-soft">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         className="flex w-full items-center justify-between gap-4 p-4 text-left"
       >
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-200">Question {index + 1}</p>
-          <h3 className="mt-1 text-base font-black text-white">{item.question}</h3>
-          <p className="mt-1 text-xs text-slate-400">Evidence {item.evidenceScore}% · Trust impact {item.trustImpact}% · {item.weakness}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-brand">Question {index + 1}</p>
+          <h3 className="mt-1 text-base font-black text-fg">{item.question}</h3>
+          <p className="mt-1 text-xs text-muted">Evidence {item.evidenceScore}% · Trust impact {item.trustImpact}% · {item.weakness}</p>
         </div>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-300 transition", open && "rotate-180")} />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted transition", open && "rotate-180")} />
       </button>
 
       {open ? (
-        <div className="border-t border-white/10 p-4 space-y-3">
+        <div className="border-t border-line p-4 space-y-3">
           <div className="grid gap-3 xl:grid-cols-3">
-            <div className="rounded-xl bg-white/[0.04] p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Your answer</p>
-              <p className="mt-2 text-xs leading-5 text-slate-200">{item.answer}</p>
+            <div className="rounded-xl bg-fg/[0.04] p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-subtle">Your answer</p>
+              <p className="mt-2 text-xs leading-5 text-fg">{item.answer}</p>
             </div>
-            <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-200">What the recruiter heard</p>
-              <p className="mt-2 text-xs leading-5 text-amber-50">{item.recruiterHeard}</p>
+            <div className="rounded-xl border border-warning/20 bg-warning/10 p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-warning">What the recruiter heard</p>
+              <p className="mt-2 text-xs leading-5 text-warning">{item.recruiterHeard}</p>
             </div>
-            <div className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-200">How to improve this</p>
-              <p className="mt-2 text-xs leading-5 text-emerald-50">{item.rewrite}</p>
+            <div className="rounded-xl border border-success/20 bg-success/10 p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-success">How to improve this</p>
+              <p className="mt-2 text-xs leading-5 text-success">{item.rewrite}</p>
             </div>
           </div>
 
           {/* Post-answer coaching bot */}
-          <div className="rounded-xl border border-blue-300/15 bg-blue-500/[0.05]">
+          <div className="rounded-xl border border-brand/15 bg-brand/[0.05]">
             <button
               type="button"
               onClick={() => setCoachOpen((v) => !v)}
@@ -1109,13 +1109,13 @@ Give specific, actionable coaching. Be direct and practical. Keep your response 
             >
               <div className="flex items-center gap-2">
                 <span className="text-sm">🤖</span>
-                <p className="text-[11px] font-black text-blue-300">Ask Work-O-Bot about this answer</p>
+                <p className="text-[11px] font-black text-brand">Ask Work-O-Bot about this answer</p>
               </div>
-              <ChevronDown className={cn("h-3.5 w-3.5 text-slate-500 transition", coachOpen && "rotate-180")} />
+              <ChevronDown className={cn("h-3.5 w-3.5 text-subtle transition", coachOpen && "rotate-180")} />
             </button>
 
             {coachOpen && (
-              <div className="border-t border-blue-300/10 px-4 pb-4 pt-3">
+              <div className="border-t border-brand/10 px-4 pb-4 pt-3">
                 {coachMessages.length === 0 && (
                   <div className="mb-3 flex flex-wrap gap-2">
                     {[
@@ -1128,7 +1128,7 @@ Give specific, actionable coaching. Be direct and practical. Keep your response 
                         key={suggestion}
                         type="button"
                         onClick={() => askCoach(suggestion)}
-                        className="rounded-lg border border-blue-300/15 bg-blue-500/10 px-2.5 py-1.5 text-[11px] font-bold text-blue-200 hover:bg-blue-500/20 transition"
+                        className="rounded-lg border border-brand/15 bg-brand/10 px-2.5 py-1.5 text-[11px] font-bold text-brand hover:bg-brand/20 transition"
                       >
                         {suggestion}
                       </button>
@@ -1139,13 +1139,13 @@ Give specific, actionable coaching. Be direct and practical. Keep your response 
                 {coachMessages.length > 0 && (
                   <div className="mb-3 space-y-2 max-h-48 overflow-y-auto">
                     {coachMessages.map((msg, i) => (
-                      <div key={i} className={cn("rounded-xl px-3 py-2 text-xs leading-5", msg.role === "user" ? "bg-white/[0.06] text-slate-200 ml-6" : "bg-blue-500/10 text-blue-50 mr-6")}>
-                        {msg.role === "bot" && <span className="mr-1 text-blue-400">🤖</span>}
+                      <div key={i} className={cn("rounded-xl px-3 py-2 text-xs leading-5", msg.role === "user" ? "bg-fg/[0.06] text-fg ml-6" : "bg-brand/10 text-brand mr-6")}>
+                        {msg.role === "bot" && <span className="mr-1 text-brand">🤖</span>}
                         {msg.text}
                       </div>
                     ))}
                     {coachLoading && (
-                      <div className="rounded-xl bg-blue-500/10 px-3 py-2 text-xs text-blue-400 mr-6">
+                      <div className="rounded-xl bg-brand/10 px-3 py-2 text-xs text-brand mr-6">
                         Thinking...
                       </div>
                     )}
@@ -1159,13 +1159,13 @@ Give specific, actionable coaching. Be direct and practical. Keep your response 
                     onChange={(e) => setCoachInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && askCoach(coachInput)}
                     placeholder="Ask about this answer..."
-                    className="flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:border-blue-400/40 focus:outline-none"
+                    className="flex-1 rounded-lg border border-line bg-fg/[0.04] px-3 py-2 text-xs text-fg placeholder:text-subtle focus:border-brand/40 focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => askCoach(coachInput)}
                     disabled={coachLoading || !coachInput.trim()}
-                    className="rounded-lg bg-blue-500 px-3 py-2 text-xs font-black text-white hover:bg-blue-400 disabled:opacity-40 transition"
+                    className="rounded-lg bg-brand px-3 py-2 text-xs font-black text-on-brand hover:bg-brand disabled:opacity-40 transition"
                   >
                     Ask
                   </button>
@@ -1182,68 +1182,68 @@ Give specific, actionable coaching. Be direct and practical. Keep your response 
 
 function CareerBrainSection({ brain }: { brain: PhaseCCareerBrain }) {
   const probabilityBars = [
-    { label: "Current profile", value: brain.probability.current, tone: "from-amber-400 to-orange-300" },
-    { label: "After CV improvements", value: brain.probability.afterCv, tone: "from-blue-400 to-cyan-300" },
-    { label: "After interview prep", value: brain.probability.afterPrep, tone: "from-emerald-400 to-teal-300" },
+    { label: "Current profile", value: brain.probability.current, tone: "from-warning to-warning" },
+    { label: "After CV improvements", value: brain.probability.afterCv, tone: "from-brand to-brand" },
+    { label: "After interview prep", value: brain.probability.afterPrep, tone: "from-success to-success" },
   ];
 
   return (
-    <section className="mt-4 rounded-2xl border border-emerald-300/15 bg-emerald-500/[0.045] p-5">
+    <section className="mt-4 rounded-2xl border border-success/15 bg-success/[0.045] p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-200">Phase C unified career brain</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-success">Phase C unified career brain</p>
           <h2 className="mt-1 text-lg font-black">One learning loop across CV, jobs, interviews, and results</h2>
-          <p className="mt-1 max-w-4xl text-xs leading-5 text-slate-300">{brain.progress.latestSummary}</p>
+          <p className="mt-1 max-w-4xl text-xs leading-5 text-muted">{brain.progress.latestSummary}</p>
         </div>
-        <div className="grid h-14 w-14 place-items-center rounded-xl border border-emerald-300/20 bg-black/25 text-center">
-          <p className="text-xl font-black text-emerald-100">{brain.probability.current}%</p>
-          <p className="-mt-1 text-[9px] font-black text-slate-500">PROB.</p>
+        <div className="grid h-14 w-14 place-items-center rounded-xl border border-success/20 bg-canvas-soft text-center">
+          <p className="text-xl font-black text-success">{brain.probability.current}%</p>
+          <p className="-mt-1 text-[9px] font-black text-subtle">PROB.</p>
         </div>
       </div>
 
       <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-xs font-black text-emerald-100">Interview probability engine</p>
+        <div className="rounded-xl border border-line bg-canvas-soft p-3">
+          <p className="text-xs font-black text-success">Interview probability engine</p>
           <div className="mt-3 space-y-3">
             {probabilityBars.map((item) => (
               <div key={item.label}>
                 <div className="flex items-center justify-between text-sm">
-                  <p className="font-bold text-slate-200">{item.label}</p>
-                  <p className="font-black text-white">{item.value}%</p>
+                  <p className="font-bold text-fg">{item.label}</p>
+                  <p className="font-black text-fg">{item.value}%</p>
                 </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-fg/10">
                   <div className={`h-full rounded-full bg-gradient-to-r ${item.tone}`} style={{ width: `${item.value}%` }} />
                 </div>
               </div>
             ))}
           </div>
           <div className="mt-3 space-y-1.5">
-            {brain.probability.reasons.map((item) => <p key={item} className="text-[11px] leading-4 text-slate-400">• {item}</p>)}
+            {brain.probability.reasons.map((item) => <p key={item} className="text-[11px] leading-4 text-muted">• {item}</p>)}
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-xs font-black text-amber-100">Persistent weakness tracking</p>
+        <div className="rounded-xl border border-line bg-canvas-soft p-3">
+          <p className="text-xs font-black text-warning">Persistent weakness tracking</p>
           <div className="mt-2 space-y-2">
             {brain.persistentWeaknesses.length ? brain.persistentWeaknesses.map((item) => (
-              <div key={item.label} className="rounded-xl bg-amber-400/10 p-2.5">
+              <div key={item.label} className="rounded-xl bg-warning/10 p-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-black text-white">{item.label}</p>
-                  <span className="rounded-full bg-black/25 px-2 py-0.5 text-[10px] font-black text-amber-100">seen {item.count}x</span>
+                  <p className="text-xs font-black text-fg">{item.label}</p>
+                  <span className="rounded-full bg-canvas-soft px-2 py-0.5 text-[10px] font-black text-warning">seen {item.count}x</span>
                 </div>
-                <p className="mt-1 text-[10px] leading-4 text-amber-50/85">{item.coachLine}</p>
+                <p className="mt-1 text-[10px] leading-4 text-warning/85">{item.coachLine}</p>
               </div>
-            )) : <p className="text-xs leading-5 text-slate-400">No recurring weakness yet. WorkZo will learn after more sessions.</p>}
+            )) : <p className="text-xs leading-5 text-muted">No recurring weakness yet. WorkZo will learn after more sessions.</p>}
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-xs font-black text-blue-100">Cross-feature actions</p>
+        <div className="rounded-xl border border-line bg-canvas-soft p-3">
+          <p className="text-xs font-black text-brand">Cross-feature actions</p>
           <div className="mt-2 space-y-2">
             {brain.crossFeatureActions.map((item) => (
-              <div key={`${item.feature}-${item.action}`} className="rounded-xl bg-blue-400/10 p-2.5">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-200">{item.feature}</p>
-                <p className="mt-1 text-xs leading-5 text-blue-50/90">{item.action}</p>
+              <div key={`${item.feature}-${item.action}`} className="rounded-xl bg-brand/10 p-2.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-brand">{item.feature}</p>
+                <p className="mt-1 text-xs leading-5 text-brand/90">{item.action}</p>
               </div>
             ))}
           </div>
@@ -1251,21 +1251,21 @@ function CareerBrainSection({ brain }: { brain: PhaseCCareerBrain }) {
       </div>
 
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-xs font-black text-violet-100">Future recruiter memory challenges</p>
+        <div className="rounded-xl border border-line bg-canvas-soft p-3">
+          <p className="text-xs font-black text-brand">Future recruiter memory challenges</p>
           <div className="mt-2 space-y-1.5">
-            {brain.futureRecruiterChallenges.map((item) => <p key={item} className="rounded-xl bg-violet-400/10 px-2.5 py-2 text-xs leading-5 text-violet-50">"{item}"</p>)}
+            {brain.futureRecruiterChallenges.map((item) => <p key={item} className="rounded-xl bg-brand/10 px-2.5 py-2 text-xs leading-5 text-brand">"{item}"</p>)}
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-          <p className="text-xs font-black text-cyan-100">Persistent career roadmap</p>
+        <div className="rounded-xl border border-line bg-canvas-soft p-3">
+          <p className="text-xs font-black text-brand">Persistent career roadmap</p>
           <div className="mt-2 space-y-2">
             {brain.roadmap.slice(0, 4).map((item) => (
-              <div key={item.id} className="rounded-xl bg-cyan-400/10 p-2.5">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">{item.priority} · {item.estimatedGain}</p>
-                <p className="mt-0.5 text-xs font-black text-white">{item.title}</p>
-                <p className="mt-0.5 text-xs leading-5 text-cyan-50/85">{item.action}</p>
+              <div key={item.id} className="rounded-xl bg-brand/10 p-2.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-brand">{item.priority} · {item.estimatedGain}</p>
+                <p className="mt-0.5 text-xs font-black text-fg">{item.title}</p>
+                <p className="mt-0.5 text-xs leading-5 text-brand/85">{item.action}</p>
               </div>
             ))}
           </div>
@@ -1351,92 +1351,92 @@ function WhereLostSection({ insights, overallScore, isPremium }: {
   const gap = benchmarkScore - overallScore;
 
   return (
-    <section className="mt-6 rounded-[2rem] border border-rose-400/30 bg-[#1a0810] p-6 sm:p-8">
+    <section className="mt-6 rounded-[2rem] border border-danger/30 bg-canvas p-6 sm:p-8">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-rose-400/30 bg-rose-400/10 px-3 py-1.5">
-            <TrendingDown className="h-3.5 w-3.5 text-rose-300" />
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-300">Where you lost this interview</span>
+          <div className="inline-flex items-center gap-2 rounded-full border border-danger/30 bg-danger/10 px-3 py-1.5">
+            <TrendingDown className="h-3.5 w-3.5 text-danger" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-danger">Where you lost this interview</span>
           </div>
-          <h2 className="mt-4 text-2xl font-black text-white sm:text-3xl">
+          <h2 className="mt-4 text-2xl font-black text-fg sm:text-3xl">
             Question {moment.questionIndex} is where the recruiter's confidence dropped.
           </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-            Your trust score fell <span className="font-black text-rose-300">~{Math.min(moment.trustDrop, 22)} points</span> on this answer — more than any other moment in the session.
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">
+            Your trust score fell <span className="font-black text-danger">~{Math.min(moment.trustDrop, 22)} points</span> on this answer — more than any other moment in the session.
           </p>
         </div>
-        <div className="shrink-0 rounded-2xl border border-rose-400/20 bg-black/30 p-4 text-center">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-300">Trust drop</p>
-          <p className="mt-1 text-4xl font-black text-white">−{Math.min(moment.trustDrop, 22)}</p>
-          <p className="text-xs text-slate-500">pts on this answer</p>
+        <div className="shrink-0 rounded-2xl border border-danger/20 bg-canvas-soft p-4 text-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-danger">Trust drop</p>
+          <p className="mt-1 text-4xl font-black text-fg">−{Math.min(moment.trustDrop, 22)}</p>
+          <p className="text-xs text-subtle">pts on this answer</p>
         </div>
       </div>
 
       {/* The question + answer */}
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl bg-white/[0.04] p-5">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">The question</p>
-          <p className="mt-3 text-sm leading-7 text-slate-200">"{moment.question}"</p>
-          <div className="mt-4 border-t border-white/10 pt-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Your answer</p>
-            <p className="mt-3 text-sm leading-7 text-slate-400 italic">"{moment.answer.slice(0, 220)}{moment.answer.length > 220 ? "…" : ""}"</p>
+        <div className="rounded-2xl bg-fg/[0.04] p-5">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-subtle">The question</p>
+          <p className="mt-3 text-sm leading-7 text-fg">"{moment.question}"</p>
+          <div className="mt-4 border-t border-line pt-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-subtle">Your answer</p>
+            <p className="mt-3 text-sm leading-7 text-muted italic">"{moment.answer.slice(0, 220)}{moment.answer.length > 220 ? "…" : ""}"</p>
           </div>
         </div>
 
         <div className="space-y-3">
           {/* What happened */}
-          <div className="rounded-2xl border border-rose-400/20 bg-rose-400/[0.07] p-5">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-300">What happened</p>
-            <p className="mt-3 text-sm leading-7 text-rose-50">{moment.whatHappened}</p>
+          <div className="rounded-2xl border border-danger/20 bg-danger/[0.07] p-5">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-danger">What happened</p>
+            <p className="mt-3 text-sm leading-7 text-danger">{moment.whatHappened}</p>
           </div>
 
           {/* What the recruiter thought */}
-          <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.07] p-5">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">What the recruiter thought</p>
-            <p className="mt-3 text-sm leading-7 text-amber-50">{moment.whatRecruiterThought}</p>
+          <div className="rounded-2xl border border-warning/20 bg-warning/[0.07] p-5">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-warning">What the recruiter thought</p>
+            <p className="mt-3 text-sm leading-7 text-warning">{moment.whatRecruiterThought}</p>
           </div>
         </div>
       </div>
 
       {/* The next challenge — visible, not blurred */}
-      <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+      <div className="mt-5 rounded-2xl border border-line bg-fg/[0.03] p-5">
         <div className="flex items-start gap-3">
-          <Zap className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+          <Zap className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
           <div>
-            <p className="text-sm font-black text-white">The question that would have come next</p>
-            <p className="mt-2 text-sm leading-6 text-amber-100">"{moment.nextChallenge}"</p>
-            <p className="mt-2 text-xs text-slate-500">This would have been the recruiter's next question. Can you answer it better next session?</p>
+            <p className="text-sm font-black text-fg">The question that would have come next</p>
+            <p className="mt-2 text-sm leading-6 text-warning">"{moment.nextChallenge}"</p>
+            <p className="mt-2 text-xs text-subtle">This would have been the recruiter's next question. Can you answer it better next session?</p>
           </div>
         </div>
       </div>
 
       {/* Score benchmark — visible for free */}
       {gap > 0 && (
-        <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-400/[0.06] p-5">
+        <div className="mt-5 rounded-2xl border border-brand/20 bg-brand/[0.06] p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-black text-white">The gap to the interview threshold</p>
-              <p className="mt-1 text-xs leading-5 text-slate-400">
-                Candidates who get to the next round in <span className="text-white font-black">{insights.length > 0 ? "your target role" : "this role"}</span> typically score above{" "}
-                <span className="font-black text-blue-200">{benchmarkScore}</span>. You scored{" "}
-                <span className="font-black text-white">{overallScore}</span>.
+              <p className="text-sm font-black text-fg">The gap to the interview threshold</p>
+              <p className="mt-1 text-xs leading-5 text-muted">
+                Candidates who get to the next round in <span className="text-fg font-black">{insights.length > 0 ? "your target role" : "this role"}</span> typically score above{" "}
+                <span className="font-black text-brand">{benchmarkScore}</span>. You scored{" "}
+                <span className="font-black text-fg">{overallScore}</span>.
               </p>
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-3xl font-black text-white">{gap > 0 ? `+${gap}` : "0"}</p>
-              <p className="text-xs text-slate-500">pts needed</p>
+              <p className="text-3xl font-black text-fg">{gap > 0 ? `+${gap}` : "0"}</p>
+              <p className="text-xs text-subtle">pts needed</p>
             </div>
           </div>
-          <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/10">
+          <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-fg/10">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-rose-500 to-amber-400 transition-all"
+              className="h-full rounded-full bg-gradient-to-r from-danger to-warning transition-all"
               style={{ width: `${clamp(overallScore)}%` }}
             />
           </div>
-          <div className="mt-1 flex justify-between text-[10px] text-slate-600">
+          <div className="mt-1 flex justify-between text-[10px] text-subtle">
             <span>0</span>
-            <span className="text-blue-400">threshold: {benchmarkScore}</span>
+            <span className="text-brand">threshold: {benchmarkScore}</span>
             <span>100</span>
           </div>
         </div>
@@ -1444,23 +1444,23 @@ function WhereLostSection({ insights, overallScore, isPremium }: {
 
       {/* Blurred premium teaser */}
       {!isPremium && (
-        <div className="relative mt-5 overflow-hidden rounded-2xl border border-violet-400/20 bg-violet-500/[0.06] p-5">
+        <div className="relative mt-5 overflow-hidden rounded-2xl border border-brand/20 bg-brand/[0.06] p-5">
           <div className="select-none blur-[6px] pointer-events-none space-y-3">
-            <p className="text-sm font-black text-white">7 signals from this session</p>
+            <p className="text-sm font-black text-fg">7 signals from this session</p>
             <div className="space-y-2">
               {["Trust dropped 18pts when you said 'we managed the project' — no personal verb.", "Filler word spike on question 3 signalled low confidence.", "Answer 2 had a contradiction with your CV timeline — recruiter noted it.", "Missing metric on 4 of 5 answers. Top candidates include 1 number per story.", "Ownership language appeared in only 1 of {insights.length} answers."].map((line) => (
-                <p key={line} className="rounded-xl bg-white/5 p-3 text-xs text-slate-300">• {line}</p>
+                <p key={line} className="rounded-xl bg-fg/5 p-3 text-xs text-muted">• {line}</p>
               ))}
             </div>
           </div>
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px]">
-            <Lock className="h-7 w-7 text-amber-200 mb-3" />
-            <p className="text-sm font-black text-white">All 7 recruiter signals</p>
-            <p className="mt-1 text-xs text-slate-300">Every moment the trust score moved — and why</p>
+            <Lock className="h-7 w-7 text-warning mb-3" />
+            <p className="text-sm font-black text-fg">All 7 recruiter signals</p>
+            <p className="mt-1 text-xs text-muted">Every moment the trust score moved — and why</p>
             <button
               type="button"
               onClick={() => { if (typeof window !== "undefined") window.location.href = "/pricing?intent=results-signals"; }}
-              className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-5 py-2.5 text-sm font-black text-white hover:bg-blue-400 transition"
+              className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-brand px-5 py-2.5 text-sm font-black text-on-brand hover:bg-brand transition"
             >
               <Crown className="h-4 w-4" />
               Unlock for €{" "}19 / month
@@ -1488,13 +1488,13 @@ function UrgencyBanner({ remaining, roleLabel, targetMarket, overallScore }: {
   const roleShort = roleLabel || "your target role";
 
   return (
-    <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] px-5 py-4">
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-warning/25 bg-warning/[0.07] px-5 py-4">
       <div className="flex items-center gap-3">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-400/15">
-          <AlertTriangle className="h-4 w-4 text-amber-300" />
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-warning/15">
+          <AlertTriangle className="h-4 w-4 text-warning" />
         </div>
         <div>
-          <p className="text-sm font-black text-white">
+          <p className="text-sm font-black text-fg">
             {remaining <= 1
               ? "This was your last free session."
               : `${remaining} free session${remaining === 1 ? "" : "s"} remaining.`}
@@ -1507,7 +1507,7 @@ function UrgencyBanner({ remaining, roleLabel, targetMarket, overallScore }: {
       </div>
       <a
         href="/pricing?intent=urgency-banner"
-        className="shrink-0 rounded-xl bg-amber-400 px-4 py-2 text-sm font-black text-slate-950 hover:bg-amber-300 transition"
+        className="shrink-0 rounded-xl bg-warning px-4 py-2 text-sm font-black text-slate-950 hover:bg-warning transition"
       >
         Upgrade →
       </a>
@@ -1518,32 +1518,32 @@ function UrgencyBanner({ remaining, roleLabel, targetMarket, overallScore }: {
 // ─── Upgrade strip with "remembers" copy ──────────────────────────────────────
 function UpgradeStrip({ roleLabel }: { roleLabel: string }) {
   return (
-    <div className="mt-5 overflow-hidden rounded-2xl border border-blue-400/30 bg-gradient-to-br from-blue-500/[0.14] via-violet-500/[0.10] to-cyan-500/[0.08] p-5">
+    <div className="mt-5 overflow-hidden rounded-2xl border border-brand/30 bg-gradient-to-br from-brand/[0.14] via-brand/[0.10] to-brand/[0.08] p-5">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-2xl">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-300">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-brand">
             Premium · from €19 / month
           </p>
-          <h3 className="mt-2 text-xl font-black text-white">
+          <h3 className="mt-2 text-xl font-black text-fg">
             The recruiter remembers. Next session picks up exactly where this one left off.
           </h3>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
+          <p className="mt-2 text-sm leading-6 text-muted">
             Premium tracks your weaknesses across every session and coaches you on the exact gap this interview revealed{roleLabel ? ` for ${roleLabel}` : ""}. The recruiter adapts to your pattern — not a generic script.
           </p>
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
             {[["Full session history", "Recruiter remembers your gaps"], ["Answer rewrites", "Top 10% version of your answers"], ["Targeted drills", "Train the weak signal, not everything"]].map(([title, desc]) => (
-              <div key={title} className="rounded-xl border border-white/10 bg-black/20 p-2.5">
-                <p className="text-xs font-black text-white">{title}</p>
-                <p className="mt-1 text-[10px] leading-4 text-slate-400">{desc}</p>
+              <div key={title} className="rounded-xl border border-line bg-canvas-soft p-2.5">
+                <p className="text-xs font-black text-fg">{title}</p>
+                <p className="mt-1 text-[10px] leading-4 text-muted">{desc}</p>
               </div>
             ))}
           </div>
           {/* Social proof quote */}
-          <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-            <p className="text-xs leading-5 text-slate-200 italic">
+          <div className="mt-4 rounded-xl border border-line bg-canvas-soft px-4 py-3">
+            <p className="text-xs leading-5 text-fg italic">
               "My trust score was 61 in session 1. After 4 sessions it was 84 and I got an offer the following week."
             </p>
-            <p className="mt-1.5 text-[10px] font-black text-slate-500">
+            <p className="mt-1.5 text-[10px] font-black text-subtle">
               Premium user · Customer Success Manager · Berlin
             </p>
           </div>
@@ -1551,7 +1551,7 @@ function UpgradeStrip({ roleLabel }: { roleLabel: string }) {
         <div className="flex shrink-0 flex-col items-start gap-2 lg:items-end">
           <a
             href="/pricing?intent=upgrade-strip"
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/25 hover:bg-blue-400 transition"
+            className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-black text-on-brand shadow-lg shadow-brand/25 hover:bg-brand transition"
             onClick={() => {
               try { (window as any).__workzo_recordUpgrade?.(); } catch {}
             }}
@@ -1559,7 +1559,7 @@ function UpgradeStrip({ roleLabel }: { roleLabel: string }) {
             <Crown className="h-4 w-4" />
             Unlock Premium — €19 / month
           </a>
-          <p className="text-xs text-slate-500">Cancel anytime · No hidden fees · Stripe</p>
+          <p className="text-xs text-subtle">Cancel anytime · No hidden fees · Stripe</p>
         </div>
       </div>
     </div>
@@ -1614,18 +1614,18 @@ function RealBlurredInsights({ insights, contradictions, redFlags }: {
   while (signals.length < 5) signals.push(fallbacks[signals.length - (5 - fallbacks.length)] || fallbacks[0]);
 
   return (
-    <div className="relative mt-5 overflow-hidden rounded-2xl border border-violet-400/20 bg-violet-500/[0.06]">
+    <div className="relative mt-5 overflow-hidden rounded-2xl border border-brand/20 bg-brand/[0.06]">
       {/* Partially visible top */}
       <div className="p-6 pb-0">
-        <p className="text-xs font-black uppercase tracking-[0.28em] text-violet-200">
+        <p className="text-xs font-black uppercase tracking-[0.28em] text-brand">
           All {signals.length + 2} recruiter trust signals from this session
         </p>
-        <h3 className="mt-2 text-xl font-black text-white">
+        <h3 className="mt-2 text-xl font-black text-fg">
           Every moment trust moved — up or down
         </h3>
         {/* First signal fully visible */}
-        <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-          <p className="text-sm leading-6 text-slate-200">• {signals[0]}</p>
+        <div className="mt-4 rounded-2xl border border-line bg-canvas-soft p-4">
+          <p className="text-sm leading-6 text-fg">• {signals[0]}</p>
         </div>
       </div>
 
@@ -1633,34 +1633,34 @@ function RealBlurredInsights({ insights, contradictions, redFlags }: {
       <div className="relative px-6 pb-6 pt-3">
         <div className="select-none blur-[5px] pointer-events-none space-y-2">
           {signals.slice(1).map((line, i) => (
-            <div key={i} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-sm leading-6 text-slate-200">• {line}</p>
+            <div key={i} className="rounded-2xl border border-line bg-canvas-soft p-4">
+              <p className="text-sm leading-6 text-fg">• {line}</p>
             </div>
           ))}
           {/* Fake extra items to fill the blur */}
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-            <p className="text-sm leading-6 text-slate-200">• Recruiter interpretation of your strongest answer and what it signals about your candidacy.</p>
+          <div className="rounded-2xl border border-line bg-canvas-soft p-4">
+            <p className="text-sm leading-6 text-fg">• Recruiter interpretation of your strongest answer and what it signals about your candidacy.</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-            <p className="text-sm leading-6 text-slate-200">• Top 10% rewrite for your weakest answer with one measurable result.</p>
+          <div className="rounded-2xl border border-line bg-canvas-soft p-4">
+            <p className="text-sm leading-6 text-fg">• Top 10% rewrite for your weakest answer with one measurable result.</p>
           </div>
         </div>
 
         {/* Upgrade overlay */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-t from-[#050a12] via-[#050a12]/80 to-transparent pt-8">
-          <Lock className="h-7 w-7 text-amber-200 mb-3" />
-          <p className="text-base font-black text-white">See all recruiter signals</p>
-          <p className="mt-1 text-sm text-slate-400 text-center max-w-xs">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-t from-canvas via-canvas/80 to-transparent pt-8">
+          <Lock className="h-7 w-7 text-warning mb-3" />
+          <p className="text-base font-black text-fg">See all recruiter signals</p>
+          <p className="mt-1 text-sm text-muted text-center max-w-xs">
             Every trust movement explained, with rewrites for your weakest answers
           </p>
           <a
             href="/pricing?intent=blur-signals"
-            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-6 py-3 text-sm font-black text-white hover:bg-blue-400 transition shadow-lg shadow-blue-500/20"
+            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 text-sm font-black text-on-brand hover:bg-brand transition shadow-lg shadow-brand/20"
           >
             <Crown className="h-4 w-4" />
             Unlock Premium — €19 / month
           </a>
-          <p className="mt-2 text-xs text-slate-600">Cancel anytime</p>
+          <p className="mt-2 text-xs text-subtle">Cancel anytime</p>
         </div>
       </div>
     </div>
@@ -1735,9 +1735,9 @@ function EmailCapture({
 
   if (status === "sent") {
     return (
-      <div className="mt-6 rounded-[2rem] border border-emerald-400/25 bg-emerald-500/[0.07] p-6 text-center">
-        <p className="text-lg font-black text-emerald-200">Report sent ✓</p>
-        <p className="mt-2 text-sm text-slate-400">
+      <div className="mt-6 rounded-[2rem] border border-success/25 bg-success/[0.07] p-6 text-center">
+        <p className="text-lg font-black text-success">Report sent ✓</p>
+        <p className="mt-2 text-sm text-muted">
           Check your inbox — your 5-day improvement plan is on its way.
         </p>
       </div>
@@ -1745,14 +1745,14 @@ function EmailCapture({
   }
 
   return (
-    <div className="mt-6 rounded-[2rem] border border-white/10 bg-white/[0.035] p-6">
+    <div className="mt-6 rounded-[2rem] border border-line bg-fg/[0.035] p-6">
       <div className="flex items-start gap-4">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-400/15 text-blue-200">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-brand/15 text-brand">
           <Mail className="h-5 w-5" />
         </div>
         <div className="flex-1">
-          <p className="font-black text-white">Get the report and a 5-day plan by email</p>
-          <p className="mt-1 text-sm leading-6 text-slate-400">
+          <p className="font-black text-fg">Get the report and a 5-day plan by email</p>
+          <p className="mt-1 text-sm leading-6 text-muted">
             Get your score breakdown and a daily coaching prompt targeting your biggest gap —
             {roleLabel ? ` specifically for ${roleLabel}` : " personalised to this session"}.
             No spam.
@@ -1764,24 +1764,24 @@ function EmailCapture({
               onChange={e => setEmail(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleSubmit()}
               placeholder="your@email.com"
-              className="min-h-12 flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-blue-400/50 transition"
+              className="min-h-12 flex-1 rounded-2xl border border-line bg-canvas-soft px-4 text-sm text-fg outline-none placeholder:text-subtle focus:border-brand/50 transition"
             />
             <button
               type="button"
               onClick={handleSubmit}
               disabled={status === "loading"}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400 transition disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-brand px-5 py-3 text-sm font-black text-on-brand hover:bg-brand transition disabled:opacity-60"
             >
               {status === "loading" ? (
-                <span className="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full" />
+                <span className="animate-spin h-4 w-4 border-2 border-line border-t-white rounded-full" />
               ) : (
                 <Mail className="h-4 w-4" />
               )}
               Send it
             </button>
           </div>
-          {error ? <p className="mt-2 text-sm text-rose-300">{error}</p> : null}
-          <p className="mt-2 text-xs text-slate-600">
+          {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
+          <p className="mt-2 text-xs text-subtle">
             We store your email to send the report and follow-up tips. Unsubscribe anytime.
           </p>
         </div>
@@ -1903,35 +1903,35 @@ export default function ResultsPage() {
   );
   if (!mounted) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#050a12] px-5 text-white">
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 text-center">
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-200">Loading interview debrief</p>
-          <p className="mt-3 text-sm leading-6 text-slate-400">Checking your saved database report first, then falling back to this device if needed.</p>
+      <main className="grid min-h-screen place-items-center bg-canvas px-5 text-fg">
+        <div className="rounded-[2rem] border border-line bg-fg/[0.04] p-6 text-center">
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-brand">Loading interview debrief</p>
+          <p className="mt-3 text-sm leading-6 text-muted">Checking your saved database report first, then falling back to this device if needed.</p>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#050a12] px-5 py-8 text-white">
+    <main className="min-h-screen bg-canvas px-5 py-8 text-fg">
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
+            <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-2xl border border-line bg-fg/5 px-4 py-3 text-sm font-black text-fg hover:bg-fg/10">
               <ArrowLeft className="h-4 w-4" />
               New interview
             </Link>
-            <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-200 hover:bg-white/10">
+            <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-2xl border border-line bg-fg/5 px-4 py-3 text-sm font-black text-fg hover:bg-fg/10">
               Dashboard
             </Link>
           </div>
 
           <div className="flex items-center gap-3">
             <PremiumUsageBadge compact={false} label={isProPlan ? "Premium Pro report" : isPremium ? "Premium report" : "Free report"} />
-            <span className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+            <span className="rounded-2xl border border-line bg-fg/[0.04] px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-muted">
               {loadState === "db" ? "Synced report" : loadState === "local" ? "Local report" : loadState === "loading" ? "Loading" : "No saved report"}
             </span>
-            <Link href="/pricing" className="rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400">
+            <Link href="/pricing" className="rounded-2xl bg-brand px-5 py-3 text-sm font-black text-on-brand hover:bg-brand">
               {isPremium ? "Manage plan" : "Upgrade"}
             </Link>
           </div>
@@ -1949,18 +1949,18 @@ export default function ResultsPage() {
         <section className={cn(
           "mt-6 rounded-2xl border p-6",
           isProPlan
-            ? "border-violet-400/30 bg-gradient-to-br from-violet-500/20 via-violet-500/10 to-blue-500/10"
+            ? "border-brand/30 bg-gradient-to-br from-brand/20 via-brand/10 to-brand/10"
             : isPremium
-              ? "border-white/10 bg-gradient-to-br from-violet-500/15 via-blue-500/10 to-cyan-500/10"
-              : "border-white/10 bg-gradient-to-br from-slate-500/10 via-blue-500/8 to-cyan-500/8"
+              ? "border-line bg-gradient-to-br from-brand/15 via-brand/10 to-brand/10"
+              : "border-line bg-gradient-to-br from-slate-500/10 via-brand/8 to-brand/8"
         )}>
           <div className="flex flex-wrap items-center justify-between gap-6">
             <div className="flex-1 min-w-0">
               <div className={cn(
                 "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-black",
-                isProPlan ? "border-violet-300/25 bg-violet-300/10 text-violet-100"
-                : isPremium ? "border-amber-300/25 bg-amber-300/10 text-amber-100"
-                : "border-white/15 bg-white/[0.06] text-slate-300"
+                isProPlan ? "border-brand/25 bg-brand/10 text-brand"
+                : isPremium ? "border-warning/25 bg-warning/10 text-warning"
+                : "border-line bg-fg/[0.06] text-muted"
               )}>
                 {isProPlan ? <Star className="h-3.5 w-3.5" /> : isPremium ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
                 {isProPlan ? "Premium Pro Interview Debrief" : isPremium ? "Premium Interview Debrief" : "Free Interview Snapshot"}
@@ -1970,16 +1970,16 @@ export default function ResultsPage() {
                 {isPremium ? "Recruiter decision simulation" : "Your recruiter-style feedback report"}
               </h1>
 
-              <p className="mt-3 text-base leading-7 text-blue-100">
-                Current hiring confidence: <span className="font-black text-white">{report.decision}</span>. Biggest blocker: <span className="font-black text-white">{report.biggestBlocker}</span>.
+              <p className="mt-3 text-base leading-7 text-brand">
+                Current hiring confidence: <span className="font-black text-fg">{report.decision}</span>. Biggest blocker: <span className="font-black text-fg">{report.biggestBlocker}</span>.
               </p>
 
-              <p className="mt-2 text-sm leading-6 text-slate-300">{report.verdict}</p>
+              <p className="mt-2 text-sm leading-6 text-muted">{report.verdict}</p>
 
               {report.answersCount <= 1 && (
-                <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-2.5">
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
-                  <p className="text-xs leading-5 text-amber-100">
+                <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-warning/25 bg-warning/10 px-4 py-2.5">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+                  <p className="text-xs leading-5 text-warning">
                     <span className="font-black">Very short session.</span> Only {report.answersCount} answer was captured — this debrief may not reflect your full ability. Complete a full session for an accurate result.
                   </p>
                 </div>
@@ -1991,18 +1991,18 @@ export default function ResultsPage() {
         </section>
 
         {!isPremium && (
-          <div className="mt-4 rounded-2xl border border-violet-300/20 bg-gradient-to-r from-violet-500/10 to-blue-500/10 p-4">
+          <div className="mt-4 rounded-2xl border border-brand/20 bg-gradient-to-r from-brand/10 to-brand/10 p-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-400/15">
-                  <Lock className="h-4 w-4 text-violet-200" />
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand/15">
+                  <Lock className="h-4 w-4 text-brand" />
                 </div>
                 <div>
-                  <p className="text-sm font-black text-white">Premium unlocks the full debrief</p>
-                  <p className="mt-0.5 text-xs text-slate-400">Hiring committee memo · shadow scores · answer rewrites · targeted drills · full session history</p>
+                  <p className="text-sm font-black text-fg">Premium unlocks the full debrief</p>
+                  <p className="mt-0.5 text-xs text-muted">Hiring committee memo · shadow scores · answer rewrites · targeted drills · full session history</p>
                 </div>
               </div>
-              <a href="/pricing?intent=top-teaser" className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-black text-white hover:bg-violet-400 transition">
+              <a href="/pricing?intent=top-teaser" className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-black text-on-brand hover:bg-brand transition">
                 <Crown className="h-3.5 w-3.5" />
                 See Premium — €19/mo
               </a>
@@ -2021,22 +2021,22 @@ export default function ResultsPage() {
         </section>
 
 
-        <section className="mt-4 rounded-2xl border border-blue-300/15 bg-blue-500/[0.045] p-5">
+        <section className="mt-4 rounded-2xl border border-brand/15 bg-brand/[0.045] p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-200">Deep analysis</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-brand">Deep analysis</p>
               <h2 className="mt-1 text-lg font-black">{phaseB.companyDNA.label}</h2>
-              <p className="mt-1 max-w-4xl text-xs leading-5 text-slate-300">{phaseB.companyDNA.description}</p>
+              <p className="mt-1 max-w-4xl text-xs leading-5 text-muted">{phaseB.companyDNA.description}</p>
             </div>
-            <div className="grid h-14 w-14 place-items-center rounded-xl border border-blue-300/20 bg-black/25 text-center">
-              <p className="text-xl font-black text-blue-100">{phaseB.trustAudit.overall}</p>
-              <p className="-mt-1 text-[9px] font-black text-slate-500">TRUST</p>
+            <div className="grid h-14 w-14 place-items-center rounded-xl border border-brand/20 bg-canvas-soft text-center">
+              <p className="text-xl font-black text-brand">{phaseB.trustAudit.overall}</p>
+              <p className="-mt-1 text-[9px] font-black text-subtle">TRUST</p>
             </div>
           </div>
 
           <div className="mt-4 grid gap-3 lg:grid-cols-3">
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs font-black text-blue-100">Company DNA alignment</p>
+            <div className="rounded-xl border border-line bg-canvas-soft p-3">
+              <p className="text-xs font-black text-brand">Company DNA alignment</p>
               <div className="mt-3 space-y-3">
                 {phaseB.companyDNA.dimensions.map((item) => (
                   <Bar key={item.label} label={item.label} value={item.score} target={item.target} note={item.note} />
@@ -2044,23 +2044,23 @@ export default function ResultsPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs font-black text-emerald-200">Trust audit deductions</p>
+            <div className="rounded-xl border border-line bg-canvas-soft p-3">
+              <p className="text-xs font-black text-success">Trust audit deductions</p>
               <div className="mt-2 space-y-1.5">
                 {phaseB.trustAudit.deductions.map((item) => (
-                  <p key={item.label} className="text-xs leading-5 text-slate-300">
-                    <span className="font-black text-white">{item.delta >= 0 ? "+" : ""}{item.delta}</span> {item.label}: {item.reason}
+                  <p key={item.label} className="text-xs leading-5 text-muted">
+                    <span className="font-black text-fg">{item.delta >= 0 ? "+" : ""}{item.delta}</span> {item.label}: {item.reason}
                   </p>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs font-black text-amber-200">Cross-feature consistency</p>
-              <p className="mt-1 text-base font-black text-white">{phaseB.consistency.status}</p>
+            <div className="rounded-xl border border-line bg-canvas-soft p-3">
+              <p className="text-xs font-black text-warning">Cross-feature consistency</p>
+              <p className="mt-1 text-base font-black text-fg">{phaseB.consistency.status}</p>
               <div className="mt-2 space-y-1">
                 {phaseB.consistency.notes.map((item) => (
-                  <p key={item} className="text-xs leading-5 text-slate-300">• {item}</p>
+                  <p key={item} className="text-xs leading-5 text-muted">• {item}</p>
                 ))}
               </div>
             </div>
@@ -2099,55 +2099,55 @@ export default function ResultsPage() {
                 "it had the strongest evidence and structure";
 
               return (
-                <section className="mt-4 rounded-2xl border border-cyan-400/25 bg-gradient-to-br from-cyan-500/10 via-blue-500/8 to-slate-500/5 p-6">
-                  <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">The recruiter noticed</p>
-                  <h2 className="mt-3 text-2xl font-black tracking-tight text-white">
+                <section className="mt-4 rounded-2xl border border-brand/25 bg-gradient-to-br from-brand/10 via-brand/8 to-slate-500/5 p-6">
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-brand">The recruiter noticed</p>
+                  <h2 className="mt-3 text-2xl font-black tracking-tight text-fg">
                     Two moments that defined this interview
                   </h2>
 
                   <div className="mt-5 grid gap-4 sm:grid-cols-2">
                     {/* Best moment */}
-                    <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 p-5">
+                    <div className="rounded-xl border border-success/25 bg-success/10 p-5">
                       <div className="flex items-center justify-between">
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">Strongest answer</p>
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-success">Strongest answer</p>
                         {bestAnswer?.trustImpact != null && bestAnswer.trustImpact > 0 && (
-                          <span className="rounded-full bg-emerald-400/20 px-2.5 py-1 text-xs font-black text-emerald-200">+{bestAnswer.trustImpact} trust</span>
+                          <span className="rounded-full bg-success/20 px-2.5 py-1 text-xs font-black text-success">+{bestAnswer.trustImpact} trust</span>
                         )}
                       </div>
-                      <p className="mt-2 text-sm font-black text-white">Question {bestIdx}</p>
-                      <p className="mt-2 text-sm leading-6 text-emerald-100">
+                      <p className="mt-2 text-sm font-black text-fg">Question {bestIdx}</p>
+                      <p className="mt-2 text-sm leading-6 text-success">
                         This answer built recruiter confidence because {bestReason}.
                       </p>
                       {bestAnswer?.rewrite && (
-                        <p className="mt-3 rounded-lg bg-black/20 px-3 py-2 text-xs leading-5 text-slate-300">
+                        <p className="mt-3 rounded-lg bg-canvas-soft px-3 py-2 text-xs leading-5 text-muted">
                           Coach: {bestAnswer.rewrite}
                         </p>
                       )}
                     </div>
 
                     {/* Weakest moment */}
-                    <div className="rounded-xl border border-rose-400/20 bg-rose-400/[0.07] p-5">
+                    <div className="rounded-xl border border-danger/20 bg-danger/[0.07] p-5">
                       <div className="flex items-center justify-between">
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-rose-300">Where trust slipped</p>
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-danger">Where trust slipped</p>
                         {worstAnswer?.trustImpact != null && worstAnswer.trustImpact < 0 && (
-                          <span className="rounded-full bg-rose-400/20 px-2.5 py-1 text-xs font-black text-rose-200">{worstAnswer.trustImpact} trust</span>
+                          <span className="rounded-full bg-danger/20 px-2.5 py-1 text-xs font-black text-danger">{worstAnswer.trustImpact} trust</span>
                         )}
                       </div>
-                      <p className="mt-2 text-sm font-black text-white">Question {worstIdx}</p>
-                      <p className="mt-2 text-sm leading-6 text-rose-100">
+                      <p className="mt-2 text-sm font-black text-fg">Question {worstIdx}</p>
+                      <p className="mt-2 text-sm leading-6 text-danger">
                         Trust dropped here because {worstReason}.
                       </p>
                       {worstAnswer?.rewrite && (
-                        <p className="mt-3 rounded-lg bg-black/20 px-3 py-2 text-xs leading-5 text-slate-300">
+                        <p className="mt-3 rounded-lg bg-canvas-soft px-3 py-2 text-xs leading-5 text-muted">
                           Coach: {worstAnswer.rewrite}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-xl border border-cyan-400/15 bg-black/20 px-4 py-3">
-                    <p className="text-xs leading-5 text-slate-300">
-                      <span className="font-black text-white">Quick win: </span>{report.quickWin}
+                  <div className="mt-4 rounded-xl border border-brand/15 bg-canvas-soft px-4 py-3">
+                    <p className="text-xs leading-5 text-muted">
+                      <span className="font-black text-fg">Quick win: </span>{report.quickWin}
                     </p>
                   </div>
                 </section>
@@ -2156,22 +2156,22 @@ export default function ResultsPage() {
 
             {/* ── Delivery stats — after the personal moment, not before ── */}
             <section className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-                <h2 className="flex items-center gap-2 text-base font-black"><ShieldCheck className="h-4 w-4 text-emerald-300" />Delivery signals</h2>
-                <p className="mt-2 text-xs leading-5 text-slate-400">Estimated from transcript length, word count, and filler word detection.</p>
+              <div className="rounded-2xl border border-line bg-fg/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><ShieldCheck className="h-4 w-4 text-success" />Delivery signals</h2>
+                <p className="mt-2 text-xs leading-5 text-muted">Estimated from transcript length, word count, and filler word detection.</p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-4">
-                  <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-slate-400">Speaking pace</p><p className="mt-1.5 text-xl font-black">{report.averageWpm || "—"} <span className="text-sm text-slate-400">WPM</span></p><p className="mt-0.5 text-[10px] text-slate-500">{report.averageWpm ? (report.averageWpm >= 110 && report.averageWpm <= 170 ? "Good pace" : report.averageWpm < 110 ? "Too slow" : "Too fast") : "Not measured"}</p></div>
+                  <div className="rounded-xl bg-canvas-soft p-3"><p className="text-xs text-muted">Speaking pace</p><p className="mt-1.5 text-xl font-black">{report.averageWpm || "—"} <span className="text-sm text-muted">WPM</span></p><p className="mt-0.5 text-[10px] text-subtle">{report.averageWpm ? (report.averageWpm >= 110 && report.averageWpm <= 170 ? "Good pace" : report.averageWpm < 110 ? "Too slow" : "Too fast") : "Not measured"}</p></div>
                   {(result.fillerWordCount ?? 0) >= 0 && (
-                    <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-slate-400">Filler words</p><p className="mt-1.5 text-xl font-black">{result.fillerWordCount ?? 0}</p><p className="mt-0.5 text-[10px] text-slate-500">{(result.fillerWordCount ?? 0) === 0 ? "None detected" : (result.fillerWordCount ?? 0) <= 3 ? "Low — good" : (result.fillerWordCount ?? 0) <= 8 ? "Moderate" : "High — work on this"}</p></div>
+                    <div className="rounded-xl bg-canvas-soft p-3"><p className="text-xs text-muted">Filler words</p><p className="mt-1.5 text-xl font-black">{result.fillerWordCount ?? 0}</p><p className="mt-0.5 text-[10px] text-subtle">{(result.fillerWordCount ?? 0) === 0 ? "None detected" : (result.fillerWordCount ?? 0) <= 3 ? "Low — good" : (result.fillerWordCount ?? 0) <= 8 ? "Moderate" : "High — work on this"}</p></div>
                   )}
-                  <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-slate-400">Duration</p><p className="mt-1.5 text-xl font-black">{report.durationLabel}</p></div>
-                  <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-slate-400">Answers</p><p className="mt-1.5 text-xl font-black">{report.answersCount}</p></div>
+                  <div className="rounded-xl bg-canvas-soft p-3"><p className="text-xs text-muted">Duration</p><p className="mt-1.5 text-xl font-black">{report.durationLabel}</p></div>
+                  <div className="rounded-xl bg-canvas-soft p-3"><p className="text-xs text-muted">Answers</p><p className="mt-1.5 text-xl font-black">{report.answersCount}</p></div>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-                <h2 className="flex items-center gap-2 text-base font-black"><CheckCircle2 className="h-4 w-4 text-emerald-300" />What landed</h2>
-                <div className="mt-3 space-y-2">{report.strengths.map((item) => <p key={item} className="rounded-xl bg-emerald-400/10 px-3 py-2 text-xs leading-5 text-emerald-50">{item}</p>)}</div>
+              <div className="rounded-2xl border border-line bg-fg/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><CheckCircle2 className="h-4 w-4 text-success" />What landed</h2>
+                <div className="mt-3 space-y-2">{report.strengths.map((item) => <p key={item} className="rounded-xl bg-success/10 px-3 py-2 text-xs leading-5 text-success">{item}</p>)}</div>
               </div>
             </section>
 
@@ -2179,9 +2179,9 @@ export default function ResultsPage() {
 
             <UpgradeStrip roleLabel={report.roleLabel} />
 
-            <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-              <h2 className="flex items-center gap-2 text-base font-black"><Target className="h-4 w-4 text-blue-300" />What needs work</h2>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">{report.improvements.map((item) => <p key={item} className="rounded-xl bg-blue-400/10 px-3 py-2 text-xs leading-5 text-blue-50">{item}</p>)}</div>
+            <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
+              <h2 className="flex items-center gap-2 text-base font-black"><Target className="h-4 w-4 text-brand" />What needs work</h2>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">{report.improvements.map((item) => <p key={item} className="rounded-xl bg-brand/10 px-3 py-2 text-xs leading-5 text-brand">{item}</p>)}</div>
             </section>
 
             <RealBlurredInsights
@@ -2201,15 +2201,15 @@ export default function ResultsPage() {
         ) : (
           <>
             <section className="mt-4 grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-                <h2 className="flex items-center gap-2 text-base font-black"><BarChart3 className="h-4 w-4 text-cyan-300" />Benchmarking and company DNA</h2>
-                <p className="mt-2 text-xs leading-5 text-slate-300">{report.companyDNA.description}</p>
-                <div className="mt-3 rounded-xl bg-blue-400/10 px-3 py-2 text-xs font-black text-blue-100">{report.companyDNA.label}</div>
+              <div className="rounded-2xl border border-line bg-fg/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><BarChart3 className="h-4 w-4 text-brand" />Benchmarking and company DNA</h2>
+                <p className="mt-2 text-xs leading-5 text-muted">{report.companyDNA.description}</p>
+                <div className="mt-3 rounded-xl bg-brand/10 px-3 py-2 text-xs font-black text-brand">{report.companyDNA.label}</div>
                 <div className="mt-4 space-y-3">{report.companyDNA.dimensions.map((item) => <Bar key={item.label} label={item.label} value={item.score} target={item.target} note={item.note} />)}</div>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-                <h2 className="flex items-center gap-2 text-base font-black"><ShieldCheck className="h-4 w-4 text-amber-200" />Trust and integrity audit</h2>
+              <div className="rounded-2xl border border-line bg-fg/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><ShieldCheck className="h-4 w-4 text-warning" />Trust and integrity audit</h2>
                 <div className="mt-4 space-y-3">
                   <Bar label="Credibility" value={report.trustScore} note="Evidence, consistency, and recruiter confidence." />
                   <Bar label="Evidence Quality" value={report.evidenceQuality} note="Metrics, ownership, and result clarity." />
@@ -2217,7 +2217,7 @@ export default function ResultsPage() {
                 </div>
                 <div className="mt-4 space-y-2">
                   {report.trustDeductions.map((item) => (
-                    <div key={item.label} className={cn("flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold", item.tone === "negative" ? "bg-rose-400/10 text-rose-100" : "bg-emerald-400/10 text-emerald-100")}>
+                    <div key={item.label} className={cn("flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold", item.tone === "negative" ? "bg-danger/10 text-danger" : "bg-success/10 text-success")}>
                       <span>{item.label}</span>
                       <span>{item.value > 0 ? `+${item.value}` : item.value} pts</span>
                     </div>
@@ -2226,61 +2226,61 @@ export default function ResultsPage() {
               </div>
             </section>
 
-            <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-              <h2 className="flex items-center gap-2 text-base font-black"><TrendingUp className="h-4 w-4 text-blue-300" />Top 10% candidate overlay</h2>
+            <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
+              <h2 className="flex items-center gap-2 text-base font-black"><TrendingUp className="h-4 w-4 text-brand" />Top 10% candidate overlay</h2>
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 {report.benchmark.map((item) => (
-                  <div key={item.label} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                    <p className="text-sm font-black text-white">{item.label}</p>
+                  <div key={item.label} className="rounded-xl border border-line bg-canvas-soft p-3">
+                    <p className="text-sm font-black text-fg">{item.label}</p>
                     <div className="mt-3 space-y-2">
                       <Bar label="You" value={item.user} />
                       <Bar label="Top 10%" value={item.top} />
                     </div>
-                    <p className="mt-3 text-xs leading-5 text-slate-400">{item.note}</p>
+                    <p className="mt-3 text-xs leading-5 text-muted">{item.note}</p>
                   </div>
                 ))}
               </div>
             </section>
 
             <section className="mt-4 grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-                <h2 className="flex items-center gap-2 text-base font-black"><Flag className="h-4 w-4 text-rose-300" />Red flags and evidence requests</h2>
+              <div className="rounded-2xl border border-line bg-fg/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><Flag className="h-4 w-4 text-danger" />Red flags and evidence requests</h2>
                 <div className="mt-4 space-y-2">
-                  {report.redFlags.length ? report.redFlags.map((item) => <p key={item} className="rounded-xl bg-rose-400/10 px-3 py-2 text-xs leading-5 text-rose-50">{item}</p>) : (
+                  {report.redFlags.length ? report.redFlags.map((item) => <p key={item} className="rounded-xl bg-danger/10 px-3 py-2 text-xs leading-5 text-danger">{item}</p>) : (
                     <div className="space-y-2">
-                      <p className="rounded-xl bg-emerald-400/10 px-3 py-2 text-xs leading-5 text-emerald-50">No critical red flag detected in captured answers.</p>
-                      {["No blame-shifting language detected", "No toxic communication pattern detected", "No major contradiction detected", "Professional communication tone maintained"].map((item) => <p key={item} className="flex items-center gap-2 text-xs text-slate-300"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />{item}</p>)}
+                      <p className="rounded-xl bg-success/10 px-3 py-2 text-xs leading-5 text-success">No critical red flag detected in captured answers.</p>
+                      {["No blame-shifting language detected", "No toxic communication pattern detected", "No major contradiction detected", "Professional communication tone maintained"].map((item) => <p key={item} className="flex items-center gap-2 text-xs text-muted"><CheckCircle2 className="h-3.5 w-3.5 text-success" />{item}</p>)}
                     </div>
                   )}
                 </div>
                 <div className="mt-3 space-y-2">
-                  {report.evidenceRequests.map((item) => <p key={item} className="rounded-xl bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-50">Recruiter would ask: {item}</p>)}
+                  {report.evidenceRequests.map((item) => <p key={item} className="rounded-xl bg-warning/10 px-3 py-2 text-xs leading-5 text-warning">Recruiter would ask: {item}</p>)}
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-                <h2 className="flex items-center gap-2 text-base font-black"><Wand2 className="h-4 w-4 text-violet-300" />Improvement roadmap</h2>
+              <div className="rounded-2xl border border-line bg-fg/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><Wand2 className="h-4 w-4 text-brand" />Improvement roadmap</h2>
                 <div className="mt-4 space-y-3">
                   {report.improvementPlan.map((item) => (
-                    <div key={item.priority} className="rounded-xl bg-violet-400/10 p-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-200">{item.priority} · {item.gain}</p>
-                      <h3 className="mt-1 text-sm font-black text-white">{item.title}</h3>
-                      <p className="mt-1 text-xs leading-5 text-slate-300">{item.action}</p>
+                    <div key={item.priority} className="rounded-xl bg-brand/10 p-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-brand">{item.priority} · {item.gain}</p>
+                      <h3 className="mt-1 text-sm font-black text-fg">{item.title}</h3>
+                      <p className="mt-1 text-xs leading-5 text-muted">{item.action}</p>
                     </div>
                   ))}
                 </div>
               </div>
             </section>
 
-            <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-              <h2 className="flex items-center gap-2 text-base font-black"><Eye className="h-4 w-4 text-blue-300" />Delivery signals</h2>
-              <p className="mt-1 text-xs leading-5 text-slate-400">Estimated from transcript length, word count, and filler word detection.</p>
+            <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
+              <h2 className="flex items-center gap-2 text-base font-black"><Eye className="h-4 w-4 text-brand" />Delivery signals</h2>
+              <p className="mt-1 text-xs leading-5 text-muted">Estimated from transcript length, word count, and filler word detection.</p>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 {report.audioSignals.map((item) => (
-                  <div key={item.label} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
-                    <p className="mt-1.5 text-2xl font-black text-white">{item.value}</p>
-                    <p className={cn("mt-1 text-[10px] font-black uppercase tracking-[0.14em]", item.risk === "high" ? "text-rose-300" : item.risk === "medium" ? "text-amber-300" : "text-emerald-300")}>{item.risk} risk</p>
+                  <div key={item.label} className="rounded-xl border border-line bg-canvas-soft p-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-subtle">{item.label}</p>
+                    <p className="mt-1.5 text-2xl font-black text-fg">{item.value}</p>
+                    <p className={cn("mt-1 text-[10px] font-black uppercase tracking-[0.14em]", item.risk === "high" ? "text-danger" : item.risk === "medium" ? "text-warning" : "text-success")}>{item.risk} risk</p>
                   </div>
                 ))}
               </div>
@@ -2289,8 +2289,8 @@ export default function ResultsPage() {
             <WhatTheyHeardSection items={report.whatTheyHeard} />
             <TargetedDrillsSection drills={report.targetedDrills} />
 
-            <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-              <h2 className="flex items-center gap-2 text-base font-black"><MessageSquareText className="h-4 w-4 text-cyan-300" />Answer-by-answer coaching debrief</h2>
+            <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
+              <h2 className="flex items-center gap-2 text-base font-black"><MessageSquareText className="h-4 w-4 text-brand" />Answer-by-answer coaching debrief</h2>
               <div className="mt-4 space-y-3">
                 {report.answerInsights.map((item, index) => <TranscriptCard key={item.id} item={item} index={index} />)}
               </div>
@@ -2316,11 +2316,11 @@ export default function ResultsPage() {
           <WorkZoPremiumProSuitePanel source="results" report={report as unknown as Record<string, unknown>} />
         </section>
 
-        <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+        <section className="mt-5 rounded-2xl border border-line bg-fg/[0.035] p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-black text-white">What to do next</p>
-              <p className="mt-1.5 text-sm leading-5 text-slate-400">Retry the interview using the improvement roadmap and compare your next score.</p>
+              <p className="font-black text-fg">What to do next</p>
+              <p className="mt-1.5 text-sm leading-5 text-muted">Retry the interview using the improvement roadmap and compare your next score.</p>
 
               {/* Shareable moment card — viral mechanic */}
               {mounted && (() => {
@@ -2330,10 +2330,10 @@ export default function ResultsPage() {
                   const moment = JSON.parse(raw) as { shouldHighlight: boolean; shareTitle: string; shareText: string; category: string };
                   if (!moment.shouldHighlight) return null;
                   return (
-                    <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-500/[0.07] p-5">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">Memorable moment</p>
-                      <h3 className="mt-2 text-lg font-black text-white">{moment.shareTitle}</h3>
-                      <p className="mt-2 text-sm leading-6 text-slate-300">{moment.shareText}</p>
+                    <div className="mt-5 rounded-2xl border border-brand/20 bg-brand/[0.07] p-5">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-brand">Memorable moment</p>
+                      <h3 className="mt-2 text-lg font-black text-fg">{moment.shareTitle}</h3>
+                      <p className="mt-2 text-sm leading-6 text-muted">{moment.shareText}</p>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -2348,7 +2348,7 @@ export default function ResultsPage() {
                             navigator.clipboard.writeText(text).then(done).catch(done);
                           }
                         }}
-                        className="mt-4 inline-flex items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-black text-cyan-200 hover:bg-cyan-400/20"
+                        className="mt-4 inline-flex items-center gap-2 rounded-xl border border-brand/20 bg-brand/10 px-4 py-2 text-sm font-black text-brand hover:bg-brand/20"
                       >
                         Share this moment
                       </button>
@@ -2357,7 +2357,7 @@ export default function ResultsPage() {
                 } catch { return null; }
               })()}
             </div>
-            <Link href="/onboarding" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 hover:bg-slate-200">
+            <Link href="/onboarding" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-fg px-5 py-4 text-sm font-black text-canvas hover:bg-brand hover:text-on-brand">
               <RefreshCcw className="h-4 w-4" /> Retry interview
             </Link>
           </div>

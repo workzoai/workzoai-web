@@ -1,42 +1,111 @@
 @import "tailwindcss";
 
-/* WorkZo AI — global design tokens */
+/* Class-based dark variant: `.dark` on <html> activates `dark:` utilities */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* WorkZo AI — global design tokens
+   Light is the default; .dark overrides the same vars.
+   Brand blue (#2563EB) is constant across both themes. */
 
 :root {
-  --wz-bg: #050816;
-  --wz-bg-soft: #06111f;
-  --wz-card: rgba(255, 255, 255, 0.045);
-  --wz-card-strong: rgba(8, 14, 28, 0.78);
-  --wz-border: rgba(255, 255, 255, 0.10);
-  --wz-border-soft: rgba(255, 255, 255, 0.06);
+  /* surfaces */
+  --wz-canvas: #ffffff;
+  --wz-canvas-soft: #f5f7fb;
+  --wz-surface: #ffffff;
+  --wz-surface-2: #f8fafc;
+  --wz-line: rgba(15, 23, 42, 0.10);
+  --wz-line-soft: rgba(15, 23, 42, 0.06);
 
-  --wz-blue: #3b82f6;
-  --wz-cyan: #22d3ee;
-  --wz-violet: #8b5cf6;
-  --wz-emerald: #34d399;
-  --wz-amber: #fbbf24;
-  --wz-red: #fb7185;
+  /* text */
+  --wz-fg: #0b1220;
+  --wz-muted: #475569;
+  --wz-subtle: #94a3b8;
 
+  /* brand */
+  --wz-brand: #2563eb;
+  --wz-brand-strong: #1d4ed8;
+  --wz-on-brand: #ffffff;
+
+  /* status */
+  --wz-success: #059669;
+  --wz-warning: #d97706;
+  --wz-danger: #e11d48;
+
+  /* radii */
   --wz-radius-sm: 14px;
   --wz-radius-md: 18px;
   --wz-radius-lg: 24px;
   --wz-radius-xl: 30px;
 
-  --wz-shadow-card: 0 22px 80px rgba(0, 0, 0, 0.28);
-  --wz-shadow-soft: 0 14px 44px rgba(0, 0, 0, 0.20);
+  /* effects */
+  --wz-shadow-card: 0 10px 40px rgba(15, 23, 42, 0.08);
+  --wz-shadow-soft: 0 6px 24px rgba(15, 23, 42, 0.06);
+  --wz-gradient-primary: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  --wz-gradient-bg: linear-gradient(180deg, #ffffff 0%, #f5f7fb 100%);
 
-  --wz-gradient-primary: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-  --wz-gradient-bg: linear-gradient(180deg, #06111f 0%, #050816 100%);
+  /* legacy aliases (kept so any stragglers still resolve) */
+  --wz-bg: var(--wz-canvas);
+  --wz-bg-soft: var(--wz-canvas-soft);
+  --wz-card: var(--wz-surface);
+  --wz-card-strong: var(--wz-surface-2);
+  --wz-border: var(--wz-line);
+  --wz-border-soft: var(--wz-line-soft);
+  --wz-blue: var(--wz-brand);
+}
+
+.dark {
+  --wz-canvas: #171921;
+  --wz-canvas-soft: #000000;
+  --wz-surface: #1d2030;
+  --wz-surface-2: #0b0d14;
+  --wz-line: rgba(255, 255, 255, 0.10);
+  --wz-line-soft: rgba(255, 255, 255, 0.06);
+
+  --wz-fg: #f8fafc;
+  --wz-muted: #94a3b8;
+  --wz-subtle: #64748b;
+
+  --wz-brand: #3b82f6;
+  --wz-brand-strong: #2563eb;
+  --wz-on-brand: #ffffff;
+
+  --wz-success: #34d399;
+  --wz-warning: #fbbf24;
+  --wz-danger: #fb7185;
+
+  --wz-shadow-card: 0 22px 80px rgba(0, 0, 0, 0.45);
+  --wz-shadow-soft: 0 14px 44px rgba(0, 0, 0, 0.30);
+  --wz-gradient-bg: linear-gradient(180deg, #171921 0%, #000000 100%);
+}
+
+/* Expose tokens as Tailwind utilities (inline = resolved at use-site,
+   so `.dark` overrides take effect). Yields bg-canvas, text-fg, bg-brand, etc. */
+@theme inline {
+  --color-canvas: var(--wz-canvas);
+  --color-canvas-soft: var(--wz-canvas-soft);
+  --color-surface: var(--wz-surface);
+  --color-surface-2: var(--wz-surface-2);
+  --color-line: var(--wz-line);
+  --color-line-soft: var(--wz-line-soft);
+  --color-fg: var(--wz-fg);
+  --color-muted: var(--wz-muted);
+  --color-subtle: var(--wz-subtle);
+  --color-brand: var(--wz-brand);
+  --color-brand-strong: var(--wz-brand-strong);
+  --color-on-brand: var(--wz-on-brand);
+  --color-success: var(--wz-success);
+  --color-warning: var(--wz-warning);
+  --color-danger: var(--wz-danger);
 }
 
 html {
-  background: #050816;
+  background: var(--wz-canvas);
 }
 
 body {
   margin: 0;
-  background: #050816;
-  color: white;
+  background: var(--wz-canvas);
+  color: var(--wz-fg);
 }
 
 * {
@@ -74,17 +143,17 @@ a {
   min-height: 48px;
   border-radius: 18px;
   background: var(--wz-gradient-primary);
-  color: white;
+  color: var(--wz-on-brand);
   font-weight: 900;
-  box-shadow: 0 16px 44px rgba(59, 130, 246, 0.28);
+  box-shadow: 0 16px 44px rgba(37, 99, 235, 0.28);
 }
 
 .wz-secondary-button {
   min-height: 48px;
   border-radius: 18px;
-  border: 1px solid var(--wz-border);
-  background: rgba(255, 255, 255, 0.045);
-  color: white;
+  border: 1px solid var(--wz-line);
+  background: var(--wz-surface-2);
+  color: var(--wz-fg);
   font-weight: 800;
 }
 
@@ -96,7 +165,7 @@ a {
 }
 
 .wz-body-muted {
-  color: rgb(148 163 184);
+  color: var(--wz-muted);
   line-height: 1.7;
 }
 
@@ -141,9 +210,9 @@ a {
     position: sticky;
     bottom: env(safe-area-inset-bottom);
     z-index: 50;
-    background: rgba(5, 8, 22, 0.94);
+    background: var(--wz-canvas);
     backdrop-filter: blur(18px);
-    border-top: 1px solid var(--wz-border);
+    border-top: 1px solid var(--wz-line);
   }
 
   .wz-mobile-light {

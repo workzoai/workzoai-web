@@ -47,7 +47,7 @@ export default function LanguageSelector({ value, onChange, compact = false, cla
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.06] text-white backdrop-blur transition hover:bg-white/[0.12]",
+          "inline-flex items-center gap-1.5 rounded-xl border border-line bg-fg/[0.06] text-fg backdrop-blur transition hover:bg-fg/[0.12]",
           compact ? "px-2.5 py-2 text-xs font-bold" : "px-3.5 py-2.5 text-sm font-bold",
         )}
       >
@@ -58,11 +58,11 @@ export default function LanguageSelector({ value, onChange, compact = false, cla
               <span>{selected.nativeLabel}</span>
             </>
         }
-        <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("h-3.5 w-3.5 text-muted transition-transform", open && "rotate-180")} />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-lg border border-white/10 bg-[#071120]/95 py-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl">
+        <div className="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-lg border border-line bg-canvas/95 py-1.5 shadow-2xl shadow-black/40 backdrop-blur-xl">
           {APP_LANGUAGES.map((lang) => (
             <button
               key={lang.code}
@@ -71,15 +71,15 @@ export default function LanguageSelector({ value, onChange, compact = false, cla
               className={cn(
                 "flex w-full items-center gap-2.5 px-3.5 py-2 text-sm transition",
                 lang.code === current
-                  ? "bg-blue-500/20 font-black text-white"
-                  : "font-bold text-slate-300 hover:bg-white/10 hover:text-white",
+                  ? "bg-brand/20 font-black text-on-brand"
+                  : "font-bold text-muted hover:bg-fg/10 hover:text-fg",
               )}
             >
-              <span className="inline-flex h-5 w-7 shrink-0 items-center justify-center rounded-[3px] bg-white/10 text-[9px] font-black tracking-wide text-slate-300">
+              <span className="inline-flex h-5 w-7 shrink-0 items-center justify-center rounded-[3px] bg-fg/10 text-[9px] font-black tracking-wide text-muted">
                 {lang.code.toUpperCase()}
               </span>
               <span>{lang.nativeLabel}</span>
-              <span className="ml-auto text-xs text-slate-500">{lang.label}</span>
+              <span className="ml-auto text-xs text-subtle">{lang.label}</span>
             </button>
           ))}
         </div>

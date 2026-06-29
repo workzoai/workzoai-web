@@ -86,11 +86,11 @@ function effectiveDuration(session: SessionRow): number {
 }
 
 function scoreTone(score?: number | null) {
-  if (score == null) return "text-slate-300";
-  if (score >= 78) return "text-emerald-300";
-  if (score >= 65) return "text-blue-300";
-  if (score >= 50) return "text-amber-300";
-  return "text-red-300";
+  if (score == null) return "text-muted";
+  if (score >= 78) return "text-success";
+  if (score >= 65) return "text-brand";
+  if (score >= 50) return "text-warning";
+  return "text-danger";
 }
 
 function getVerdictText(session: SessionRow) {
@@ -111,19 +111,19 @@ export default async function HistoryPage() {
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-[#050b14] px-5 py-8 text-white">
+      <main className="min-h-screen bg-canvas px-5 py-8 text-fg">
         <HistoryAnalyticsPing isSignedIn={false} savedCount={0} />
         <div className="mx-auto max-w-4xl">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm text-muted hover:text-fg">
             <ArrowLeft className="h-4 w-4" />
             Back to home
           </Link>
 
-          <section className="mt-10 rounded-3xl border border-white/10 bg-white/[0.03] p-8">
-            <LockKeyhole className="h-8 w-8 text-blue-200" />
+          <section className="mt-10 rounded-3xl border border-line bg-fg/[0.03] p-8">
+            <LockKeyhole className="h-8 w-8 text-brand" />
             <h1 className="mt-4 text-3xl font-black">Sign in to view history</h1>
-            <p className="mt-3 text-slate-300">Your saved interview reports will appear here after login.</p>
-            <Link href="/login?redirect=/history" className="mt-6 inline-flex rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black">
+            <p className="mt-3 text-muted">Your saved interview reports will appear here after login.</p>
+            <Link href="/login?redirect=/history" className="mt-6 inline-flex rounded-2xl bg-brand px-5 py-3 text-sm font-black">
               Sign in
             </Link>
           </section>
@@ -146,92 +146,92 @@ export default async function HistoryPage() {
   const isProPlan = plan === "premium_pro";
 
   return (
-    <main className="min-h-screen bg-[#050b14] px-4 py-6 text-white sm:px-6">
+    <main className="min-h-screen bg-canvas px-4 py-6 text-fg sm:px-6">
       <HistoryAnalyticsPing isSignedIn={true} savedCount={rows.length} />
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white">
+          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted hover:text-fg">
             <ArrowLeft className="h-4 w-4" />
             Dashboard
           </Link>
-          <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-black text-white hover:bg-blue-400">
+          <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-black text-on-brand hover:bg-brand">
             <RotateCcw className="h-4 w-4" />
             New interview
           </Link>
         </div>
 
         <section className={`mt-6 rounded-xl border p-5 sm:p-7 ${
-          isProPlan ? "border-violet-300/20 bg-gradient-to-br from-violet-500/15 via-violet-500/8 to-white/[0.03]"
-          : isPaidPlan ? "border-blue-300/15 bg-gradient-to-br from-blue-500/12 via-violet-500/8 to-white/[0.03]"
-          : "border-white/10 bg-gradient-to-br from-blue-500/10 via-violet-500/6 to-white/[0.03]"
+          isProPlan ? "border-brand/20 bg-gradient-to-br from-brand/15 via-brand/8 to-white/[0.03]"
+          : isPaidPlan ? "border-brand/15 bg-gradient-to-br from-brand/12 via-brand/8 to-white/[0.03]"
+          : "border-line bg-gradient-to-br from-brand/10 via-brand/6 to-white/[0.03]"
         }`}>
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className={`text-xs font-bold uppercase tracking-[0.18em] ${isProPlan ? "text-violet-300" : "text-blue-200"}`}>
+              <p className={`text-xs font-bold uppercase tracking-[0.18em] ${isProPlan ? "text-brand" : "text-brand"}`}>
                 {isProPlan ? "Premium Pro · Unlimited history" : isPaidPlan ? "Premium · Full history" : "Free plan · 3 sessions"}
               </p>
               <h1 className="mt-2 text-3xl font-black sm:text-4xl">Interview History</h1>
-              <p className="mt-2 max-w-2xl text-slate-300">
+              <p className="mt-2 max-w-2xl text-muted">
                 Review your past interview reports, scores, recruiter signals, and weakest moments.
               </p>
             </div>
 
             <div className="grid grid-cols-3 gap-3 sm:min-w-[360px]">
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                <p className="text-xs text-slate-400">Sessions</p>
+              <div className="rounded-2xl border border-line bg-canvas-soft p-3">
+                <p className="text-xs text-muted">Sessions</p>
                 <p className="mt-1 text-2xl font-black">{rows.length}</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                <p className="text-xs text-slate-400">Visible</p>
+              <div className="rounded-2xl border border-line bg-canvas-soft p-3">
+                <p className="text-xs text-muted">Visible</p>
                 <p className="mt-1 text-2xl font-black">{displayRows.length}</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                <p className="text-xs text-slate-400">Plan</p>
-                <p className={`mt-1 truncate text-sm font-black ${isProPlan ? "text-violet-300" : isPaidPlan ? "text-blue-300" : "text-slate-400"}`}>{planLimits.label}</p>
+              <div className="rounded-2xl border border-line bg-canvas-soft p-3">
+                <p className="text-xs text-muted">Plan</p>
+                <p className={`mt-1 truncate text-sm font-black ${isProPlan ? "text-brand" : isPaidPlan ? "text-brand" : "text-muted"}`}>{planLimits.label}</p>
               </div>
             </div>
           </div>
         </section>
 
         {error ? (
-          <section className="mt-5 rounded-3xl border border-red-300/20 bg-red-400/[0.07] p-5 text-red-100">
+          <section className="mt-5 rounded-3xl border border-danger/20 bg-danger/[0.07] p-5 text-danger">
             <h2 className="font-black">Could not load interview history</h2>
             <p className="mt-2 text-sm leading-6">{error.message}</p>
           </section>
         ) : null}
 
         {rows.length === 0 && !error ? (
-          <section className="mt-5 rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-center">
-            <ShieldCheck className="mx-auto h-10 w-10 text-blue-200" />
+          <section className="mt-5 rounded-3xl border border-line bg-fg/[0.03] p-8 text-center">
+            <ShieldCheck className="mx-auto h-10 w-10 text-brand" />
             <h2 className="mt-4 text-2xl font-black">No saved interviews yet</h2>
-            <p className="mx-auto mt-3 max-w-xl text-slate-300">
+            <p className="mx-auto mt-3 max-w-xl text-muted">
               Complete an interview while signed in. Your report will be saved here automatically after the Results page opens.
             </p>
-            <Link href="/interview" className="mt-6 inline-flex rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black">
+            <Link href="/interview" className="mt-6 inline-flex rounded-2xl bg-brand px-5 py-3 text-sm font-black">
               Start interview
             </Link>
           </section>
         ) : null}
 
         {hiddenCount > 0 && !isPaidPlan ? (
-          <section className="mt-5 rounded-3xl border border-blue-300/20 bg-blue-500/[0.07] p-6">
+          <section className="mt-5 rounded-3xl border border-brand/20 bg-brand/[0.07] p-6">
             <div className="flex items-start gap-4">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-blue-400/15 text-blue-200">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-brand/15 text-brand">
                 <Lock className="h-5 w-5" />
               </div>
               <div className="flex-1">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-300">Free plan — limited history</p>
-                <h2 className="mt-2 text-xl font-black text-white">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-brand">Free plan — limited history</p>
+                <h2 className="mt-2 text-xl font-black text-fg">
                   {hiddenCount} older interview{hiddenCount === 1 ? "" : "s"} are locked
                 </h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
                   Free shows your 3 most recent sessions. Premium unlocks full unlimited history, cross-session patterns, performance trends, and long-term tracking.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <Link href="/pricing?plan=premium" className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-5 py-3 text-sm font-black text-white hover:bg-blue-400">
+                  <Link href="/pricing?plan=premium" className="inline-flex items-center gap-2 rounded-2xl bg-brand px-5 py-3 text-sm font-black text-on-brand hover:bg-brand">
                     <Crown className="h-4 w-4" /> Unlock with Premium
                   </Link>
-                  <Link href="/pricing?plan=premium_pro" className="inline-flex items-center gap-2 rounded-2xl border border-violet-300/20 bg-violet-500/10 px-5 py-3 text-sm font-black text-violet-200 hover:bg-violet-500/20">
+                  <Link href="/pricing?plan=premium_pro" className="inline-flex items-center gap-2 rounded-2xl border border-brand/20 bg-brand/10 px-5 py-3 text-sm font-black text-brand hover:bg-brand/20">
                     <Star className="h-4 w-4" /> Or get Premium Pro
                   </Link>
                 </div>
@@ -240,8 +240,8 @@ export default async function HistoryPage() {
 
             <div className="mt-5 grid gap-3 md:grid-cols-3">
               {["Full interview history", "Cross-session pattern tracking", "Score and trust trend charts"].map((item) => (
-                <div key={item} className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-slate-400">
-                  <Lock className="mb-2 h-4 w-4 text-blue-300/50" />
+                <div key={item} className="rounded-2xl border border-line bg-canvas-soft p-3 text-sm text-muted">
+                  <Lock className="mb-2 h-4 w-4 text-brand/50" />
                   {item}
                 </div>
               ))}
@@ -251,10 +251,10 @@ export default async function HistoryPage() {
 
         <section className="mt-5 grid gap-4">
           {displayRows.map((session) => (
-            <article key={session.id} className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 transition hover:bg-white/[0.05]">
+            <article key={session.id} className="rounded-3xl border border-line bg-fg/[0.03] p-5 transition hover:bg-fg/[0.05]">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-subtle">
                     <span className="inline-flex items-center gap-1">
                       <CalendarDays className="h-3.5 w-3.5" />
                       {formatDate(session.created_at)}
@@ -264,38 +264,38 @@ export default async function HistoryPage() {
                   </div>
 
                   <h2 className="mt-2 text-2xl font-black">{session.target_role || "Interview Practice"}</h2>
-                  <p className="mt-1 text-sm text-slate-300">
+                  <p className="mt-1 text-sm text-muted">
                     {session.recruiter_name || "AI Recruiter"}
                     {session.recruiter_title ? ` · ${session.recruiter_title}` : ""}
                     {session.target_company ? ` · ${session.target_company}` : ""}
                   </p>
 
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">{getVerdictText(session)}</p>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">{getVerdictText(session)}</p>
                 </div>
 
                 <div className="grid w-full grid-cols-3 gap-3 sm:min-w-[360px] lg:w-auto">
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                    <p className="text-xs text-slate-500">Overall</p>
+                  <div className="rounded-2xl border border-line bg-canvas-soft p-3">
+                    <p className="text-xs text-subtle">Overall</p>
                     <p className={`mt-1 text-2xl font-black ${scoreTone(session.overall_score)}`}>{session.overall_score ?? "—"}</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                    <p className="text-xs text-slate-500">Trust</p>
+                  <div className="rounded-2xl border border-line bg-canvas-soft p-3">
+                    <p className="text-xs text-subtle">Trust</p>
                     <p className={`mt-1 text-2xl font-black ${scoreTone(session.trust_score)}`}>{session.trust_score ?? "—"}</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                    <p className="text-xs text-slate-500">Duration</p>
+                  <div className="rounded-2xl border border-line bg-canvas-soft p-3">
+                    <p className="text-xs text-subtle">Duration</p>
                     <p className="mt-1 text-lg font-black">{(() => { const d = effectiveDuration(session); return d > 0 ? formatDuration(d) : "—"; })()}</p>
                   </div>
                 </div>
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-slate-300">
-                  <BarChart3 className="h-3.5 w-3.5 text-blue-200" />
+                <div className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-3 py-1.5 text-xs font-bold text-muted">
+                  <BarChart3 className="h-3.5 w-3.5 text-brand" />
                   Saved report
                 </div>
                 {session.atmosphere ? (
-                  <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-slate-300">
+                  <div className="rounded-full border border-line bg-fg/[0.04] px-3 py-1.5 text-xs font-bold text-muted">
                     {session.atmosphere}
                   </div>
                 ) : null}

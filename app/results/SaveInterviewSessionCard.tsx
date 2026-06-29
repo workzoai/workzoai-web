@@ -144,7 +144,7 @@ export default function SaveInterviewSessionCard({ result }: Props) {
 
   if (state === "checking" || state === "saving") {
     return (
-      <div className="mt-5 rounded-lg border border-blue-300/15 bg-blue-400/[0.06] p-4 text-sm text-blue-100">
+      <div className="mt-5 rounded-lg border border-brand/15 bg-brand/[0.06] p-4 text-sm text-brand">
         <div className="flex items-center gap-2 font-black">
           <Loader2 className="h-4 w-4 animate-spin" />
           {state === "checking" ? "Checking account…" : "Saving this interview…"}
@@ -155,12 +155,12 @@ export default function SaveInterviewSessionCard({ result }: Props) {
 
   if (state === "saved") {
     return (
-      <div className="mt-5 rounded-lg border border-emerald-300/15 bg-emerald-400/[0.07] p-4 text-sm text-emerald-100">
+      <div className="mt-5 rounded-lg border border-success/15 bg-success/[0.07] p-4 text-sm text-success">
         <div className="flex items-center gap-2 font-black">
           <CheckCircle2 className="h-4 w-4" />
           Saved to your interview history.
         </div>
-        <Link href="/history" className="mt-2 inline-flex text-xs font-black text-emerald-200 underline underline-offset-4">
+        <Link href="/history" className="mt-2 inline-flex text-xs font-black text-success underline underline-offset-4">
           View history
         </Link>
       </div>
@@ -169,13 +169,13 @@ export default function SaveInterviewSessionCard({ result }: Props) {
 
   if (state === "signed-out") {
     return (
-      <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
-        <div className="flex items-center gap-2 font-black text-white">
-          <LockKeyhole className="h-4 w-4 text-blue-200" />
+      <div className="mt-5 rounded-lg border border-line bg-fg/[0.04] p-4 text-sm text-muted">
+        <div className="flex items-center gap-2 font-black text-fg">
+          <LockKeyhole className="h-4 w-4 text-brand" />
           Sign in to save this interview.
         </div>
         <p className="mt-2 leading-6">Your result is still available in this browser. Create an account to keep interview history across sessions.</p>
-        <Link href="/login?redirect=/results" className="mt-3 inline-flex rounded-xl bg-blue-500 px-4 py-2 text-xs font-black text-white">
+        <Link href="/login?redirect=/results" className="mt-3 inline-flex rounded-xl bg-brand px-4 py-2 text-xs font-black text-on-brand">
           Sign in and save
         </Link>
       </div>
@@ -183,7 +183,7 @@ export default function SaveInterviewSessionCard({ result }: Props) {
   }
 
   return (
-    <div className="mt-5 rounded-lg border border-amber-300/15 bg-amber-400/[0.07] p-4 text-sm text-amber-100">
+    <div className="mt-5 rounded-lg border border-warning/15 bg-warning/[0.07] p-4 text-sm text-warning">
       <div className="flex items-center gap-2 font-black">
         <Cloud className="h-4 w-4" />
         Interview result was not saved.

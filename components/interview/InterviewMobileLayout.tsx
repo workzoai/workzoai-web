@@ -13,8 +13,8 @@ import type { InterviewLayoutProps } from "./types";
 const CodePanel = dynamic(() => import("@/components/interview/CodePanel"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-[300px] items-center justify-center rounded-lg border border-white/10 bg-[#0d1117]">
-      <span className="text-xs text-slate-600 font-black uppercase tracking-widest">Loading editor…</span>
+    <div className="flex h-[300px] items-center justify-center rounded-lg border border-line bg-canvas">
+      <span className="text-xs text-subtle font-black uppercase tracking-widest">Loading editor…</span>
     </div>
   ),
 });
@@ -25,28 +25,28 @@ export default function InterviewMobileLayout({ setup, signal, transcript, ui, a
   const [mobileTab, setMobileTab] = useState<"interview" | "code">("interview");
 
   return (
-    <main className="min-h-screen bg-[#050a12] text-white">
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#07101c]/95 px-4 py-3 backdrop-blur">
+    <main className="min-h-screen bg-canvas text-fg">
+      <header className="sticky top-0 z-40 border-b border-line bg-canvas/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={actions.onBack}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-line bg-fg/5"
             aria-label="Back to dashboard"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
             <p className="truncate text-lg font-black">{setup.targetRole}</p>
-            <p className="truncate text-xs text-slate-400">
+            <p className="truncate text-xs text-muted">
               {setup.recruiterName} · {setup.language}
-              {showCodePanel && <span className="ml-2 text-violet-300">· Technical Mode</span>}
+              {showCodePanel && <span className="ml-2 text-brand">· Technical Mode</span>}
             </p>
           </div>
           <button
             type="button"
             onClick={actions.onToggleSettings}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-line bg-fg/5"
           >
             <Settings className="h-5 w-5" />
           </button>
@@ -60,8 +60,8 @@ export default function InterviewMobileLayout({ setup, signal, transcript, ui, a
               onClick={() => setMobileTab("interview")}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-black transition ${
                 mobileTab === "interview"
-                  ? "bg-blue-500/20 text-blue-200 border border-blue-400/30"
-                  : "bg-white/5 text-slate-400 border border-white/10"
+                  ? "bg-brand/20 text-brand border border-brand/30"
+                  : "bg-fg/5 text-muted border border-line"
               }`}
             >
               <MessageSquare className="h-3.5 w-3.5" />
@@ -72,8 +72,8 @@ export default function InterviewMobileLayout({ setup, signal, transcript, ui, a
               onClick={() => setMobileTab("code")}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-black transition ${
                 mobileTab === "code"
-                  ? "bg-violet-500/20 text-violet-200 border border-violet-400/30"
-                  : "bg-white/5 text-slate-400 border border-white/10"
+                  ? "bg-brand/20 text-brand border border-brand/30"
+                  : "bg-fg/5 text-muted border border-line"
               }`}
             >
               <Code2 className="h-3.5 w-3.5" />

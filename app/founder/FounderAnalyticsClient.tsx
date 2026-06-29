@@ -76,10 +76,10 @@ function Sparkline({ data, color = "#22d3ee" }: { data: number[]; color?: string
 }
 
 function Delta({ value, reverse = false }: { value: number; reverse?: boolean }) {
-  if (value === 0) return <span className="text-slate-500 text-xs">—</span>;
+  if (value === 0) return <span className="text-subtle text-xs">—</span>;
   const good = reverse ? value < 0 : value > 0;
   return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-black ${good ? "text-emerald-400" : "text-red-400"}`}>
+    <span className={`inline-flex items-center gap-0.5 text-xs font-black ${good ? "text-success" : "text-danger"}`}>
       {good ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
       {Math.abs(value)}%
     </span>
@@ -94,19 +94,19 @@ function Kpi({
   sparkData?: number[]; sparkColor?: string;
   delta?: number; deltaReverse?: boolean;
 }) {
-  const border = tone === "good" ? "border-emerald-400/20" : tone === "warn" ? "border-amber-400/20" : tone === "danger" ? "border-red-400/20" : "border-white/10";
-  const bg = tone === "good" ? "bg-emerald-400/[0.06]" : tone === "warn" ? "bg-amber-400/[0.06]" : tone === "danger" ? "bg-red-400/[0.06]" : "bg-white/[0.04]";
+  const border = tone === "good" ? "border-success/20" : tone === "warn" ? "border-warning/20" : tone === "danger" ? "border-danger/20" : "border-line";
+  const bg = tone === "good" ? "bg-success/[0.06]" : tone === "warn" ? "bg-warning/[0.06]" : tone === "danger" ? "bg-danger/[0.06]" : "bg-fg/[0.04]";
   return (
     <div className={`rounded-2xl border ${border} ${bg} p-4 flex flex-col gap-2`}>
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-subtle">{label}</p>
         {sparkData && <Sparkline data={sparkData} color={sparkColor} />}
       </div>
       <div className="flex items-end justify-between">
-        <p className="text-2xl font-black text-white leading-none">{value}</p>
+        <p className="text-2xl font-black text-fg leading-none">{value}</p>
         {delta !== undefined && <Delta value={delta} reverse={deltaReverse} />}
       </div>
-      {hint && <p className="text-xs text-slate-400 leading-5">{hint}</p>}
+      {hint && <p className="text-xs text-muted leading-5">{hint}</p>}
     </div>
   );
 }
@@ -123,24 +123,24 @@ function FunnelBar({ stages }: { stages: { label: string; count: number; sub?: s
         const stepPct = hasStepPct ? Math.round((stage.count / prev) * 100) : null;
         const totalPct = first > 0 ? Math.round((stage.count / first) * 100) : 0;
         const w = Math.max(4, totalPct);
-        const stepTone = stepPct === null ? "" : stepPct < 40 ? "text-red-400" : stepPct < 70 ? "text-amber-400" : "text-emerald-400";
+        const stepTone = stepPct === null ? "" : stepPct < 40 ? "text-danger" : stepPct < 70 ? "text-warning" : "text-success";
         return (
           <div key={stage.label}>
             <div className="flex items-center justify-between mb-1.5 text-sm">
               <div className="flex items-center gap-3">
-                <span className="w-5 text-right text-[11px] font-black text-slate-600">{String(i + 1).padStart(2, "0")}</span>
-                <span className="font-black text-slate-200">{stage.label}</span>
-                {stage.sub && <span className="text-xs text-slate-500">{stage.sub}</span>}
+                <span className="w-5 text-right text-[11px] font-black text-subtle">{String(i + 1).padStart(2, "0")}</span>
+                <span className="font-black text-fg">{stage.label}</span>
+                {stage.sub && <span className="text-xs text-subtle">{stage.sub}</span>}
               </div>
               <div className="flex items-center gap-3">
                 {stepPct !== null && <span className={`text-xs font-black ${stepTone}`}>{stepPct}% from prev</span>}
-                {i > 0 && stepPct === null && stage.count > 0 && <span className="text-xs text-slate-600">prev step = 0</span>}
-                <span className="font-black text-white w-12 text-right">{stage.count.toLocaleString()}</span>
+                {i > 0 && stepPct === null && stage.count > 0 && <span className="text-xs text-subtle">prev step = 0</span>}
+                <span className="font-black text-fg w-12 text-right">{stage.count.toLocaleString()}</span>
               </div>
             </div>
-            <div className="h-2 rounded-full bg-white/[0.07] overflow-hidden">
+            <div className="h-2 rounded-full bg-fg/[0.07] overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 transition-all duration-500"
+                className="h-full rounded-full bg-gradient-to-r from-brand via-brand to-success transition-all duration-500"
                 style={{ width: `${w}%` }}
               />
             </div>
@@ -154,17 +154,17 @@ function FunnelBar({ stages }: { stages: { label: string; count: number; sub?: s
 function BarList({ rows, max = 8, empty = "No data yet." }: { rows: [string, number][]; max?: number; empty?: string }) {
   const data = rows.slice(0, max);
   const highest = Math.max(1, ...data.map(([, v]) => v));
-  if (!data.length) return <p className="text-sm text-slate-500 italic">{empty}</p>;
+  if (!data.length) return <p className="text-sm text-subtle italic">{empty}</p>;
   return (
     <div className="space-y-2.5">
       {data.map(([label, value]) => (
         <div key={label}>
           <div className="flex items-center justify-between mb-1 text-sm">
-            <span className="truncate font-medium text-slate-300 max-w-[75%]" title={label}>{label}</span>
-            <span className="font-black text-white">{value.toLocaleString()}</span>
+            <span className="truncate font-medium text-muted max-w-[75%]" title={label}>{label}</span>
+            <span className="font-black text-fg">{value.toLocaleString()}</span>
           </div>
-          <div className="h-2 rounded-full bg-white/[0.07] overflow-hidden">
-            <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-400"
+          <div className="h-2 rounded-full bg-fg/[0.07] overflow-hidden">
+            <div className="h-full rounded-full bg-gradient-to-r from-brand to-brand"
               style={{ width: `${Math.max(4, (value / highest) * 100)}%` }} />
           </div>
         </div>
@@ -177,12 +177,12 @@ function PlanTable({ planBreakdown }: { planBreakdown: AnyRecord }) {
   const plans = ["free", "premium", "premium_pro"];
   const labels: Record<string, string> = { free: "Free", premium: "Premium", premium_pro: "Pro" };
   return (
-    <div className="overflow-hidden rounded-xl border border-white/10">
+    <div className="overflow-hidden rounded-xl border border-line">
       <table className="w-full text-sm">
         <thead>
-          <tr className="bg-white/[0.04] border-b border-white/10">
+          <tr className="bg-fg/[0.04] border-b border-line">
             {["Plan", "Sessions", "CV uploads", "Interviews", "Completed", "Completion", "Avg trust"].map(h => (
-              <th key={h} className="px-3 py-2.5 text-left text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{h}</th>
+              <th key={h} className="px-3 py-2.5 text-left text-[11px] font-black uppercase tracking-[0.14em] text-subtle">{h}</th>
             ))}
           </tr>
         </thead>
@@ -191,18 +191,18 @@ function PlanTable({ planBreakdown }: { planBreakdown: AnyRecord }) {
             const d = (planBreakdown[plan] || {}) as AnyRecord;
             const comp = n(d.completionRate);
             return (
-              <tr key={plan} className="border-t border-white/[0.06] hover:bg-white/[0.025]">
-                <td className="px-3 py-2.5 font-black text-white">{labels[plan]}</td>
-                <td className="px-3 py-2.5 text-slate-300">{fmt(d.sessions)}</td>
-                <td className="px-3 py-2.5 text-slate-300">{fmt(d.uploads)}</td>
-                <td className="px-3 py-2.5 text-slate-300">{fmt(d.interviewsStarted)}</td>
-                <td className="px-3 py-2.5 text-slate-300">{fmt(d.completedInterviews)}</td>
+              <tr key={plan} className="border-t border-line hover:bg-fg/[0.025]">
+                <td className="px-3 py-2.5 font-black text-fg">{labels[plan]}</td>
+                <td className="px-3 py-2.5 text-muted">{fmt(d.sessions)}</td>
+                <td className="px-3 py-2.5 text-muted">{fmt(d.uploads)}</td>
+                <td className="px-3 py-2.5 text-muted">{fmt(d.interviewsStarted)}</td>
+                <td className="px-3 py-2.5 text-muted">{fmt(d.completedInterviews)}</td>
                 <td className="px-3 py-2.5">
-                  <span className={`font-black ${comp >= 60 ? "text-emerald-400" : comp >= 35 ? "text-amber-400" : "text-red-400"}`}>
+                  <span className={`font-black ${comp >= 60 ? "text-success" : comp >= 35 ? "text-warning" : "text-danger"}`}>
                     {comp}%
                   </span>
                 </td>
-                <td className="px-3 py-2.5 text-slate-300">{d.avgTrust ? `${fmt(d.avgTrust)}/100` : "—"}</td>
+                <td className="px-3 py-2.5 text-muted">{d.avgTrust ? `${fmt(d.avgTrust)}/100` : "—"}</td>
               </tr>
             );
           })}
@@ -216,9 +216,9 @@ function AlertBanner({ insight }: { insight: string }) {
   if (!insight || insight.includes("No analytics")) return null;
   const isWarn = insight.toLowerCase().includes("low") || insight.toLowerCase().includes("high");
   return (
-    <div className={`flex items-start gap-3 rounded-2xl border p-4 ${isWarn ? "border-amber-400/20 bg-amber-400/[0.06]" : "border-cyan-400/20 bg-cyan-400/[0.06]"}`}>
-      <AlertCircle className={`mt-0.5 h-4 w-4 shrink-0 ${isWarn ? "text-amber-400" : "text-cyan-400"}`} />
-      <p className="text-sm text-slate-300">{insight}</p>
+    <div className={`flex items-start gap-3 rounded-2xl border p-4 ${isWarn ? "border-warning/20 bg-warning/[0.06]" : "border-brand/20 bg-brand/[0.06]"}`}>
+      <AlertCircle className={`mt-0.5 h-4 w-4 shrink-0 ${isWarn ? "text-warning" : "text-brand"}`} />
+      <p className="text-sm text-muted">{insight}</p>
     </div>
   );
 }
@@ -227,12 +227,12 @@ function Section({ title, subtitle, icon, children, accent }: {
   title: string; subtitle?: string; icon?: React.ReactNode; children: React.ReactNode; accent?: string;
 }) {
   return (
-    <section className={`rounded-2xl border border-white/10 bg-white/[0.03] p-5`}>
+    <section className={`rounded-2xl border border-line bg-fg/[0.03] p-5`}>
       <div className="mb-4 flex items-start gap-3">
-        {icon && <div className={`mt-0.5 ${accent || "text-slate-400"}`}>{icon}</div>}
+        {icon && <div className={`mt-0.5 ${accent || "text-muted"}`}>{icon}</div>}
         <div>
-          <h2 className="text-base font-black text-white">{title}</h2>
-          {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
+          <h2 className="text-base font-black text-fg">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-xs text-subtle">{subtitle}</p>}
         </div>
       </div>
       {children}
@@ -333,28 +333,28 @@ export default function FounderAnalyticsClient() {
     : null;
 
   return (
-    <main className="min-h-screen bg-[#020812] px-4 py-6 text-white sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-canvas px-4 py-6 text-fg sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1600px] space-y-5">
 
         {/* Header */}
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-xs font-black text-slate-500 hover:text-slate-300 transition-colors">
+            <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-xs font-black text-subtle hover:text-muted transition-colors">
               <ArrowLeft className="h-3.5 w-3.5" /> Dashboard
             </Link>
             <h1 className="mt-3 text-2xl font-black tracking-tight">Founder Analytics</h1>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-subtle">
               {includeLocal
                 ? "Localhost sessions included · test/QA events still excluded"
                 : "Internal/localhost/test events excluded"
               } · {fmt(internalCount)} filtered
-              {timeAgo && <span className="ml-3 text-slate-600">Updated {timeAgo}</span>}
+              {timeAgo && <span className="ml-3 text-subtle">Updated {timeAgo}</span>}
             </p>
           </div>
           <button
             onClick={() => void load()}
             disabled={loading}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-black text-white hover:bg-white/10 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-2 rounded-xl border border-line bg-fg/[0.05] px-4 py-2 text-sm font-black text-fg hover:bg-fg/10 disabled:opacity-50 transition-colors"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
           </button>
@@ -366,8 +366,8 @@ export default function FounderAnalyticsClient() {
             }}
             className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-black transition-colors ${
               includeLocal
-                ? "border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/15"
-                : "border-white/10 bg-white/[0.05] text-slate-400 hover:text-white hover:bg-white/10"
+                ? "border-warning/30 bg-warning/10 text-warning hover:bg-warning/15"
+                : "border-line bg-fg/[0.05] text-muted hover:text-fg hover:bg-fg/10"
             }`}
           >
             {includeLocal ? "Showing local sessions" : "Include local sessions"}
@@ -375,7 +375,7 @@ export default function FounderAnalyticsClient() {
         </header>
 
         {error && (
-          <div className="rounded-2xl border border-red-400/20 bg-red-500/[0.07] p-4 text-sm text-red-200">{error}</div>
+          <div className="rounded-2xl border border-danger/20 bg-danger/[0.07] p-4 text-sm text-danger">{error}</div>
         )}
 
         {/* Insight banner */}
@@ -422,63 +422,63 @@ export default function FounderAnalyticsClient() {
 
         {/* Conversion KPIs */}
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Upload → Interview</p>
-            <p className="mt-2 text-3xl font-black text-white">{uploadToStart}%</p>
-            <p className="mt-1 text-xs text-slate-400">Of people who upload a CV, how many start an interview</p>
+          <div className="rounded-2xl border border-line bg-fg/[0.03] p-4">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-subtle">Upload → Interview</p>
+            <p className="mt-2 text-3xl font-black text-fg">{uploadToStart}%</p>
+            <p className="mt-1 text-xs text-muted">Of people who upload a CV, how many start an interview</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Start → Complete</p>
-            <p className={`mt-2 text-3xl font-black ${startToComplete >= 60 ? "text-emerald-400" : startToComplete >= 35 ? "text-amber-400" : "text-red-400"}`}>{startToComplete}%</p>
-            <p className="mt-1 text-xs text-slate-400">Of interviews started, how many reach the end</p>
+          <div className="rounded-2xl border border-line bg-fg/[0.03] p-4">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-subtle">Start → Complete</p>
+            <p className={`mt-2 text-3xl font-black ${startToComplete >= 60 ? "text-success" : startToComplete >= 35 ? "text-warning" : "text-danger"}`}>{startToComplete}%</p>
+            <p className="mt-1 text-xs text-muted">Of interviews started, how many reach the end</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Complete → Results</p>
-            <p className={`mt-2 text-3xl font-black ${completeToResults >= 70 ? "text-emerald-400" : "text-slate-300"}`}>{completeToResults}%</p>
-            <p className="mt-1 text-xs text-slate-400">Of completions, how many view their full report</p>
+          <div className="rounded-2xl border border-line bg-fg/[0.03] p-4">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-subtle">Complete → Results</p>
+            <p className={`mt-2 text-3xl font-black ${completeToResults >= 70 ? "text-success" : "text-muted"}`}>{completeToResults}%</p>
+            <p className="mt-1 text-xs text-muted">Of completions, how many view their full report</p>
           </div>
         </div>
 
         {/* Funnel */}
-        <Section title="Conversion funnel" subtitle="Step-by-step drop-off with % from previous step" icon={<TrendingDown className="h-4 w-4" />} accent="text-blue-400">
+        <Section title="Conversion funnel" subtitle="Step-by-step drop-off with % from previous step" icon={<TrendingDown className="h-4 w-4" />} accent="text-brand">
           <FunnelBar stages={funnel} />
         </Section>
 
         {/* Roles + Recruiters + Traffic */}
         <div className="grid gap-5 xl:grid-cols-3">
-          <Section title="Top roles" subtitle="Cleaned, deduplicated" icon={<BarChart3 className="h-4 w-4" />} accent="text-violet-400">
+          <Section title="Top roles" subtitle="Cleaned, deduplicated" icon={<BarChart3 className="h-4 w-4" />} accent="text-brand">
             <BarList rows={entries(s.roles)} empty="No role data yet." />
           </Section>
-          <Section title="Recruiter usage" subtitle="Which persona gets picked most" icon={<Users className="h-4 w-4" />} accent="text-cyan-400">
+          <Section title="Recruiter usage" subtitle="Which persona gets picked most" icon={<Users className="h-4 w-4" />} accent="text-brand">
             <BarList rows={entries(s.recruiters)} empty="No recruiter data yet." />
           </Section>
-          <Section title="Traffic sources" subtitle="Acquisition channel breakdown" icon={<ArrowUpRight className="h-4 w-4" />} accent="text-emerald-400">
+          <Section title="Traffic sources" subtitle="Acquisition channel breakdown" icon={<ArrowUpRight className="h-4 w-4" />} accent="text-success">
             <BarList rows={entries(s.trafficSources)} empty="No source data yet." />
           </Section>
         </div>
 
         {/* Plan breakdown */}
-        <Section title="Plan performance" subtitle="Completion rate, trust scores, and activity by plan tier" icon={<Zap className="h-4 w-4" />} accent="text-amber-400">
+        <Section title="Plan performance" subtitle="Completion rate, trust scores, and activity by plan tier" icon={<Zap className="h-4 w-4" />} accent="text-warning">
           <PlanTable planBreakdown={planBreakdown} />
         </Section>
 
         {/* Weaknesses + Voice health */}
         <div className="grid gap-5 xl:grid-cols-2">
-          <Section title="Candidate weaknesses" subtitle="Most common signals that lowered recruiter trust — use to improve coaching" icon={<Brain className="h-4 w-4" />} accent="text-rose-400">
+          <Section title="Candidate weaknesses" subtitle="Most common signals that lowered recruiter trust — use to improve coaching" icon={<Brain className="h-4 w-4" />} accent="text-danger">
             {weakSignalRows.length ? (
               <div className="space-y-2">
                 {weakSignalRows.map(([label, count], i) => (
-                  <div key={label} className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2.5">
-                    <span className="mt-0.5 text-[11px] font-black text-slate-600 w-4 shrink-0">{i + 1}</span>
-                    <span className="flex-1 text-sm text-slate-300">{label}</span>
-                    <span className="text-sm font-black text-white">{count}×</span>
+                  <div key={label} className="flex items-start gap-3 rounded-xl border border-line bg-fg/[0.025] px-3 py-2.5">
+                    <span className="mt-0.5 text-[11px] font-black text-subtle w-4 shrink-0">{i + 1}</span>
+                    <span className="flex-1 text-sm text-muted">{label}</span>
+                    <span className="text-sm font-black text-fg">{count}×</span>
                   </div>
                 ))}
               </div>
-            ) : <p className="text-sm text-slate-500 italic">No weakness signals tracked yet.</p>}
+            ) : <p className="text-sm text-subtle italic">No weakness signals tracked yet.</p>}
           </Section>
 
-          <Section title="Voice health" subtitle="Vapi reliability and fallback metrics" icon={<Mic className="h-4 w-4" />} accent="text-sky-400">
+          <Section title="Voice health" subtitle="Vapi reliability and fallback metrics" icon={<Mic className="h-4 w-4" />} accent="text-brand">
             <div className="grid grid-cols-2 gap-3">
               <Kpi label="Voice starts" value={fmt(s.voiceStarts)} />
               <Kpi label="Voice failures" value={fmt(s.voiceFailures)} tone={voiceFailRate <= 8 ? "good" : voiceFailRate <= 20 ? "warn" : "danger"} />
@@ -491,13 +491,13 @@ export default function FounderAnalyticsClient() {
         </div>
 
         {/* Activity feed */}
-        <Section title="Live activity" subtitle="Recent production events — 40 most recent" icon={<Eye className="h-4 w-4" />} accent="text-slate-400">
-          <div className="overflow-x-auto rounded-xl border border-white/10">
+        <Section title="Live activity" subtitle="Recent production events — 40 most recent" icon={<Eye className="h-4 w-4" />} accent="text-muted">
+          <div className="overflow-x-auto rounded-xl border border-line">
             <table className="w-full min-w-[700px] text-sm border-collapse">
               <thead>
-                <tr className="bg-white/[0.04] border-b border-white/10">
+                <tr className="bg-fg/[0.04] border-b border-line">
                   {["Time", "Event", "Role", "Recruiter", "Score", "Trust", "Source"].map(h => (
-                    <th key={h} className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-[0.14em] text-slate-600">{h}</th>
+                    <th key={h} className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-[0.14em] text-subtle">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -505,23 +505,23 @@ export default function FounderAnalyticsClient() {
                 {recentRows.map((ev, i) => {
                   const isKey = ["interview_started", "interview_completed", "cv_uploaded", "results_viewed"].includes(String(ev.event));
                   return (
-                    <tr key={i} className={`border-t border-white/[0.05] ${isKey ? "bg-white/[0.02]" : ""}`}>
-                      <td className="px-3 py-2 text-[11px] text-slate-500 whitespace-nowrap">
+                    <tr key={i} className={`border-t border-line ${isKey ? "bg-fg/[0.02]" : ""}`}>
+                      <td className="px-3 py-2 text-[11px] text-subtle whitespace-nowrap">
                         {ev.timestamp ? new Date(String(ev.timestamp)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
                       </td>
-                      <td className={`px-3 py-2 font-black whitespace-nowrap ${isKey ? "text-cyan-300" : "text-slate-300"}`}>
+                      <td className={`px-3 py-2 font-black whitespace-nowrap ${isKey ? "text-brand" : "text-muted"}`}>
                         {cleanEvt(String(ev.event || ""))}
                       </td>
-                      <td className="px-3 py-2 text-slate-400 max-w-[140px] truncate" title={String(ev.role || "")}>{String(ev.role || "—")}</td>
-                      <td className="px-3 py-2 text-slate-400">{String(ev.recruiter || "—")}</td>
-                      <td className="px-3 py-2 text-slate-300">{ev.score != null ? String(ev.score) : "—"}</td>
-                      <td className="px-3 py-2 text-slate-300">{ev.trust != null ? String(ev.trust) : "—"}</td>
-                      <td className="px-3 py-2 text-[11px] text-slate-500 max-w-[120px] truncate">{String(ev.source || "Direct")}</td>
+                      <td className="px-3 py-2 text-muted max-w-[140px] truncate" title={String(ev.role || "")}>{String(ev.role || "—")}</td>
+                      <td className="px-3 py-2 text-muted">{String(ev.recruiter || "—")}</td>
+                      <td className="px-3 py-2 text-muted">{ev.score != null ? String(ev.score) : "—"}</td>
+                      <td className="px-3 py-2 text-muted">{ev.trust != null ? String(ev.trust) : "—"}</td>
+                      <td className="px-3 py-2 text-[11px] text-subtle max-w-[120px] truncate">{String(ev.source || "Direct")}</td>
                     </tr>
                   );
                 })}
                 {!recentRows.length && (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-sm text-slate-600">No production activity yet.</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-8 text-center text-sm text-subtle">No production activity yet.</td></tr>
                 )}
               </tbody>
             </table>
@@ -529,18 +529,18 @@ export default function FounderAnalyticsClient() {
         </Section>
 
         {/* Dev section */}
-        <Section title="Developer" subtitle="Raw event counts and plan breakdown" icon={<Zap className="h-4 w-4" />} accent="text-slate-600">
-          <button onClick={() => setShowDev(v => !v)} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-black text-slate-400 hover:text-white transition-colors">
+        <Section title="Developer" subtitle="Raw event counts and plan breakdown" icon={<Zap className="h-4 w-4" />} accent="text-subtle">
+          <button onClick={() => setShowDev(v => !v)} className="rounded-lg border border-line bg-fg/[0.04] px-3 py-1.5 text-xs font-black text-muted hover:text-fg transition-colors">
             {showDev ? "Hide" : "Show"} raw event counts
           </button>
           {showDev && (
             <div className="mt-4 grid gap-5 xl:grid-cols-2">
               <div>
-                <p className="mb-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-600">All event types</p>
+                <p className="mb-3 text-[11px] font-black uppercase tracking-[0.14em] text-subtle">All event types</p>
                 <BarList rows={entries(s.counts)} max={16} />
               </div>
               <div>
-                <p className="mb-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-600">Feature usage (signed-in)</p>
+                <p className="mb-3 text-[11px] font-black uppercase tracking-[0.14em] text-subtle">Feature usage (signed-in)</p>
                 <BarList rows={entries(s.usageFeatureCounts)} max={12} />
               </div>
             </div>

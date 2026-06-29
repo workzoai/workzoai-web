@@ -13,7 +13,7 @@ export default function InterviewControls({ statusLabel, isMuted = false, onTogg
       <button type="button" onClick={onOpenSettings} className="grid h-14 w-14 place-items-center rounded-full bg-white text-slate-950 shadow-lg transition hover:scale-105" aria-label="Interview settings">
         <Settings className="h-6 w-6" />
       </button>
-      <button type="button" onClick={onEnd} className="grid h-14 w-14 place-items-center rounded-full bg-red-500 text-white shadow-lg transition hover:scale-105" aria-label="End interview">
+      <button type="button" onClick={onEnd} className="grid h-14 w-14 place-items-center rounded-full bg-danger text-on-brand shadow-lg transition hover:scale-105" aria-label="End interview">
         <PhoneOff className="h-6 w-6" />
       </button>
       <span className="sr-only">{statusLabel}</span>

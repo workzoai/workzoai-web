@@ -36,7 +36,7 @@ const socialLinks = [
 ];
 
 function FooterLink({ href, label, external = false }: { href: string; label: string; external?: boolean }) {
-  const cls = "text-sm text-slate-400 transition hover:text-white";
+  const cls = "text-sm text-muted transition hover:text-fg";
   if (external) return <a href={href} target="_blank" rel="noreferrer" className={cls}>{label}</a>;
   return <Link href={href} className={cls}>{label}</Link>;
 }
@@ -44,7 +44,7 @@ function FooterLink({ href, label, external = false }: { href: string; label: st
 function FooterColumn({ title, links }: { title: string; links: Array<{ label: string; href: string; external?: boolean }> }) {
   return (
     <div>
-      <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">{title}</p>
+      <p className="text-[11px] font-black uppercase tracking-[0.22em] text-subtle">{title}</p>
       <div className="mt-4 flex flex-col gap-3">
         {links.map((link) => <FooterLink key={link.href} {...link} />)}
       </div>
@@ -54,26 +54,26 @@ function FooterColumn({ title, links }: { title: string; links: Array<{ label: s
 
 export default function WorkZoFooter({ minimal = false }: { minimal?: boolean }) {
   return (
-    <footer className="border-t border-white/[0.07] bg-[#030710] px-4 py-12 text-white sm:px-6 lg:px-8">
+    <footer className="border-t border-line bg-canvas px-4 py-12 text-fg sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_0.8fr]">
           {/* Brand */}
           <div className="sm:col-span-2 lg:col-span-1">
             <Link href="/" className="flex items-center gap-3">
               <Image src="/workzo_icon.png" alt="WorkZo AI" width={36} height={36} className="rounded-xl" />
-              <span className="text-xl font-black tracking-tight">WorkZo <span className="text-blue-400">AI</span></span>
+              <span className="text-xl font-black tracking-tight">WorkZo <span className="text-brand">AI</span></span>
             </Link>
-            <p className="mt-4 max-w-sm text-sm leading-6 text-slate-400">
+            <p className="mt-4 max-w-sm text-sm leading-6 text-muted">
               AI-powered interview preparation. Practice realistic recruiter conversations with your CV and job context — and see exactly why trust rises or falls.
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
-              <span className="rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-1 text-xs font-black text-blue-100">
+              <span className="rounded-full border border-brand/20 bg-brand/10 px-3 py-1 text-xs font-black text-brand">
                 7 languages
               </span>
-              <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-100">
+              <span className="rounded-full border border-success/20 bg-success/10 px-3 py-1 text-xs font-black text-success">
                 Global job seekers
               </span>
-              <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-1 text-xs font-black text-violet-100">
+              <span className="rounded-full border border-brand/20 bg-brand/10 px-3 py-1 text-xs font-black text-brand">
                 AI-powered
               </span>
             </div>
@@ -85,7 +85,7 @@ export default function WorkZoFooter({ minimal = false }: { minimal?: boolean })
           <FooterColumn title="Connect" links={socialLinks} />
         </div>
 
-        <div className="mt-10 flex flex-col gap-3 border-t border-white/[0.07] pt-6 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-10 flex flex-col gap-3 border-t border-line pt-6 text-xs leading-5 text-subtle sm:flex-row sm:items-center sm:justify-between">
           <p>© 2026 WorkZo AI. All rights reserved.</p>
           <p className="max-w-xl text-right">
             WorkZo AI is interview preparation support. We do not guarantee job offers, interviews, or employment outcomes.

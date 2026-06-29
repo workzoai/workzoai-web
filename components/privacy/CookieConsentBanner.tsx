@@ -53,60 +53,60 @@ export default function CookieConsentBanner() {
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[1000] px-4 pb-4 text-white sm:px-6">
-      <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-white/10 bg-[#07111f]/95 shadow-2xl shadow-black/40 backdrop-blur-xl">
+    <div className="fixed inset-x-0 bottom-0 z-[1000] px-4 pb-4 text-fg sm:px-6">
+      <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-line bg-canvas/95 shadow-2xl shadow-black/40 backdrop-blur-xl">
         <div className="grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-start">
           <div className="flex gap-4">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-cyan-400/10 text-cyan-100">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand">
               <Cookie className="h-5 w-5" />
             </div>
             <div>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-black uppercase tracking-[0.2em] text-cyan-100">Privacy choices</p>
+                  <p className="text-sm font-black uppercase tracking-[0.2em] text-brand">Privacy choices</p>
                   <h2 className="mt-1 text-xl font-black">WorkZo AI uses essential storage to run the app.</h2>
                 </div>
                 <button
                   type="button"
                   onClick={rejectNonEssential}
                   aria-label="Close cookie banner with essential cookies only"
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 md:hidden"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-line bg-fg/5 text-muted hover:bg-fg/10 md:hidden"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
                 Necessary storage keeps your interview setup, usage limits, and privacy choices working. Analytics are optional and help us improve reliability and product quality.
               </p>
-              <div className="mt-3 flex flex-wrap gap-3 text-xs font-bold text-slate-400">
-                <Link href="/legal/cookies" className="hover:text-white">Cookie Policy</Link>
-                <Link href="/legal/privacy" className="hover:text-white">Privacy Policy</Link>
-                <Link href="/legal/delete-data" className="hover:text-white">Delete my data</Link>
+              <div className="mt-3 flex flex-wrap gap-3 text-xs font-bold text-muted">
+                <Link href="/legal/cookies" className="hover:text-fg">Cookie Policy</Link>
+                <Link href="/legal/privacy" className="hover:text-fg">Privacy Policy</Link>
+                <Link href="/legal/delete-data" className="hover:text-fg">Delete my data</Link>
               </div>
 
               {manage ? (
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                  <label className="flex items-start gap-3 rounded-lg border border-line bg-fg/[0.04] p-4">
                     <input type="checkbox" checked disabled className="mt-1" />
                     <span>
-                      <span className="block text-sm font-black text-white">Necessary</span>
-                      <span className="mt-1 block text-xs leading-5 text-slate-400">Required for login, session safety, interview setup, and privacy preferences.</span>
+                      <span className="block text-sm font-black text-fg">Necessary</span>
+                      <span className="mt-1 block text-xs leading-5 text-muted">Required for login, session safety, interview setup, and privacy preferences.</span>
                     </span>
                   </label>
 
-                  <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                  <label className="flex items-start gap-3 rounded-lg border border-line bg-fg/[0.04] p-4">
                     <input type="checkbox" checked={analytics} onChange={(event) => setAnalytics(event.target.checked)} className="mt-1" />
                     <span>
-                      <span className="block text-sm font-black text-white">Analytics</span>
-                      <span className="mt-1 block text-xs leading-5 text-slate-400">Helps measure usage, errors, and feature quality. Optional.</span>
+                      <span className="block text-sm font-black text-fg">Analytics</span>
+                      <span className="mt-1 block text-xs leading-5 text-muted">Helps measure usage, errors, and feature quality. Optional.</span>
                     </span>
                   </label>
 
-                  <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-4 sm:col-span-2">
+                  <label className="flex items-start gap-3 rounded-lg border border-line bg-fg/[0.04] p-4 sm:col-span-2">
                     <input type="checkbox" checked={marketing} onChange={(event) => setMarketing(event.target.checked)} className="mt-1" />
                     <span>
-                      <span className="block text-sm font-black text-white">Marketing</span>
-                      <span className="mt-1 block text-xs leading-5 text-slate-400">Reserved for future launch attribution. Optional and off unless you allow it.</span>
+                      <span className="block text-sm font-black text-fg">Marketing</span>
+                      <span className="mt-1 block text-xs leading-5 text-muted">Reserved for future launch attribution. Optional and off unless you allow it.</span>
                     </span>
                   </label>
                 </div>
@@ -118,7 +118,7 @@ export default function CookieConsentBanner() {
             <button
               type="button"
               onClick={acceptAll}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-400"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-3 text-sm font-black text-on-brand transition hover:bg-brand"
             >
               <ShieldCheck className="h-4 w-4" />
               Accept all
@@ -127,7 +127,7 @@ export default function CookieConsentBanner() {
               <button
                 type="button"
                 onClick={saveCustom}
-                className="rounded-lg border border-white/10 px-5 py-3 text-sm font-black text-slate-200 transition hover:bg-white/10"
+                className="rounded-lg border border-line px-5 py-3 text-sm font-black text-fg transition hover:bg-fg/10"
               >
                 Save choices
               </button>
@@ -135,7 +135,7 @@ export default function CookieConsentBanner() {
               <button
                 type="button"
                 onClick={() => setManage(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 px-5 py-3 text-sm font-black text-slate-200 transition hover:bg-white/10"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-5 py-3 text-sm font-black text-fg transition hover:bg-fg/10"
               >
                 <Settings className="h-4 w-4" />
                 Manage
@@ -144,7 +144,7 @@ export default function CookieConsentBanner() {
             <button
               type="button"
               onClick={rejectNonEssential}
-              className="rounded-lg px-5 py-3 text-sm font-black text-slate-400 transition hover:bg-white/5 hover:text-white"
+              className="rounded-lg px-5 py-3 text-sm font-black text-muted transition hover:bg-fg/5 hover:text-fg"
             >
               Essential only
             </button>
