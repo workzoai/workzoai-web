@@ -23,8 +23,10 @@ export async function POST(request: Request) {
 
     const supabase = createWorkZoSupabaseServiceClient();
 
-    // Resolve the real DB session UUID from local_id, since the client generates
-    // "workzo-session-{timestamp}" strings, not valid UUIDs.
+    // Resolve the real DB session UUID from local_id. If no session row exists yet
+    // (this is the first message of a new interview), create one now via upsert so
+    // every subsequent message and the final result can link to it correctly.
+    let realSessionId: string | null = null;
     const { data: sessionRow } = await supabase
       .from("interview_sessions")
       .select("id")
@@ -32,7 +34,24 @@ export async function POST(request: Request) {
       .eq("local_id", body.sessionId)
       .maybeSingle();
 
-    const realSessionId = sessionRow?.id || null;
+    if (sessionRow?.id) {
+      realSessionId = sessionRow.id;
+    } else {
+      const { data: createdRow } = await supabase
+        .from("interview_sessions")
+        .upsert(
+          {
+            user_id: userId,
+            local_id: body.sessionId,
+            target_role: "Interview Practice",
+            recruiter_name: "AI Recruiter",
+          },
+          { onConflict: "user_id,local_id" },
+        )
+        .select("id")
+        .single();
+      realSessionId = createdRow?.id || null;
+    }
 
     // Try to insert the message. The interview_messages table may use different
     // column names than what was assumed. We gracefully try two common schemas:

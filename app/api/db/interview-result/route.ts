@@ -6,13 +6,60 @@ import { assertNoFounderPersonalDetails, scrubFounderPersonalDetails } from "@/l
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const resolved = await resolveWorkZoServerPlan();
     if (!resolved.authenticated || !resolved.userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const supabase = createWorkZoSupabaseServiceClient();
+    const { searchParams } = new URL(request.url);
+    const localId = searchParams.get("sessionId");
+
+    // 1. If caller provides a session ID, find the result for that exact session
+    if (localId) {
+      const { data: sessionRow } = await supabase
+        .from("interview_sessions")
+        .select("id")
+        .eq("user_id", resolved.userId)
+        .eq("local_id", localId)
+        .maybeSingle();
+
+      if (sessionRow?.id) {
+        const { data: sessionResult } = await supabase
+          .from("interview_results")
+          .select("*")
+          .eq("user_id", resolved.userId)
+          .eq("session_id", sessionRow.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (sessionResult) {
+          return NextResponse.json({ ok: true, result: sessionResult });
+        }
+      }
+
+      // Fallback for orphaned rows saved before session linking existed:
+      // match by the local_id embedded in raw_result.id (the client-generated id).
+      const { data: orphanedResult } = await supabase
+        .from("interview_results")
+        .select("*")
+        .eq("user_id", resolved.userId)
+        .contains("raw_result", { id: localId })
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (orphanedResult) {
+        return NextResponse.json({ ok: true, result: orphanedResult });
+      }
+    }
+
+    // 2. Fall back to the most recent row. Do NOT prefer an older scored row here:
+    // very short/in-progress saves can have 0/null score, but they still belong to
+    // the latest session. Preferring a scored row caused stale reports such as
+    // "Alex Chen" and "0 answers captured" to appear after Sarah/Priya/Markus sessions.
     const { data, error } = await supabase
       .from("interview_results")
       .select("*")
@@ -42,8 +89,9 @@ export async function POST(request: Request) {
     const supabase = createWorkZoSupabaseServiceClient();
 
     // The client sends "workzo-session-{timestamp}" as sessionId — not a UUID.
-    // Resolve it to the real DB UUID via local_id, or leave session_id null.
-    // NEVER pass the raw string to a UUID column — that's the invalid input error.
+    // Resolve it to the real DB UUID via local_id. If no session row exists yet
+    // (e.g. a very short session that ended before any message was persisted),
+    // create one now via upsert so this result links correctly.
     let realSessionId: string | null = null;
     if (body.sessionId) {
       const { data: sessionRow } = await supabase
@@ -52,7 +100,25 @@ export async function POST(request: Request) {
         .eq("user_id", userId)
         .eq("local_id", body.sessionId)
         .maybeSingle();
-      realSessionId = sessionRow?.id || null;
+
+      if (sessionRow?.id) {
+        realSessionId = sessionRow.id;
+      } else {
+        const { data: createdRow } = await supabase
+          .from("interview_sessions")
+          .upsert(
+            {
+              user_id: userId,
+              local_id: body.sessionId,
+              target_role: "Interview Practice",
+              recruiter_name: "AI Recruiter",
+            },
+            { onConflict: "user_id,local_id" },
+          )
+          .select("id")
+          .single();
+        realSessionId = createdRow?.id || null;
+      }
     }
 
     const { data, error } = await supabase

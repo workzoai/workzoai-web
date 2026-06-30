@@ -402,9 +402,12 @@ export function readLatestInterviewSetup(): WorkZoInterviewSetup | null {
 
   const selected =
     candidates.sort((a, b) => {
-      const scoreDiff = scoreSetup(b) - scoreSetup(a);
-      if (scoreDiff !== 0) return scoreDiff;
-      return getTime(b) - getTime(a);
+      // Prefer most recently saved setup FIRST.
+      // An old high-CV-score setup was previously overriding fresh recruiter selections
+      // because score dominated recency. Now: if one was saved >30s after the other, it wins.
+      const timeDiff = getTime(b) - getTime(a);
+      if (Math.abs(timeDiff) > 30000) return timeDiff;
+      return scoreSetup(b) - scoreSetup(a);
     })[0] || null;
 
   return sanitizeInterviewSetup(selected);

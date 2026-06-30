@@ -762,7 +762,51 @@ function TestimonialsSection() {
   );
 }
 
+function RecruiterCard({ p }: { p: typeof RECRUITER_PERSONAS[number] }) {
+  return (
+    <div className={`relative flex flex-col rounded-xl border ${p.borderStyle} ${p.bgStyle} p-6 backdrop-blur-sm`}>
+      {/* Plan badge */}
+      <span className={`absolute right-4 top-4 rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${p.tagStyle}`}>
+        {p.tag}
+      </span>
+
+      {/* Avatar */}
+      {p.image ? (
+        <img src={p.image} alt={p.name} className="h-14 w-14 rounded-full ring-1 ring-line" />
+      ) : (
+        <span className="grid h-14 w-14 place-items-center rounded-full bg-fg/[0.07] text-2xl ring-1 ring-line">
+          {p.emoji}
+        </span>
+      )}
+
+      {/* Name + title */}
+      <p className="mt-4 text-base font-black text-fg">{p.name}</p>
+      <p className={`mt-0.5 text-[11px] font-black uppercase tracking-[0.14em] ${p.accentStyle}`}>{p.title}</p>
+
+      {/* Style tag */}
+      <p className="mt-1 text-[11px] text-muted">{p.style}</p>
+
+      {/* Description */}
+      <p className="mt-3 flex-1 text-xs leading-5 text-muted">{p.description}</p>
+
+      {/* Difficulty dots */}
+      <div className="mt-4 flex items-center gap-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted">Difficulty</p>
+        <div className="flex gap-1">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <span key={i} className={`h-1.5 w-1.5 rounded-full ${i < p.difficulty ? "bg-fg/70" : "bg-fg/15"}`} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RecruiterPersonasSection() {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? RECRUITER_PERSONAS : RECRUITER_PERSONAS.slice(0, 4);
+  const hidden = RECRUITER_PERSONAS.length - 4;
+
   return (
     <section className="px-4 py-20 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
@@ -777,55 +821,62 @@ function RecruiterPersonasSection() {
           </p>
         </div>
 
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {RECRUITER_PERSONAS.map((p) => (
-            <div
-              key={p.name}
-              className={`relative flex flex-col rounded-xl border ${p.borderStyle} ${p.bgStyle} p-6 backdrop-blur-sm`}
-            >
-              {/* Plan badge */}
-              <span className={`absolute right-4 top-4 rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${p.tagStyle}`}>
-                {p.tag}
-              </span>
-
-              {/* Avatar */}
-              {p.image ? (
-                <img
-                  src={p.image}
-                  alt={p.name}
-                  className="h-14 w-14 rounded-full ring-1 ring-line"
-                />
-              ) : (
-                <span className="grid h-14 w-14 place-items-center rounded-full bg-fg/[0.07] text-2xl ring-1 ring-line">
-                  {p.emoji}
-                </span>
-              )}
-
-              {/* Name + title */}
-              <p className="mt-4 text-base font-black text-fg">{p.name}</p>
-              <p className={`mt-0.5 text-[11px] font-black uppercase tracking-[0.14em] ${p.accentStyle}`}>{p.title}</p>
-
-              {/* Style tag */}
-              <p className="mt-1 text-[11px] text-muted">{p.style}</p>
-
-              {/* Description */}
-              <p className="mt-3 flex-1 text-xs leading-5 text-muted">{p.description}</p>
-
-              {/* Difficulty dots */}
-              <div className="mt-4 flex items-center gap-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted">Difficulty</p>
-                <div className="flex gap-1">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <span
-                      key={i}
-                      className={`h-1.5 w-1.5 rounded-full ${i < p.difficulty ? "bg-fg/70" : "bg-fg/15"}`}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {visible.map((p) => (
+            <RecruiterCard key={p.name} p={p} />
           ))}
         </div>
+
+        {!expanded && (
+          <div className="mt-6 flex flex-col items-center gap-3">
+            {/* Peek row — avatar stack of hidden personas */}
+            <div className="flex items-center gap-2">
+              <div className="flex -space-x-2">
+                {RECRUITER_PERSONAS.slice(4).map((p) => (
+                  p.image ? (
+                    <img
+                      key={p.name}
+                      src={p.image}
+                      alt={p.name}
+                      className="h-7 w-7 rounded-full ring-2 ring-canvas"
+                    />
+                  ) : (
+                    <span
+                      key={p.name}
+                      className="grid h-7 w-7 place-items-center rounded-full bg-fg/[0.07] text-sm ring-2 ring-canvas"
+                    >
+                      {p.emoji}
+                    </span>
+                  )
+                ))}
+              </div>
+              <span className="text-sm text-muted">+{hidden} more recruiters unlocked with Premium &amp; Pro</span>
+            </div>
+            <button
+              onClick={() => setExpanded(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-line bg-canvas-soft px-5 py-2.5 text-sm font-black text-fg transition hover:bg-fg/[0.06]"
+            >
+              See all 11 recruiters
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {expanded && (
+          <div className="mt-4 flex justify-center">
+            <button
+              onClick={() => setExpanded(false)}
+              className="inline-flex items-center gap-2 text-sm font-black text-muted transition hover:text-fg"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+              </svg>
+              Show less
+            </button>
+          </div>
+        )}
 
         <p className="mt-8 text-center text-sm text-muted">
           Free personas available on all plans · Premium personas on Premium · Pro personas on Premium Pro

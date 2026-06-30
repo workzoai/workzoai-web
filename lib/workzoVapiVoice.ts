@@ -179,6 +179,12 @@ export function buildWorkZoVapiAssistantOverrides(input: {
     "If the candidate mentions any employer or role from the list above, acknowledge it",
     "and ask a positive follow-up about responsibilities, scope, achievements, or outcomes.",
     "",
+    "JOB DESCRIPTION GROUNDING — MANDATORY:",
+    "This interview must feel specific to the posted role and company, not like a generic support interview.",
+    "In the first six substantive questions, cover: why this role/company, why the candidate wants to move into this role, gaps between CV and JD, customer onboarding/project kickoff, implementation partner coordination, HR administration/process understanding, stakeholder/management-level communication, change management, milestone/to-do tracking, and escalation to management when customer/partner progress stalls — but only if those ideas appear in the JD below.",
+    "Do not repeatedly ask documentation/escalation questions. After one process question, move to a different JD requirement.",
+    "When the CV appears weaker than the JD asks for, ask naturally: 'I see more technical support experience in your CV; what makes you ready for a customer success/project ownership role like this?' Do not mark it as a failure immediately; probe motivation and transferable evidence.",
+    "",
     interviewStyle,
   ]
     .filter((line) => line !== undefined)
@@ -541,7 +547,7 @@ END VERIFIED CONTEXT. ` +
       // prompt entirely, even though the text-based engine has covered them
       // for a while. Stated explicitly here so live voice candidates get the
       // same baseline questions every real interview includes.
-      `Early in the interview, naturally ask what the candidate currently does (or most recently did) and why they're interested in this specific role — not generically, but tied to what this role actually involves. ` +
+      `Early in the interview, naturally ask what the candidate currently does (or most recently did), why they want this specific role, why this company, and why they want to move from their current/previous background into this role. Tie this to actual JD responsibilities, not generic motivation. ` +
       `At least four interview questions must be grounded in the actual job description, not generic support-process questions. Pull requirements from jobDescription/jobDescriptionFull such as onboarding, customer adoption, renewals, stakeholder management, SaaS workflows, reporting, QBRs, churn risk, or whatever the JD actually says. Do not keep asking the same documentation/escalation question. ` +
       `At least once, pick a specific requirement stated in the job description and ask about it directly. If the CV verified facts already show related experience, phrase it positively, e.g. "I see your CV shows experience directly relevant to this requirement — how would that background help you here?" Never say there is not enough detail for a verified employer/role; simply ask for more detail. Only say you do not see something when it is genuinely absent from the verified facts. ` +
       `Near the end of the interview, invite the candidate's own questions — ask something like "do you have any questions for me about the role or what happens next?" If they ask something, actually answer it using what you know about the role — don't redirect them back into the interview. After the final closing sentence, stop. Do not ask process-improvement, documentation, escalation, or any other new question after closing. ` +

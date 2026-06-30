@@ -2871,43 +2871,60 @@ function updateRecruiterSignalState(
   setup?: InterviewSetup,
 ): RecruiterSignalState {
   const signal = analyzeAnswerSignals(answer, setup);
+
+  // Live score calibration:
+  // - Start neutral at 50, but allow a real, detailed answer to move above 50.
+  // - Missing metrics should limit the score, not freeze it at 50.
+  // - Unsupported claims and very short/generic answers still reduce trust.
+  const isSubstantive = signal.wordCount >= 35 && !signal.short && !signal.vague;
+  const hasRoleContext = /customer|client|stakeholder|project|process|escalat|implementation|onboarding|management|support|crm|ticket|partner|hr|software|change/i.test(answer);
+
   const trustDelta = signal.admission
-    ? -12
+    ? -14
     : signal.unsupported
-      ? -20
-      : signal.metric && signal.ownership
-        ? 4
-        : signal.short || signal.vague
-          ? -4
-          : 1;
+      ? -18
+      : signal.metric && signal.ownership && signal.outcome
+        ? 9
+        : signal.metric && signal.ownership
+          ? 7
+          : signal.ownership && isSubstantive
+            ? 5
+            : isSubstantive
+              ? 3
+              : signal.short || signal.vague
+                ? -5
+                : 1;
+
   const interestDelta = signal.unsupported
-    ? -12
+    ? -10
     : signal.metric && signal.outcome
-      ? 5
-      : signal.short || signal.vague
-        ? -5
-        : signal.ownership
-          ? 2
-          : -1;
+      ? 8
+      : signal.ownership && isSubstantive
+        ? 6
+        : isSubstantive && hasRoleContext
+          ? 5
+          : signal.short || signal.vague
+            ? -5
+            : 2;
 
   const trust = scoreClamp(previous.trust + trustDelta);
   const interest = scoreClamp(previous.interest + interestDelta);
   const clarity = scoreClamp(
     previous.clarity +
-      (signal.vague || signal.short ? -5 : signal.wordCount > 30 ? 3 : 0),
+      (signal.vague || signal.short ? -5 : signal.wordCount > 45 ? 5 : signal.wordCount > 25 ? 3 : 0),
   );
   const confidence = scoreClamp(
-    previous.confidence + (signal.ownership ? 3 : -2),
+    previous.confidence + (signal.ownership ? 5 : isSubstantive ? 2 : -2),
   );
   const relevance = scoreClamp(
     previous.relevance +
-      (signal.metric || signal.outcome ? 2 : signal.short ? -2 : 0),
+      (hasRoleContext && isSubstantive ? 6 : signal.metric || signal.outcome ? 4 : signal.short ? -2 : 1),
   );
   const communication = scoreClamp(
-    previous.communication + (signal.outcome ? 3 : signal.vague ? -3 : 1),
+    previous.communication + (signal.outcome ? 5 : isSubstantive ? 4 : signal.vague ? -3 : 1),
   );
   const overall = scoreClamp(
-    (trust + interest + clarity + confidence + relevance + communication) / 6,
+    (trust * 0.24 + interest * 0.2 + clarity * 0.16 + confidence * 0.16 + relevance * 0.16 + communication * 0.08),
   );
 
   let mood: RecruiterSignalState["mood"] = "Neutral";
@@ -4520,7 +4537,7 @@ function shouldMergeVisibleTranscript(
   // "Hi, how are you?" because both arrived within 4 seconds.
   if (hasHadCandidateTurnSinceLastRecruiter) return false;
 
-  const RAPID_FRAGMENT_WINDOW_MS = 4000;
+  const RAPID_FRAGMENT_WINDOW_MS = 8000;
   if (
     next.role === "recruiter" &&
     typeof msSincePreviousRecruiterMessage === "number" &&
@@ -5097,8 +5114,19 @@ export default function InterviewPage() {
   const visibleQuestionNumber = hasStartedInterview
     ? Math.max(1, Math.min(questionIndex, 30))
     : 0;
+  const substantiveRecruiterQuestions = visibleTranscriptItems.filter(
+    (item) => item.role === "recruiter" && isProgressWorthyRecruiterTurn(item.text),
+  ).length;
+  const substantiveCandidateAnswers = visibleTranscriptItems.filter(
+    (item) => item.role === "candidate" && item.text.trim().split(/\s+/).filter(Boolean).length >= 12,
+  ).length;
+  // Progress is only visual. It must never force-finish the interview.
+  // Keep it below 100 until the session is actually ended, so users do not
+  // see 100% while the recruiter is still asking questions.
   const progress = hasStartedInterview
-    ? Math.round((visibleQuestionNumber / 30) * 100)
+    ? status === "ended"
+      ? 100
+      : Math.min(92, Math.round((Math.min(substantiveRecruiterQuestions, 10) / 10) * 70 + (Math.min(substantiveCandidateAnswers, 10) / 10) * 22))
     : 0;
   // interviewComplete: ONLY trigger on transcript-detected closing.
   // When Vapi is active, the browser engine memory (readyForResults) should
@@ -5398,15 +5426,22 @@ export default function InterviewPage() {
 
   const persistInterviewResultToDb = useCallback(
     (session: Record<string, any>) => {
+      // session.score is the recruiterSignal object: { trust, confidence, clarity, relevance, mood, ... }
+      // There is no session.score.overall — compute it from the signal components.
+      const sig = session.score || {};
+      const computedOverall = (sig.trust != null && sig.confidence != null && sig.clarity != null && sig.relevance != null)
+        ? Math.round((sig.trust * 0.35) + (sig.confidence * 0.25) + (sig.clarity * 0.20) + (sig.relevance * 0.20))
+        : null;
+      const overallScore = computedOverall ?? session.overallScore ?? session.summary?.trust ?? null;
+
       fetch("/api/db/interview-result", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           sessionId: interviewSessionIdRef.current,
-          overallScore:
-            session.score?.overall ?? session.summary?.trust ?? null,
-          trustScore: session.score?.trust ?? null,
+          overallScore,
+          trustScore: sig.trust ?? session.score?.trust ?? null,
           evidenceQuality: session.answerQuality?.evidenceScore ?? null,
           contradictionRisk: session.memory?.unsupportedClaims ?? null,
           strengths: session.verdict?.strengths || [],
@@ -5414,6 +5449,7 @@ export default function InterviewPage() {
           weakAnswers: session.weakestMoment ? [session.weakestMoment] : [],
           contradictions: session.memory?.patterns || [],
           evidenceRequests: session.answerQuality?.evidenceRequests || [],
+          durationSeconds: session.durationSeconds || 0,
           rawResult: session,
         }),
       }).catch(() => undefined);
@@ -5437,7 +5473,6 @@ export default function InterviewPage() {
         text: cleanedText,
       };
 
-      persistInterviewMessageToDb(cleanedItem, transcript.length);
       setTranscript((current) => {
         const previous = current[current.length - 1];
         const now = Date.now();
@@ -5470,20 +5505,30 @@ export default function InterviewPage() {
             hasCandidateSinceLastRecruiter,
           )
         ) {
-          return current.map((entry, index) =>
+          const mergedText = cleanVisibleTranscriptText(
+            `${previous.text} ${cleanedItem.text}`,
+          );
+          // Persist the updated merged entry to DB (overwrites the fragment)
+          persistInterviewMessageToDb(
+            { ...previous, text: mergedText },
+            current.length - 1,
+          );
+          const nextTranscript = current.map((entry, index) =>
             index === current.length - 1
               ? {
                   ...entry,
-                  text: cleanVisibleTranscriptText(
-                    `${entry.text} ${cleanedItem.text}`,
-                  ),
+                  text: mergedText,
                   time: formatTranscriptTime(new Date()),
                 }
               : entry,
           );
+          transcriptRef.current = nextTranscript;
+          return nextTranscript;
         }
 
-        return [
+        // New distinct turn — persist to DB now
+        persistInterviewMessageToDb(cleanedItem, current.length);
+        const nextTranscript = [
           ...current,
           {
             ...cleanedItem,
@@ -5491,9 +5536,11 @@ export default function InterviewPage() {
             time: formatTranscriptTime(new Date()),
           },
         ].slice(-80);
+        transcriptRef.current = nextTranscript;
+        return nextTranscript;
       });
     },
-    [persistInterviewMessageToDb, transcript.length],
+    [persistInterviewMessageToDb],
   );
 
   const stopListening = useCallback(() => {
@@ -7334,7 +7381,11 @@ export default function InterviewPage() {
   const saveInterviewResult = useCallback(
     (reason: "ended" | "paused" = "ended") => {
       if (typeof window === "undefined") return;
-      const finalTranscript = transcript;
+      // Use the ref mirror, not React state, so the latest Vapi/browser transcript
+      // is saved even when the user clicks End immediately after speaking or when
+      // a closing line was just added. This fixes false “only 1 answer captured”
+      // and missing closing lines on the results page.
+      const finalTranscript = transcriptRef.current.length ? transcriptRef.current : transcript;
 
       const finalScore = scoreReady ? recruiterSignal : null;
       const verdict = buildInterviewVerdict(
@@ -8469,23 +8520,25 @@ export default function InterviewPage() {
           </section>
         ) : null}
 
-        {/* First-time user hint: shown once, dismissed permanently */}
+        {/* First-time user hint: floating toast, never affects layout */}
         {showFirstTimeHint && (
-          <div className="mx-4 mt-3 flex items-start gap-3 rounded-lg border border-brand/20 bg-brand/[0.06] px-4 py-3">
-            <span className="mt-0.5 shrink-0 text-base text-brand">💡</span>
-            <p className="flex-1 text-xs leading-5 text-brand">
-              The recruiter will ask questions: respond as you would in a real
-              interview. Speak naturally, then pause. WorkZo listens
-              automatically.
-            </p>
-            <button
-              type="button"
-              onClick={dismissFirstTimeHint}
-              aria-label="Dismiss hint"
-              className="ml-2 shrink-0 text-subtle transition hover:text-muted"
-            >
-              ✕
-            </button>
+          <div className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 px-4 w-full max-w-lg">
+            <div className="pointer-events-auto flex items-start gap-3 rounded-xl border border-brand/20 bg-canvas shadow-lg shadow-black/10 px-4 py-3">
+              <span className="mt-0.5 shrink-0 text-base text-brand">💡</span>
+              <p className="flex-1 text-xs leading-5 text-fg">
+                The recruiter will ask questions: respond as you would in a real
+                interview. Speak naturally, then pause. WorkZo listens
+                automatically.
+              </p>
+              <button
+                type="button"
+                onClick={dismissFirstTimeHint}
+                aria-label="Dismiss hint"
+                className="ml-2 shrink-0 text-subtle transition hover:text-muted"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         )}
 

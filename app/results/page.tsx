@@ -276,6 +276,8 @@ function normalizeDbInterviewResult(row: DbInterviewResultRow | null | undefined
   };
   const normalized: StoredResult = {
     ...rawRecord,
+    // Explicitly preserve transcript so buildPairs always finds it
+    transcript: Array.isArray(rawRecord.transcript) ? rawRecord.transcript : [],
     overallScore: numberOr(rawRecord.overallScore, numberOr(row.overall_score, numberOr(rawRecord.score?.overall, 0))),
     trustScore: numberOr(rawRecord.trustScore, numberOr(row.trust_score, numberOr(rawRecord.score?.trust, 0))),
     communicationScore: numberOr(rawRecord.communicationScore, numberOr(rawRecord.score?.communication, 0)),
@@ -302,14 +304,27 @@ function normalizeDbInterviewResult(row: DbInterviewResultRow | null | undefined
 
 async function fetchLatestDbInterviewResult(): Promise<StoredResult | null> {
   try {
-    // 6-second timeout: if the DB call hangs (e.g. due to a flood of other API calls),
-    // fall through to local storage immediately rather than showing the spinner forever.
+    // Pass the latest session ID so the API returns the matching result,
+    // not just the highest-scored one from a different session.
+    let sessionId: string | null = null;
+    try {
+      const raw = localStorage.getItem("workzo_latest_interview_result");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        sessionId = parsed?.id || parsed?.sessionId || null;
+      }
+    } catch { /* ignore */ }
+
+    const url = sessionId
+      ? `/api/db/interview-result?sessionId=${encodeURIComponent(sessionId)}`
+      : "/api/db/interview-result";
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
 
     let response: Response;
     try {
-      response = await fetch("/api/db/interview-result", {
+      response = await fetch(url, {
         method: "GET",
         credentials: "include",
         cache: "no-store",
@@ -364,13 +379,23 @@ function getTurnText(turn: TranscriptTurn) {
 }
 
 function isRecruiterTurn(turn: TranscriptTurn) {
-  const label = cleanText(turn.role || turn.speaker).toLowerCase();
-  return /recruiter|assistant|interviewer|ai|sarah|daniel|priya|markus/.test(label);
+  // Trust the explicit role field first — always set by the interview engine
+  const role = cleanText(turn.role).toLowerCase();
+  if (role === "recruiter" || role === "assistant") return true;
+  if (role === "candidate" || role === "user") return false;
+  // Fall back to speaker label for legacy stored sessions
+  const label = cleanText(turn.speaker).toLowerCase();
+  return /recruiter|assistant|interviewer|ai|sarah|daniel|priya|markus|alex|zoe|james|noah|aisha|victoria|david/.test(label);
 }
 
 function isCandidateTurn(turn: TranscriptTurn) {
-  const label = cleanText(turn.role || turn.speaker).toLowerCase();
-  return /user|candidate|you|me|applicant/.test(label);
+  // Trust the explicit role field first
+  const role = cleanText(turn.role).toLowerCase();
+  if (role === "candidate" || role === "user") return true;
+  if (role === "recruiter" || role === "assistant") return false;
+  // Fall back to speaker label for legacy stored sessions
+  const label = cleanText(turn.speaker).toLowerCase();
+  return /user|candidate|you\b|me\b|applicant/.test(label);
 }
 
 function countWords(text: string) {
@@ -656,10 +681,13 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
     score?: { overall?: number; trust?: number; clarity?: number; confidence?: number; relevance?: number; communication?: number };
     answerQuality?: { evidenceScore?: number };
   };
-  // No artificial floor: if no data, score 0 not 58
-  const evidenceQuality = numberOr(result.evidenceQuality, numberOr(resultRecord.answerQuality?.evidenceScore, answersCount > 0 ? average(answerInsights.map((item) => item.evidenceScore), 0) : 0));
-  const trustScore = numberOr(result.trustScore, numberOr(resultRecord.score?.trust, answersCount > 0 ? average(answerInsights.map((item) => item.trustImpact), 0) : 0));
-  const structureScore = answersCount > 0 ? average(answerInsights.map((item) => item.structureScore), 0) : 0;
+  // Fair scoring: no “free pass”, but also no brutal 0–10 score when the
+  // transcript clearly contains real spoken answers. Missing metrics should
+  // cap confidence; it should not make a realistic first-practice answer look
+  // like a total failure.
+  const evidenceQuality = numberOr(result.evidenceQuality, numberOr(resultRecord.answerQuality?.evidenceScore, answersCount > 0 ? average(answerInsights.map((item) => item.evidenceScore), 42) : 0));
+  const trustScore = numberOr(result.trustScore, numberOr(resultRecord.score?.trust, answersCount > 0 ? average(answerInsights.map((item) => item.trustImpact), 45) : 0));
+  const structureScore = answersCount > 0 ? average(answerInsights.map((item) => item.structureScore), 45) : 0;
   // ownershipScore: honest: clear ownership gets high score, missing gets low score
   const ownershipScore = answersCount > 0
     ? average(answerInsights.map((item) => item.ownershipPresent ? 80 : 35), 50)
@@ -680,7 +708,9 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
   const roleCompetencyScore = transcriptRoleScore ?? storedRoleScore ?? 45;
 
   // Calculate from transcript first: this is always honest
-  const calculatedScore = clamp((communicationScore * 0.22) + (confidenceScore * 0.18) + (roleCompetencyScore * 0.28) + (trustScore * 0.2) + (evidenceQuality * 0.12));
+  const calculatedScoreRaw = clamp((communicationScore * 0.22) + (confidenceScore * 0.18) + (roleCompetencyScore * 0.28) + (trustScore * 0.2) + (evidenceQuality * 0.12));
+  const fairMinimum = answersCount >= 4 ? 48 : answersCount >= 2 ? 42 : answersCount === 1 ? 35 : 0;
+  const calculatedScore = answersCount > 0 ? Math.max(fairMinimum, calculatedScoreRaw) : 0;
 
   // Only use the stored score if:
   // 1. We have enough answers (3+) to trust it was a real session
@@ -688,9 +718,9 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
   // Otherwise, the transcript-based calculation is more honest.
   const _rawStoredScore = result.overallScore ?? resultRecord.score?.overall;
   const storedScore: number | null = typeof _rawStoredScore === "number" ? _rawStoredScore : null;
-  // Treat stored scores of 0 OR exactly at the default signal range (48-52) as unreliable.
-  // Also treat very low stored scores (< 10) as likely unscored sessions.
-  const storedScoreIsDefault = storedScore === null || storedScore <= 5 || (storedScore >= 47 && storedScore <= 53);
+  // Treat stored scores of exactly 0 OR in the default signal range (48-52) as unreliable.
+  // Do NOT discard scores below 10 — a genuinely poor session can legitimately score low.
+  const storedScoreIsDefault = storedScore === null || storedScore === 0 || (storedScore >= 47 && storedScore <= 53);
   const overallScore = (answersCount >= 3 && storedScore !== null && !storedScoreIsDefault)
     ? clamp(storedScore)
     : calculatedScore;
