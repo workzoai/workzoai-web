@@ -87,7 +87,6 @@ const CodePanel = dynamic(() => import("@/components/interview/CodePanel"), {
 import {
   analyzeWorkZoActiveDisruption,
   buildWorkZoPersonaOpeningQuestion,
-  buildWorkZoWaitingRoomSteps,
   createWorkZoDisruptionMemory,
   getWorkZoSimulationPersona,
   updateWorkZoDisruptionMemory,
@@ -2871,60 +2870,53 @@ function updateRecruiterSignalState(
   setup?: InterviewSetup,
 ): RecruiterSignalState {
   const signal = analyzeAnswerSignals(answer, setup);
-
-  // Live score calibration:
-  // - Start neutral at 50, but allow a real, detailed answer to move above 50.
-  // - Missing metrics should limit the score, not freeze it at 50.
-  // - Unsupported claims and very short/generic answers still reduce trust.
-  const isSubstantive = signal.wordCount >= 35 && !signal.short && !signal.vague;
-  const hasRoleContext = /customer|client|stakeholder|project|process|escalat|implementation|onboarding|management|support|crm|ticket|partner|hr|software|change/i.test(answer);
-
+  const strongSubstance = signal.wordCount >= 45 && signal.ownership && (signal.outcome || signal.metric);
+  const usefulSubstance = signal.wordCount >= 35 && (signal.ownership || signal.outcome);
   const trustDelta = signal.admission
-    ? -14
+    ? -12
     : signal.unsupported
-      ? -18
-      : signal.metric && signal.ownership && signal.outcome
-        ? 9
-        : signal.metric && signal.ownership
-          ? 7
-          : signal.ownership && isSubstantive
-            ? 5
-            : isSubstantive
-              ? 3
-              : signal.short || signal.vague
-                ? -5
-                : 1;
-
+      ? -20
+      : signal.metric && signal.ownership
+        ? 7
+        : strongSubstance
+          ? 6
+          : usefulSubstance
+            ? 4
+            : signal.short || signal.vague
+              ? -4
+              : 2;
   const interestDelta = signal.unsupported
-    ? -10
+    ? -12
     : signal.metric && signal.outcome
-      ? 8
-      : signal.ownership && isSubstantive
+      ? 7
+      : strongSubstance
         ? 6
-        : isSubstantive && hasRoleContext
-          ? 5
+        : usefulSubstance
+          ? 4
           : signal.short || signal.vague
             ? -5
-            : 2;
+            : signal.ownership
+              ? 3
+              : 1;
 
   const trust = scoreClamp(previous.trust + trustDelta);
   const interest = scoreClamp(previous.interest + interestDelta);
   const clarity = scoreClamp(
     previous.clarity +
-      (signal.vague || signal.short ? -5 : signal.wordCount > 45 ? 5 : signal.wordCount > 25 ? 3 : 0),
+      (signal.vague || signal.short ? -5 : signal.wordCount > 30 ? 5 : 1),
   );
   const confidence = scoreClamp(
-    previous.confidence + (signal.ownership ? 5 : isSubstantive ? 2 : -2),
+    previous.confidence + (signal.ownership ? 5 : usefulSubstance ? 2 : -2),
   );
   const relevance = scoreClamp(
     previous.relevance +
-      (hasRoleContext && isSubstantive ? 6 : signal.metric || signal.outcome ? 4 : signal.short ? -2 : 1),
+      (signal.metric || signal.outcome ? 4 : usefulSubstance ? 3 : signal.short ? -2 : 1),
   );
   const communication = scoreClamp(
-    previous.communication + (signal.outcome ? 5 : isSubstantive ? 4 : signal.vague ? -3 : 1),
+    previous.communication + (signal.outcome ? 5 : signal.vague ? -3 : 2),
   );
   const overall = scoreClamp(
-    (trust * 0.24 + interest * 0.2 + clarity * 0.16 + confidence * 0.16 + relevance * 0.16 + communication * 0.08),
+    (trust + interest + clarity + confidence + relevance + communication) / 6,
   );
 
   let mood: RecruiterSignalState["mood"] = "Neutral";
@@ -4916,12 +4908,7 @@ export default function InterviewPage() {
   const [showTranscript, setShowTranscript] = useState(false);
   const [showCopilot, setShowCopilot] = useState(true);
   const [waitingRoomActive, setWaitingRoomActive] = useState(false);
-  const [waitingRoomStep, setWaitingRoomStep] = useState(0);
-  const waitingRoomSteps = useMemo(
-    () =>
-      buildWorkZoWaitingRoomSteps(setup as unknown as Record<string, unknown>),
-    [setup],
-  );
+  const [waitingRoomCountdown, setWaitingRoomCountdown] = useState(3);
   const simulationPersona = useMemo(
     () =>
       getWorkZoSimulationPersona(setup as unknown as Record<string, unknown>),
@@ -5114,19 +5101,17 @@ export default function InterviewPage() {
   const visibleQuestionNumber = hasStartedInterview
     ? Math.max(1, Math.min(questionIndex, 30))
     : 0;
-  const substantiveRecruiterQuestions = visibleTranscriptItems.filter(
-    (item) => item.role === "recruiter" && isProgressWorthyRecruiterTurn(item.text),
-  ).length;
-  const substantiveCandidateAnswers = visibleTranscriptItems.filter(
-    (item) => item.role === "candidate" && item.text.trim().split(/\s+/).filter(Boolean).length >= 12,
-  ).length;
-  // Progress is only visual. It must never force-finish the interview.
-  // Keep it below 100 until the session is actually ended, so users do not
-  // see 100% while the recruiter is still asking questions.
+  const closingTurnSeen = transcript.some(
+    (item) =>
+      item.role === "recruiter" &&
+      /that brings us to the end|end of our session|we'll be in touch|next steps|thank you.*time today/i.test(item.text),
+  );
   const progress = hasStartedInterview
     ? status === "ended"
       ? 100
-      : Math.min(92, Math.round((Math.min(substantiveRecruiterQuestions, 10) / 10) * 70 + (Math.min(substantiveCandidateAnswers, 10) / 10) * 22))
+      : closingTurnSeen
+        ? 95
+        : Math.min(Math.round((visibleQuestionNumber / 8) * 100), 88)
     : 0;
   // interviewComplete: ONLY trigger on transcript-detected closing.
   // When Vapi is active, the browser engine memory (readyForResults) should
@@ -5513,7 +5498,7 @@ export default function InterviewPage() {
             { ...previous, text: mergedText },
             current.length - 1,
           );
-          const nextTranscript = current.map((entry, index) =>
+          return current.map((entry, index) =>
             index === current.length - 1
               ? {
                   ...entry,
@@ -5522,13 +5507,11 @@ export default function InterviewPage() {
                 }
               : entry,
           );
-          transcriptRef.current = nextTranscript;
-          return nextTranscript;
         }
 
         // New distinct turn — persist to DB now
         persistInterviewMessageToDb(cleanedItem, current.length);
-        const nextTranscript = [
+        return [
           ...current,
           {
             ...cleanedItem,
@@ -5536,8 +5519,6 @@ export default function InterviewPage() {
             time: formatTranscriptTime(new Date()),
           },
         ].slice(-80);
-        transcriptRef.current = nextTranscript;
-        return nextTranscript;
       });
     },
     [persistInterviewMessageToDb],
@@ -6786,7 +6767,35 @@ export default function InterviewPage() {
           setPremiumVoiceStatus((current) =>
             current === "connected" ? "idle" : current,
           );
-          if (!stopRequestedRef.current) setStatus("idle");
+
+          if (stopRequestedRef.current) return;
+
+          const savedTranscript = transcriptRef.current || [];
+          const candidateAnswers = savedTranscript.filter((item) => {
+            if (item.role !== "candidate") return false;
+            const words = item.text.trim().split(/\s+/).filter(Boolean).length;
+            if (words < 8) return false;
+            return !/^(hi|hello|hey|good|fine|thanks|thank you|yes|ok|okay|sure)[.! ]*$/i.test(item.text.trim());
+          }).length;
+          const hasFinalClosing = savedTranscript.some(
+            (item) =>
+              item.role === "recruiter" &&
+              /that brings us to the end|end of our session|thank you for (your time|joining|today)|we'?ll be in touch|next steps|take care|best of luck/i.test(item.text),
+          );
+
+          // If Vapi ended naturally after a proper closing, save the complete
+          // transcript and then move to results. Otherwise return to idle so the
+          // user is not forced into results from a connection hiccup or an early
+          // assistant phrase that looked like a wrap-up.
+          if ((vapiNaturalClosingSeenRef.current || hasFinalClosing) && candidateAnswers >= 2) {
+            vapiNaturalClosingSeenRef.current = false;
+            stopRequestedRef.current = true;
+            setStatus("ended");
+            window.setTimeout(() => { endInterview(); }, 700);
+            return;
+          }
+
+          setStatus("idle");
         });
 
         client.on?.("error", releaseToFallback);
@@ -7263,20 +7272,14 @@ export default function InterviewPage() {
     turnsPastCapRef.current = 0;
 
     setWaitingRoomActive(true);
-    setWaitingRoomStep(0);
-    for (
-      let stepIndex = 0;
-      stepIndex <
-      buildWorkZoWaitingRoomSteps(
-        freshSetup as unknown as Record<string, unknown>,
-      ).length;
-      stepIndex += 1
-    ) {
-      setWaitingRoomStep(stepIndex);
-      await new Promise((resolve) =>
-        window.setTimeout(resolve, stepIndex === 0 ? 320 : 620),
-      );
+    // Short, fully visible countdown.
+    // The old waiting-room checklist was too tall, lasted only a few seconds,
+    // and could be hidden behind the transcript area on smaller screens.
+    for (const value of [3, 2, 1]) {
+      setWaitingRoomCountdown(value);
+      await new Promise((resolve) => window.setTimeout(resolve, 650));
     }
+
     setWaitingRoomActive(false);
 
     if (recoverySnapshotRef.current) {
@@ -7381,11 +7384,39 @@ export default function InterviewPage() {
   const saveInterviewResult = useCallback(
     (reason: "ended" | "paused" = "ended") => {
       if (typeof window === "undefined") return;
-      // Use the ref mirror, not React state, so the latest Vapi/browser transcript
-      // is saved even when the user clicks End immediately after speaking or when
-      // a closing line was just added. This fixes false “only 1 answer captured”
-      // and missing closing lines on the results page.
-      const finalTranscript = transcriptRef.current.length ? transcriptRef.current : transcript;
+      let finalTranscript = [...(transcriptRef.current.length ? transcriptRef.current : transcript)];
+
+      const pendingCandidate = getStableCandidateAnswer().trim();
+      const lastCandidate = [...finalTranscript].reverse().find((item) => item.role === "candidate");
+      if (
+        pendingCandidate.length >= 12 &&
+        pendingCandidate.toLowerCase() !== (lastCandidate?.text || "").trim().toLowerCase()
+      ) {
+        finalTranscript.push({
+          id: `candidate-final-${Date.now()}`,
+          time: formatTranscriptTime(new Date()),
+          role: "candidate",
+          speaker: "You",
+          text: pendingCandidate,
+        });
+      }
+
+      const hasRecruiterClosing = finalTranscript.some(
+        (item) =>
+          item.role === "recruiter" &&
+          /that brings us to the end|end of our session|we'll be in touch|next steps|thank you.*time today/i.test(item.text),
+      );
+      const hasSubstantiveConversation = finalTranscript.filter((item) => item.role === "candidate" || item.role === "recruiter").length >= 4;
+      if (reason === "ended" && hasSubstantiveConversation && !hasRecruiterClosing) {
+        finalTranscript.push({
+          id: `recruiter-closing-${Date.now()}`,
+          time: formatTranscriptTime(new Date()),
+          role: "recruiter",
+          speaker: `${setupRef.current.recruiterName} · ${setupRef.current.recruiterTitle}`,
+          text: `That brings us to the end of our session, ${setupRef.current.candidateName || "Candidate"}. Thank you for your time today. We'll review your answers and share next steps after this debrief.`,
+        });
+      }
+      transcriptRef.current = finalTranscript;
 
       const finalScore = scoreReady ? recruiterSignal : null;
       const verdict = buildInterviewVerdict(
@@ -7531,6 +7562,7 @@ export default function InterviewPage() {
       recruiterMemory,
       scoreReady,
       transcript,
+      getStableCandidateAnswer,
       persistInterviewResultToDb,
       persistInterviewSessionToDb,
     ],
@@ -7538,38 +7570,25 @@ export default function InterviewPage() {
 
   const endInterview = useCallback(() => {
     stopRequestedRef.current = true;
+    listeningRef.current = false;
+
     try { stopListening(); } catch {}
     try { stopPremiumVoice(); } catch {}
+    try { recognitionRef.current?.stop?.(); } catch {}
+    try { window.speechSynthesis?.cancel(); } catch {}
+
+    vapiFallbackStartedRef.current = false;
+    setInterimText("");
+    setStatus("ended");
+
+    // Save FIRST, then navigate. This prevents the results page from reading
+    // an older DB/localStorage snapshot and falsely showing “only 1 answer”.
+    saveInterviewResult("ended");
+
     window.setTimeout(() => {
       window.location.href = "/results";
-    }, 250);
-
-    listeningRef.current = false;
-    try {
-      recognitionRef.current?.stop?.();
-    } catch {}
-    if (typeof window !== "undefined") window.speechSynthesis.cancel();
-
-    setStatus("ended");
-
-    stopRequestedRef.current = true;
-    stopListening();
-    stopPremiumVoice();
-    vapiFallbackStartedRef.current = false;
-
-    try {
-      window.speechSynthesis?.cancel();
-    } catch {}
-
-    saveInterviewResult("ended");
-    setStatus("ended");
-    setInterimText("");
-    addTranscript({
-      role: "system",
-      speaker: "System",
-      text: "Interview ended. You can review the transcript or start again.",
-    });
-  }, [addTranscript, saveInterviewResult, stopListening, stopPremiumVoice]);
+    }, 650);
+  }, [saveInterviewResult, stopListening, stopPremiumVoice]);
 
   // ── Graceful, engine-agnostic interview completion ──────────────────────
   // BUG FIXED: there was no automatic completion logic anywhere. The
@@ -7592,6 +7611,12 @@ export default function InterviewPage() {
   // in-progress answer is never cut off unfinished.
   const closingInvitationSeenRef = useRef(false);
   const closingHandledRef = useRef(false);
+  // Vapi must not be stopped just because the UI progress is high or because
+  // a closing-looking phrase appears while the candidate is still speaking.
+  // We mark that a real closing was heard, then wait for Vapi/Daily to emit
+  // call-end before saving and navigating. This prevents the interview from
+  // being cut off mid-answer when the progress meter reaches the final stage.
+  const vapiNaturalClosingSeenRef = useRef(false);
   // Backstop: the closing invitation is the preferred trigger, but a
   // conversation can get stuck (e.g. an extended CV-verification loop that
   // never naturally progresses to closing: confirmed from live testing).
@@ -7639,6 +7664,18 @@ export default function InterviewPage() {
       );
 
       if (isNaturalWrapUp) {
+        // Browser fallback can end after a clear recruiter closing.
+        // Vapi must NOT be stopped here: the assistant/audio may still be
+        // finishing its final turn, or the user may still be answering a
+        // question while the transcript stream emits a late closing fragment.
+        // Let Vapi/Daily finish the call, then the call-end handler saves and
+        // navigates only if the full transcript really contains a closing.
+        if (vapiConnectedRef.current || premiumVoiceStatus === "connected") {
+          vapiNaturalClosingSeenRef.current = true;
+          closingInvitationSeenRef.current = false;
+          return;
+        }
+
         closingHandledRef.current = true;
         closingInvitationSeenRef.current = false;
         stopRequestedRef.current = true;
@@ -7673,7 +7710,13 @@ export default function InterviewPage() {
     const minimumInterviewMs = 7 * 60 * 1000; // 7 minutes
     const durationSufficient = interviewDurationMs >= minimumInterviewMs;
 
-    if ((candidateExchangeAfterInvitation && durationSufficient) || forcedCloseDueToStuckLoop) {
+    const isLiveVapiSession = vapiConnectedRef.current || premiumVoiceStatus === "connected";
+
+    // Do not auto-close live Vapi sessions from progress/question counters.
+    // The voice assistant must deliver the wrap-up and Daily/Vapi must emit
+    // call-end first. This prevents WorkZo from cutting off a candidate answer
+    // the moment progress reaches the final stage.
+    if (!isLiveVapiSession && ((candidateExchangeAfterInvitation && durationSufficient) || forcedCloseDueToStuckLoop)) {
       closingHandledRef.current = true;
       closingInvitationSeenRef.current = false;
 
@@ -8648,45 +8691,28 @@ export default function InterviewPage() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/10 to-black/0" />
 
               {waitingRoomActive ? (
-                <div className="absolute inset-0 z-20 flex items-start justify-center overflow-y-auto bg-canvas/80 p-3 pt-4 backdrop-blur-md">
-                  <div className="w-full max-w-xl rounded-xl border border-line bg-canvas/95 p-4 shadow-2xl">
-                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-brand">
-                      Interview waiting room
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+                  <div className="w-full max-w-md rounded-3xl border border-white/20 bg-canvas/95 px-6 py-7 text-center shadow-2xl">
+                    <p className="text-[11px] font-black uppercase tracking-[0.24em] text-brand">
+                      Interview starting
                     </p>
-                    <h2 className="mt-2 text-xl font-black text-fg">
-                      {simulationPersona.name} is preparing your interview
+                    <h2 className="mt-3 text-2xl font-black text-fg">
+                      {simulationPersona.name}
                     </h2>
-                    <p className="mt-2 text-sm leading-6 text-muted">
-                      {simulationPersona.openingFrame}
+                    <p className="mt-1 text-sm text-muted">
+                      {setup.targetRole}
+                      {setup.targetCompany ? ` · ${setup.targetCompany}` : ""}
                     </p>
-                    <div className="mt-3 space-y-2">
-                      {waitingRoomSteps.map((step, index) => {
-                        const active = index === waitingRoomStep;
-                        const done = index < waitingRoomStep;
-                        return (
-                          <div
-                            key={step.label}
-                            className={`rounded-lg border p-2.5 transition ${active ? "border-brand/35 bg-brand/10" : done ? "border-success/25 bg-success/10" : "border-line bg-fg/[0.03]"}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <span
-                                className={`grid h-7 w-7 place-items-center rounded-full text-xs font-black ${done ? "bg-success text-slate-950" : active ? "bg-brand text-on-brand animate-pulse" : "bg-fg/10 text-muted"}`}
-                              >
-                                {done ? "✓" : index + 1}
-                              </span>
-                              <div>
-                                <p className="text-sm font-black text-fg">
-                                  {step.label}
-                                </p>
-                                <p className="mt-0.5 text-xs leading-5 text-muted">
-                                  {step.detail}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+
+                    <div className="mx-auto mt-6 grid h-28 w-28 place-items-center rounded-full border border-brand/25 bg-brand/10 shadow-lg">
+                      <span className="text-6xl font-black leading-none text-brand animate-pulse">
+                        {waitingRoomCountdown}
+                      </span>
                     </div>
+
+                    <p className="mt-5 text-sm font-semibold text-muted">
+                      The recruiter will ask the first question now.
+                    </p>
                   </div>
                 </div>
               ) : null}
@@ -8766,14 +8792,14 @@ export default function InterviewPage() {
                 recruiterVisualState !== "waiting" &&
                 recruiterVisualState !== "listening" && (
                   <div
-                    className={`absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-lg border px-4 py-2 text-xs font-black shadow-2xl backdrop-blur-md z-10 transition-all duration-300 ${
+                    className={`absolute left-1/2 top-3 -translate-x-1/2 max-w-[92%] whitespace-normal rounded-lg border px-4 py-2 text-center text-xs font-black shadow-2xl backdrop-blur-md z-10 transition-all duration-300 ${
                       recruiterVisualState === "interested"
-                        ? "border-success/25 bg-success/80 text-success"
+                        ? "border-success/40 bg-white/95 text-success"
                         : recruiterVisualState === "interrupting"
-                          ? "border-danger/25 bg-danger/85 text-danger"
+                          ? "border-danger/40 bg-white/95 text-danger"
                           : recruiterVisualState === "skeptical"
-                            ? "border-warning/25 bg-warning/80 text-warning"
-                            : "border-line bg-canvas-soft text-fg"
+                            ? "border-warning/40 bg-white/95 text-warning"
+                            : "border-line bg-white/95 text-fg"
                     }`}
                   >
                     {liveReactionText}

@@ -265,6 +265,76 @@ function readStoredResult(): StoredResult {
   return { ...setup, ...result } as StoredResult;
 }
 
+function countReportableAnswers(result: StoredResult | null | undefined) {
+  if (!result) return 0;
+
+  try {
+    const pairs = buildPairs(result);
+    if (pairs.length) return pairs.length;
+  } catch {
+    // buildPairs is defensive, but keep this helper safe during hydration.
+  }
+
+  const transcript = Array.isArray(result.transcript)
+    ? result.transcript
+    : Array.isArray(result.messages)
+      ? result.messages
+      : Array.isArray(result.answers)
+        ? result.answers
+        : [];
+
+  return transcript.filter((turn) => {
+    const label = cleanText(turn?.role || turn?.speaker).toLowerCase();
+    const text = cleanText(turn?.text || turn?.content || turn?.answer);
+    if (!text) return false;
+    if (!/user|candidate|you|me|applicant/.test(label)) return false;
+    if (countWords(text) < 8) return false;
+    if (/^(hi|hello|hey|thanks|thank you|good|fine|okay|ok|yes|no)\b/i.test(text)) return false;
+    return true;
+  }).length;
+}
+
+function resultCompletenessScore(result: StoredResult | null | undefined) {
+  if (!result) return -1;
+
+  const answerCount = countReportableAnswers(result);
+  const transcriptCount = Array.isArray(result.transcript)
+    ? result.transcript.length
+    : Array.isArray(result.messages)
+      ? result.messages.length
+      : Array.isArray(result.answers)
+        ? result.answers.length
+        : 0;
+
+  const hasRecruiter = cleanText(result.recruiterName || result.recruiter || result.recruiterPersonality) ? 1 : 0;
+  const hasScore = typeof result.overallScore === "number" && Number.isFinite(result.overallScore) ? 1 : 0;
+
+  return answerCount * 100 + transcriptCount * 5 + hasRecruiter * 3 + hasScore;
+}
+
+function chooseMostCompleteResult(
+  dbResult: StoredResult | null | undefined,
+  localResult: StoredResult | null | undefined,
+): StoredResult {
+  const dbScore = resultCompletenessScore(dbResult);
+  const localScore = resultCompletenessScore(localResult);
+
+  if (localScore > dbScore) {
+    return { ...(dbResult || {}), ...(localResult || {}) } as StoredResult;
+  }
+
+  if (dbResult) {
+    // Keep richer local transcript if the DB row was saved before the final transcript finished syncing.
+    const localAnswers = countReportableAnswers(localResult);
+    const dbAnswers = countReportableAnswers(dbResult);
+    if (localResult && localAnswers > dbAnswers) {
+      return { ...dbResult, ...localResult } as StoredResult;
+    }
+    return dbResult;
+  }
+
+  return (localResult || {}) as StoredResult;
+}
 
 function normalizeDbInterviewResult(row: DbInterviewResultRow | null | undefined): StoredResult | null {
   if (!row) return null;
@@ -403,13 +473,15 @@ function countWords(text: string) {
 }
 
 function buildPairs(result: StoredResult) {
-  const source = Array.isArray(result.transcript)
+  const source = Array.isArray(result.transcript) && result.transcript.length
     ? result.transcript
-    : Array.isArray(result.messages)
+    : Array.isArray(result.messages) && result.messages.length
       ? result.messages
-      : Array.isArray(result.answers)
+      : Array.isArray(result.answers) && result.answers.length
         ? result.answers
-        : [];
+        : Array.isArray((result as any).rawTranscript)
+          ? ((result as any).rawTranscript as TranscriptTurn[])
+          : [];
 
   if (!source.length && Array.isArray(result.weakAnswers)) {
     return result.weakAnswers.map((item, index) => ({
@@ -681,13 +753,14 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
     score?: { overall?: number; trust?: number; clarity?: number; confidence?: number; relevance?: number; communication?: number };
     answerQuality?: { evidenceScore?: number };
   };
-  // Fair scoring: no “free pass”, but also no brutal 0–10 score when the
-  // transcript clearly contains real spoken answers. Missing metrics should
-  // cap confidence; it should not make a realistic first-practice answer look
-  // like a total failure.
-  const evidenceQuality = numberOr(result.evidenceQuality, numberOr(resultRecord.answerQuality?.evidenceScore, answersCount > 0 ? average(answerInsights.map((item) => item.evidenceScore), 42) : 0));
-  const trustScore = numberOr(result.trustScore, numberOr(resultRecord.score?.trust, answersCount > 0 ? average(answerInsights.map((item) => item.trustImpact), 45) : 0));
-  const structureScore = answersCount > 0 ? average(answerInsights.map((item) => item.structureScore), 45) : 0;
+  // No artificial floor: if no data, score 0 not 58
+  const evidenceQuality = answersCount > 0
+    ? average(answerInsights.map((item) => item.evidenceScore), 42)
+    : numberOr(result.evidenceQuality, numberOr(resultRecord.answerQuality?.evidenceScore, 0));
+  const trustScore = answersCount > 0
+    ? average(answerInsights.map((item) => item.trustImpact), 45)
+    : numberOr(result.trustScore, numberOr(resultRecord.score?.trust, 0));
+  const structureScore = answersCount > 0 ? average(answerInsights.map((item) => item.structureScore), 42) : 0;
   // ownershipScore: honest: clear ownership gets high score, missing gets low score
   const ownershipScore = answersCount > 0
     ? average(answerInsights.map((item) => item.ownershipPresent ? 80 : 35), 50)
@@ -709,7 +782,10 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
 
   // Calculate from transcript first: this is always honest
   const calculatedScoreRaw = clamp((communicationScore * 0.22) + (confidenceScore * 0.18) + (roleCompetencyScore * 0.28) + (trustScore * 0.2) + (evidenceQuality * 0.12));
-  const fairMinimum = answersCount >= 4 ? 48 : answersCount >= 2 ? 42 : answersCount === 1 ? 35 : 0;
+  // Realistic calibration: relevant spoken answers without metrics should land
+  // around the 50s/60s, not 10–35. Very strong answers still need metrics,
+  // ownership, and outcomes to climb into the 75+ range.
+  const fairMinimum = answersCount >= 4 ? 55 : answersCount >= 3 ? 50 : answersCount >= 2 ? 45 : answersCount === 1 ? 35 : 0;
   const calculatedScore = answersCount > 0 ? Math.max(fairMinimum, calculatedScoreRaw) : 0;
 
   // Only use the stored score if:
@@ -718,12 +794,13 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
   // Otherwise, the transcript-based calculation is more honest.
   const _rawStoredScore = result.overallScore ?? resultRecord.score?.overall;
   const storedScore: number | null = typeof _rawStoredScore === "number" ? _rawStoredScore : null;
-  // Treat stored scores of exactly 0 OR in the default signal range (48-52) as unreliable.
-  // Do NOT discard scores below 10 — a genuinely poor session can legitimately score low.
+  // Stored live scores can be stale if the results page loads before the final
+  // transcript reaches the DB. When we have transcript evidence, trust the
+  // transcript-derived score. Use stored score only when there are no pairs.
   const storedScoreIsDefault = storedScore === null || storedScore === 0 || (storedScore >= 47 && storedScore <= 53);
-  const overallScore = (answersCount >= 3 && storedScore !== null && !storedScoreIsDefault)
-    ? clamp(storedScore)
-    : calculatedScore;
+  const overallScore = answersCount > 0
+    ? calculatedScore
+    : (storedScore !== null && !storedScoreIsDefault ? clamp(storedScore) : calculatedScore);
 
   const redFlags = uniqueList(
     result.redFlags,
@@ -1864,9 +1941,9 @@ export default function ResultsPage() {
       const storedSetup = (readLatestInterviewSetup() || {}) as Record<string, unknown>;
       const localResult = readStoredResult();
       const dbResult = await fetchLatestDbInterviewResult();
-      const sourceResult = dbResult || localResult;
+      const sourceResult = chooseMostCompleteResult(dbResult, localResult);
       const nextLoadState: ResultsLoadState = dbResult
-        ? "db"
+        ? (countReportableAnswers(localResult) > countReportableAnswers(dbResult) ? "local" : "db")
         : Object.keys(localResult).length
           ? "local"
           : "empty";
