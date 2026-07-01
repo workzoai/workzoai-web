@@ -2448,8 +2448,7 @@ function analyzeClaimAgainstCv(claim: string, cvText: string): boolean {
   // 2. PROPER NOUNS FROM THE CV: extract capitalised multi-character tokens
   //    from the candidate's own CV (companies, tools, products, institutions)
   //    and check if the claim mentions any of them. This is fully dynamic —
-  //    it works for Zoho, ManageEngine, Salesforce, Figma, or "Accenture"
-  //    without any of them being hardcoded.
+  //    it works for any company or tool name without hardcoding.
   const cvProperNouns = (cvText.match(/\b[A-Z][A-Za-z0-9][\w&.-]{1,30}\b/g) || [])
     .map(t => t.toLowerCase())
     .filter(t => t.length > 3);

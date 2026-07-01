@@ -482,7 +482,16 @@ const JD_REQUIREMENT_LIBRARY: Array<{ match: RegExp; label: string; question: st
   { match: /employee engagement|culture|team building/, label: "Employee engagement", question: "Tell me about something you've done to improve team culture or employee engagement." },
   { match: /learning.*development|l&d|training programme|coaching/, label: "L&D & coaching", question: "Have you designed or delivered training programmes or coaching? What was the impact?" },
 
-  // ── Operations ─────────────────────────────────────────────────────────
+  // ── Technical Support / Customer-facing Technical Roles ─────────────────
+  { match: /rest\s*api|api\s*integration|webhook|postman/, label: "REST API & integrations", question: "Can you walk me through a time you worked with REST APIs or helped a customer troubleshoot an API integration? What was the issue and how did you resolve it?" },
+  { match: /demo|product demonstration|online demo|customer training|train.*customer|customer.*train/, label: "Demo & customer training", question: "Tell me about a product demo or training session you ran for a customer. How did you prepare and what made it effective?" },
+  { match: /bug.*report|reproduc.*bug|document.*bug|communicat.*bug|bug.*developer/, label: "Bug reproduction & reporting", question: "Describe how you approach reproducing and documenting a customer-reported bug before escalating it to developers. What do you include?" },
+  { match: /configuration|config.*change|fulfil.*request|setup.*customer/, label: "Configuration & setup", question: "Tell me about a complex configuration or setup request you handled for a customer. How did you ensure accuracy?" },
+  { match: /mysql|database|sql\b/, label: "SQL & database basics", question: "What's your experience with SQL or MySQL? Have you used it to investigate or solve customer issues?" },
+  { match: /html|css|javascript|front.?end|web\s*technology/, label: "Web technologies", question: "How comfortable are you with HTML, CSS, and JavaScript? Have you ever needed that knowledge to help a customer?" },
+  { match: /shopify|magento|shopware|woocommerce|e.?commerce|shop\s*system/, label: "E-commerce platforms", question: "What's your experience with e-commerce platforms like Shopify, Magento, or similar? Have you supported merchants on these systems?" },
+  { match: /ticket|ticketing|helpdesk|help\s*desk|support\s*ticket|triage/, label: "Ticket management", question: "How do you manage and prioritise a queue of support tickets, especially when volumes are high?" },
+  { match: /rfi|rfq|rfp|proposal|requirement.*gathering/, label: "Requirements & RFIs", question: "Have you handled RFI or requirements-gathering requests from customers? Walk me through your process." },
   { match: /process improvement|process optimisation|lean|six sigma/, label: "Process improvement", question: "Describe a process you improved. How did you identify the problem and measure the result?" },
   { match: /supply chain|logistics|procurement|vendor management/, label: "Supply chain & procurement", question: "What's your experience managing vendors or supply chain processes?" },
   { match: /cross-?functional|collaborat/, label: "Cross-functional collaboration", question: "Tell me about a time you had to coordinate across teams that didn't report to you to get something done." },
@@ -577,10 +586,6 @@ function buildVerifiedCvJdBlock(cvText?: string, jobDescription?: string, resume
     "Do not claim an employer, role, years of experience, education, skill, or project is missing unless it is absent from BOTH the verified CV facts and the JD context.",
     "When the candidate mentions a company/role with speech-to-text errors, match by sound and context before challenging.",
     // CRITICAL: Projects section must never be attributed to employer work history.
-    // Confirmed from a live session where the Magist feasibility study (a student
-    // project) was attributed to Zoho Corp because both appeared sequentially in
-    // the raw CV blob and the recruiter asked about it as if it were Zoho work,
-    // causing the candidate to say "I don't have such experience" about their own CV.
     "CRITICAL — PROJECT vs EMPLOYER RULE: A CV often has a PROJECTS section that is SEPARATE from WORK EXPERIENCE. Projects listed under a 'Projects' or 'Personal Projects' heading are the candidate's own independent work — they are NOT part of any employer's work history. NEVER attribute a project (e.g. a feasibility study, data analysis project, or personal pipeline) to a specific employer unless the CV text explicitly places it within that employer's section. If you want to ask about a project, frame it as: 'I noticed you worked on [project name] independently — could you walk me through that?' NOT 'I see you worked on [project] at [employer].'",
     cv
       ? `VERIFIED CV / RESUME DETAILS:\n${cv}`

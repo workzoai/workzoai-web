@@ -178,7 +178,7 @@ type RichReport = {
   audioSignals: Array<{ label: string; value: number; risk: "low" | "medium" | "high" }>;
   improvementPlan: Array<{ priority: string; title: string; action: string; gain: string }>;
   thirtyDayPlan: Array<{ week: string; focus: string; action: string }>;
-  starCoaching: Array<{ question: string; whatYouSaid: string; missingComponent: string; coachingTip: string }>;
+  starCoaching: Array<{ question: string; whatYouSaid: string; missingComponent: string; coachingTip: string; howToAnswer: string }>;
   missedOpportunities: string[];
   recruiterSummary: string;
   hiringCommittee: WorkZoHiringCommitteeMemo;
@@ -724,27 +724,36 @@ function buildStarCoaching(answerInsights: AnswerInsight[]): RichReport["starCoa
       const quoted = truncateAtSentence(item.answer, 160);
       let missingComponent: string;
       let coachingTip: string;
+      let howToAnswer: string;
+
       if (item.wordCount < 25) {
         missingComponent = "Situation & Task — answer ended too early to establish context";
         coachingTip = "Open with one sentence on the situation, one on your specific task, before moving to what you did.";
+        howToAnswer = `Try: "In [context/company], I was responsible for [your task]. When [situation arose], I [specific action]. As a result, [measurable outcome]."`;
       } else if (!item.ownershipPresent) {
         missingComponent = "Action — unclear what you personally did versus the team";
         coachingTip = "Rewrite using 'I' as the subject for every action: what you decided, built, or resolved yourself.";
+        howToAnswer = `Try: "I personally [action verb] — not the team, not my manager. Specifically, I [detail of what you did]. The outcome was [result]."`;
       } else if (!item.resultPresent && !item.metricPresent) {
         missingComponent = "Result — no outcome or measurable impact stated";
         coachingTip = "Close with one sentence: 'As a result, X changed' — even an estimated number is better than none.";
+        howToAnswer = `Try ending with: "As a result, [what changed] — for example, [customer stayed / issue was resolved / we saved X hours / satisfaction improved]." Even a rough number makes this answer 3x stronger.`;
       } else if (!item.metricPresent) {
         missingComponent = "Result — outcome stated but not measurable";
         coachingTip = "Add a number to the result you already gave: time saved, percentage improved, customers affected.";
+        howToAnswer = `You said the outcome happened — now quantify it. Ask yourself: how many customers? how long did it take? what % improved? what was the before vs after? Add one of those numbers and close with it.`;
       } else {
         missingComponent = "Structure — answer has the right pieces but could be tighter";
         coachingTip = "Lead with the result first, then explain how you got there — recruiters remember outcomes.";
+        howToAnswer = `Try the inverted structure: start with the outcome ("We increased X by Y"), then walk back through the situation and what you did to get there. This keeps the recruiter anchored on the impact.`;
       }
+
       return {
         question: item.question,
         whatYouSaid: quoted || "Answer not captured yet.",
         missingComponent,
         coachingTip,
+        howToAnswer,
       };
     });
 }
@@ -1971,9 +1980,13 @@ function UrgencyBanner({ remaining, roleLabel, targetMarket, overallScore }: {
         </div>
         <div>
           <p className="text-sm font-black text-fg">
-            {remaining <= 1
+            {remaining <= 0
+              ? "You've used your free sessions."
+              : remaining <= 1
               ? "This was your last free session."
-              : `${remaining} free session${remaining === 1 ? "" : "s"} remaining.`}
+              : remaining < 999
+              ? `${remaining} free session${remaining === 1 ? "" : "s"} remaining.`
+              : null}
             {" "}
             {gap > 0
               ? `At ${overallScore}/100, most recruiters for ${roleShort}${marketLabel} would not proceed to a second round.`
@@ -2833,6 +2846,12 @@ export default function ResultsPage() {
                       <p className="mt-2 text-xs italic leading-5 text-muted">"{item.whatYouSaid}"</p>
                       <p className="mt-2 text-xs font-black text-danger">{item.missingComponent}</p>
                       <p className="mt-1 text-xs leading-5 text-fg">{item.coachingTip}</p>
+                      {item.howToAnswer && (
+                        <div className="mt-3 rounded-lg border border-brand/20 bg-brand/[0.06] px-3 py-2.5">
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-brand mb-1">How to answer this</p>
+                          <p className="text-xs leading-5 text-fg">{item.howToAnswer}</p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
