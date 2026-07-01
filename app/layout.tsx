@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import LegacyStoragePrivacyCleanup from "@/components/privacy/LegacyStoragePrivacyCleanup";
 import CookieConsentBanner from "@/components/privacy/CookieConsentBanner";
@@ -54,7 +55,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <script dangerouslySetInnerHTML={{ __html: THEME_NO_FLASH_SCRIPT }} />
+        <Script
+          id="theme-no-flash"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: THEME_NO_FLASH_SCRIPT }}
+        />
         <ThemeProvider>
           <LegacyStoragePrivacyCleanup />
           <WorkZoFounderAnalyticsTracker />

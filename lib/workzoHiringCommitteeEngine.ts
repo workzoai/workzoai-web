@@ -69,6 +69,37 @@ function clean(value: unknown, fallback = "") {
   return value.replace(/\s+/g, " ").trim() || fallback;
 }
 
+// BUG FIX: a flat character-count slice (e.g. `.slice(0, 180)`) chops quoted
+// candidate evidence mid-sentence, mid-word, or mid-thought — confirmed from
+// a live report quoting "...to tell me the time where..." as the "strongest
+// evidence" because the cut landed exactly at char 180. This truncates at
+// the last full sentence (or clause, falling back to the last space) that
+// fits within the limit, so quoted evidence always reads as a complete
+// thought rather than a fragment.
+function truncateAtSentence(text: string, maxLength: number): string {
+  const cleaned = clean(text);
+  if (cleaned.length <= maxLength) return cleaned;
+
+  const slice = cleaned.slice(0, maxLength);
+  // Prefer cutting at the last sentence-ending punctuation within the slice.
+  const lastSentenceEnd = Math.max(
+    slice.lastIndexOf(". "),
+    slice.lastIndexOf("! "),
+    slice.lastIndexOf("? "),
+  );
+  if (lastSentenceEnd > maxLength * 0.4) {
+    return `${slice.slice(0, lastSentenceEnd + 1).trim()}`;
+  }
+  // No good sentence break found: fall back to the last clause break (comma)
+  // or, failing that, the last whole word — never cut mid-word.
+  const lastComma = slice.lastIndexOf(", ");
+  if (lastComma > maxLength * 0.5) {
+    return `${slice.slice(0, lastComma).trim()}…`;
+  }
+  const lastSpace = slice.lastIndexOf(" ");
+  return `${slice.slice(0, lastSpace > 0 ? lastSpace : maxLength).trim()}…`;
+}
+
 function decisionFromScore(score: number, redFlagCount = 0, contradictionCount = 0): WorkZoPlanDecision {
   const penalty = redFlagCount * 2 + contradictionCount * 5;
   const adjusted = clamp(score - penalty);
@@ -101,7 +132,7 @@ export function buildHiringCommitteeMemo(input: {
   const weakest = [...input.answerEvidence].sort((a, b) => a.score - b.score)[0];
 
   const evidenceForHire = [
-    best?.answer ? `Strongest evidence: ${clean(best.answer).slice(0, 180)}${best.answer.length > 180 ? "…" : ""}` : "Candidate gave some role-relevant background.",
+    best?.answer ? `Strongest evidence: ${truncateAtSentence(best.answer, 260)}` : "Candidate gave some role-relevant background.",
     ...(input.strengths || []).slice(0, 3),
   ].filter(Boolean);
 
@@ -186,7 +217,7 @@ export function buildWhatTheyHeard(answerEvidence: WorkZoAnswerEvidence[]): Work
 
     return {
       id: item.id || `heard-${index + 1}`,
-      youSaid: answer.slice(0, 220) + (answer.length > 220 ? "…" : ""),
+      youSaid: truncateAtSentence(answer, 220),
       theyHeard: item.recruiterHeard || "The interviewer is forming a signal based on proof, ownership, and consistency.",
       risk,
       strongerSignal,

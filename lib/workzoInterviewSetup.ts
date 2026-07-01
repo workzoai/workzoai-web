@@ -400,13 +400,35 @@ export function readLatestInterviewSetup(): WorkZoInterviewSetup | null {
 
   if (!candidates.length) return null;
 
+  // Deduplicate: when saveLatestInterviewSetup writes the same payload to all
+  // keys simultaneously, we end up with 8+ identical entries. Collapse them by
+  // updatedAt + recruiterPersonality so the sort operates on genuinely distinct
+  // saves, not on duplicates of the same save inflating a particular entry's
+  // apparent weight.
+  const seen = new Set<string>();
+  const unique = candidates.filter((c) => {
+    const fingerprint = `${c.updatedAt || ""}::${c.recruiterPersonality || c.recruiterId || ""}::${String(c.targetRole || "").slice(0, 20)}`;
+    if (seen.has(fingerprint)) return false;
+    seen.add(fingerprint);
+    return true;
+  });
+
   const selected =
-    candidates.sort((a, b) => {
-      // Prefer most recently saved setup FIRST.
-      // An old high-CV-score setup was previously overriding fresh recruiter selections
-      // because score dominated recency. Now: if one was saved >30s after the other, it wins.
-      const timeDiff = getTime(b) - getTime(a);
-      if (Math.abs(timeDiff) > 30000) return timeDiff;
+    unique.sort((a, b) => {
+      const ta = getTime(a);
+      const tb = getTime(b);
+      const timeDiff = tb - ta;
+
+      // GLOBAL FIX: recency ALWAYS wins. The previous 30-second threshold
+      // allowed a high-CV-score stale entry to beat a fresh recruiter
+      // selection when both were saved within the same 30s window — which
+      // is exactly what happens during normal onboarding flow (save → user
+      // changes recruiter → save again, all within seconds).
+      //
+      // Score is only a tiebreaker when two entries were saved at the exact
+      // same millisecond (same-second writes from simultaneous key updates).
+      // In all other cases, the more recently saved entry is correct.
+      if (timeDiff !== 0) return timeDiff;
       return scoreSetup(b) - scoreSetup(a);
     })[0] || null;
 

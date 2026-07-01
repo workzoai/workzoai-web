@@ -1116,7 +1116,77 @@ function sanitizeParsedProfileFields(profile: ResumeProfile, rawText: string, fi
 
 export function repairResumeProfileAfterParsing(profile: ResumeProfile, rawText: string, fileName = ""): ResumeProfile {
   const repaired = repairProfileIdentity(profile, rawText, fileName, profile.basics?.name || "");
-  return sanitizeParsedProfileFields(repaired, rawText, fileName);
+  const sanitized = sanitizeParsedProfileFields(repaired, rawText, fileName);
+
+  // ── Deterministic post-processing ────────────────────────────────────────
+  // These three bugs were not fixed by AI prompt rules alone across multiple
+  // iterations. Moving to deterministic code makes them reliable globally.
+
+  // 1. EMPTY BULLETS on second employer in two-column CVs.
+  //    When all bullets appear before the second employer's header in the
+  //    extracted text, the AI assigns everything to the first employer.
+  //    Fix: if any employer has bullets:[] but there are enough bullets on
+  //    the first employer to share, redistribute the last N bullets.
+  const experience = sanitized.experience || [];
+  if (experience.length >= 2) {
+    for (let i = 1; i < experience.length; i++) {
+      const prev = experience[i - 1];
+      const curr = experience[i];
+      const prevBullets = prev.bullets || [];
+      const currBullets = curr.bullets || [];
+      // Only redistribute if: previous has many bullets AND current has none
+      if (currBullets.length === 0 && prevBullets.length >= 4) {
+        // Give the last third of previous employer's bullets to current
+        const splitAt = Math.ceil(prevBullets.length * 0.65);
+        experience[i - 1] = { ...prev, bullets: prevBullets.slice(0, splitAt) };
+        experience[i] = { ...curr, bullets: prevBullets.slice(splitAt) };
+      }
+    }
+  }
+
+  // 2. DATE SWAP — if experience entries are chronologically inverted
+  //    (first job has older dates than second job), swap their dates.
+  if (experience.length >= 2) {
+    const getEndYear = (dates: string) => {
+      if (!dates) return 0;
+      const years = (dates.match(/\d{4}/g) || []).map(Number);
+      return years.length ? Math.max(...years) : 0;
+    };
+    for (let i = 0; i < experience.length - 1; i++) {
+      const a = experience[i];
+      const b = experience[i + 1];
+      const endA = getEndYear(a.dates || "");
+      const endB = getEndYear(b.dates || "");
+      // First job should have LATER end date than second job
+      // If first job ends BEFORE second job, dates are swapped
+      if (endA > 0 && endB > 0 && endA < endB) {
+        experience[i] = { ...a, dates: b.dates };
+        experience[i + 1] = { ...b, dates: a.dates };
+      }
+    }
+  }
+
+  // 3. CERTIFICATIONS from non-standard section headings.
+  //    When the PDF cleaner correctly routes content to "certifications" kind
+  //    but the AI ignores it, scan the raw text directly for cert/award
+  //    section content and populate certifications if they're empty.
+  const hasCerts = (sanitized.certifications || []).length > 0;
+  if (!hasCerts) {
+    const CERT_SECTION_RE = /(?:awards?\s*(?:and|&)\s*certifications?|certifications?\s*(?:and|&)\s*awards?|short\s*courses?|honours?\s*(?:and|&)\s*awards?|professional\s*development|training\s*(?:and|&)\s*certifications?|continuing\s*education|additional\s*training|licences?\s*(?:and|&)\s*certifications?)\s*\n([\s\S]{0,600}?)(?:\n[A-Z][A-Z\s]{3,}|\n===|$)/i;
+    const certMatch = rawText.match(CERT_SECTION_RE);
+    if (certMatch) {
+      const block = certMatch[1];
+      const entries = block
+        .split(/\n/)
+        .map(l => l.replace(/^[-•·*]\s*/, "").trim())
+        .filter(l => l.length > 5 && l.length < 120 && !/^\d{4}[-–]\d{4}$/.test(l));
+      if (entries.length > 0) {
+        (sanitized as any).certifications = entries;
+      }
+    }
+  }
+
+  return { ...sanitized, experience };
 }
 
 // Note: parse-result caching has been intentionally removed.
@@ -1198,11 +1268,21 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "  'W I L S O N' with tight single spaces = 'WILSON' (one word, likely last name).",
             "",
             "PROJECT EXTRACTION RULES:",
-            "  Projects may appear under PROJECTS, PERSONAL PROJECTS, ACADEMIC PROJECTS, BOOTCAMP PROJECTS, DATA SCIENCE PROJECTS, SELECTED PROJECTS, PORTFOLIO, or CASE STUDIES.",
-            "  Never drop projects if a project section exists.",
+            "  Projects may appear under any of these headings (English): PROJECTS, PERSONAL PROJECTS, ACADEMIC PROJECTS, BOOTCAMP PROJECTS, DATA SCIENCE PROJECTS, SELECTED PROJECTS, NOTABLE PROJECTS, KEY PROJECTS, SIDE PROJECTS, RELEVANT PROJECTS, PORTFOLIO, PROJECT HIGHLIGHTS, CASE STUDIES.",
+            "  German headings: PROJEKTE, AUSGEWÄHLTE PROJEKTE, PERSÖNLICHE PROJEKTE, EIGENENTWICKLUNGEN.",
+            "  French headings: PROJETS, PROJETS PERSONNELS, RÉALISATIONS, TRAVAUX.",
+            "  Spanish headings: PROYECTOS, PROYECTOS PERSONALES, TRABAJOS.",
+            "  Italian headings: PROGETTI, PROGETTI PERSONALI, LAVORI.",
+            "  Dutch headings: PROJECTEN, EIGEN PROJECTEN.",
+            "  Polish headings: PROJEKTY.",
+            "  Never drop projects if any of these section headings exist in the CV.",
             "  Extract every project name and its technologies/results as bullets.",
             "  If uncertain whether an item is a project or extra experience, keep it in projects rather than dropping it.",
             "  Do not invent projects. Only use text found in the CV.",
+            "  CRITICAL — NEVER put project entries into the experience array. Projects and work experience are always separate.",
+            "  A project is independent work done by the candidate (bootcamp project, personal analysis, portfolio piece, case study) — it has NO employer, NO company name, and NO employment dates.",
+            "  Work experience is a paid or formal role at a named company with a date range. If an item has a company name AND a date range, it belongs in experience. If it only has a project name and bullets, it belongs in projects.",
+            "  NEVER attribute a project bullet to an employer just because the project appears after that employer in the CV text. Section boundaries override linear proximity.",
             "",
             "EDUCATION ordering: sort education entries by start date DESCENDING (most recent first).",
             "EDUCATION fields: 'degree' is the QUALIFICATION NAME (e.g. 'Bachelor of Science', 'Master of Arts in Marketing', 'Data Science Bootcamp'). 'institution' is the SCHOOL/UNIVERSITY NAME. NEVER put the school name in the degree field. If only a school name appears without an explicit degree title, set degree to empty string and only fill institution.",
@@ -1223,6 +1303,8 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "  Deduplicate: if the same skill appears under multiple categories, include it once.",
             "",
             "SKILLS deduplication: remove duplicate skills that differ only in casing (e.g. 'Python' and 'python').",
+            "BOOTCAMPS, COURSES AND TRAINING PROGRAMMES: a bootcamp, coding school, data science programme, online course, or short training programme is EDUCATION, not work experience. It belongs in the education array with the programme name as the degree and the school as the institution. NEVER put a bootcamp in the experience array as a job. The recruiter must never ask 'tell me about your role at [bootcamp]' — bootcamps produce projects and skills, not employment history. If a bootcamp section has project bullets beneath it, those bullets belong in the projects array, not as experience bullets.",
+            "SKILLS QUALITY FILTER: reject any 'skill' that is actually a phrase, sentence fragment, or soft skill description rather than a concrete tool, technology, methodology, or named competency. Examples to REJECT: 'Planning', 'execution', 'stakeholder communication', 'client relationship building', 'product demonstration', 'Quick learner', 'Team player', 'Curious', 'Creative', 'Detail-oriented'. Examples to KEEP: 'Python', 'SQL', 'Tableau', 'ITIL', 'Active Directory', 'SLA Management', 'Incident Management', 'Agile', 'Scrum'. A skill should be a noun or noun phrase that names something specific — not a verb phrase or generic adjective.",
             "",
             "PHONE VALIDATION: The phone field must contain an actual phone number with a realistic dial pattern.",
             "  REJECT these as phone numbers: '(2021 - 2022)', '2019 - 2021', any value that is only year ranges.",
@@ -1239,6 +1321,16 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "If the name is split across lines around a job title, combine person-name tokens only: FIRST / ROLE / LAST => FIRST LAST.",
             "Keep bullets factual. Split bullets only when the source clearly separates responsibilities.",
             "BULLETS ARE REQUIRED: If a job listing has any text below the title/company (responsibilities, achievements, tasks, any sentences), you MUST extract those as bullets. An empty bullets array [] is ONLY acceptable when the job listing has literally zero text underneath it — no sentences, no phrases, nothing. If there is ANY text below the role header, extract it as bullets. Never return bullets:[] when content exists.",
+            "BULLET ATTRIBUTION IN TWO-COLUMN PDFs — THIS IS THE MOST COMMON PARSING FAILURE: When a CV has two or more employers in a column layout, PDF extraction often produces all of one employer's bullets AND all of the next employer's bullets in a single block, with only the first employer's header visible before the block. The second employer's header appears AFTER the block. This causes naive parsers to assign ALL bullets to the first employer and leave the second with bullets:[]. YOU MUST NOT DO THIS. Rule: if you have N employers extracted and only M < N have bullets, the remaining N-M employers almost certainly had responsibilities in the original CV that were misattributed. Actively look for content clues within the bullet block to split it: different product names, different customer types, different tools, different responsibilities, different writing style. If you cannot find any distinguishing content clues, split the block roughly in half — the first half belongs to the first employer, the second half to the second. UNDER NO CIRCUMSTANCES should a second or third employer in a multi-employer CV have bullets:[] if there is any bullet content at all in the extracted text for that job's time period.",
+            "If PDF extraction placed a company header AFTER its own bullet content (which happens with two-column PDF templates), attribute the orphaned bullets to that company anyway — the header position in extracted text is unreliable; the bullet content is the ground truth. Example: if you see [CompanyA header] [10 bullets] [CompanyB header] with no bullets after CompanyB, some of those 10 bullets belong to CompanyB. Assign them based on content; if content is ambiguous, give the last 3-5 bullets to CompanyB.",
+            "",
+            "SECTION HEADING vs JOB TITLE: A section heading (e.g. 'Customer Success Achievements', 'Awards and Recognition', 'Additional Information', 'Volunteer Work', 'Relevant Experience') is NOT a job title. Never add a section heading to the experience array as a job entry. A valid experience entry must have at minimum: a recognisable job title (a role a person would hold, e.g. 'Marketing Manager', 'Software Engineer') AND a company name OR employment dates. A section heading alone with neither company nor dates should be ignored as an experience entry — add its contents to strengths or additionalEvidence instead.",
+            "DATE SWAP DETECTION: In two-column PDFs, dates from the education or contact column sometimes get misattributed to the wrong experience entry because of PDF extraction order. Check: if you have two experience entries and their dates appear chronologically reversed (the first-listed job has older dates than the second-listed job, but by title/seniority/content the first job appears to be more recent), their dates are likely swapped — assign the more recent date range to the first (most senior) role and the older range to the second (more junior) role. Also check: if an experience date exactly matches an education entry's date range, that date was likely extracted from the education column and should be discarded in favour of re-reading the experience section for its actual dates.",
+            "EDUCATION SECTION CAN CONTAIN JOB TITLES IN PLACEHOLDER CVs: Some CV templates list job titles, company names, or Lorem ipsum text under the EDUCATION header. If content under EDUCATION has date ranges AND looks like a job title rather than a degree name, keep it in experience — do not move it to education. A degree name contains words like Bachelor, Master, MBA, BSc, MSc, PhD, Diploma, Certificate, Associate's, or the name of a field of study. A job title contains words like Manager, Engineer, Analyst, Developer, Executive, Accountant, Designer. Do not confuse the two.",
+            "SKILLS CATEGORY LABELS: Many CVs use a header-then-list format for skills, e.g. 'Technical Skills' followed by a list, or 'Teamwork and Communication Skills' followed by bullet points. The header line (e.g. 'Teamwork and Communication Skills', 'Testing and Debugging', 'Project and Time Management') is a CATEGORY LABEL — it is NOT itself a skill. Only extract the individual items listed beneath each category header as skills. Never extract a category header as a skill. If the CV has a skills section formatted as paragraphs describing competencies rather than a list, extract the core noun phrases from those paragraphs (e.g. 'debugging', 'project timeline management') — not the full sentence.",
+            "CERTIFICATIONS AND AWARDS: Many CVs have sections named 'Awards and Certifications', 'Awards and Certification', 'Awards & Certifications', 'Short Courses', 'Courses', 'Achievements', 'Distinctions', 'Licences', 'Honours and Awards', 'Professional Development', 'Training and Certifications', or 'Continuing Education'. ALL of these must be extracted into the certifications array, NOT ignored. Each certification or award is one entry: the name of the cert/award/course. Include the year if present. Example: 'Digital Marketing Certification | 2029' → 'Digital Marketing Certification (2029)'. If the section is called 'References' and contains only 'Available on request.', skip it entirely.",
+            "EDUCATION INSTITUTION vs COMPANY NAME: Some CV templates use company or organisation names as education institutions (e.g. 'Warner & Spencer', 'Giggling Platypus Co.'). Do not skip an education entry just because the institution name looks like a company name. Always extract the institution exactly as written, even if it sounds unusual. The key signal that something is an education entry is the presence of a degree name (Bachelor, Master, MBA, etc.) paired with a date. Extract both the degree AND the institution, even if the institution looks odd.",
+            "",
             "If PDF extraction merged bullets into one long paragraph (common in two-column layouts), split them at sentence boundaries into separate bullet strings.",
             "JSON shape: { basics:{name,headline,email,phone,location,linkedin}, summary, experience:[{title,company,location,dates,bullets:[]}], education:[{degree,institution,location,dates}], skills:[], projects:[{name,bullets:[]}], languages:[], certifications:[], strengths:[], additionalEvidence:[], warnings:[] }",
           ].join("\n"),

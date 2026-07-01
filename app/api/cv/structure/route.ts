@@ -994,7 +994,7 @@ function buildProfileText(profile: ResumeProfile, fallbackText: string) {
   if (profile.summary) lines.push(`Summary: ${profile.summary}`);
 
   if (profile.experience?.length) {
-    lines.push("Experience:");
+    lines.push("=== WORK EXPERIENCE (paid employment only — NOT projects, NOT education) ===");
     profile.experience.slice(0, 8).forEach((job) => {
       const header = [job.title, job.company, job.dates]
         .filter(Boolean)
@@ -1002,28 +1002,38 @@ function buildProfileText(profile: ResumeProfile, fallbackText: string) {
       if (header) lines.push(`- ${header}`);
       job.bullets?.slice(0, 6).forEach((bullet) => lines.push(`  • ${bullet}`));
     });
+    lines.push("=== END OF WORK EXPERIENCE ===");
   }
 
   if (profile.education?.length) {
-    lines.push("Education:");
+    lines.push("=== EDUCATION ===");
     profile.education.slice(0, 5).forEach((edu) => {
       const header = [edu.degree, edu.institution, edu.dates]
         .filter(Boolean)
         .join(" • ");
       if (header) lines.push(`- ${header}`);
     });
+    lines.push("=== END OF EDUCATION ===");
   }
 
   if (profile.skills?.length)
     lines.push(`Skills: ${profile.skills.slice(0, 40).join(", ")}`);
+
   if (profile.projects?.length) {
-    lines.push("Projects:");
+    // These markers survive compactContextText()'s newline-to-space collapse.
+    // Without them the LLM attributed Magist project bullets to Zoho Corp
+    // because both appeared consecutively in the raw blob with no boundary.
+    // The fix is global: every section is now explicitly bracketed so the
+    // recruiter always knows which section any given bullet belongs to,
+    // regardless of CV layout, heading style, or section ordering.
+    lines.push("=== INDEPENDENT PROJECTS (the candidate's own work — NOT associated with any employer) ===");
     profile.projects.slice(0, 6).forEach((project) => {
-      if (project.name) lines.push(`- ${project.name}`);
+      if (project.name) lines.push(`- PROJECT: ${project.name}`);
       project.bullets
         ?.slice(0, 4)
         .forEach((bullet) => lines.push(`  • ${bullet}`));
     });
+    lines.push("=== END OF INDEPENDENT PROJECTS ===");
   }
   if (profile.languages?.length)
     lines.push(`Languages: ${profile.languages.join(", ")}`);

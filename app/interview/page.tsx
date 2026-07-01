@@ -31,7 +31,8 @@ import {
   RotateCcw,
   Volume2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import UpgradeModal from "@/components/premium/UpgradeModal";
 import PremiumUsageBadge from "@/components/premium/PremiumUsageBadge";
 import {
@@ -2398,6 +2399,194 @@ function isConfusedOrNeedsRepeat(answer: string) {
   );
 }
 
+// ─── Dev-mode Phase-Based Browser Engine (Interview Engine v2.0) ────────────
+// Triggered by ?engine=browser URL param. Uses the browser engine (no Vapi
+// credit spend) with a structured 6-phase flow. Designed for local testing.
+//
+// Phases:
+//   0: Opening         — recruiter intro + "how are you doing?"
+//   1: Introduction    — tell me about yourself / self-intro
+//   2: Experience      — specific CV role deep-dive with bullet references
+//   3: Why This Company— motivation + career transition (if applicable)
+//   4: CV Gap Check    — JD requirements not found in CV, asked non-accusatorially
+//   5: Closing         — any questions? then wrap up
+
+type DevPhase = 0 | 1 | 2 | 3 | 4 | 5;
+
+function getDevPhase(questionIndex: number): DevPhase {
+  if (questionIndex === 0) return 0;
+  if (questionIndex === 1) return 1;
+  if (questionIndex <= 5) return 2;
+  if (questionIndex <= 7) return 3;
+  if (questionIndex <= 10) return 4;
+  return 5;
+}
+
+function analyzeClaimAgainstCv(claim: string, cvText: string): boolean {
+  // Returns true if the claim appears verifiable in the candidate's own CV.
+  // Used to avoid penalising trust when the claim can't actually be checked.
+  //
+  // GLOBAL APPROACH: we extract verifiable tokens from the CV itself rather
+  // than matching against any hardcoded list of companies, tools, or role
+  // names. Whatever is in THIS candidate's CV is what's verifiable — not a
+  // preset list that would only cover certain sample CVs.
+  if (!cvText || !claim) return true; // can't verify → don't penalise
+
+  const claimLower = claim.toLowerCase();
+  const cvLower = cvText.toLowerCase();
+
+  // Short answers (greetings, vague one-liners) → never penalise
+  if (claimLower.split(/\s+/).length < 10) return true;
+
+  // 1. NUMBERS: any numeric value in the claim that also appears in the CV
+  //    is a strong verifiable signal (e.g. "90%", "25", "15 minutes")
+  const claimNumbers = claim.match(/\d[\d,.%]*/g) || [];
+  for (const n of claimNumbers) {
+    if (n.length >= 2 && cvLower.includes(n)) return true;
+  }
+
+  // 2. PROPER NOUNS FROM THE CV: extract capitalised multi-character tokens
+  //    from the candidate's own CV (companies, tools, products, institutions)
+  //    and check if the claim mentions any of them. This is fully dynamic —
+  //    it works for Zoho, ManageEngine, Salesforce, Figma, or "Accenture"
+  //    without any of them being hardcoded.
+  const cvProperNouns = (cvText.match(/\b[A-Z][A-Za-z0-9][\w&.-]{1,30}\b/g) || [])
+    .map(t => t.toLowerCase())
+    .filter(t => t.length > 3);
+  const cvProperSet = new Set(cvProperNouns);
+  const claimTokens = claimLower.replace(/[^a-z0-9\s]/g, " ").split(/\s+/);
+  for (const token of claimTokens) {
+    if (token.length > 3 && cvProperSet.has(token)) return true;
+  }
+
+  // 3. STEMMED WORD OVERLAP: strip common suffixes so "handled" matches
+  //    "handle", "resolving" matches "resolve", etc. This catches verb-form
+  //    differences between spoken answers and written CV text without needing
+  //    a synonym dictionary.
+  const STEM = (w: string) =>
+    w.replace(/(?:ing|ed|ion|ions|ment|ments|er|ers|tion|tions|ly|s)$/, "");
+
+  // Extract meaningful words (length > 4) from both claim and CV, then stem
+  const cvWords = new Set(
+    cvLower.split(/\s+/).filter(w => w.length > 4).map(STEM),
+  );
+  const claimContentWords = claimLower
+    .split(/\s+/)
+    .filter(w => w.length > 4)
+    .map(STEM);
+
+  if (claimContentWords.length === 0) return true;
+
+  const matchCount = claimContentWords.filter(w => cvWords.has(w)).length;
+
+  // 20% threshold: at least 1 in 5 meaningful stemmed words must appear in
+  // the CV. Low enough to avoid false positives on synonym-heavy speech, but
+  // still catches completely unrelated claims.
+  return matchCount >= Math.ceil(claimContentWords.length * 0.2);
+}
+
+function buildDevPhaseQuestion(
+  questionIndex: number,
+  setup: InterviewSetup,
+  cvText: string,
+  jobDescription: string,
+): string {
+  const phase = getDevPhase(questionIndex);
+  const recruiter = setup.recruiterName || "Interviewer";
+  const company = setup.targetCompany || "the company";
+  const role = setup.targetRole || "this role";
+  const candidate = setup.candidateName?.split(" ")[0] || "there";
+
+  // Pull first employer from CV for experience phase
+  const firstEmployerMatch = cvText.match(/(?:at|with|for)?\s*([A-Z][A-Za-z\s&.,-]{2,40}(?:Corp|GmbH|Ltd|Inc|Co\b|Company|AG|BV|Solutions|Systems|Technologies))/);
+  const firstEmployer = firstEmployerMatch?.[1]?.trim() || "";
+
+  // Pull a specific metric/achievement from CV for targeted follow-up
+  const cvMetric = cvText.match(/(\d+%|by \d+|reduced.*by|improved.*by|saved|resolved \d+%)/i)?.[0] || "";
+
+  // Extract JD gap: find a skill/requirement in JD that doesn't appear in CV
+  const jdWords = (jobDescription.toLowerCase().match(/\b(?:onboarding|change management|stakeholder|project management|escalation|qbr|renewals|churn|adoption|forecasting|budget|agile|scrum|roadmap|sla|devops|ci\/cd|machine learning|sql|python|tableau|reporting|coaching|recruitment)\b/g) || []);
+  const cvLower = cvText.toLowerCase();
+  const gap = jdWords.find(w => !cvLower.includes(w)) || "";
+
+  // ISSUE 2 FIX: Alex Chen activates technical questions across ALL phases,
+  // not just one question in phase 2. Every phase gets a technical variant.
+  const alexChenMode = /alex/i.test(recruiter);
+
+  if (phase === 0) {
+    return `Hi ${candidate}, I'm ${recruiter}. Thanks for joining today. How are you doing?`;
+  }
+
+  if (phase === 1) {
+    if (alexChenMode) {
+      return `Thanks. I've been through your background. Give me the quick version: what you've been building or working on technically, and what specifically brought you to this ${role} opportunity at ${company}?`;
+    }
+    return `Thanks for that. I've had a chance to review your background. To get us started, could you give me a brief introduction — who you are, what you've been doing, and what specifically attracted you to the ${role} opportunity at ${company}?`;
+  }
+
+  if (phase === 2) {
+    const expQuestions = alexChenMode
+      ? [
+          // Alex Chen: all technical questions, cycling through types
+          firstEmployer
+            ? `Walk me through the most technically complex project or system you worked on at ${firstEmployer}. What was the architecture, what was your specific role, and what trade-offs did you make?`
+            : `Tell me about the most technically complex thing you've built or owned. What was the stack, what was your contribution, and what was the hardest part?`,
+          cvMetric
+            ? `You have ${cvMetric} listed — break that down for me. What specifically did you change, how did you measure it, and what would have happened if you hadn't done it?`
+            : `Give me a specific example of a performance or quality problem you diagnosed and fixed. How did you find the root cause and what was the outcome?`,
+          `Tell me about a time a production system failed or something went seriously wrong. What was your role in the incident and how did you approach the fix?`,
+          `Walk me through how you'd design a system to handle high load or reliability requirements for this kind of role. What are the key decisions you'd make and why?`,
+          `What's a technical decision you made that turned out to be wrong? How did you identify it and what did you do about it?`,
+        ]
+      : [
+          firstEmployer
+            ? `I noticed you worked at ${firstEmployer}. Can you walk me through what you specifically owned there, and what your biggest achievement was?`
+            : `Walk me through your most recent role. What did you personally own, and what's the impact you're most proud of?`,
+          cvMetric
+            ? `You mentioned ${cvMetric} — can you unpack that for me? What specifically did you do, and how was that measured?`
+            : `Give me a specific example of a challenge you handled end-to-end. What was the situation, what did you personally do, and what was the outcome?`,
+          `How did you handle a situation where things didn't go to plan? What did you learn from it?`,
+          `Tell me about a time you had to work closely with stakeholders who had conflicting priorities. How did you navigate that?`,
+          `What would your previous manager highlight as your single biggest strength, and where would they say you still have room to grow?`,
+        ];
+    const idx = Math.max(0, questionIndex - 2) % expQuestions.length;
+    return expQuestions[idx];
+  }
+
+  if (phase === 3) {
+    const careerTransitionWords = /transition|career change|moving into|moving to|switching/i.test(cvText);
+    if (alexChenMode) {
+      if (careerTransitionWords) {
+        return `Your background shows a transition. From a technical perspective, what's driving that move — and how does your existing technical stack carry over into what you'd be doing at ${company}?`;
+      }
+      return `What specifically drew you to ${company} technically? What have you read or heard about the engineering culture, the stack, or the problems they're working on?`;
+    }
+    if (careerTransitionWords) {
+      return `I can see from your CV you're making a transition. What's driving that move, and why this particular direction rather than staying in what you've been doing?`;
+    }
+    return `What specifically attracted you to ${company}, and why now? What do you know about the company that made you want to apply?`;
+  }
+
+  if (phase === 4) {
+    if (gap) {
+      if (alexChenMode) {
+        return `${gap} comes up as a requirement in this role and I didn't find a direct example in your CV. Have you worked with that, even in a side project, a bootcamp context, or informally?`;
+      }
+      return `Looking at the job description, ${gap} comes up as a key requirement. I couldn't find a direct example of that in your CV — have you had experience with that, even informally or in a context that isn't obviously listed?`;
+    }
+    if (alexChenMode) {
+      return `Is there any technical work you've done — open source contributions, side projects, experiments — that isn't listed in your CV but is relevant to what you'd be doing here?`;
+    }
+    return `Is there anything relevant to this role that isn't obviously captured in your CV — projects, experience, or skills you'd want me to know about?`;
+  }
+
+  // Phase 5: Closing
+  if (alexChenMode) {
+    return `That covers the main areas I wanted to explore technically. Do you have any questions for me — about the technical environment, the team's ways of working, or what the first few months would actually involve?`;
+  }
+  return `That brings me to the end of my questions, ${candidate}. Before we wrap up — do you have any questions for me about the role, the team, or what the first few months would look like?`;
+}
+
 function earlyInterviewReply(
   answer: string,
   questionIndex: number,
@@ -2872,9 +3061,22 @@ function updateRecruiterSignalState(
   const signal = analyzeAnswerSignals(answer, setup);
   const strongSubstance = signal.wordCount >= 45 && signal.ownership && (signal.outcome || signal.metric);
   const usefulSubstance = signal.wordCount >= 35 && (signal.ownership || signal.outcome);
+
+  // TRUST SCORE FIX: only apply the "unsupported claim" penalty (-20 trust,
+  // -12 interest) when the claim is genuinely absent from the CV text.
+  // Previously this fired on any answer flagged as "unsupported" by the
+  // signal analyser — but many real answers reference real CV experience that
+  // the signal analyser couldn't verify because it doesn't read the CV.
+  // The result: trust dropped every time, even for perfectly legitimate
+  // answers about actual experience. Now we check the raw CV text first;
+  // if the claim matches something in the CV (a metric, company, tech term,
+  // or 30%+ of the key words), the penalty is suppressed.
+  const cvText = setup?.cvText || "";
+  const claimIsVerifiableInCv = !signal.unsupported || analyzeClaimAgainstCv(answer, cvText);
+
   const trustDelta = signal.admission
     ? -12
-    : signal.unsupported
+    : !claimIsVerifiableInCv
       ? -20
       : signal.metric && signal.ownership
         ? 7
@@ -2885,7 +3087,7 @@ function updateRecruiterSignalState(
             : signal.short || signal.vague
               ? -4
               : 2;
-  const interestDelta = signal.unsupported
+  const interestDelta = !claimIsVerifiableInCv
     ? -12
     : signal.metric && signal.outcome
       ? 7
@@ -4529,6 +4731,20 @@ function shouldMergeVisibleTranscript(
   // "Hi, how are you?" because both arrived within 4 seconds.
   if (hasHadCandidateTurnSinceLastRecruiter) return false;
 
+  // CRITICAL: never merge a closing statement with whatever comes after it.
+  // Confirmed from a live session where Vapi's closing line ("That brings us
+  // to the end of our session...") and a fresh opening greeting ("Hi there,
+  // I'm Daniel Reed...") arrived within the rapid-fragment window and got
+  // concatenated into one garbled transcript entry, masking a real
+  // disconnect/restart bug and producing a broken-looking closing.
+  const PREVIOUS_IS_CLOSING = /that brings us to the end|end of our session|we'?ll be in touch|next steps|take care|best of luck|thank you (so much )?for your time today/i.test(
+    previous.text || "",
+  );
+  const NEXT_IS_GREETING = /^(hi|hello|hey)\b.{0,40}\bi'?m\b|^(hi|hello|hey) there\b|thanks for joining today/i.test(
+    (next.text || "").trim(),
+  );
+  if (PREVIOUS_IS_CLOSING || NEXT_IS_GREETING) return false;
+
   const RAPID_FRAGMENT_WINDOW_MS = 8000;
   if (
     next.role === "recruiter" &&
@@ -4753,6 +4969,14 @@ function getWorkZoLiveCopilotInsight(input: {
 }
 
 export default function InterviewPage() {
+  return (
+    <Suspense>
+      <InterviewPageInner />
+    </Suspense>
+  );
+}
+
+function InterviewPageInner() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -4822,6 +5046,13 @@ export default function InterviewPage() {
     jobDescription: "",
   });
   const [status, setStatus] = useState<InterviewStatus>("idle");
+
+  // Dev-mode: ?engine=browser forces browser engine (no Vapi credits spent).
+  // Only active in development — production ignores this param entirely.
+  const searchParams = useSearchParams();
+  const devBrowserEngine =
+    process.env.NODE_ENV === "development" &&
+    searchParams?.get("engine") === "browser";
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [premiumVoiceEnabled, setPremiumVoiceEnabled] = useState(true);
   const [premiumVoiceStatus, setPremiumVoiceStatus] =
@@ -4944,6 +5175,9 @@ export default function InterviewPage() {
   const [premiumUnlocked, setPremiumUnlocked] = useState(false);
   // Live reaction text shown in copilot panel
   const [liveReactionText, setLiveReactionText] = useState("");
+  // What the recruiter is "writing down" during a typing_notes moment —
+  // shown next to the note-taking badge so it feels tied to a real answer.
+  const [recruiterNoteText, setRecruiterNoteText] = useState("");
   // Filler word running count for current answer
   const [fillerCount, setFillerCount] = useState(0);
   // Company simulation mode
@@ -5106,12 +5340,23 @@ export default function InterviewPage() {
       item.role === "recruiter" &&
       /that brings us to the end|end of our session|we'll be in touch|next steps|thank you.*time today/i.test(item.text),
   );
+  // Phase-based progress per Interview Engine v2.0 spec — represents interview
+  // PHASES, not raw question count. Mirrors the sidebar "Interview flow" stepper:
+  // Introduction(1) -> Background(3) -> Experience(6) -> Skills(9) -> Strengths(12) -> Closing
+  const interviewPhaseProgress = (() => {
+    if (!hasStartedInterview) return 0;
+    if (closingTurnSeen) return 95;
+    if (questionIndex >= 12) return 90; // Strengths complete, entering wrap-up/closing
+    if (questionIndex >= 9) return 80; // Skills complete, in Strengths
+    if (questionIndex >= 6) return 60; // Experience complete, in Skills
+    if (questionIndex >= 3) return 40; // Background complete, in Experience
+    if (questionIndex >= 1) return 20; // Introduction complete, in Background
+    return 10; // Introduction in progress
+  })();
   const progress = hasStartedInterview
     ? status === "ended"
       ? 100
-      : closingTurnSeen
-        ? 95
-        : Math.min(Math.round((visibleQuestionNumber / 8) * 100), 88)
+      : interviewPhaseProgress
     : 0;
   // interviewComplete: ONLY trigger on transcript-detected closing.
   // When Vapi is active, the browser engine memory (readyForResults) should
@@ -5410,7 +5655,7 @@ export default function InterviewPage() {
   );
 
   const persistInterviewResultToDb = useCallback(
-    (session: Record<string, any>) => {
+    (session: Record<string, any>): Promise<unknown> => {
       // session.score is the recruiterSignal object: { trust, confidence, clarity, relevance, mood, ... }
       // There is no session.score.overall — compute it from the signal components.
       const sig = session.score || {};
@@ -5419,7 +5664,11 @@ export default function InterviewPage() {
         : null;
       const overallScore = computedOverall ?? session.overallScore ?? session.summary?.trust ?? null;
 
-      fetch("/api/db/interview-result", {
+      // Return the promise so callers (e.g. endInterview) can await the
+      // actual DB write completing before navigating to /results — fixing
+      // the race where navigation happened on a fixed timer regardless of
+      // whether the save had actually finished.
+      return fetch("/api/db/interview-result", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -5482,6 +5731,8 @@ export default function InterviewPage() {
             .slice(lastRecruiterIndex + 1)
             .some((e) => e.role === "candidate");
 
+        let next: TranscriptItem[];
+
         if (
           shouldMergeVisibleTranscript(
             previous,
@@ -5498,7 +5749,7 @@ export default function InterviewPage() {
             { ...previous, text: mergedText },
             current.length - 1,
           );
-          return current.map((entry, index) =>
+          next = current.map((entry, index) =>
             index === current.length - 1
               ? {
                   ...entry,
@@ -5507,18 +5758,29 @@ export default function InterviewPage() {
                 }
               : entry,
           );
+        } else {
+          // New distinct turn — persist to DB now
+          persistInterviewMessageToDb(cleanedItem, current.length);
+          next = [
+            ...current,
+            {
+              ...cleanedItem,
+              id: createClientId(),
+              time: formatTranscriptTime(new Date()),
+            },
+          ].slice(-80);
         }
 
-        // New distinct turn — persist to DB now
-        persistInterviewMessageToDb(cleanedItem, current.length);
-        return [
-          ...current,
-          {
-            ...cleanedItem,
-            id: createClientId(),
-            time: formatTranscriptTime(new Date()),
-          },
-        ].slice(-80);
+        // CRITICAL: write the ref synchronously, in the SAME tick as this
+        // state update, not in a trailing useEffect. Any code that calls
+        // saveInterviewResult() immediately after addTranscript() (e.g. a
+        // closing message followed instantly by endInterview) must see the
+        // latest transcript, not a render-cycle-old snapshot. This was the
+        // root cause of "transcript and report out of sync" — the final
+        // turn could be missing from transcriptRef.current at save time.
+        transcriptRef.current = next;
+
+        return next;
       });
     },
     [persistInterviewMessageToDb],
@@ -5604,6 +5866,29 @@ export default function InterviewPage() {
       };
 
       // Free users get full GPT-4o intelligence: session count is enforced by /api/db/interview-session.
+
+      // DEV MODE: skip LLM entirely, use phase-based question selector.
+      // This makes the browser engine usable for UI/flow testing without
+      // any API calls or credit spend. The question follows the structured
+      // 6-phase flow (Opening → Introduction → Experience → Why This Company
+      // → CV Gap Check → Closing) based on the current questionIndex.
+      if (devBrowserEngine) {
+        const nextIndex = questionIndexRef.current + 1;
+        // BUG FIX: the dev path was reading questionIndexRef.current + 1 to
+        // pick the next phase question, but never actually advancing the
+        // index — so the same phase question fired repeatedly on every answer.
+        // Increment both the ref (immediate, so the next call sees the new
+        // value) and the state (so React re-renders with the updated progress bar).
+        questionIndexRef.current = nextIndex;
+        setQuestionIndex(Math.min(nextIndex, 30));
+        const phaseQuestion = buildDevPhaseQuestion(
+          nextIndex,
+          currentSetup,
+          currentSetup.cvText || "",
+          currentSetup.jobDescription || "",
+        );
+        return phaseQuestion;
+      }
 
       try {
         const signalAnalysis = analyzeAnswerSignals(answer, currentSetup);
@@ -5752,6 +6037,16 @@ export default function InterviewPage() {
   const startListening = useCallback(async () => {
     if (stopRequestedRef.current) return;
 
+    // CRITICAL: never start the browser Web Speech API mic when Vapi is
+    // active. Vapi manages the microphone directly through its own Daily
+    // session. If Web Speech Recognition also starts, it picks up Vapi's
+    // TTS audio from the speakers and feeds it back as candidate speech,
+    // causing Vapi to respond to its own voice — confirmed from a live
+    // session where the browser engine interrupted mid-Vapi-interview.
+    if (vapiConnectedRef.current || vapiStartingRef.current || premiumVoiceStatus === "connected") {
+      return;
+    }
+
     const Recognition = getRecognitionConstructor();
 
     if (!Recognition) {
@@ -5810,6 +6105,7 @@ export default function InterviewPage() {
           applyRecruiterSignalUpdate(answer);
           const reaction = getWorkZoLiveReaction(answer);
           setRecruiterVisualState(reaction.visualState);
+          setRecruiterNoteText(reaction.noteText || "");
           setLiveReactionText(reaction.text);
           const nextEmoMem = updateWorkZoEmotionalMemory(
             emotionalMemoryRef.current,
@@ -6016,6 +6312,11 @@ export default function InterviewPage() {
     };
 
     recognition.onresult = (event) => {
+      // Discard any Web Speech results while Vapi is active — Vapi manages
+      // its own transcript. Browser recognition picking up Vapi's TTS audio
+      // from the speakers was causing Vapi to respond to its own voice.
+      if (vapiConnectedRef.current || vapiStartingRef.current) return;
+
       let finalText = "";
       let interim = "";
 
@@ -6151,6 +6452,7 @@ export default function InterviewPage() {
       // Emotional memory engine: tracks vague answers, missing metrics, ownership patterns
       const reaction = getWorkZoLiveReaction(answer);
       setRecruiterVisualState(reaction.visualState);
+      setRecruiterNoteText(reaction.noteText || "");
       setLiveReactionText(reaction.text);
       const nextEmoMem = updateWorkZoEmotionalMemory(
         emotionalMemoryRef.current,
@@ -6218,6 +6520,10 @@ export default function InterviewPage() {
     };
 
     recognitionRef.current = recognition;
+
+    // Final guard: don't actually start the mic if Vapi connected between
+    // when startListening was called and now (async gap).
+    if (vapiConnectedRef.current || vapiStartingRef.current) return;
 
     try {
       recognition.start();
@@ -6445,6 +6751,7 @@ export default function InterviewPage() {
         // 1. Recruiter visual state + emotional memory
         const reaction = getWorkZoLiveReaction(answer);
         setRecruiterVisualState(reaction.visualState);
+        setRecruiterNoteText(reaction.noteText || "");
         setEmotionalMemory((prev) => {
           const updated = updateWorkZoEmotionalMemory(prev, answer);
           emotionalMemoryRef.current = updated;
@@ -6562,6 +6869,7 @@ export default function InterviewPage() {
     // Emotional memory engine: same as browser path
     const reaction = getWorkZoLiveReaction(answer);
     setRecruiterVisualState(reaction.visualState);
+    setRecruiterNoteText(reaction.noteText || "");
     setLiveReactionText(reaction.text);
     const nextEmoMem = updateWorkZoEmotionalMemory(
       emotionalMemoryRef.current,
@@ -6584,6 +6892,53 @@ export default function InterviewPage() {
     (activeSetup: InterviewSetup) => {
       if (vapiFallbackStartedRef.current || stopRequestedRef.current) return;
 
+      // CRITICAL BUG FIX: confirmed from a live session where Vapi dropped
+      // mid-interview (after ~20 minutes and 12+ real questions) due to a
+      // transient connection error. The fallback engine silently took over,
+      // reset questionIndex to 1, and asked a brand-new opening question —
+      // interrupting the candidate mid-sentence — then almost immediately
+      // fired its own closing logic because the conversation LOOKED long
+      // enough to wrap up, even though it had only just "started" from the
+      // fallback engine's point of view. The result: a garbled, abrupt
+      // ending that cut the candidate off and discarded the live context.
+      //
+      // Fix: falling back to the browser engine is only safe before any
+      // real exchange has happened. If a substantive conversation is
+      // already underway (several candidate answers already in the
+      // transcript), do NOT silently restart from question 1. Instead, end
+      // the session gracefully with an apology, preserving everything
+      // already captured, and let the candidate retry rather than being
+      // mid-sentence-interrupted by a fake restart.
+      const existingTranscript = transcriptRef.current || [];
+      const substantiveCandidateTurns = existingTranscript.filter((item) => {
+        if (item.role !== "candidate") return false;
+        const words = item.text.trim().split(/\s+/).filter(Boolean).length;
+        return words >= 15;
+      }).length;
+
+      if (substantiveCandidateTurns >= 3) {
+        vapiFallbackStartedRef.current = true;
+        vapiConnectedRef.current = false;
+        setPremiumVoiceStatus("failed");
+        setPremiumVoiceError(
+          "The live voice connection dropped. Your answers so far have been saved — please end the session and start a new one to continue.",
+        );
+
+        const apologyLine =
+          "I'm sorry, it looks like our connection just dropped. I have everything you've shared so far saved. Let's pick this back up properly: please start a new session to continue.";
+
+        addTranscript({
+          role: "recruiter",
+          speaker: `${activeSetup.recruiterName} · ${activeSetup.recruiterTitle}`,
+          text: apologyLine,
+        });
+
+        stopRequestedRef.current = true;
+        setStatus("ended");
+        window.setTimeout(() => { endInterview(); }, 1500);
+        return;
+      }
+
       vapiFallbackStartedRef.current = true;
       vapiStartingRef.current = false;
       vapiConnectedRef.current = false;
@@ -6599,7 +6954,7 @@ export default function InterviewPage() {
         speakRecruiter(localizedOpeningQuestion(activeSetup));
       }, 120);
     },
-    [speakRecruiter],
+    [speakRecruiter, addTranscript],
   );
 
   function openUpgradeModal(feature: string) {
@@ -6886,6 +7241,24 @@ export default function InterviewPage() {
             );
             if (lastAssistantTranscriptRef.current === recruiterText) return;
             lastAssistantTranscriptRef.current = recruiterText;
+
+            // BUG FIX: a closing was already delivered in this call
+            // (vapiNaturalClosingSeenRef), but the assistant sent another
+            // message that looks like a fresh opening greeting — this is
+            // Vapi looping/restarting the conversation instead of actually
+            // ending the call. Confirmed from a live session where the
+            // closing line and a brand new "Hi there, I'm Daniel Reed..."
+            // greeting both appeared back to back. Force-end immediately
+            // rather than continuing to listen for a new "interview".
+            const looksLikeFreshGreeting = /^(hi|hello|hey)\b.{0,40}\bi'?m\b|^(hi|hello|hey) there\b|thanks for joining today/i.test(
+              recruiterText.trim(),
+            );
+            if (vapiNaturalClosingSeenRef.current && looksLikeFreshGreeting) {
+              stopRequestedRef.current = true;
+              setStatus("ended");
+              window.setTimeout(() => { endInterview(); }, 300);
+              return;
+            }
 
             if (isProgressWorthyRecruiterTurn(recruiterText)) {
               const signature = recruiterText.toLowerCase().slice(0, 140);
@@ -7329,10 +7702,23 @@ export default function InterviewPage() {
     setEmotionalMemory(freshMemory);
     emotionalMemoryRef.current = freshMemory;
     setRecruiterVisualState("waiting");
+    setRecruiterNoteText("");
     setFillerWordCount(0);
     setShareableMoment(null);
 
     // ── Plan-gated voice routing ─────────────────────────────────────────────
+    // DEV MODE: ?engine=browser bypasses Vapi entirely (no credit spend).
+    // Active only in development. Shows a banner in the interview UI.
+    if (devBrowserEngine) {
+      addTranscript({
+        role: "system",
+        speaker: "System",
+        text: "🛠 Dev mode: browser engine active (no Vapi credits spent). Add ?engine=browser to URL to use this mode.",
+      });
+      startBrowserFallbackInterview(freshSetup);
+      return;
+    }
+
     // Temporary launch setting:
     // Free:         Vapi voice → browser fallback on failure
     // Premium:      Vapi voice → browser fallback on failure
@@ -7382,8 +7768,8 @@ export default function InterviewPage() {
   ]);
 
   const saveInterviewResult = useCallback(
-    (reason: "ended" | "paused" = "ended") => {
-      if (typeof window === "undefined") return;
+    (reason: "ended" | "paused" = "ended"): Promise<unknown> => {
+      if (typeof window === "undefined") return Promise.resolve();
       let finalTranscript = [...(transcriptRef.current.length ? transcriptRef.current : transcript)];
 
       const pendingCandidate = getStableCandidateAnswer().trim();
@@ -7452,6 +7838,7 @@ export default function InterviewPage() {
         candidateName: setupRef.current.candidateName,
         targetRole: setupRef.current.targetRole,
         targetCompany: setupRef.current.targetCompany || "",
+        jobDescription: setupRef.current.jobDescription || "",
         recruiterName: setupRef.current.recruiterName,
         recruiterTitle: setupRef.current.recruiterTitle,
         companyStyle: detectCompanyInterviewStyle(setupRef.current),
@@ -7495,7 +7882,7 @@ export default function InterviewPage() {
           JSON.stringify(session),
         );
         persistInterviewSessionToDb("completed");
-        persistInterviewResultToDb(session as unknown as Record<string, any>);
+        const dbSavePromise = persistInterviewResultToDb(session as unknown as Record<string, any>);
         clearActiveInterviewSnapshot();
 
         // Detect shareable moment for post-session social card
@@ -7544,6 +7931,7 @@ export default function InterviewPage() {
             (item) => item.role === "candidate",
           ).length,
         });
+        return dbSavePromise;
       } catch (error) {
         trackWorkZoErrorEvent(
           "interview_save_failed",
@@ -7554,6 +7942,7 @@ export default function InterviewPage() {
           },
           "high",
         );
+        return Promise.resolve();
       }
     },
     [
@@ -7581,13 +7970,19 @@ export default function InterviewPage() {
     setInterimText("");
     setStatus("ended");
 
-    // Save FIRST, then navigate. This prevents the results page from reading
-    // an older DB/localStorage snapshot and falsely showing “only 1 answer”.
-    saveInterviewResult("ended");
+    // Save FIRST, then navigate — and actually WAIT for the DB write to
+    // finish (or time out) rather than navigating on a fixed timer. The
+    // previous fixed 650ms delay assumed the POST to /api/db/interview-result
+    // always completed in time; on a slow connection it didn't, so the
+    // results page could load before the save landed and would fall back to
+    // a stale/incomplete snapshot. A 4s safety-net cap still guarantees the
+    // user is never stuck waiting indefinitely if the network hangs.
+    const savePromise = saveInterviewResult("ended");
+    const safetyTimeout = new Promise((resolve) => window.setTimeout(resolve, 4000));
 
-    window.setTimeout(() => {
+    Promise.race([savePromise, safetyTimeout]).finally(() => {
       window.location.href = "/results";
-    }, 650);
+    });
   }, [saveInterviewResult, stopListening, stopPremiumVoice]);
 
   // ── Graceful, engine-agnostic interview completion ──────────────────────
@@ -7662,6 +8057,29 @@ export default function InterviewPage() {
         // "Thank you for your time" only as a standalone closing (not "thanks for sharing")
         (/thank you for (your time|joining|today|taking the time)/i.test(last.text) && /we'?ll|next step|look forward|best of luck|take care/i.test(last.text))
       );
+
+      // MUTUAL GOODBYE: if the candidate says "bye", "goodbye", or "thank you,
+      // goodbye" AFTER a closing has already been seen from the recruiter, treat
+      // this as a confirmed mutual end — stop the call immediately regardless of
+      // whether Vapi or browser engine is active. This is the most natural signal
+      // that both parties have concluded the conversation.
+      const isCandidateFarewell =
+        last.role === "candidate" &&
+        /\b(bye|goodbye|good bye|see you|thanks? (bye|goodbye)|thank you (bye|goodbye)|take care)\b/i.test(last.text);
+
+      if (isCandidateFarewell && vapiNaturalClosingSeenRef.current) {
+        // Both recruiter AND candidate have said their goodbyes — end the call.
+        stopRequestedRef.current = true;
+        closingHandledRef.current = true;
+        if (vapiConnectedRef.current || premiumVoiceStatus === "connected") {
+          // For Vapi: stop the voice session which will trigger call-end → save → navigate
+          window.setTimeout(() => { stopPremiumVoice(); endInterview(); }, 600);
+        } else {
+          // For browser engine: end immediately
+          window.setTimeout(() => { endInterview(); }, 400);
+        }
+        return;
+      }
 
       if (isNaturalWrapUp) {
         // Browser fallback can end after a clear recruiter closing.
@@ -8564,6 +8982,12 @@ export default function InterviewPage() {
         ) : null}
 
         {/* First-time user hint: floating toast, never affects layout */}
+        {devBrowserEngine && (
+          <div className="fixed top-0 left-0 right-0 z-[9999] bg-warning/90 px-4 py-1.5 text-center text-[11px] font-black uppercase tracking-wider text-canvas backdrop-blur-sm">
+            🛠 DEV MODE — Browser Engine (No Vapi) — Phase: {["Opening","Introduction","Experience","Why Company","CV Gap Check","Closing"][getDevPhase(questionIndex)] || "Closing"} — Q{questionIndex}
+          </div>
+        )}
+
         {showFirstTimeHint && (
           <div className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 px-4 w-full max-w-lg">
             <div className="pointer-events-auto flex items-start gap-3 rounded-xl border border-brand/20 bg-canvas shadow-lg shadow-black/10 px-4 py-3">
@@ -8596,7 +9020,7 @@ export default function InterviewPage() {
             </div>
           </div>
         )}
-        <div className="grid grid-cols-1 overflow-x-hidden lg:min-h-0 lg:h-full lg:grid-cols-[200px_1fr_320px] lg:overflow-hidden">
+        <div className="grid grid-cols-1 overflow-x-hidden lg:min-h-0 lg:h-full lg:grid-cols-[200px_1fr_280px] lg:overflow-hidden">
 
           {/* ── LEFT SIDEBAR: Interview flow + tips ── */}
           <aside className="hidden border-r border-line bg-canvas lg:flex lg:flex-col lg:min-h-0 lg:overflow-y-auto">
@@ -8675,7 +9099,7 @@ export default function InterviewPage() {
           </aside>
 
           <div className="flex flex-col lg:h-full lg:min-h-0">
-            <section className="relative shrink-0 overflow-hidden bg-canvas h-[340px] sm:h-[390px] lg:h-[50%] lg:min-h-[320px] lg:max-h-[520px]">
+            <section className="relative shrink-0 overflow-hidden bg-canvas h-[400px] sm:h-[460px] lg:h-[68%] lg:min-h-[420px] lg:max-h-[760px]">
               <div className="absolute inset-x-[18%] bottom-8 top-6 rounded-full bg-brand/20 blur-3xl" />
               <div className="absolute inset-0">
                 <Image
@@ -8742,6 +9166,17 @@ export default function InterviewPage() {
                     {recruiterVisualState === "typing_notes" &&
                       "📝 Taking notes"}
                     {recruiterVisualState === "thinking" && "Thinking..."}
+                  </div>
+                )}
+
+              {/* What the recruiter is actually writing down — only shown
+                  during a typing_notes moment, tied to the specific evidence
+                  in the candidate's answer rather than a generic animation. */}
+              {recruiterVisualState === "typing_notes" &&
+                recruiterNoteText &&
+                status !== "idle" && (
+                  <div className="absolute left-1/2 top-[36%] -translate-x-1/2 max-w-xs rounded-lg border border-brand/25 bg-canvas-soft/95 px-3 py-1.5 text-center text-[11px] font-bold italic text-brand backdrop-blur-sm transition-all duration-500">
+                    "{recruiterNoteText}"
                   </div>
                 )}
 
@@ -8890,43 +9325,58 @@ export default function InterviewPage() {
               (typeof window !== "undefined" && window.innerWidth >= 1024) ? (
                 <>
                   <div
-                    className="overflow-y-auto px-4 py-1 lg:flex-1 lg:min-h-0 workzo-hide-scrollbar"
+                    className="overflow-y-auto px-4 py-3 lg:flex-1 lg:min-h-0 workzo-hide-scrollbar"
                     style={{ maxHeight: "100%" }}
                   >
                     {visibleTranscriptItems.length || interimText ? (
-                      <div className="divide-y divide-line">
-                        {visibleTranscriptItems.map((line) => (
-                          <div
-                            key={line.id}
-                            className="grid grid-cols-[80px_150px_1fr] gap-3 py-1 text-sm max-sm:grid-cols-1 max-sm:gap-1 max-sm:py-3"
-                          >
-                            <span className="text-muted">{line.time}</span>
-                            <span
-                              className={`font-semibold ${
-                                line.role === "candidate"
-                                  ? "text-brand"
-                                  : line.role === "recruiter"
-                                    ? "text-brand"
-                                    : "text-muted"
-                              }`}
+                      <div className="space-y-3">
+                        {visibleTranscriptItems.map((line) => {
+                          const isCandidate = line.role === "candidate";
+                          return (
+                            <div
+                              key={line.id}
+                              className={`flex items-end gap-2 ${isCandidate ? "flex-row-reverse" : "flex-row"}`}
                             >
-                              {line.speaker}
-                            </span>
-                            <span className="leading-6 text-fg max-sm:line-clamp-none sm:line-clamp-2">
-                              {line.text}
-                            </span>
-                          </div>
-                        ))}
+                              {/* Avatar: recruiter initial vs "You" */}
+                              <div
+                                className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[10px] font-black ${
+                                  isCandidate ? "bg-fg/10 text-fg" : "bg-brand/15 text-brand"
+                                }`}
+                              >
+                                {isCandidate ? "Y" : (line.speaker || "R").charAt(0)}
+                              </div>
+                              <div className={`flex max-w-[78%] flex-col ${isCandidate ? "items-end" : "items-start"}`}>
+                                {!isCandidate && (
+                                  <span className="mb-0.5 px-1 text-[10px] font-black text-muted">
+                                    {line.speaker}
+                                  </span>
+                                )}
+                                <div
+                                  className={`rounded-2xl px-3.5 py-2.5 text-sm leading-6 ${
+                                    isCandidate
+                                      ? "rounded-br-sm bg-brand text-white"
+                                      : "rounded-bl-sm bg-fg/[0.06] text-fg"
+                                  }`}
+                                >
+                                  {line.text}
+                                </div>
+                                <span className="mt-0.5 px-1 text-[10px] text-subtle">{line.time}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
 
                         {interimText ? (
-                          <div className="grid grid-cols-[80px_150px_1fr] gap-3 py-1 text-sm opacity-70 max-sm:grid-cols-1 max-sm:gap-1">
-                            <span className="text-muted">listening</span>
-                            <span className="font-semibold text-brand">
-                              You
-                            </span>
-                            <span className="leading-6 text-fg">
-                              {interimText}
-                            </span>
+                          <div className="flex flex-row-reverse items-end gap-2">
+                            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-fg/10 text-[10px] font-black text-fg">
+                              Y
+                            </div>
+                            <div className="flex max-w-[78%] flex-col items-end opacity-60">
+                              <div className="rounded-2xl rounded-br-sm bg-brand px-3.5 py-2.5 text-sm leading-6 text-white">
+                                {interimText}
+                              </div>
+                              <span className="mt-0.5 px-1 text-[10px] text-subtle">listening…</span>
+                            </div>
                           </div>
                         ) : null}
 
@@ -8971,86 +9421,89 @@ export default function InterviewPage() {
           </div>
 
           <aside className="flex flex-col gap-0 border-l border-line lg:min-h-0 lg:overflow-y-auto">
+            {/* Consolidated score card: overall ring + sub-metrics in one
+                glance, no redundant restating of trust/interest separately
+                from the score breakdown below it. */}
             <section className="border-b border-line bg-canvas p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-subtle flex items-center gap-1.5">
-                <span className="text-brand">▌</span> Live Feedback
-              </p>
-              <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-subtle flex items-center gap-1.5">
+                  <span className="text-brand">▌</span> Live score
+                </p>
+                <span
+                  className={`text-[10px] font-black uppercase tracking-[0.14em] ${recruiterMoodColor(recruiterSignal.mood)}`}
+                >
+                  {scoreReady ? recruiterSignal.mood : "Waiting"}
+                </span>
+              </div>
+
+              <div className="mt-3 flex items-center gap-3">
                 <div
-                  className={`grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full border-[5px] bg-canvas transition-all duration-500 ${scoreFlash === "up" ? "border-success shadow-[0_0_0_6px_rgba(52,211,153,0.12)]" : scoreFlash === "down" ? "border-warning shadow-[0_0_0_6px_rgba(251,191,36,0.12)]" : "border-brand/60"}`}
+                  className={`grid h-[64px] w-[64px] shrink-0 place-items-center rounded-full border-[5px] bg-canvas transition-all duration-500 ${scoreFlash === "up" ? "border-success shadow-[0_0_0_6px_rgba(52,211,153,0.12)]" : scoreFlash === "down" ? "border-warning shadow-[0_0_0_6px_rgba(251,191,36,0.12)]" : "border-brand/60"}`}
                 >
                   <div className="text-center">
                     {scoreReady ? (
-                      <>
-                        <div className="text-2xl font-black tabular-nums leading-none">
-                          {recruiterSignal.overall}
-                        </div>
-                        <div className="text-[10px] text-subtle mt-0.5">
-                          /100
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-2xl font-black text-muted">
-                          ·
-                        </div>
-                      </>
-                    )}
-                    {scoreFlash ? (
-                      <div
-                        className={`mt-1 text-[10px] font-black uppercase ${scoreFlash === "up" ? "text-success" : "text-warning"}`}
-                      >
-                        {scoreFlash === "up" ? "improved" : "check proof"}
+                      <div className="text-xl font-black tabular-nums leading-none">
+                        {recruiterSignal.overall}
                       </div>
-                    ) : null}
+                    ) : (
+                      <div className="text-xl font-black text-muted">·</div>
+                    )}
                   </div>
                 </div>
 
-                <div className="w-full min-w-0 flex-1 space-y-1.5">
-                  {scoreItems.map((item) => {
-                    const Icon = item.icon;
-                    const numVal = scoreReady
-                      ? parseInt(String(item.value))
-                      : 0;
-                    return (
-                      <div key={item.label}>
-                        <div className="flex items-center justify-between gap-2 mb-0.5">
-                          <span
-                            className={`text-[11px] ${scoreReady ? "text-muted" : "text-muted"}`}
-                          >
-                            {item.label}
-                          </span>
-                          <span
-                            className={`text-[11px] font-black ${scoreReady ? "text-fg" : "text-muted"}`}
-                          >
-                            {item.value}
-                          </span>
-                        </div>
-                        <div className="h-1 overflow-hidden rounded-full bg-fg/[0.07]">
-                          <div
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              toneClass(item.tone)
-                                .split(" ")
-                                .find((c) => c.startsWith("bg-")) ||
-                              "bg-brand"
-                            }`}
-                            style={{
-                              width: scoreReady
-                                ? `${Math.min(100, numVal)}%`
-                                : "0%",
-                            }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="min-w-0 flex-1 text-xs text-muted">
+                  <div className="flex items-center justify-between gap-2">
+                    <span>Trust</span>
+                    <span className="font-bold text-fg">{scoreReady ? recruiterSignal.trust : "—"}</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <span>Interest</span>
+                    <span className="font-bold text-fg">{scoreReady ? recruiterSignal.interest : "—"}</span>
+                  </div>
+                  {scoreFlash ? (
+                    <div className={`mt-1 text-[10px] font-black uppercase ${scoreFlash === "up" ? "text-success" : "text-warning"}`}>
+                      {scoreFlash === "up" ? "improved" : "check proof"}
+                    </div>
+                  ) : null}
                 </div>
               </div>
+
+              <div className="mt-3 space-y-1.5">
+                {scoreItems.map((item) => {
+                  const numVal = scoreReady ? parseInt(String(item.value)) : 0;
+                  return (
+                    <div key={item.label}>
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <span className="text-[11px] text-muted">{item.label}</span>
+                        <span className="text-[11px] font-black text-fg">{item.value}</span>
+                      </div>
+                      <div className="h-1 overflow-hidden rounded-full bg-fg/[0.07]">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            toneClass(item.tone).split(" ").find((c) => c.startsWith("bg-")) || "bg-brand"
+                          }`}
+                          style={{ width: scoreReady ? `${Math.min(100, numVal)}%` : "0%" }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Filler words: kept compact, single line, no separate card */}
+              {fillerWordCount > 0 && (
+                <div className="mt-3 flex items-center justify-between rounded-lg bg-warning/[0.07] px-2.5 py-1.5 text-[11px]">
+                  <span className="font-bold text-warning">{fillerWordCount} filler words</span>
+                  <span className="text-muted">reviewed after session</span>
+                </div>
+              )}
             </section>
 
+            {/* Session signals: patterns the recruiter has noticed, kept as
+                its own scrollable section since this list can grow. */}
             <section
               style={{ display: showCopilot ? undefined : "none" }}
-              className="flex-1 border-b border-line bg-canvas p-4 overflow-hidden"
+              className="flex-1 bg-canvas p-4 overflow-hidden"
             >
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">
@@ -9058,81 +9511,37 @@ export default function InterviewPage() {
                 </p>
                 <span className="inline-block h-2 w-2 rounded-full bg-brand" />
               </div>
-
-              <div className="mt-3 flex items-center justify-between rounded-xl border border-line bg-fg/[0.03] px-3 py-2">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted">
-                    Mood
-                  </p>
-                  <p
-                    className={`mt-1 text-base font-black ${recruiterMoodColor(recruiterSignal.mood)}`}
-                  >
-                    {scoreReady ? recruiterSignal.mood : "Waiting"}
-                  </p>
-                </div>
-                <div className="text-right text-xs text-muted">
-                  <p>
-                    Trust{" "}
-                    <span className="font-bold text-fg">
-                      {scoreReady ? recruiterSignal.trust : "—"}
-                    </span>
-                  </p>
-                  <p>
-                    Interest{" "}
-                    <span className="font-bold text-fg">
-                      {scoreReady ? recruiterSignal.interest : "—"}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              {/* Filler word count: observational only, no coaching hints during interview */}
-              {fillerWordCount > 0 && (
-                <div className="mt-2 rounded-xl border border-warning/15 bg-warning/[0.07] px-3 py-2">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-warning">
-                    Filler words
-                  </p>
-                  <p className="mt-1 text-sm font-black text-fg">
-                    {fillerWordCount}
-                    <span className="ml-1 text-xs font-normal text-muted">
-                      detected this session
-                    </span>
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-muted">
-                    Reviewed in full after the interview.
-                  </p>
-                </div>
-              )}
+              <p className="mt-2 text-xs leading-5 text-muted">
+                {recruiterMemory.liveNote || "Listening for patterns across your answers."}
+              </p>
             </section>
 
-            <section className="bg-canvas p-4">
+            {/* Progress: slim sticky footer, no longer a full bordered
+                section competing visually with the score card above. */}
+            <section className="sticky bottom-0 border-t border-line bg-canvas/95 p-3 backdrop-blur-sm">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">
                   Progress
                 </p>
-                <span className="tabular-nums text-sm font-black text-fg">
-                  {progress}
-                  <span className="text-muted">%</span>
+                <span className="tabular-nums text-xs font-black text-fg">
+                  {progress}<span className="text-muted">%</span>
                 </span>
               </div>
-              <div className="mt-3 h-1 overflow-hidden rounded-full bg-fg/[0.07]">
+              <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-fg/[0.07]">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-brand to-brand"
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3">
-                <p className="text-[10px] text-muted">{progress}%</p>
-                {interviewComplete ? (
-                  <Link
-                    href="/results"
-                    onClick={() => saveInterviewResult("paused")}
-                    className="rounded-lg bg-success/15 px-2.5 py-1 text-xs font-black text-success"
-                  >
-                    View Results
-                  </Link>
-                ) : null}
-              </div>
+              {interviewComplete ? (
+                <Link
+                  href="/results"
+                  onClick={() => saveInterviewResult("paused")}
+                  className="mt-2 block rounded-lg bg-success/15 px-2.5 py-1.5 text-center text-xs font-black text-success"
+                >
+                  View Results
+                </Link>
+              ) : null}
             </section>
           </aside>
         </div>

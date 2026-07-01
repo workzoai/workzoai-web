@@ -17,21 +17,6 @@ import {
 } from "@/lib/workzoUsageTracker";
 import { fetchWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
 
-/**
- * Internal dev tool — protected by middleware.ts (FOUNDER_ALLOWED_EMAILS).
- *
- * Lets you override the client-side "plan" used by PremiumFeatureGate /
- * useWorkZoAuthoritativePlan, so you can click through the app as if you
- * were on Free, Premium, or Premium Pro — without needing a real Stripe
- * subscription in each state.
- *
- * This ONLY affects feature-gating on the client. It does not change your
- * real plan in the database or in Stripe.
- */
-
-// Every page worth testing, with the feature key (if any) that gates it via
-// PremiumFeatureGate. Pages without a featureKey are open to all plans, but
-// may still render different content based on plan (handled inside the page).
 type PageEntry = {
   href: string;
   label: string;
@@ -241,6 +226,7 @@ export default function DevToolsPage() {
           </p>
         </div>
       </section>
+
     </main>
   );
 }

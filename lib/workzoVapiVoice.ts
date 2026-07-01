@@ -414,6 +414,146 @@ function buildStructuredEducationBlock(resumeProfile: unknown): string {
   return `VERIFIED EDUCATION:\n${edu.join("\n")}`;
 }
 
+// ─── JD Requirement Extraction (Interview Engine v2.0 spec) ────────────────
+// Extracts named requirements from the job description so the recruiter asks
+// about EACH one specifically, instead of generic "tell me about your
+// experience" questions. Covers CSM, engineering, PM, data, finance, sales,
+// legal, creative, HR, and operations roles — not just CSM/support.
+const JD_REQUIREMENT_LIBRARY: Array<{ match: RegExp; label: string; question: string }> = [
+  // ── Customer Success / Support ──────────────────────────────────────────
+  { match: /customer onboarding|client onboarding|new customer setup/, label: "Customer onboarding", question: "Tell me about a customer onboarding project you led. How did you structure the first 30-60-90 days?" },
+  { match: /change management/, label: "Change management", question: "Describe a situation where customers or stakeholders resisted a change you were rolling out. How did you handle that?" },
+  { match: /stakeholder management|senior management|executive (?:stakeholders|sponsors)/, label: "Stakeholder management", question: "Have you worked directly with senior management or executive stakeholders? Walk me through an example." },
+  { match: /escalation/, label: "Escalation handling", question: "Describe a difficult escalation you handled. What made it difficult, and how did you resolve it?" },
+  { match: /(?:customer|product) adoption|usage (?:rate|metrics)/, label: "Customer adoption", question: "What would you do if you noticed customers had stopped actively using the product?" },
+  { match: /success metrics|health score|nps|csat/, label: "Success metrics", question: "How would you measure whether an implementation or customer relationship was successful?" },
+  { match: /renewals?|retention/, label: "Renewals & retention", question: "Tell me about a renewal you were worried about losing. What did you do?" },
+  { match: /churn/, label: "Churn prevention", question: "How do you spot early signs that a customer might churn, and what do you do about it?" },
+  { match: /\bqbr\b|quarterly business review/, label: "QBRs", question: "Have you run a quarterly business review with a customer? What does a good one look like to you?" },
+  { match: /sla\b|service level agreement/, label: "SLA management", question: "How do you manage SLA commitments, especially when one is at risk?" },
+
+  // ── Project / Programme Management ─────────────────────────────────────
+  { match: /project (?:management|planning|delivery)|implementation (?:project|timeline)|programme management/, label: "Project management", question: "How do you keep an implementation or rollout project on schedule when things start slipping?" },
+  { match: /agile|scrum|sprint|kanban/, label: "Agile delivery", question: "Walk me through how you've worked in an Agile environment. What was your role in the process?" },
+  { match: /risk management|risk mitigation/, label: "Risk management", question: "Tell me about a time you identified and mitigated a significant project risk. What was your approach?" },
+  { match: /budget|cost management|financial oversight/, label: "Budget management", question: "Have you had direct responsibility for a budget? How did you track and manage it?" },
+  { match: /milestone|roadmap|delivery plan/, label: "Roadmap & milestones", question: "How do you build and maintain a delivery roadmap when priorities keep shifting?" },
+
+  // ── Engineering / Technical ─────────────────────────────────────────────
+  { match: /incident management|incident response/, label: "Incident management", question: "Tell me about a significant incident you were involved in resolving. What was your role?" },
+  { match: /root cause|post.?mortem/, label: "Root cause analysis", question: "Walk me through how you get to the actual root cause of a recurring issue, not just the symptom." },
+  { match: /troubleshooting|debugging|diagnosis/, label: "Troubleshooting", question: "Describe your approach to diagnosing a complex technical problem you hadn't seen before." },
+  { match: /ci\/cd|continuous integration|continuous delivery|devops|deployment pipeline/, label: "CI/CD & DevOps", question: "What does your experience with CI/CD pipelines look like? What tools have you worked with?" },
+  { match: /code review|pull request|peer review/, label: "Code review", question: "How do you approach code reviews, both as a reviewer and when your own code is being reviewed?" },
+  { match: /system design|architecture|distributed systems/, label: "System design", question: "Tell me about a system or architecture you designed or significantly contributed to. What trade-offs did you make?" },
+  { match: /security|penetration testing|vulnerability|soc\b|siem/, label: "Security", question: "Describe a security challenge you worked on. How did you approach identifying and addressing the risk?" },
+  { match: /cloud|aws|azure|gcp|google cloud/, label: "Cloud platforms", question: "What cloud platforms have you worked with, and what have you actually built or managed on them?" },
+
+  // ── Data / Analytics ────────────────────────────────────────────────────
+  { match: /data analysis|data analytics|business intelligence/, label: "Data analysis", question: "Walk me through a project where you used data analysis to drive a decision or recommendation." },
+  { match: /machine learning|ml model|model training|nlp|computer vision/, label: "Machine learning", question: "Tell me about a machine learning model you built or contributed to. What was the problem and what was the outcome?" },
+  { match: /sql|database|data pipeline|etl/, label: "SQL & data pipelines", question: "How have you used SQL or data pipelines in your work? Give me a concrete example." },
+  { match: /dashboard|reporting|data visualization|tableau|power bi|looker/, label: "Reporting & dashboards", question: "Tell me about a dashboard or report you built. Who used it and what decisions did it support?" },
+  { match: /a\/b test|experimentation|statistical significance/, label: "A/B testing", question: "Describe an experiment you designed or ran. How did you ensure the results were statistically valid?" },
+
+  // ── Product Management ──────────────────────────────────────────────────
+  { match: /product strategy|product vision|product roadmap/, label: "Product strategy", question: "How do you define and communicate product strategy to engineering and leadership?" },
+  { match: /user research|ux research|customer research|discovery/, label: "User research", question: "Tell me about a time user research changed what you built. What did you learn and what changed?" },
+  { match: /priorit(?:isation|ization)|feature prioriti/, label: "Prioritisation", question: "Walk me through how you prioritise features when you have more demand than capacity." },
+  { match: /go.to.market|gtm|launch|product launch/, label: "Go-to-market", question: "Tell me about a product launch you were responsible for. What did you own and what was the outcome?" },
+
+  // ── Sales / Business Development ────────────────────────────────────────
+  { match: /quota|revenue target|sales target/, label: "Sales targets", question: "Tell me about your experience working to quota. How did you consistently hit or miss it, and what drove the outcomes?" },
+  { match: /pipeline|prospecting|lead generation/, label: "Pipeline management", question: "How do you build and manage your sales pipeline? What does a healthy pipeline look like to you?" },
+  { match: /negotiation|deal closing|contract/, label: "Negotiation", question: "Tell me about a complex negotiation you led. What was at stake and how did you approach it?" },
+  { match: /account management|key accounts|enterprise accounts/, label: "Account management", question: "How do you manage and grow a portfolio of enterprise accounts? What does your cadence look like?" },
+  { match: /upsell|cross.sell|expansion revenue/, label: "Upsell & expansion", question: "Tell me about a time you identified and successfully executed an upsell or expansion opportunity." },
+
+  // ── Finance / Accounting ────────────────────────────────────────────────
+  { match: /financial reporting|financial statements|p&l|profit.*loss/, label: "Financial reporting", question: "What financial reports have you owned or contributed to? Walk me through your process." },
+  { match: /forecasting|financial forecast|revenue forecast/, label: "Forecasting", question: "Describe your experience building financial forecasts. How do you handle uncertainty in your assumptions?" },
+  { match: /audit|compliance|regulatory/, label: "Audit & compliance", question: "Have you worked on an audit or compliance programme? What was your role and what did you learn?" },
+  { match: /tax|vat|gst|indirect tax/, label: "Tax", question: "What tax-related work have you done, and in which jurisdictions?" },
+
+  // ── HR / People ─────────────────────────────────────────────────────────
+  { match: /\bhr\b|human resources|hris|people (?:systems|operations)|talent management/, label: "HR processes", question: "I noticed this role works closely with HR. Have you worked with HR teams or HR systems before?" },
+  { match: /recruitment|talent acquisition|hiring|interviewing/, label: "Talent acquisition", question: "Tell me about your experience with recruitment or hiring. What does a good process look like to you?" },
+  { match: /performance management|performance review|okr|goals/, label: "Performance management", question: "How have you managed or contributed to performance review processes?" },
+  { match: /employee engagement|culture|team building/, label: "Employee engagement", question: "Tell me about something you've done to improve team culture or employee engagement." },
+  { match: /learning.*development|l&d|training programme|coaching/, label: "L&D & coaching", question: "Have you designed or delivered training programmes or coaching? What was the impact?" },
+
+  // ── Operations ─────────────────────────────────────────────────────────
+  { match: /process improvement|process optimisation|lean|six sigma/, label: "Process improvement", question: "Describe a process you improved. How did you identify the problem and measure the result?" },
+  { match: /supply chain|logistics|procurement|vendor management/, label: "Supply chain & procurement", question: "What's your experience managing vendors or supply chain processes?" },
+  { match: /cross-?functional|collaborat/, label: "Cross-functional collaboration", question: "Tell me about a time you had to coordinate across teams that didn't report to you to get something done." },
+
+  // ── Creative / Marketing ────────────────────────────────────────────────
+  { match: /brand|branding|brand strategy/, label: "Brand strategy", question: "How have you shaped or protected a brand? Give me a concrete example." },
+  { match: /content|content strategy|editorial/, label: "Content strategy", question: "Describe a content strategy you've built or executed. How did you measure its effectiveness?" },
+  { match: /campaign|marketing campaign|growth|demand generation/, label: "Campaign management", question: "Tell me about a marketing campaign you ran end to end. What were the results?" },
+  { match: /seo|sem|paid media|ppc|digital marketing/, label: "Digital marketing", question: "What's your hands-on experience with SEO/SEM or paid media? What tools and metrics have you used?" },
+];
+
+function extractJdRequirements(jobDescription: string): Array<{ label: string; question: string }> {
+  if (!jobDescription) return [];
+  const jd = jobDescription.toLowerCase();
+  const seen = new Set<string>();
+  const matches: Array<{ label: string; question: string }> = [];
+  for (const item of JD_REQUIREMENT_LIBRARY) {
+    if (item.match.test(jd) && !seen.has(item.label)) {
+      seen.add(item.label);
+      matches.push({ label: item.label, question: item.question });
+    }
+  }
+  return matches.slice(0, 8);
+}
+
+// ─── CV vs JD Gap Detection (Interview Engine v2.0 spec) ───────────────────
+// Compares JD requirements against the CV text. If a requirement has no
+// obvious match in the CV, the recruiter is told to VERIFY (ask whether the
+// candidate has done it informally), never to assume it's a weakness.
+function detectCvJdGaps(cvText: string, requirements: Array<{ label: string; question: string }>): string[] {
+  if (!cvText || !requirements.length) return [];
+  const cv = cvText.toLowerCase();
+  const GAP_KEYWORDS: Record<string, RegExp> = {
+    "Customer onboarding": /onboard/,
+    "Change management": /change management/,
+    "Stakeholder management": /stakeholder|senior management|executive/,
+    "Escalation handling": /escalat/,
+    "Project management": /project management|project lead|pmp|prince2/,
+    "Customer adoption": /adoption/,
+    "Success metrics": /kpi|metric|nps|csat|health score/,
+    "HR processes": /\bhr\b|human resources|hris/,
+    "Renewals & retention": /renewal|retention/,
+    "Churn prevention": /churn/,
+    "QBRs": /qbr|quarterly business review/,
+    "Cross-functional collaboration": /cross-functional|cross functional/,
+    "SLA management": /\bsla\b/,
+    "Root cause analysis": /root cause/,
+    "Incident management": /incident/,
+    "Reporting & analytics": /report|dashboard|analytics/,
+  };
+  return requirements
+    .filter((req) => {
+      const pattern = GAP_KEYWORDS[req.label];
+      return pattern ? !pattern.test(cv) : false;
+    })
+    .map((req) => req.label);
+}
+
+function buildJdGapVerificationInstruction(gaps: string[]): string {
+  if (!gaps.length) return "";
+  const examples = gaps.slice(0, 3).map(
+    (label) => `"I couldn't find ${label.toLowerCase()} experience listed on your resume — have you had opportunities to do this even if it wasn't formally part of a job title? Sometimes this happens informally."`,
+  ).join(" ");
+  return (
+    `CV/JD GAP CHECK: these JD requirements were not found explicitly in the candidate's CV: ${gaps.join(", ")}. ` +
+    `Do NOT assume these are weaknesses or skip them. Verify naturally, in a curious and non-accusatory tone, for example: ${examples} ` +
+    `If the candidate confirms they have done it informally, ask one follow-up to understand the scope. If they confirm they have not, move on without dwelling on it negatively. `
+  );
+}
+
+
 function buildVerifiedCvJdBlock(cvText?: string, jobDescription?: string, resumeProfile?: unknown) {
   const cv = compactContextText(cvText, 5500);
   const jd = compactContextText(jobDescription, 4000);
@@ -436,6 +576,12 @@ function buildVerifiedCvJdBlock(cvText?: string, jobDescription?: string, resume
     "DETAIL RULE: If a verified employer/role is present but the candidate gives a short or unclear answer, phrase the follow-up positively: 'I see that listed in your CV. Could you walk me through your responsibilities, scope, and results there?' Never frame it as missing or unverified.",
     "Do not claim an employer, role, years of experience, education, skill, or project is missing unless it is absent from BOTH the verified CV facts and the JD context.",
     "When the candidate mentions a company/role with speech-to-text errors, match by sound and context before challenging.",
+    // CRITICAL: Projects section must never be attributed to employer work history.
+    // Confirmed from a live session where the Magist feasibility study (a student
+    // project) was attributed to Zoho Corp because both appeared sequentially in
+    // the raw CV blob and the recruiter asked about it as if it were Zoho work,
+    // causing the candidate to say "I don't have such experience" about their own CV.
+    "CRITICAL — PROJECT vs EMPLOYER RULE: A CV often has a PROJECTS section that is SEPARATE from WORK EXPERIENCE. Projects listed under a 'Projects' or 'Personal Projects' heading are the candidate's own independent work — they are NOT part of any employer's work history. NEVER attribute a project (e.g. a feasibility study, data analysis project, or personal pipeline) to a specific employer unless the CV text explicitly places it within that employer's section. If you want to ask about a project, frame it as: 'I noticed you worked on [project name] independently — could you walk me through that?' NOT 'I see you worked on [project] at [employer].'",
     cv
       ? `VERIFIED CV / RESUME DETAILS:\n${cv}`
       : "VERIFIED CV / RESUME DETAILS: not provided.",
@@ -490,6 +636,12 @@ export function buildWorkZoVapiVariableValues(input: {
   const verifiedCompanies = extractLikelyCompaniesFromContext(input.cvText, input.resumeProfile);
   const companyAliasInstruction =
     buildCompanyAliasInstruction(verifiedCompanies);
+  const jdRequirements = extractJdRequirements(input.jobDescription || "");
+  const cvJdGaps = detectCvJdGaps(input.cvText || "", jdRequirements);
+  const jdGapVerificationInstruction = buildJdGapVerificationInstruction(cvJdGaps);
+  const jdRequirementInstruction = jdRequirements.length
+    ? `JD-EXTRACTED REQUIREMENTS TO COVER: this job description names these specific requirements — ${jdRequirements.map((r) => r.label).join(", ")}. Ask about EACH one specifically over the course of the interview, not generic questions. Suggested phrasing per requirement (adapt naturally, don't read verbatim): ${jdRequirements.map((r) => `[${r.label}] "${r.question}"`).join(" ")} You do not need to ask all of these if the interview is naturally winding down, but cover at least 4-5 of them. `
+    : "";
   return {
     candidateName: input.candidateName || "Candidate",
     recruiterName: input.recruiterName || "Recruiter",
@@ -533,7 +685,7 @@ export function buildWorkZoVapiVariableValues(input: {
       `Start with brief rapport. Answer small social questions naturally before continuing. ` +
       `Ask ONE question per turn. Listen to the candidate's answer and choose your next question FROM what they just said. ` +
       `Never mix a closing statement with a new interview question. Once you say the interview is ending, do not ask another question. ` +
-      `If they mention a skill, project, career transition, gap, or outcome — follow that thread. ` +
+      `If they mention a skill, project, career transition, gap, or outcome — follow that thread. Never follow a fixed script: every follow-up question must depend on what the candidate just said, not a predetermined list. Example: if they mention "customer satisfaction", ask "how did you measure satisfaction?" If they then say "NPS", ask "what NPS improvement did you achieve?" Keep drilling one level deeper into whatever specific detail they just gave you before moving to a new topic. ` +
       `GLOBAL GROUNDING RULE: The verified CV/JD context below is authoritative. Never say "I do not see", "I don't see enough detail", "I cannot verify", "it is not listed", "not reflected in your CV", or "I need to pause there" for any employer, role, year range, education, skill, project, achievement, requirement, or years-of-experience present in that verified context. ${companyAliasInstruction} If the transcript contains a distorted company name, compare it to verified companies by sound and context before challenging. If a candidate names a company that sounds like a verified employer (speech-to-text distortion), match by sound before challenging. If the candidate answer is short, ask for responsibilities/scope/results positively: "I see that listed in your CV; could you walk me through your responsibilities and results there?" Ask about responsibilities, scope, achievements, decisions, and JD fit instead of disputing verified facts. ` +
       `VERIFIED CONTEXT FOR THIS INTERVIEW:
 ${verifiedCvJdBlock.slice(0, 8500)}
@@ -548,9 +700,13 @@ END VERIFIED CONTEXT. ` +
       // for a while. Stated explicitly here so live voice candidates get the
       // same baseline questions every real interview includes.
       `Early in the interview, naturally ask what the candidate currently does (or most recently did), why they want this specific role, why this company, and why they want to move from their current/previous background into this role. Tie this to actual JD responsibilities, not generic motivation. ` +
-      `At least four interview questions must be grounded in the actual job description, not generic support-process questions. Pull requirements from jobDescription/jobDescriptionFull such as onboarding, customer adoption, renewals, stakeholder management, SaaS workflows, reporting, QBRs, churn risk, or whatever the JD actually says. Do not keep asking the same documentation/escalation question. ` +
-      `At least once, pick a specific requirement stated in the job description and ask about it directly. If the CV verified facts already show related experience, phrase it positively, e.g. "I see your CV shows experience directly relevant to this requirement — how would that background help you here?" Never say there is not enough detail for a verified employer/role; simply ask for more detail. Only say you do not see something when it is genuinely absent from the verified facts. ` +
+      `${jdRequirementInstruction}` +
+      `${jdGapVerificationInstruction}` +
+      `COMPANY-SPECIFIC FRAMING: when you ask about a JD requirement, reference ${input.companyName || "the company"} by name where it reads naturally instead of asking abstractly. For example say "${input.companyName || "this company"}'s implementation projects often involve multiple stakeholders — how would you handle a delayed customer?" rather than "What is stakeholder management?" Make the question feel grounded in this specific company and role, not a textbook definition. ` +
+      `Do not keep asking the same documentation/escalation question repeatedly. If the CV verified facts already show experience related to a JD requirement, phrase it positively, e.g. "I see your CV shows experience directly relevant to this requirement — how would that background help you here?" Never say there is not enough detail for a verified employer/role; simply ask for more detail. Only say you do not see something when it is genuinely absent from the verified facts. ` +
       `Near the end of the interview, invite the candidate's own questions — ask something like "do you have any questions for me about the role or what happens next?" If they ask something, actually answer it using what you know about the role — don't redirect them back into the interview. After the final closing sentence, stop. Do not ask process-improvement, documentation, escalation, or any other new question after closing. ` +
+      `INTERVIEW LENGTH BUDGET: this interview should cover roughly 12-14 of your own questions in total (introduction, motivation, background, JD-grounded experience, behavioral/strengths, then closing) — not unlimited rounds of new behavioral questions. Track this mentally as you go. Once you have asked around 12 questions and covered motivation, experience, JD fit, and at least one behavioral/strengths question, move toward the closing invitation within your next 1-2 turns rather than generating another fresh behavioral prompt. Do not keep asking new "tell me about a time when..." questions indefinitely — two or three strong behavioral examples are enough. ` +
+      `If the candidate says something like "did you read my answer", "you already asked that", "I just said that", or otherwise signals you ignored or repeated yourself, acknowledge it directly and briefly ("You're right, let me build on what you just shared") before continuing — never ignore a direct callout and plow ahead with a scripted line. ` +
       // Capped at 700 chars — kept as a precaution from when this was first
       // added, even though the actual regression turned out to be a missing
       // Vapi assistant ID env var, not this content. No downside to keeping

@@ -15,6 +15,10 @@ export type WorkZoLiveReaction = {
   visualState: WorkZoRecruiterVisualState;
   trustDelta: number;
   intensity: WorkZoReactionIntensity;
+  // What the recruiter is "writing down" — only set when visualState is
+  // "typing_notes". Surfaced in the UI so note-taking feels tied to a real
+  // moment in the answer, not just a generic animation.
+  noteText?: string;
 };
 
 export type WorkZoEmotionalMemory = {
@@ -54,12 +58,28 @@ export function getWorkZoLiveReaction(answer: string): WorkZoLiveReaction {
   const hasOutcome = /customer|client|user|ticket|satisfaction|trust|resolved|won|award|converted|result|impact|improved|reduced|increased|saved|learned/i.test(clean);
   const vagueOnly = /things|stuff|something|various|a lot|helped|worked on|good|nice/i.test(lower) && !hasMetric && !hasOutcome;
 
+  // Extract the specific metric phrase mentioned, so the "note" the recruiter
+  // jots down quotes something real from the answer instead of being generic.
+  const metricMatch = clean.match(/\b\d+[\d,.]*\s*(%|percent|x|times|hours?|days?|weeks?|months?|customers?|users?|tickets?|cases?)\b/i);
+
   if (wordCount > 160) {
     return {
       text: "Let me pause you there — I want the core example and result.",
       visualState: "interrupting",
       trustDelta: -1,
       intensity: "medium",
+    };
+  }
+
+  // Strongest answer: metric + ownership + outcome all present. A real
+  // attentive recruiter visibly writes this down — surface that moment.
+  if (hasMetric && hasOwnership && hasOutcome) {
+    return {
+      text: "That's a strong, specific example — let me note that down.",
+      visualState: "typing_notes",
+      trustDelta: 3,
+      intensity: "strong",
+      noteText: metricMatch ? `Strong evidence: ${metricMatch[0]}` : "Strong evidence with clear ownership and outcome.",
     };
   }
 

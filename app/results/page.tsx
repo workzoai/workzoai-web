@@ -149,6 +149,10 @@ type RichReport = {
   communicationScore: number;
   confidenceScore: number;
   roleCompetencyScore: number;
+  relevanceScore: number;
+  evidenceImpactScore: number;
+  missingJdRequirements: string[];
+  hiringRecommendation: string;
   trustScore: number;
   evidenceQuality: number;
   ownershipScore: number;
@@ -173,6 +177,10 @@ type RichReport = {
   benchmark: Array<{ label: string; user: number; top: number; note: string }>;
   audioSignals: Array<{ label: string; value: number; risk: "low" | "medium" | "high" }>;
   improvementPlan: Array<{ priority: string; title: string; action: string; gain: string }>;
+  thirtyDayPlan: Array<{ week: string; focus: string; action: string }>;
+  starCoaching: Array<{ question: string; whatYouSaid: string; missingComponent: string; coachingTip: string }>;
+  missedOpportunities: string[];
+  recruiterSummary: string;
   hiringCommittee: WorkZoHiringCommitteeMemo;
   shadowScores: WorkZoShadowScore[];
   whatTheyHeard: WorkZoWhatTheyHeard[];
@@ -211,6 +219,21 @@ function clamp(value: number, min = 0, max = 100) {
 function cleanText(value: unknown, fallback = "") {
   if (typeof value !== "string") return fallback;
   return value.replace(/\s+/g, " ").trim() || fallback;
+}
+
+// Same fix as workzoHiringCommitteeEngine.ts: a flat character slice chops
+// quoted candidate evidence mid-sentence. Cut at the last sentence/clause
+// boundary that fits, never mid-word.
+function truncateAtSentence(text: string, maxLength: number): string {
+  const cleaned = cleanText(text);
+  if (cleaned.length <= maxLength) return cleaned;
+  const slice = cleaned.slice(0, maxLength);
+  const lastSentenceEnd = Math.max(slice.lastIndexOf(". "), slice.lastIndexOf("! "), slice.lastIndexOf("? "));
+  if (lastSentenceEnd > maxLength * 0.4) return slice.slice(0, lastSentenceEnd + 1).trim();
+  const lastComma = slice.lastIndexOf(", ");
+  if (lastComma > maxLength * 0.5) return `${slice.slice(0, lastComma).trim()}…`;
+  const lastSpace = slice.lastIndexOf(" ");
+  return `${slice.slice(0, lastSpace > 0 ? lastSpace : maxLength).trim()}…`;
 }
 
 function numberOr<T>(value: unknown, fallback: T): number | T {
@@ -579,6 +602,290 @@ function detectRedFlags(answer: string) {
   return flags.slice(0, 4);
 }
 
+// ─── 5-Category Scoring Rubric (Interview Engine v2.0 spec) ────────────────
+// Communication 20% / Relevance 20% / Experience 20% / Evidence & Impact 20% / Job Fit 20%
+// Each category is scored 0-100 independently, uncapped — no artificial 50 ceiling
+// and no floor that fakes a minimum score for thin sessions. A genuinely weak
+// session can and should score low; a genuinely strong one can reach 90-100.
+
+function extractJdKeywords(jobDescription: string): string[] {
+  if (!jobDescription) return [];
+  const STOPWORDS = new Set([
+    "the", "and", "for", "with", "you", "are", "this", "that", "will", "have",
+    "from", "your", "our", "role", "job", "work", "team", "ability", "skills",
+    "experience", "years", "strong", "excellent", "including", "etc", "such",
+    "able", "must", "should", "candidate", "responsibilities", "requirements",
+  ]);
+  const words = jobDescription
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 3 && !STOPWORDS.has(w));
+  // Also pull common multi-word JD phrases
+  const phrases = (jobDescription.toLowerCase().match(
+    /customer onboarding|change management|stakeholder management|escalation management|project management|success metrics|hr (?:implementation|processes|systems)|account management|churn (?:reduction|management)|renewals?|adoption|health score|qbr|quarterly business review|incident management|root cause|sla management|cross-?functional|client relations?/g,
+  ) || []);
+  const freq = new Map<string, number>();
+  for (const w of words) freq.set(w, (freq.get(w) || 0) + 1);
+  const topWords = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15).map(([w]) => w);
+  return [...new Set([...phrases, ...topWords])].slice(0, 20);
+}
+
+function compute5CategoryScore(input: {
+  answerInsights: AnswerInsight[];
+  answersCount: number;
+  averageWpm: number;
+  jobDescription: string;
+  fullTranscriptText: string;
+}): {
+  communication: number;
+  relevance: number;
+  experience: number;
+  evidenceImpact: number;
+  jobFit: number;
+  overall: number;
+  missingJdRequirements: string[];
+} {
+  const { answerInsights, answersCount, averageWpm, jobDescription, fullTranscriptText } = input;
+
+  if (answersCount === 0) {
+    return { communication: 0, relevance: 0, experience: 0, evidenceImpact: 0, jobFit: 0, overall: 0, missingJdRequirements: [] };
+  }
+
+  // 1. COMMUNICATION (20%): clarity, confidence, fluency, tone, filler words, pace
+  const avgFillerCount = average(answerInsights.map((a) => a.fillerCount), 0);
+  const avgWords = average(answerInsights.map((a) => a.wordCount), 0);
+  const paceScore = averageWpm === 0 ? 60 : averageWpm >= 110 && averageWpm <= 170 ? 95 : averageWpm >= 80 && averageWpm < 110 ? 75 : averageWpm > 170 && averageWpm <= 200 ? 70 : 50;
+  const fillerPenalty = clamp(avgFillerCount * 6, 0, 30);
+  const lengthHealth = avgWords >= 40 && avgWords <= 180 ? 90 : avgWords >= 25 ? 65 : 35;
+  const communication = clamp(Math.round((paceScore * 0.35) + (lengthHealth * 0.4) + ((100 - fillerPenalty) * 0.25)));
+
+  // 2. RELEVANCE (20%): answered the actual question, stayed on topic, avoided rambling
+  const onTopicCount = answerInsights.filter((a) => a.wordCount >= 25 && a.wordCount <= 230).length;
+  const ramblingCount = answerInsights.filter((a) => a.wordCount > 230).length;
+  const tooShortCount = answerInsights.filter((a) => a.wordCount < 25).length;
+  const relevance = clamp(Math.round(
+    (onTopicCount / answersCount) * 85 +
+    15 -
+    (ramblingCount / answersCount) * 20 -
+    (tooShortCount / answersCount) * 25,
+  ));
+
+  // 3. EXPERIENCE (20%): relevant examples, ownership, seniority, domain knowledge
+  const ownershipRate = answerInsights.filter((a) => a.ownershipPresent).length / answersCount;
+  const resultRate = answerInsights.filter((a) => a.resultPresent).length / answersCount;
+  const experience = clamp(Math.round((ownershipRate * 55) + (resultRate * 30) + 15));
+
+  // 4. EVIDENCE & IMPACT (20%): STAR structure, metrics, results, business impact
+  const metricRate = answerInsights.filter((a) => a.metricPresent).length / answersCount;
+  const avgStructure = average(answerInsights.map((a) => a.structureScore), 20);
+  const evidenceImpact = clamp(Math.round((metricRate * 45) + (resultRate * 25) + (avgStructure * 0.3)));
+
+  // 5. JOB FIT (20%): compare answer content against JD requirements
+  const jdKeywords = extractJdKeywords(jobDescription);
+  const transcriptLower = fullTranscriptText.toLowerCase();
+  const matchedKeywords = jdKeywords.filter((kw) => transcriptLower.includes(kw));
+  const missingJdRequirements = jdKeywords.filter((kw) => !transcriptLower.includes(kw)).slice(0, 6);
+  const jdCoverageRate = jdKeywords.length > 0 ? matchedKeywords.length / jdKeywords.length : 0.5;
+  const jobFit = jdKeywords.length > 0
+    ? clamp(Math.round((jdCoverageRate * 70) + (ownershipRate * 15) + (resultRate * 15)))
+    : clamp(Math.round((ownershipRate * 45) + (resultRate * 35) + 20)); // no JD provided: fall back to general fit signal
+
+  const overall = clamp(Math.round(
+    (communication * 0.2) +
+    (relevance * 0.2) +
+    (experience * 0.2) +
+    (evidenceImpact * 0.2) +
+    (jobFit * 0.2),
+  ));
+
+  return { communication, relevance, experience, evidenceImpact, jobFit, overall, missingJdRequirements };
+}
+
+function hireRecommendationFromScore(score: number): string {
+  if (score >= 90) return "Outstanding — Strong Hire";
+  if (score >= 80) return "Hire";
+  if (score >= 70) return "Lean Hire";
+  if (score >= 60) return "Borderline";
+  if (score >= 50) return "Needs Improvement";
+  if (score >= 35) return "No Hire";
+  return "Strong No Hire";
+}
+
+// ─── STAR Coaching (Interview Engine v2.0 spec) ─────────────────────────────
+// For each answer, identify which STAR component (Situation/Task, Action,
+// Result) was weak or missing, quote what the candidate actually said, and
+// give one concrete coaching tip — not a generic "use STAR" reminder.
+function buildStarCoaching(answerInsights: AnswerInsight[]): RichReport["starCoaching"] {
+  return answerInsights
+    .filter((item) => !item.metricPresent || !item.ownershipPresent || !item.resultPresent || item.wordCount < 25)
+    .slice(0, 4)
+    .map((item) => {
+      const quoted = truncateAtSentence(item.answer, 160);
+      let missingComponent: string;
+      let coachingTip: string;
+      if (item.wordCount < 25) {
+        missingComponent = "Situation & Task — answer ended too early to establish context";
+        coachingTip = "Open with one sentence on the situation, one on your specific task, before moving to what you did.";
+      } else if (!item.ownershipPresent) {
+        missingComponent = "Action — unclear what you personally did versus the team";
+        coachingTip = "Rewrite using 'I' as the subject for every action: what you decided, built, or resolved yourself.";
+      } else if (!item.resultPresent && !item.metricPresent) {
+        missingComponent = "Result — no outcome or measurable impact stated";
+        coachingTip = "Close with one sentence: 'As a result, X changed' — even an estimated number is better than none.";
+      } else if (!item.metricPresent) {
+        missingComponent = "Result — outcome stated but not measurable";
+        coachingTip = "Add a number to the result you already gave: time saved, percentage improved, customers affected.";
+      } else {
+        missingComponent = "Structure — answer has the right pieces but could be tighter";
+        coachingTip = "Lead with the result first, then explain how you got there — recruiters remember outcomes.";
+      }
+      return {
+        question: item.question,
+        whatYouSaid: quoted || "Answer not captured yet.",
+        missingComponent,
+        coachingTip,
+      };
+    });
+}
+
+// ─── 30-Day Improvement Plan (Interview Engine v2.0 spec) ──────────────────
+// Built from what ACTUALLY happened in this specific interview, not generic
+// boilerplate. Each week targets the single biggest gap found in the
+// transcript, in priority order.
+function buildThirtyDayPlan(input: {
+  answerInsights: AnswerInsight[];
+  answersCount: number;
+  missingJdRequirements: string[];
+  metricRate: number;
+  ownershipRate: number;
+  structureScore: number;
+}): RichReport["thirtyDayPlan"] {
+  const { answerInsights, answersCount, missingJdRequirements, metricRate, ownershipRate, structureScore } = input;
+  const plan: RichReport["thirtyDayPlan"] = [];
+
+  if (answersCount === 0) {
+    return [
+      { week: "Week 1", focus: "Complete a full session", action: "Run a full interview through to the natural closing so there is a real transcript to coach from." },
+    ];
+  }
+
+  if (metricRate < 0.5) {
+    plan.push({
+      week: "Week 1",
+      focus: "Build a metrics bank",
+      action: `Write down 5 of your past projects or tickets and attach one real number to each (time saved, customers affected, % improved). You used a measurable number in only ${Math.round(metricRate * 100)}% of your answers — aim for every answer to have one.`,
+    });
+  } else {
+    plan.push({
+      week: "Week 1",
+      focus: "Sharpen your strongest metric story",
+      action: "Take your best metric-backed answer and tighten it to 60-90 seconds: situation in one sentence, action in two, result with the number first.",
+    });
+  }
+
+  if (ownershipRate < 0.6) {
+    plan.push({
+      week: "Week 2",
+      focus: "Practice 'I' language",
+      action: "Re-record 3 of your answers from this session out loud, replacing 'we' with 'I' wherever you personally made the decision or did the work.",
+    });
+  } else {
+    plan.push({
+      week: "Week 2",
+      focus: "Practice harder follow-ups",
+      action: "Have someone ask you 'what would you do differently?' after each story — this was not tested deeply enough in this session.",
+    });
+  }
+
+  if (missingJdRequirements.length) {
+    plan.push({
+      week: "Week 3",
+      focus: `Prepare a story for: ${missingJdRequirements.slice(0, 2).join(", ")}`,
+      action: `These were named in the job description but never came up in your answers. Prepare one STAR story for each, even if the experience is informal or from a different context.`,
+    });
+  } else {
+    plan.push({
+      week: "Week 3",
+      focus: "Mock interview with a harder recruiter persona",
+      action: "Run another session with a higher-pressure recruiter style to stress-test your strongest stories under follow-up questions.",
+    });
+  }
+
+  plan.push({
+    week: "Week 4",
+    focus: structureScore < 60 ? "Tighten STAR structure across the board" : "Polish delivery and pacing",
+    action: structureScore < 60
+      ? "Rebuild your 3 weakest answers from this session using strict STAR: 1 sentence situation, 1-2 sentences action, 1 sentence measurable result."
+      : "Record yourself answering 5 likely questions and review for pace, filler words, and confident close-out.",
+  });
+
+  return plan;
+}
+
+// ─── Missed Opportunities (Interview Engine v2.0 spec) ──────────────────────
+// Concrete moments in the actual transcript where a stronger answer was
+// available but not given, distinct from "weaknesses" (which are about
+// patterns) — these are specific, one-time missed chances.
+function buildMissedOpportunities(answerInsights: AnswerInsight[], missingJdRequirements: string[]): string[] {
+  const opportunities: string[] = [];
+
+  const vagueWithGoodTopic = answerInsights.find((item) => item.wordCount < 25 && item.wordCount > 0);
+  if (vagueWithGoodTopic) {
+    opportunities.push(`On "${vagueWithGoodTopic.question}" — the answer ended quickly. This looked like a topic you likely had more to say about; a fuller answer here would have helped your evidence score.`);
+  }
+
+  const noResultAnswer = answerInsights.find((item) => item.ownershipPresent && !item.resultPresent);
+  if (noResultAnswer) {
+    opportunities.push(`On "${noResultAnswer.question}" — you clearly owned the work but never stated what happened afterward. Closing with the outcome would have made this a much stronger answer.`);
+  }
+
+  if (missingJdRequirements.length) {
+    opportunities.push(`The job description mentions ${missingJdRequirements.slice(0, 2).join(" and ")}, which never came up. If you have any relevant experience here, even informal, it was a missed chance to mention it.`);
+  }
+
+  return opportunities.slice(0, 4);
+}
+
+// ─── Recruiter-Voiced Interview Summary (Interview Engine v2.0 spec) ────────
+// Written in first person as the recruiter would actually write it in a
+// hiring debrief — not a third-person scorecard description.
+function buildRecruiterSummary(input: {
+  recruiterName: string;
+  roleLabel: string;
+  companyLabel: string;
+  overallScore: number;
+  answersCount: number;
+  metricRate: number;
+  ownershipRate: number;
+  missingJdRequirements: string[];
+  biggestBlocker: string;
+}): string {
+  const { recruiterName, roleLabel, companyLabel, overallScore, answersCount, metricRate, ownershipRate, missingJdRequirements, biggestBlocker } = input;
+
+  if (answersCount === 0) {
+    return `${recruiterName}: I didn't get enough from this session to form a real opinion — we need a full conversation before I can give you an honest read on ${roleLabel}.`;
+  }
+
+  const openLine = overallScore >= 80
+    ? `${recruiterName}: This was a strong conversation for the ${roleLabel} role at ${companyLabel}.`
+    : overallScore >= 60
+      ? `${recruiterName}: This was a solid start for the ${roleLabel} role, but there's real work to do before I'd be confident moving forward.`
+      : `${recruiterName}: I want to be direct with you — this session needs another pass before I could put you forward for ${roleLabel}.`;
+
+  const evidenceLine = metricRate >= 0.6
+    ? "You backed most of your answers with real numbers, which made it easy to believe your impact."
+    : ownershipRate >= 0.6
+      ? "I could tell what you personally did in most answers, but I was often left wondering exactly how it landed — a number or outcome would have closed that gap."
+      : "Several answers told me what happened around you more than what you specifically did, and that's the first thing I'd want to see fixed.";
+
+  const jdLine = missingJdRequirements.length
+    ? ` One more thing — ${missingJdRequirements.slice(0, 2).join(" and ")} ${missingJdRequirements.length > 1 ? "are" : "is"} called out in the job description and didn't come up at all. Worth preparing a story for that before the real thing.`
+    : "";
+
+  return `${openLine} ${evidenceLine} The biggest thing holding the score back right now is: ${biggestBlocker.toLowerCase()}.${jdLine}`;
+}
+
 function analyzeAnswer(question: string, answer: string, index: number): AnswerInsight {
   const words = countWords(answer);
   const fillerCount = countFillers(answer);
@@ -737,7 +1044,7 @@ function buildContradictions(result: StoredResult, insights: AnswerInsight[]) {
   return [];
 }
 
-function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
+function buildRichReport(result: StoredResult, isPremium: boolean, jobDescriptionOverride?: string): RichReport {
   const pairs = buildPairs(result);
   const answerInsights = pairs.length
     ? pairs.map((pair, index) => analyzeAnswer(pair.question, pair.answer, index))
@@ -766,37 +1073,42 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
     ? average(answerInsights.map((item) => item.ownershipPresent ? 80 : 35), 50)
     : 50;
 
-  // Use transcript-derived scores as primary; fall back to stored values only if present
-  // Never use 0 as a fallback since 0 means "not measured" not "terrible performance"
-  const transcriptCommScore = answersCount > 0 ? clamp(structureScore + (averageWpm >= 110 && averageWpm <= 170 ? 8 : -4)) : null;
-  const transcriptConfScore = answersCount > 0 ? clamp(trustScore - (answerInsights.some((item) => item.fillerCount >= 4) ? 8 : 0) + (ownershipScore >= 70 ? 4 : -3)) : null;
-  const transcriptRoleScore = answersCount > 0 ? clamp((evidenceQuality * 0.58) + (structureScore * 0.22) + (ownershipScore * 0.2)) : null;
+  // ── 5-Category Scoring Rubric (Interview Engine v2.0 spec) ──────────────
+  // Communication / Relevance / Experience / Evidence & Impact / Job Fit,
+  // each weighted 20%, uncapped 0-100. No artificial floor that fakes a
+  // minimum score for thin sessions: a genuinely weak session scores low.
+  const fullTranscriptText = Array.isArray(result.transcript)
+    ? (result.transcript as TranscriptTurn[]).map((t) => cleanText(getTurnText(t))).join(" ")
+    : "";
+  const resolvedJobDescription = cleanText(
+    jobDescriptionOverride || ((result as Record<string, unknown>).jobDescription as string) || "",
+  );
+  const rubric = compute5CategoryScore({
+    answerInsights,
+    answersCount,
+    averageWpm,
+    jobDescription: resolvedJobDescription,
+    fullTranscriptText,
+  });
 
-  const storedCommScore = resultRecord.score?.communication || result.communicationScore || null;
-  const storedConfScore = resultRecord.score?.confidence || result.confidenceScore || null;
-  const storedRoleScore = resultRecord.score?.relevance || result.roleCompetencyScore || null;
+  // Map the 5 rubric categories onto the variable names the rest of this
+  // function and downstream components already expect, so nothing else
+  // needs to change.
+  const communicationScore = rubric.communication;
+  const confidenceScore = rubric.experience; // "Experience" maps to the old "confidence" slot
+  const roleCompetencyScore = rubric.jobFit; // "Job Fit" maps to the old "role competency" slot
+  const relevanceScore = rubric.relevance;
+  const evidenceImpactScore = rubric.evidenceImpact;
+  const missingJdRequirements = rubric.missingJdRequirements;
 
-  const communicationScore = transcriptCommScore ?? storedCommScore ?? 45;
-  const confidenceScore = transcriptConfScore ?? storedConfScore ?? 45;
-  const roleCompetencyScore = transcriptRoleScore ?? storedRoleScore ?? 45;
-
-  // Calculate from transcript first: this is always honest
-  const calculatedScoreRaw = clamp((communicationScore * 0.22) + (confidenceScore * 0.18) + (roleCompetencyScore * 0.28) + (trustScore * 0.2) + (evidenceQuality * 0.12));
-  // Realistic calibration: relevant spoken answers without metrics should land
-  // around the 50s/60s, not 10–35. Very strong answers still need metrics,
-  // ownership, and outcomes to climb into the 75+ range.
-  const fairMinimum = answersCount >= 4 ? 55 : answersCount >= 3 ? 50 : answersCount >= 2 ? 45 : answersCount === 1 ? 35 : 0;
-  const calculatedScore = answersCount > 0 ? Math.max(fairMinimum, calculatedScoreRaw) : 0;
+  const calculatedScore = rubric.overall;
 
   // Only use the stored score if:
   // 1. We have enough answers (3+) to trust it was a real session
   // 2. The stored score is meaningfully different from the default signal (50)
-  // Otherwise, the transcript-based calculation is more honest.
+  // Otherwise, the rubric-derived score from the transcript is more honest.
   const _rawStoredScore = result.overallScore ?? resultRecord.score?.overall;
   const storedScore: number | null = typeof _rawStoredScore === "number" ? _rawStoredScore : null;
-  // Stored live scores can be stale if the results page loads before the final
-  // transcript reaches the DB. When we have transcript evidence, trust the
-  // transcript-derived score. Use stored score only when there are no pairs.
   const storedScoreIsDefault = storedScore === null || storedScore === 0 || (storedScore >= 47 && storedScore <= 53);
   const overallScore = answersCount > 0
     ? calculatedScore
@@ -840,6 +1152,11 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
       : overallScore >= 58
         ? "Borderline proceed"
         : "Needs retry before real interview";
+
+  // Formal hire recommendation per the spec's score bands (90-100 Outstanding
+  // Strong Hire down to 0-34 Strong No Hire) — shown alongside the existing
+  // recruiter-style decision phrasing above.
+  const hiringRecommendation = hireRecommendationFromScore(overallScore);
 
   const verdict = `${recruiterName} heard useful role signal, but the current answers need stronger proof, clearer ownership, and more measurable outcomes before a confident next-round decision.`;
 
@@ -907,10 +1224,14 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
     overallScore,
     grade: gradeFromScore(overallScore),
     decision,
+    hiringRecommendation,
     biggestBlocker,
     communicationScore,
     confidenceScore,
     roleCompetencyScore,
+    relevanceScore,
+    evidenceImpactScore,
+    missingJdRequirements,
     trustScore,
     evidenceQuality,
     ownershipScore,
@@ -959,6 +1280,27 @@ function buildRichReport(result: StoredResult, isPremium: boolean): RichReport {
       { priority: "Priority 2", title: "Rewrite weakest answer", action: "Use STAR with one measurable result and one sentence connecting it to the target role.", gain: "+4 to +8 pts" },
       { priority: "Priority 3", title: "Reduce recruiter doubt", action: "Clarify timeline, role scope, and personal contribution before the recruiter has to ask.", gain: "+3 to +7 pts" },
     ],
+    thirtyDayPlan: buildThirtyDayPlan({
+      answerInsights,
+      answersCount,
+      missingJdRequirements,
+      metricRate: answersCount > 0 ? answerInsights.filter((a) => a.metricPresent).length / answersCount : 0,
+      ownershipRate: answersCount > 0 ? answerInsights.filter((a) => a.ownershipPresent).length / answersCount : 0,
+      structureScore,
+    }),
+    starCoaching: buildStarCoaching(answerInsights),
+    missedOpportunities: buildMissedOpportunities(answerInsights, missingJdRequirements),
+    recruiterSummary: buildRecruiterSummary({
+      recruiterName,
+      roleLabel,
+      companyLabel,
+      overallScore,
+      answersCount,
+      metricRate: answersCount > 0 ? answerInsights.filter((a) => a.metricPresent).length / answersCount : 0,
+      ownershipRate: answersCount > 0 ? answerInsights.filter((a) => a.ownershipPresent).length / answersCount : 0,
+      missingJdRequirements,
+      biggestBlocker,
+    }),
     hiringCommittee,
     shadowScores,
     whatTheyHeard,
@@ -1956,7 +2298,11 @@ export default function ResultsPage() {
 
       try {
         const premiumNow = reportGate.allowed;
-        const immediateReport = buildRichReport(sourceResult, premiumNow);
+        const immediateReport = buildRichReport(
+          sourceResult,
+          premiumNow,
+          String((sourceResult as Record<string, unknown>).jobDescription || storedSetup.jobDescription || storedSetup.jdText || ""),
+        );
         const brain = updateCareerMemoryFromReport({
           targetRole: immediateReport.roleLabel,
           companyName: immediateReport.companyLabel,
@@ -2032,7 +2378,14 @@ export default function ResultsPage() {
 
   const isProPlan = reportGate.plan === "premium_pro";
 
-  const report = useMemo(() => buildRichReport(result, isPremium), [result, isPremium]);
+  const report = useMemo(
+    () => buildRichReport(
+      result,
+      isPremium,
+      String((result as Record<string, unknown>).jobDescription || setupContext.jobDescription || setupContext.jdText || ""),
+    ),
+    [result, isPremium, setupContext],
+  );
   const phaseB = useMemo(
     () => buildPhaseBInsights({
       cvText: String(setupContext.cvText || setupContext.uploadedCvText || setupContext.resumeText || setupContext.candidateCv || ""),
@@ -2431,6 +2784,75 @@ export default function ResultsPage() {
 
             <WhatTheyHeardSection items={report.whatTheyHeard} />
             <TargetedDrillsSection drills={report.targetedDrills} />
+
+            {/* Recruiter-voiced summary, written in first person as the recruiter
+                would actually write it in a hiring debrief. */}
+            <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
+              <h2 className="flex items-center gap-2 text-base font-black"><MessageSquareText className="h-4 w-4 text-brand" />{report.recruiterName}'s summary</h2>
+              <p className="mt-1 text-[11px] font-black uppercase tracking-[0.18em] text-muted">{report.hiringRecommendation}</p>
+              <p className="mt-3 text-sm leading-6 text-fg">{report.recruiterSummary}</p>
+            </section>
+
+            {/* Missing JD requirements, surfaced directly so the candidate knows
+                exactly what to prepare before the real interview. */}
+            {report.missingJdRequirements.length > 0 && (
+              <section className="mt-4 rounded-2xl border border-warning/20 bg-warning/[0.06] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><Target className="h-4 w-4 text-warning" />Missing job description requirements</h2>
+                <p className="mt-1 text-xs leading-5 text-muted">These were named in the job description but never came up in your answers.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {report.missingJdRequirements.map((item) => (
+                    <span key={item} className="rounded-full border border-warning/25 bg-canvas-soft px-3 py-1.5 text-xs font-black capitalize text-warning">{item}</span>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Missed opportunities: specific one-time moments where a stronger
+                answer was available, distinct from recurring weaknesses. */}
+            {report.missedOpportunities.length > 0 && (
+              <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><Lightbulb className="h-4 w-4 text-brand" />Missed opportunities</h2>
+                <div className="mt-3 space-y-2">
+                  {report.missedOpportunities.map((item, index) => (
+                    <p key={index} className="rounded-xl bg-canvas-soft px-3 py-2.5 text-xs leading-5 text-fg">{item}</p>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* STAR coaching: per-answer, quoted, with the specific missing
+                STAR component and one concrete fix. */}
+            {report.starCoaching.length > 0 && (
+              <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
+                <h2 className="flex items-center gap-2 text-base font-black"><Star className="h-4 w-4 text-brand" />STAR coaching</h2>
+                <p className="mt-1 text-xs leading-5 text-muted">Situation, Task, Action, Result — where each answer fell short and how to fix it.</p>
+                <div className="mt-4 space-y-3">
+                  {report.starCoaching.map((item, index) => (
+                    <div key={index} className="rounded-xl border border-line bg-canvas-soft p-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">{item.question}</p>
+                      <p className="mt-2 text-xs italic leading-5 text-muted">"{item.whatYouSaid}"</p>
+                      <p className="mt-2 text-xs font-black text-danger">{item.missingComponent}</p>
+                      <p className="mt-1 text-xs leading-5 text-fg">{item.coachingTip}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* 30-day improvement plan: built from what actually happened in
+                this specific session, week by week. */}
+            <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
+              <h2 className="flex items-center gap-2 text-base font-black"><Sparkles className="h-4 w-4 text-brand" />30-day improvement plan</h2>
+              <div className="mt-4 space-y-3">
+                {report.thirtyDayPlan.map((item, index) => (
+                  <div key={index} className="rounded-xl bg-brand/10 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-muted">{item.week}</p>
+                    <h3 className="mt-1 text-sm font-black text-fg">{item.focus}</h3>
+                    <p className="mt-1 text-xs leading-5 text-muted">{item.action}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
 
             <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
               <h2 className="flex items-center gap-2 text-base font-black"><MessageSquareText className="h-4 w-4 text-brand" />Answer-by-answer coaching debrief</h2>

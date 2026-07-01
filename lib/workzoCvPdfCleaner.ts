@@ -23,40 +23,191 @@ type CvSection = {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const SECTION_HEADERS: Record<string, CvSection["kind"]> = {
-  // Summary
+  // ── Summary ─────────────────────────────────────────────────────────────
   "summary": "summary", "profile": "summary", "professional summary": "summary",
   "profile summary": "summary", "about me": "summary", "objective": "summary",
   "career objective": "summary", "personal statement": "summary",
+  // German
   "berufliches profil": "summary", "über mich": "summary", "ziel": "summary",
-  // Experience
+  "profilübersicht": "summary", "berufsprofil": "summary", "profil": "summary",
+  "profiltübersicht": "summary", "kurzprofil": "summary",
+  // French
+  "résumé": "summary", "présentation": "summary",
+  "à propos": "summary", "objectif": "summary", "profil professionnel": "summary",
+  // Spanish
+  "perfil": "summary", "resumen": "summary", "sobre mí": "summary",
+  "objetivo": "summary", "perfil profesional": "summary",
+  // Italian
+  "profilo": "summary", "obiettivo": "summary", "chi sono": "summary",
+  // Dutch
+  "profiel": "summary", "samenvatting": "summary", "over mij": "summary",
+  // Polish
+  "profil zawodowy": "summary", "cel zawodowy": "summary",
+  // Compacted spaced-caps variants
+  "profilesummary": "summary", "professionalsummary": "summary", "aboutme": "summary",
+  "careerobjective": "summary", "personalstatement": "summary",
+  "beruflichesprofil": "summary",
+
+  // ── Experience ──────────────────────────────────────────────────────────
   "experience": "experience", "work experience": "experience",
   "professional experience": "experience", "employment history": "experience",
   "employment": "experience", "work history": "experience",
+  "career history": "experience", "positions": "experience",
+  // German
   "berufserfahrung": "experience", "werdegang": "experience", "praktika": "experience",
-  // Education
+  "beruflicher werdegang": "experience", "tätigkeiten": "experience",
+  // French
+  "expérience professionnelle": "experience", "expérience": "experience",
+  "parcours professionnel": "experience", "emplois": "experience",
+  // Spanish
+  "experiencia laboral": "experience", "experiencia profesional": "experience",
+  "experiencia": "experience", "trayectoria profesional": "experience",
+  // Italian
+  "esperienza lavorativa": "experience", "esperienza professionale": "experience",
+  "esperienza": "experience", "carriera": "experience",
+  // Dutch
+  "werkervaring": "experience", "beroepservaring": "experience",
+  "loopbaan": "experience", "carrière": "experience",
+  // Polish
+  "doświadczenie zawodowe": "experience", "doświadczenie": "experience",
+  // Compacted variants
+  "workexperience": "experience", "professionalexperience": "experience",
+  "employmenthistory": "experience", "workhistory": "experience",
+  "careerhistory": "experience",
+
+  // ── Education ──────────────────────────────────────────────────────────
   "education": "education", "academic background": "education",
   "qualifications": "education", "academic qualifications": "education",
-  "studies": "education", "training": "education",
+  "studies": "education", "training": "education", "degrees": "education",
+  // German
   "bildung": "education", "ausbildung": "education", "bildungsweg": "education",
-  // Skills
+  "studium": "education", "qualifikationen": "education", "schulbildung": "education",
+  // French
+  "formation": "education", "études": "education", "diplômes": "education",
+  "parcours académique": "education",
+  // Spanish
+  "formación académica": "education", "educación": "education",
+  "estudios": "education", "titulación": "education",
+  // Italian
+  "formazione": "education", "istruzione": "education", "studi": "education",
+  "titoli di studio": "education",
+  // Dutch
+  "opleiding": "education", "onderwijs": "education", "studie": "education",
+  // Polish
+  "wykształcenie": "education", "edukacja": "education",
+  // Compacted variants
+  "academicbackground": "education", "academicqualifications": "education",
+
+  // ── Skills ──────────────────────────────────────────────────────────────
   "skills": "skills", "technical skills": "skills", "core skills": "skills",
   "competencies": "skills", "expertise": "skills", "key skills": "skills",
   "tech skills": "skills", "technologies": "skills", "tools": "skills",
+  "core competencies": "skills", "capabilities": "skills",
+  // German
   "kenntnisse": "skills", "fertigkeiten": "skills", "it-kenntnisse": "skills",
-  // Projects
+  "fähigkeiten": "skills", "kompetenzen": "skills", "kernkompetenzen": "skills",
+  "it-skills": "skills", "technische kenntnisse": "skills",
+  // French
+  "compétences": "skills", "aptitudes": "skills", "savoir-faire": "skills",
+  "compétences techniques": "skills",
+  // Spanish
+  "habilidades": "skills", "competencias": "skills", "conocimientos": "skills",
+  "habilidades técnicas": "skills",
+  // Italian
+  "competenze": "skills", "abilità": "skills", "capacità": "skills",
+  // Dutch
+  "vaardigheden": "skills", "competenties": "skills", "kennis": "skills",
+  // Polish
+  "umiejętności": "skills", "kompetencje": "skills",
+  // Compacted variants
+  "technicalskills": "skills", "coreskills": "skills", "keyskills": "skills",
+  "techskills": "skills", "corecompetencies": "skills",
+
+  // ── Projects ────────────────────────────────────────────────────────────
   "projects": "projects", "selected projects": "projects",
   "personal projects": "projects", "key projects": "projects",
   "portfolio": "projects", "project highlights": "projects",
-  "projekte": "projects",
-  // Languages
+  "side projects": "projects", "academic projects": "projects",
+  "bootcamp projects": "projects", "case studies": "projects",
+  "notable projects": "projects", "relevant projects": "projects",
+  // German
+  "projekte": "projects", "ausgewählte projekte": "projects",
+  "persönliche projekte": "projects", "eigenentwicklungen": "projects",
+  // French
+  "projets": "projects", "projets personnels": "projects",
+  "réalisations": "projects", "travaux": "projects",
+  // Spanish
+  "proyectos": "projects", "proyectos personales": "projects",
+  "trabajos": "projects",
+  // Italian
+  "progetti": "projects", "progetti personali": "projects",
+  "lavori": "projects",
+  // Dutch
+  "projecten": "projects", "eigen projecten": "projects",
+  // Polish
+  "projekty": "projects",
+  // Compacted variants
+  "selectedprojects": "projects", "personalprojects": "projects",
+  "keyprojects": "projects", "projecthighlights": "projects",
+  "sideprojects": "projects", "academicprojects": "projects",
+  "bootcampprojects": "projects", "casestudies": "projects",
+
+  // ── Languages ───────────────────────────────────────────────────────────
   "languages": "languages", "language skills": "languages",
-  "spoken languages": "languages", "sprachen": "languages",
-  // Certifications
+  "spoken languages": "languages",
+  // German
+  "sprachen": "languages", "sprachkenntnisse": "languages",
+  // French
+  "langues": "languages", "compétences linguistiques": "languages",
+  // Spanish
+  "idiomas": "languages", "lenguas": "languages",
+  // Italian
+  "lingue": "languages", "lingue straniere": "languages",
+  // Dutch
+  "talen": "languages", "talenkennis": "languages",
+  // Polish
+  "języki": "languages", "znajomość języków": "languages",
+  // Compacted variants
+  "languageskills": "languages", "spokenlanguages": "languages",
+
+  // ── Certifications ──────────────────────────────────────────────────────
   "certifications": "certifications", "certificates": "certifications",
   "accreditations": "certifications", "licences": "certifications",
   "licenses": "certifications", "awards": "certifications",
-  "achievements": "certifications", "zertifikate": "certifications",
-  "auszeichnungen": "certifications"
+  "achievements": "certifications",
+  // Multi-word variants — these exact phrases appeared in real CVs and were missed
+  "awards and certifications": "certifications",
+  "awards and certification": "certifications",
+  "awards & certifications": "certifications",
+  "awards & certification": "certifications",
+  "certifications and awards": "certifications",
+  "honours and awards": "certifications",
+  "honors and awards": "certifications",
+  "short courses": "certifications",
+  "short course": "certifications",
+  "courses and training": "certifications",
+  "professional development": "certifications",
+  "professional development and certifications": "certifications",
+  "continuing education": "certifications",
+  "additional training": "certifications",
+  "training and certifications": "certifications",
+  "licences and certifications": "certifications",
+  "licenses and certifications": "certifications",
+  // German
+  "zertifikate": "certifications", "auszeichnungen": "certifications",
+  "zertifizierungen": "certifications", "weiterbildungen": "certifications",
+  // French
+  "certificats": "certifications",
+  "distinctions": "certifications", "récompenses": "certifications",
+  // Spanish
+  "certificaciones": "certifications", "logros": "certifications",
+  "premios": "certifications",
+  // Italian
+  "certificazioni": "certifications", "premi": "certifications",
+  // Dutch
+  "certificaten": "certifications", "onderscheidingen": "certifications",
+  // Polish
+  "certyfikaty": "certifications", "nagrody": "certifications",
 };
 
 // Lines that are almost certainly sidebar artefacts
@@ -100,11 +251,39 @@ export function normalizeExtractedCvText(raw: string): string {
       const compact = tokens.join("");
 
       const KNOWN_SECTIONS = new Set([
+        // English
         "SKILLS","CONTACT","EDUCATION","EXPERIENCE","LANGUAGES","PROJECTS",
         "REFERENCES","CERTIFICATIONS","SUMMARY","PROFILE","AWARDS","ACHIEVEMENTS",
-        "PROFIL","BERUFSERFAHRUNG","BILDUNGSWEG","BILDUNG","SPRACHEN","KENNTNISSE",
-        "EXPERTISE","COMPETENCIES","TRAINING","QUALIFICATIONS","PUBLICATIONS",
-        "WORKEXPERIENCE","PROFILESUMMARY","CORECOMPETENCIES",
+        "PORTFOLIO","COMPETENCIES","EXPERTISE","TRAINING","QUALIFICATIONS",
+        "WORKEXPERIENCE","PROFILESUMMARY","CORECOMPETENCIES","PUBLICATIONS",
+        "CAREERHISTORY","EMPLOYMENTHISTORY","KEYSKILLS","TECHNICALSKILLS",
+        "SELECTEDPROJECTS","PERSONALPROJECTS","ACADEMICPROJECTS","CASESTUDIES",
+        "SIDEPROJECTS","BOOTCAMPPROJECTS","NOTABLEPROJECTS","KEYPROJECTS",
+        // German
+        "BERUFSERFAHRUNG","BILDUNGSWEG","BILDUNG","SPRACHEN","KENNTNISSE",
+        "AUSBILDUNG","FÄHIGKEITEN","KOMPETENZEN","KERNKOMPETENZEN","ZERTIFIKATE",
+        "AUSZEICHNUNGEN","WERDEGANG","PROFIL","PROFILÜBERSICHT","BERUFSPROFIL",
+        "PROJEKTE","BERUFLICHESPROFIL","ZERTIFIZIERUNGEN","WEITERBILDUNGEN",
+        "SPRACHKENNTNISSE","EIGENENTWICKLUNGEN","KURZPROFIL","TÄTIGKEITEN",
+        // French
+        "FORMATION","EXPÉRIENCE","COMPÉTENCES","LANGUES","PROJETS","CERTIFICATIONS",
+        "DIPLÔMES","RÉALISATIONS","TRAVAUX","DISTINCTIONS","RÉSUMÉ","PRÉSENTATION",
+        "APTITUDES","PARCOURSPROFESSIONNEL","COMPÉTENCESTECHNIQUES","CERTIFICATS",
+        // Spanish
+        "EDUCACIÓN","EXPERIENCIA","HABILIDADES","IDIOMAS","PROYECTOS","LOGROS",
+        "FORMACIÓN","COMPETENCIAS","CONOCIMIENTOS","CERTIFICACIONES","PERFIL",
+        "EXPERIENCIALABORAL","FORMACIÓNCADÉMICA","HABILIDADESTÉCNICAS",
+        // Italian
+        "FORMAZIONE","ESPERIENZA","COMPETENZE","LINGUE","PROGETTI","CERTIFICAZIONI",
+        "ISTRUZIONE","CAPACITÀ","ABILITÀ","PROFILO","ESPERIENZALAVORATIVA",
+        "ESPERIENZAPROFESSIONALE","TITOLIDISTUDIO",
+        // Dutch
+        "OPLEIDING","WERKERVARING","VAARDIGHEDEN","TALEN","PROJECTEN","CERTIFICATEN",
+        "ONDERWIJS","COMPETENTIES","KENNIS","PROFIEL","SAMENVATTING","LOOPBAAN",
+        "BEROEPSERVARING","CARRIÈRE","TALENKENNIS","EIGENPROJECTEN",
+        // Polish
+        "WYKSZTAŁCENIE","DOŚWIADCZENIE","UMIEJĘTNOŚCI","JĘZYKI","PROJEKTY",
+        "CERTYFIKATY","EDUKACJA","KOMPETENCJE","DOŚWIADCZENIEZAWODOWE",
       ]);
       if (KNOWN_SECTIONS.has(compact)) return compact;
 
@@ -232,6 +411,13 @@ function isSectionHeader(line: string): CvSection["kind"] | null {
 
   if (SECTION_HEADERS[clean]) return SECTION_HEADERS[clean];
 
+  // BUG FIX: spaced-caps collapser (normalizeExtractedCvText) joins
+  // "W O R K E X P E R I E N C E" → "WORKEXPERIENCE" (no space) which
+  // doesn't match "work experience" in SECTION_HEADERS. Try matching
+  // after removing all spaces from the clean string.
+  const nospace = clean.replace(/\s+/g, "");
+  if (SECTION_HEADERS[nospace]) return SECTION_HEADERS[nospace];
+
   for (const [key, kind] of Object.entries(SECTION_HEADERS)) {
     if (clean.startsWith(key)) return kind;
   }
@@ -256,7 +442,7 @@ function detectsSidebarFirstOrder(lines: string[]): boolean {
   const last60pct = lines.slice(Math.ceil(lines.length * 0.4));
 
   const skillHeaderInFirst = first40pct.some(l => /^(skills|expertise|competencies|languages|contact|kenntnisse|sprachen)$/i.test(l.trim()));
-  const experienceInLast = last60pct.some(l => /^(experience|work experience|professional experience|berufserfahrung)$/i.test(l.trim()));
+  const experienceInLast = last60pct.some(l => /^(experience|work experience|workexperience|professional experience|professionalexperience|employment history|employmenthistory|berufserfahrung)$/i.test(l.trim()));
 
   const dateLinesInFirst = first40pct.filter(l => DATE_RANGE_RE.test(l)).length;
   const dateLinesInLast = last60pct.filter(l => DATE_RANGE_RE.test(l)).length;
@@ -280,6 +466,16 @@ function rebuildReadingOrder(lines: string[]): string[] {
   let currentKind: CvSection["kind"] = "unknown";
   let buffer: string[] = [];
   let hasSeenMainSection = false;
+  // Track consecutive section headers with no content between them.
+  // When many PDF two-column layouts are extracted, the column headers from
+  // both columns appear together at the top (e.g. SKILLS, CONTACT,
+  // BERUFSERFAHRUNG, AUSBILDUNG all in a row) before any actual content.
+  // If we naively assign 'experience' kind when we see BERUFSERFAHRUNG,
+  // then the education bullets that follow go into the experience buffer
+  // causing date/bullet misattribution. Guard: track "pending" headers and
+  // only commit currentKind when real content (non-header, non-blank) arrives.
+  let pendingKinds: CvSection["kind"][] = [];
+  let headerStreakCount = 0;
 
   function flushBuffer() {
     if (!buffer.length) return;
@@ -311,10 +507,31 @@ function rebuildReadingOrder(lines: string[]): string[] {
     const kind = isSectionHeader(trimmed);
     if (kind) {
       flushBuffer();
-      currentKind = kind;
-      buffer.push(trimmed);
+      headerStreakCount++;
+      if (headerStreakCount >= 3) {
+        // Three or more consecutive section headers = interleaved multi-column
+        // header burst. Queue this kind instead of committing immediately —
+        // the correct kind for this chunk will be resolved when content arrives.
+        pendingKinds.push(kind);
+        buffer.push(trimmed);
+      } else {
+        currentKind = kind;
+        buffer.push(trimmed);
+      }
       continue;
     }
+
+    // Real content arrived — resolve any pending kind
+    if (pendingKinds.length > 0) {
+      // The most recently seen structural header (experience/summary/projects)
+      // is most likely the correct section for this content. If none, use last pending.
+      const mainKind = [...pendingKinds].reverse().find(k =>
+        ["experience", "summary", "projects"].includes(k)
+      ) || pendingKinds[pendingKinds.length - 1];
+      currentKind = mainKind;
+      pendingKinds = [];
+    }
+    headerStreakCount = 0;
 
     const looksLikeName = nameLines.length === 0
       && LOOKS_LIKE_NAME_RE.test(trimmed)
@@ -388,10 +605,30 @@ function mergeConsecutiveNameLines(text: string): string {
   const TOP_LINES = 15;
 
   const SECTION_HEADERS_NAME = new Set([
+    // English
     "SKILLS","CONTACT","EDUCATION","EXPERIENCE","LANGUAGES","PROJECTS",
     "REFERENCES","CERTIFICATIONS","SUMMARY","PROFILE","ABOUT","ABOUTME",
-    "AWARDS","ACHIEVEMENTS","PROFIL","BERUFSERFAHRUNG","BILDUNGSWEG",
-    "BILDUNG","SPRACHEN","KENNTNISSE","EXPERTISE","COMPETENCIES","ME",
+    "AWARDS","ACHIEVEMENTS","PROFIL","COMPETENCIES","EXPERTISE","ME",
+    "PORTFOLIO","TRAINING","QUALIFICATIONS","PUBLICATIONS","CAREERHISTORY",
+    // German
+    "BERUFSERFAHRUNG","BILDUNGSWEG","BILDUNG","SPRACHEN","KENNTNISSE",
+    "AUSBILDUNG","FÄHIGKEITEN","KOMPETENZEN","KERNKOMPETENZEN","ZERTIFIKATE",
+    "AUSZEICHNUNGEN","WERDEGANG","PROFILÜBERSICHT","BERUFSPROFIL","PROJEKTE",
+    "ZERTIFIZIERUNGEN","WEITERBILDUNGEN","SPRACHKENNTNISSE","KURZPROFIL",
+    // French
+    "FORMATION","EXPÉRIENCE","COMPÉTENCES","LANGUES","DIPLÔMES","CERTIFICATIONS",
+    "RÉSUMÉ","PRÉSENTATION","APTITUDES","RÉALISATIONS","TRAVAUX",
+    // Spanish
+    "EDUCACIÓN","EXPERIENCIA","HABILIDADES","IDIOMAS","PROYECTOS","LOGROS",
+    "FORMACIÓN","COMPETENCIAS","CONOCIMIENTOS","CERTIFICACIONES",
+    // Italian
+    "FORMAZIONE","ESPERIENZA","COMPETENZE","LINGUE","PROGETTI","CERTIFICAZIONI",
+    "ISTRUZIONE","CAPACITÀ","ABILITÀ",
+    // Dutch
+    "OPLEIDING","WERKERVARING","VAARDIGHEDEN","TALEN","PROJECTEN","CERTIFICATEN",
+    "ONDERWIJS","COMPETENTIES","KENNIS","SAMENVATTING","LOOPBAAN",
+    // Polish
+    "WYKSZTAŁCENIE","DOŚWIADCZENIE","UMIEJĘTNOŚCI","JĘZYKI","PROJEKTY","CERTYFIKATY",
   ]);
   const ROLE_WORD_NAME = /^(MANAGER|SPECIALIST|ENGINEER|ANALYST|DIRECTOR|DESIGNER|DEVELOPER|CONSULTANT|COORDINATOR|ASSISTANT|EXECUTIVE|OFFICER|INTERN|ARCHITECT|SUPERVISOR|TECHNICIAN|RECRUITER|ACCOUNTANT|TEACHER|INSTRUCTOR|PROFESSOR|DOCTOR|NURSE|PROGRAMMER|WRITER|EDITOR|PRODUCER|CONTROLLER|ASSOCIATE|SCIENTIST|RESEARCHER|ADVISOR|PLANNER|TRAINER|TUTOR|LECTURER|PRINCIPAL|COUNSELOR)$/;
 
