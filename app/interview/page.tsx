@@ -8057,29 +8057,6 @@ function InterviewPageInner() {
         (/thank you for (your time|joining|today|taking the time)/i.test(last.text) && /we'?ll|next step|look forward|best of luck|take care/i.test(last.text))
       );
 
-      // MUTUAL GOODBYE: if the candidate says "bye", "goodbye", or "thank you,
-      // goodbye" AFTER a closing has already been seen from the recruiter, treat
-      // this as a confirmed mutual end — stop the call immediately regardless of
-      // whether Vapi or browser engine is active. This is the most natural signal
-      // that both parties have concluded the conversation.
-      const isCandidateFarewell =
-        last.role === "candidate" &&
-        /\b(bye|goodbye|good bye|see you|thanks? (bye|goodbye)|thank you (bye|goodbye)|take care)\b/i.test(last.text);
-
-      if (isCandidateFarewell && vapiNaturalClosingSeenRef.current) {
-        // Both recruiter AND candidate have said their goodbyes — end the call.
-        stopRequestedRef.current = true;
-        closingHandledRef.current = true;
-        if (vapiConnectedRef.current || premiumVoiceStatus === "connected") {
-          // For Vapi: stop the voice session which will trigger call-end → save → navigate
-          window.setTimeout(() => { stopPremiumVoice(); endInterview(); }, 600);
-        } else {
-          // For browser engine: end immediately
-          window.setTimeout(() => { endInterview(); }, 400);
-        }
-        return;
-      }
-
       if (isNaturalWrapUp) {
         // Browser fallback can end after a clear recruiter closing.
         // Vapi must NOT be stopped here: the assistant/audio may still be
@@ -8107,6 +8084,24 @@ function InterviewPageInner() {
         closingInvitationSeenRef.current = true;
         return;
       }
+    }
+
+    // narrow last.role. When the candidate says "bye" or "goodbye" after a
+    // recruiter closing has already been detected, end the call immediately.
+    const lastTurn = transcript[transcript.length - 1] as { role: string; text: string };
+    const isCandidateFarewell =
+      lastTurn.role === "candidate" &&
+      /\b(bye|goodbye|good bye|see you|thanks? (bye|goodbye)|thank you (bye|goodbye)|take care)\b/i.test(lastTurn.text);
+
+    if (isCandidateFarewell && vapiNaturalClosingSeenRef.current) {
+      stopRequestedRef.current = true;
+      closingHandledRef.current = true;
+      if (vapiConnectedRef.current || premiumVoiceStatus === "connected") {
+        window.setTimeout(() => { stopPremiumVoice(); endInterview(); }, 600);
+      } else {
+        window.setTimeout(() => { endInterview(); }, 400);
+      }
+      return;
     }
 
     const candidateExchangeAfterInvitation =
