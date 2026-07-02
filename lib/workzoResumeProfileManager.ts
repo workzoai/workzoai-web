@@ -655,37 +655,66 @@ export function keepBetterProfile(candidate: ResumeProfile | Partial<ResumeProfi
 }
 
 export function mergePreservingOriginalStructure(input: ResumeProfile, rewritten: Partial<ResumeProfile> | null | undefined): ResumeProfile {
-  const original = completeResumeProfile(input, input.rawText || "");
-  const out = completeResumeProfile(rewritten || {}, original.rawText || "");
+  const original = completeResumeProfile(input, "");
+  const candidate = completeResumeProfile(rewritten || {}, "");
 
-  out.basics.name = original.basics.name;
-  out.basics.email = original.basics.email;
-  out.basics.phone = original.basics.phone;
-  out.basics.location = original.basics.location;
-  out.basics.linkedin = original.basics.linkedin;
-  if (!out.basics.headline) out.basics.headline = original.basics.headline;
-  if (!out.summary) out.summary = original.summary;
+  const cleanOneLine = (value: unknown, max = 500) => cleanText(value, max).replace(/\s+/g, " ").trim();
 
-  out.experience = original.experience.map((old, index) => ({
-    ...old,
-    bullets: out.experience[index]?.bullets?.length ? out.experience[index].bullets : old.bullets,
-  }));
+  const normalizeSkillKey = (value: unknown) => norm(value)
+    .replace(/scikit learn/g, "sklearn")
+    .replace(/tensor flow/g, "tensorflow")
+    .replace(/lang chain/g, "langchain")
+    .replace(/google cloud platform gcp/g, "google cloud platform");
 
-  out.education = original.education.map((old) => old);
+  const skills = unique(
+    [...(candidate.skills || []), ...(original.skills || [])]
+      .flatMap((skill) => cleanOneLine(skill, 120).split(/[,;|•\n]/g))
+      .map((skill) => skill.replace(/[()]/g, " ").replace(/\s+/g, " ").trim())
+      .filter((skill) => skill.length >= 2 && !/^(and|or|quality|delivery|productivity|word|reporting|documentation)$/i.test(skill)),
+    normalizeSkillKey,
+  ).slice(0, 32);
 
-  out.projects = original.projects.map((old, index) => ({
-    name: old.name,
-    bullets: out.projects[index]?.bullets?.length ? out.projects[index].bullets : old.bullets,
-  }));
+  const safeBullets = (originalBullets: string[], rewrittenBullets: string[] | undefined) => {
+    const cleanRewritten = Array.isArray(rewrittenBullets)
+      ? rewrittenBullets.map((b) => cleanOneLine(b, 500)).filter(Boolean)
+      : [];
+    const cleanOriginal = originalBullets.map((b) => cleanOneLine(b, 500)).filter(Boolean);
 
-  out.skills = unique([...out.skills, ...original.skills], (s) => s);
-  out.languages = unique([...original.languages, ...out.languages], (s) => s);
-  out.certifications = unique([...original.certifications, ...out.certifications], (s) => s);
-  out.strengths = unique([...original.strengths, ...out.strengths], (s) => s);
-  out.additionalEvidence = unique([...original.additionalEvidence, ...out.additionalEvidence], (s) => s);
-  out.warnings = unique([...original.warnings, ...out.warnings], (s) => s);
+    // Never let an AI rewrite delete most of a job/project. If the model
+    // returns too few bullets, restore the original bullets for that block.
+    if (cleanOriginal.length && cleanRewritten.length < Math.min(1, cleanOriginal.length)) return cleanOriginal;
+    if (cleanOriginal.length >= 3 && cleanRewritten.length < 2) return cleanOriginal;
+    return unique(cleanRewritten.length ? cleanRewritten : cleanOriginal, (b) => b).slice(0, 8);
+  };
 
-  return completeResumeProfile(out, original.rawText || "");
+  const merged: ResumeProfile = {
+    ...original,
+    basics: {
+      ...original.basics,
+      // Headline may be targeted, but identity/contact facts stay immutable.
+      headline: cleanOneLine(candidate.basics?.headline, 180) || original.basics.headline,
+    },
+    summary: cleanOneLine(candidate.summary, 1800) || original.summary,
+    skills,
+    experience: original.experience.map((job, index) => ({
+      ...job,
+      bullets: safeBullets(job.bullets || [], candidate.experience?.[index]?.bullets),
+    })),
+    education: original.education.map((edu) => ({ ...edu })),
+    projects: original.projects.map((project, index) => ({
+      name: project.name,
+      bullets: safeBullets(project.bullets || [], candidate.projects?.[index]?.bullets),
+    })),
+    languages: original.languages,
+    certifications: original.certifications,
+    strengths: unique([...(original.strengths || []), ...(candidate.strengths || [])], (s) => s),
+    additionalEvidence: unique([...(original.additionalEvidence || []), ...(candidate.additionalEvidence || [])], (s) => s),
+    warnings: unique([...(original.warnings || []), ...(candidate.warnings || [])], (s) => s),
+    rawText: "",
+    previewText: "",
+  };
+
+  return completeResumeProfile(merged, "");
 }
 
 export function resumeProfileHasMinimumStructure(profile: unknown): boolean {

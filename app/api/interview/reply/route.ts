@@ -25,6 +25,7 @@
 import { NextResponse } from "next/server";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { checkWorkZoRateLimit } from "@/lib/workzoRateLimit";
+import { resolveAllowedRecruiterKey } from "@/lib/workzoRecruiterPersonas";
 import {
   decideUnifiedRecruiterResponse,
   type TranscriptItem,
@@ -704,6 +705,25 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => ({}))) as ReplyRequestBody;
+
+  // ── Persona gate ──────────────────────────────────────────────────────────
+  // The onboarding UI locks Premium Pro personas (startup_founder,
+  // consulting_partner, etc.) for non-Pro users, but nothing previously
+  // stopped a direct API call from requesting one anyway — every downstream
+  // use of body.recruiterPersonality just took the string as given. Mutating
+  // it here means every branch below automatically gets the corrected value
+  // with no per-callsite changes. See workzoRecruiterPersonas.ts for why
+  // this downgrades instead of rejecting outright.
+  {
+    const { key: safeRecruiterKey, downgraded } = resolveAllowedRecruiterKey(
+      body.recruiterPersonality,
+      resolved.plan === "premium_pro",
+    );
+    if (downgraded) {
+      console.warn(`[interview/reply] Non-Pro user requested a Pro-only persona — downgrading. user=${resolved.userId} plan=${resolved.plan} requested="${body.recruiterPersonality}"`);
+      body.recruiterPersonality = safeRecruiterKey;
+    }
+  }
 
   const answer = stripRepeatedSpeech(cleanText(body.answer, 2000));
   if (!answer) {

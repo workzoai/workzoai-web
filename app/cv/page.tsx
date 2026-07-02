@@ -208,7 +208,7 @@ export default function CvWorkspacePage() {
         const nameWords = storedCandidateName.split(/\s+/);
         // Only use stored name if it looks like a real human name (2+ words, no role keywords)
         const looksHuman = nameWords.length >= 2 && nameWords.length <= 5 &&
-          !/(public|relations|management|engineer|analyst|specialist|manager|developer|coordinator)/i.test(storedCandidateName);
+          !/\b(public|relations|management|engineer|analyst|specialist|manager|developer|coordinator)\b/i.test(storedCandidateName);
         if (looksHuman) {
           completed.basics = { ...completed.basics, name: storedCandidateName };
         }
@@ -281,8 +281,12 @@ export default function CvWorkspacePage() {
               }
               if (best.skills?.length) cleanLines.push(`Skills: ${best.skills.slice(0, 24).join(", ")}`);
               if (best.languages?.length) cleanLines.push(`Languages: ${best.languages.join(", ")}`);
-              const cleanCvText = cleanLines.join("\n").trim();
-              if (cleanCvText) setCvText(cleanCvText);
+              // Do NOT replace cvText with this derived profile summary.
+              // cvText must remain the original uploaded/raw CV text. Feeding a
+              // derived summary back into /api/cv or /api/copilot causes the
+              // global corruption loop seen in testing: missing jobs, duplicate
+              // education, raw structured lines inside experience, and project
+              // bullets moving into work history.
               return;
             }
           }

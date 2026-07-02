@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   FileText,
+  Link2,
   Lock,
   Plus,
   Sparkles,
@@ -596,6 +597,9 @@ export default function OnboardingPage() {
 
   const [contextModalOpen, setContextModalOpen] = useState(false);
   const [jdDraft, setJdDraft] = useState("");
+  const [jobUrlInput, setJobUrlInput] = useState("");
+  const [scrapingJobUrl, setScrapingJobUrl] = useState(false);
+  const [jobUrlError, setJobUrlError] = useState("");
   const [proListOpen, setProListOpen] = useState(false);
   const [nudgeKey, setNudgeKey] = useState(0);
   const [persistRequest, setPersistRequest] = useState(0);
@@ -907,6 +911,38 @@ export default function OnboardingPage() {
 
   function openContextModal() { setJdDraft(jobDescription); setContextModalOpen(true); }
   function saveContextModal() { setJobDescription(jdDraft); setContextModalOpen(false); setPersistFullRequest((c) => c + 1); }
+
+  async function fetchJobFromUrl() {
+    const url = jobUrlInput.trim();
+    if (!url || scrapingJobUrl) return;
+    setScrapingJobUrl(true);
+    setJobUrlError("");
+    try {
+      const res = await fetch("/api/company-scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        setJobUrlError(data?.error || "Could not read that page. Try pasting the job description text instead.");
+        return;
+      }
+      if (data.jobDescription) {
+        setJdDraft(data.jobDescription);
+      }
+      // Only fill role/company if the candidate hasn't already typed something —
+      // never overwrite a field they've deliberately set.
+      if (data.jobTitle && !role.trim()) setRole(data.jobTitle);
+      if (data.companyName && !companyName.trim()) setCompanyName(data.companyName);
+      setJobUrlInput("");
+    } catch {
+      setJobUrlError("Network error while reading that page. Try pasting the job description text instead.");
+    } finally {
+      setScrapingJobUrl(false);
+    }
+  }
 
   const hasContext = checks.cv || checks.jd;
   const showRestoredBanner = Boolean(restoredCvText.trim()) && !restoredCvDismissed && !manualCv && !useRestoredCv;
@@ -1231,6 +1267,30 @@ export default function OnboardingPage() {
 
             <div className="mt-4">
               <label htmlFor="wz-jd-draft" className="text-[11px] font-black uppercase tracking-[0.24em] text-muted">Job description</label>
+
+              <div className="mt-2 flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
+                  <input
+                    type="text"
+                    value={jobUrlInput}
+                    onChange={(e) => setJobUrlInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void fetchJobFromUrl(); } }}
+                    placeholder="Or paste a job posting or company URL to auto-fill…"
+                    className="w-full rounded-lg border border-line bg-canvas-soft py-2.5 pl-9 pr-3 text-sm text-fg outline-none placeholder:text-subtle focus:border-brand/50"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void fetchJobFromUrl()}
+                  disabled={scrapingJobUrl || !jobUrlInput.trim()}
+                  className="h-[42px] shrink-0 rounded-lg bg-brand px-4 text-sm font-black text-on-brand transition hover:bg-brand disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {scrapingJobUrl ? "Reading…" : "Auto-fill"}
+                </button>
+              </div>
+              {jobUrlError && <p className="mt-1.5 text-xs leading-5 text-warning">{jobUrlError}</p>}
+
               <textarea id="wz-jd-draft" value={jdDraft} onChange={(e) => setJdDraft(e.target.value)} rows={5}
                 placeholder="Paste the job description here so the recruiter can ask job-specific follow-ups…"
                 className="mt-2 w-full resize-none rounded-lg border border-line bg-canvas-soft p-4 text-sm leading-6 text-fg outline-none placeholder:text-subtle focus:border-brand/50" />

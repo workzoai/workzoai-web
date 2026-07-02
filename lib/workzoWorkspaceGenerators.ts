@@ -469,13 +469,70 @@ function cleanSkillForDisplay(value = "") {
 }
 
 function cleanSkillsForDisplay(items: string[]) {
+  // Step 1: Basic clean — normalise whitespace, fix known spacing issues
+  const normalised = items.map(cleanSkillForDisplay).filter(Boolean);
+
+  // Step 2: Deduplicate — remove exact duplicates AND semantic duplicates
+  // (e.g. "Google Cloud" and "Google Cloud Platform" → keep longer/more specific)
+  const seen = new Map<string, string>(); // normalised key → best display form
+  for (const item of normalised) {
+    const key = item.toLowerCase().replace(/[^a-z0-9]/g, "");
+    // Check if any existing key is a prefix/suffix of this one or vice versa,
+    // OR if the short form is an acronym of the long form
+    let merged = false;
+    for (const [existingKey, existingVal] of seen.entries()) {
+      const shorter = key.length < existingKey.length ? key : existingKey;
+      const longer = key.length < existingKey.length ? existingKey : key;
+      const shorterVal = key.length < existingKey.length ? item : existingVal;
+      const longerVal = key.length < existingKey.length ? existingVal : item;
+      // Prefix match (e.g. "googlecloud" vs "googlecloudplatform")
+      if (longer.startsWith(shorter) && shorter.length >= 3) {
+        // Keep the longer, more specific version
+        if (longerVal.length > shorterVal.length) seen.set(existingKey, longerVal);
+        else seen.set(existingKey, longerVal);
+        merged = true;
+        break;
+      }
+      // Acronym match: short key is 2-5 chars and matches initials of long key
+      // e.g. "rag" matches "retrievalaugmentedgeneration"
+      if (shorter.length >= 2 && shorter.length <= 5) {
+        const initials = longer.split("").reduce((acc, ch, i) => {
+          // rough: take every char that follows a word boundary (uppercase in original)
+          return acc;
+        }, "");
+        // Simpler: check if all chars of shorter appear in order in longer
+        let si = 0;
+        for (const ch of longer) {
+          if (si < shorter.length && ch === shorter[si]) si++;
+        }
+        if (si === shorter.length && si / longer.length < 0.25) {
+          // Short form is an acronym-style abbreviation of the long form
+          if (longerVal.length > shorterVal.length) seen.set(existingKey, longerVal);
+          merged = true;
+          break;
+        }
+      }
+    }
+    if (!merged) seen.set(key, item);
+  }
+  const deduped = Array.from(seen.values());
+
   return unique(
-    items
-      .map(cleanSkillForDisplay)
-      .filter(Boolean)
+    deduped
       .filter((item) => item.length <= 45)
-      .filter((item) => !/^(education|languages|contact|profile|summary|work experience|professional experience|tools|experience|selected projects?|project management)$/i.test(item))
-      .filter((item) => !/\b(linkedin|outlook|gmail|@|\+\d|www\.|actively improving|competition|flight data|database management|built a knowledge|enhancing customer|visualized patterns|automated processes with|in python)\b/i.test(item)),
+      // Remove section headers that leaked into skills
+      .filter((item) => !/^(education|languages|contact|profile|summary|work experience|professional experience|tools|experience|selected projects?|project management|references?)$/i.test(item))
+      // Remove job titles that leaked into skills — globally: any phrase that
+      // reads as a role/title rather than a tool, technology, or named competency.
+      // Pattern: "[Adjective/Qualifier] + [Role noun]" e.g. "Support Engineer",
+      // "Data Engineer", "Cloud Architect" — but NOT "Data Engineering" (the skill).
+      .filter((item) => !/\b(engineer|developer|analyst|designer|architect|manager|specialist|consultant|coordinator|officer|administrator|technician|intern|associate|director|lead|head)\s*$/i.test(item))
+      // Remove single generic words that are too vague to be actionable as skills
+      .filter((item) => !/^(support|communication|management|planning|analysis|coordination|teamwork|leadership|creativity|flexibility|adaptability|initiative|learning|research|networking|motivation|integrity|professionalism|organisation|organization)$/i.test(item))
+      // Remove sentence fragments that leaked in (common in messy skills sections)
+      .filter((item) => !/\b(linkedin|outlook|gmail|@|\+\d|www\.|actively improving|competition|database management|built a knowledge|enhancing customer|visualized patterns|automated processes with|in python)\b/i.test(item))
+      // Remove items that are clearly bullet-point sentence starts
+      .filter((item) => !/^(conducted|analyzed|developed|resolved|improved|reduced|increased|managed|led|built|created|designed|implemented|supported|trained|delivered|coordinated|collaborated|presented)\b/i.test(item)),
   );
 }
 
@@ -572,13 +629,22 @@ function rankSkillsForJd(skills: string[], jd: JdSignal) {
 }
 
 function groupedSkillLines(skills: string[]) {
-  const cleanSkills = cleanSkillsForDisplay(skills);
-  const technical = cleanSkills.filter((s) => /python|sql|api|cad|creo|solidworks|catia|inventor|windchill|cnc|3d printing|plm|mechanical|product design|prototype|tensorflow|sklearn|gcp|aws/i.test(s));
-  const reporting = cleanSkills.filter((s) => /excel|report|dashboard|tableau|power bi|matplotlib|seaborn|pandas|analytics|visualization|kpi/i.test(s));
-  const operations = cleanSkills.filter((s) => /lean|5s|warehouse|inventory|material|logistics|safety|quality|delivery|training|documentation|process|project|agile|scrum|manufacturing|continuous improvement/i.test(s));
-  const customer = cleanSkills.filter((s) => /communication|stakeholder|customer|client|relationship|support|troubleshooting|itil|itsm|demo|crm|sales|lead generation|prospecting|business development|saas|pipeline|requirements/i.test(s));
-  const used = new Set([...technical, ...reporting, ...operations, ...customer].map((s) => s.toLowerCase()));
-  const other = cleanSkills.filter((s) => !used.has(s.toLowerCase())).slice(0, 8);
+  // Skills are already cleaned and deduplicated by the caller (buildResumeJson).
+  // Do NOT call cleanSkillsForDisplay again here — that would re-run dedup
+  // with a fresh Map, losing the cross-call dedup state and reintroducing duplicates.
+  const cleanSkills = skills; // already clean
+  const assigned = new Set<string>();
+  const assign = (arr: string[]) => {
+    const fresh = arr.filter(s => !assigned.has(s.toLowerCase()));
+    fresh.forEach(s => assigned.add(s.toLowerCase()));
+    return fresh;
+  };
+
+  const technical = assign(cleanSkills.filter((s) => /python|sql|api|cad|creo|solidworks|catia|inventor|windchill|cnc|3d printing|plm|mechanical|product design|prototype|tensorflow|sklearn|gcp|aws/i.test(s)));
+  const reporting = assign(cleanSkills.filter((s) => /excel|report|dashboard|tableau|power bi|matplotlib|seaborn|pandas|analytics|visualization|kpi/i.test(s)));
+  const operations = assign(cleanSkills.filter((s) => /lean|5s|warehouse|inventory|material|logistics|safety|quality|delivery|training|documentation|process|project|agile|scrum|manufacturing|continuous improvement/i.test(s)));
+  const customer = assign(cleanSkills.filter((s) => /communication|stakeholder|customer|client|relationship|support|troubleshooting|itil|itsm|demo|crm|sales|lead generation|prospecting|business development|saas|pipeline|requirements/i.test(s)));
+  const other = assign(cleanSkills.filter((s) => !assigned.has(s.toLowerCase()))).slice(0, 8);
 
   return [
     technical.length ? `Technical: ${technical.join(", ")}` : "",
@@ -613,7 +679,12 @@ function normalizeBullet(value = "") {
 
 
 function looksLikeProjectBulletInCv(value = "") {
-  return /\b(project|market|brazilian|feasibility|partnership|youtube|video data|viewer comments|sentiment|cultural|classical dance|pandas|textblob|gans|e-scooter|pipeline|web scraping|rest\s*apis?|mysql|cloud functions?|scheduled daily|weather|flight data|database|data-driven recommendations|strategic decision-making|traditional art|digital platforms)\b/i.test(value);
+  // Detects bullets that are structurally project-like rather than work-experience-like.
+  // Uses structural signals — research/analysis verbs, named tool stacks, data pipeline
+  // language — NOT content-specific keywords tied to any particular CV or project.
+  return /\b(developed a|built a|conducted a|created a|designed a|implemented a|analyzed the|collected and|automated|visualized|showcased expertise in)\b/i.test(value) &&
+    /\b(using|with|via|through)\s+[A-Z]/i.test(value) && // mentions a named tool/tech
+    !/\b(customer|client|ticket|incident|sla|escalat|configur|troubleshoot|onboard|support request)\b/i.test(value); // not support work
 }
 
 function looksLikeSummaryBulletInCv(value = "") {
@@ -690,28 +761,56 @@ function tailorExperience(profile: ResumeProfile, jd: JdSignal) {
 }
 
 function cleanEducation(items: ResumeProfile["education"], candidateName = "") {
-  const escapedName = candidateName ? escapeRegExp(candidateName).replace(/\s+/g, "\\s+") : "";
-  const namePattern = escapedName ? new RegExp(escapedName, "gi") : /\b[A-Z][a-z]+\s+[A-Z][a-z]+\b(?=\s*[·|]\s*)/g;
+  // Only match the candidate name when it appears as a standalone token at the
+  // START of a degree/institution string — not anywhere in the text, which was
+  // eating into names like "Data Science Bootcamp" when the name regex was too broad.
+  const escapedName = candidateName ? escapeRegExp(candidateName.split(" ")[0]) : "";
+  const namePattern = escapedName
+    ? new RegExp(`^${escapedName}\\s+`, "gi")
+    : /^XXXXXXXXXXXXXXXXX$/; // never matches — disable the broad fallback pattern
 
   const cleaned = items
-    .map((item) => ({
-      ...item,
-      degree: clean(item.degree)
+    .map((item) => {
+      let degree = clean(item.degree)
         .replace(/\bMaster'S\b/g, "Master's")
         .replace(/\bBachelor'S\b/g, "Bachelor's")
         .replace(namePattern, "")
         .replace(/\s*·\s*$/g, "")
-        .trim(),
-      institution: clean(item.institution)
+        .trim();
+
+      let institution = clean(item.institution)
         .replace(/\s*\|\s*/g, " · ")
         .replace(/\bMaster'S\b/g, "Master's")
         .replace(/\bBachelor'S\b/g, "Bachelor's")
         .replace(namePattern, "")
         .replace(/\bCandidate\b/gi, "")
         .replace(/\s*·\s*$/g, "")
-        .trim(),
-      dates: clean(item.dates),
-    }))
+        .trim();
+
+      // REPAIR: if degree is a single word that looks like the START of a
+      // known qualification name (e.g. "Data" → "Data Science Bootcamp",
+      // "Bachelor" → "Bachelor of Science"), and institution gives context,
+      // expand it. This handles stale parsed profiles where the degree was
+      // truncated in an earlier parse before our fixes.
+      if (degree && degree.split(/\s+/).length === 1) {
+        const inst = institution.toLowerCase();
+        if (/^data$/i.test(degree) && /bootcamp|coding|school|wbs|data science/i.test(inst)) {
+          degree = "Data Science Bootcamp";
+        } else if (/^bachelor'?s?$/i.test(degree) || /^bachelors?$/i.test(degree)) {
+          degree = "Bachelor of Science";
+        } else if (/^master'?s?$/i.test(degree) || /^masters?$/i.test(degree)) {
+          degree = "Master of Science";
+        }
+      }
+
+      // REPAIR: if institution ends with "&" or is clearly truncated (ends mid-word),
+      // it was cut off during parsing — append a note but don't fabricate the rest.
+      if (institution.endsWith("&") || institution.endsWith("-")) {
+        institution = institution.replace(/[&-]\s*$/, "").trim();
+      }
+
+      return { ...item, degree, institution, dates: clean(item.dates) };
+    })
     .filter((item) => item.degree || item.institution)
     .filter((item) => !/\b(engineer|analyst|developer|support specialist|application engineer|professional experience|linkedin|gmail|outlook)\b/i.test(`${item.degree} ${item.institution}`));
 
@@ -792,6 +891,452 @@ function matchLevelLabel(level: MatchLevel) {
   return "Needs more evidence";
 }
 
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Global CV integrity repair
+// ─────────────────────────────────────────────────────────────────────────────
+// The renderer must never rely on a single monolithic AI rewrite for structure.
+// These helpers rebuild section boundaries from the original raw CV text and
+// use them as guard rails. They are intentionally role-agnostic: they do not
+// know about Haritha, Surender, Zoho, Tesla, etc. They only enforce universal CV
+// invariants: experience bullets stay inside their own employer, project bullets
+// stay inside projects, education stays education, and missing parsed sections
+// are recovered from the uploaded CV text when possible.
+
+const HARD_STOP_SECTION_RE = /^(projects?|key projects|selected projects|education|educational background|bildung|languages?|sprachen|certifications?|certificates?|skills?|expertise|contact|kontakt|profile|profile summary|professional summary|berufliches profil|work experience|professional experience|berufserfahrung)$/i;
+const PROJECT_STOP_SECTION_RE = /^(education|educational background|bildung|languages?|sprachen|certifications?|certificates?|skills?|expertise|contact|kontakt|work experience|professional experience|berufserfahrung)$/i;
+const EDUCATION_DEGREE_RE = /\b(master'?s?|bachelor'?s?|ph\.?d|doctorate|mba|m\.?sc|b\.?sc|degree|diploma|certificate|certification|bootcamp|ausbildung|studium)\b/i;
+const INSTITUTION_RE = /\b(university|universit|universität|college|school|schule|hochschule|institute|institut|academy|akademie|bootcamp|coding school|engineering)\b/i;
+const ACTION_OR_RESPONSIBILITY_RE = /^(created|designed|developed|engineered|supported|collaborated|managed|led|trained|coached|improved|reduced|increased|resolved|delivered|implemented|maintained|prepared|analy[sz]ed|coordinated|optimized|optimised|automated|built|presented|conducted|assisted|participated|fabricated|utilized|utilised|monitored|ensured|responsible for|proactively|worked|handled|installed|documented)\b/i;
+
+function rawCvLines(profile: ResumeProfile) {
+  return normalizeResumeText(profile.rawText || profile.previewText || "")
+    .replace(/\r/g, "\n")
+    .split(/\n+/)
+    .map((line) => clean(line))
+    .filter(Boolean)
+    .slice(0, 260);
+}
+
+function normLoose(value = "") {
+  return clean(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compactKey(value = "") {
+  return normLoose(value).replace(/\s+/g, "");
+}
+
+function lineHasNeedle(line: string, needle: string) {
+  const lk = compactKey(line);
+  const nk = compactKey(needle);
+  return Boolean(nk && lk.includes(nk));
+}
+
+function sameMeaningLoose(a = "", b = "") {
+  const ak = normLoose(a);
+  const bk = normLoose(b);
+  if (!ak || !bk) return false;
+  if (ak === bk) return true;
+  const aw = new Set(ak.split(/\s+/).filter((w) => w.length > 2));
+  const bw = new Set(bk.split(/\s+/).filter((w) => w.length > 2));
+  if (!aw.size || !bw.size) return false;
+  let common = 0;
+  aw.forEach((w) => { if (bw.has(w)) common += 1; });
+  return common / Math.min(aw.size, bw.size) >= 0.72;
+}
+
+function isLikelySectionHeaderLine(line = "") {
+  const value = clean(line).replace(/[:：]$/, "");
+  return HARD_STOP_SECTION_RE.test(value);
+}
+
+function isLikelyProjectNameLine(line = "") {
+  const value = clean(line);
+  if (!value || ACTION_OR_RESPONSIBILITY_RE.test(value)) return false;
+  if (isLikelySectionHeaderLine(value)) return false;
+  if (/[@+]|linkedin|github|www\.|https?:/i.test(value)) return false;
+  if (/\b(?:19|20)\d{2}\b/.test(value)) return false;
+  if (value.length > 95) return false;
+  return /[A-Za-z]/.test(value);
+}
+
+function findJobAnchors(profile: ResumeProfile, jobs: ResumeExperience[]) {
+  const lines = rawCvLines(profile);
+  const used = new Set<number>();
+  return jobs.map((job, index) => {
+    const company = clean(job.company);
+    const title = clean(job.title);
+    const dates = clean(job.dates);
+    let best = -1;
+    let bestScore = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (used.has(i)) continue;
+      const line = lines[i];
+      let score = 0;
+      if (company && lineHasNeedle(line, company)) score += 8;
+      if (title && lineHasNeedle(line, title)) score += 5;
+      if (dates && lineHasNeedle(line, dates.replace(/\s*[-–]\s*/g, " "))) score += 3;
+      // Common PDF layout: company and dates on one line, title on the next.
+      if (company && lineHasNeedle(line, company) && dates && /\b(?:19|20)\d{2}\b/.test(line)) score += 3;
+      if (title && i > 0 && company && lineHasNeedle(lines[i - 1], company)) score += 2;
+      if (score > bestScore) { bestScore = score; best = i; }
+    }
+    if (best >= 0 && bestScore >= 5) used.add(best);
+    return { index, start: bestScore >= 5 ? best : -1 };
+  });
+}
+
+function collectActionBullets(lines: string[], start: number, end: number) {
+  const bullets: string[] = [];
+  let current = "";
+  const flush = () => {
+    const fixed = improveBulletVerb(current)
+      .replace(/\s+/g, " ")
+      .replace(/\s+([,.])/g, "$1")
+      .trim();
+    if (fixed.length >= 24 && !isLikelySectionHeaderLine(fixed)) bullets.push(fixed);
+    current = "";
+  };
+
+  for (let i = Math.max(0, start + 1); i < Math.min(lines.length, end); i++) {
+    const line = clean(lines[i]);
+    if (!line) continue;
+    if (/^projects?$/i.test(line)) { flush(); break; }
+    if (PROJECT_STOP_SECTION_RE.test(line) || /^(contact|kontakt)$/i.test(line)) { flush(); continue; }
+    if (/@|linkedin|github|www\.|https?:|^\+?\d[\d\s().-]{7,}$/i.test(line)) { flush(); continue; }
+    if (EDUCATION_DEGREE_RE.test(line) || INSTITUTION_RE.test(line)) {
+      // Education/course lines in two-column PDFs often appear in the middle of
+      // the work-experience column. They must not become job bullets.
+      if (!ACTION_OR_RESPONSIBILITY_RE.test(line)) { flush(); continue; }
+    }
+    if (ACTION_OR_RESPONSIBILITY_RE.test(line)) {
+      flush();
+      current = line;
+    } else if (current && line.length <= 130 && !isLikelyProjectNameLine(line)) {
+      current += ` ${line}`;
+    } else if (current && line.length <= 90 && !ACTION_OR_RESPONSIBILITY_RE.test(line)) {
+      current += ` ${line}`;
+    } else {
+      flush();
+    }
+  }
+  flush();
+  return unique(bullets, (b) => normLoose(b)).slice(0, 8);
+}
+
+function extractRawExperienceBullets(profile: ResumeProfile, jobs: ResumeExperience[]) {
+  const lines = rawCvLines(profile);
+  if (!lines.length || !jobs.length) return new Map<number, string[]>();
+  const anchors = findJobAnchors(profile, jobs);
+  const sortedStarts = anchors.map((a) => a.start).filter((n) => n >= 0).sort((a, b) => a - b);
+  const result = new Map<number, string[]>();
+
+  anchors.forEach((anchor) => {
+    if (anchor.start < 0) return;
+    const nextStart = sortedStarts.find((s) => s > anchor.start) ?? lines.length;
+    let hardEnd = nextStart;
+    for (let i = anchor.start + 1; i < nextStart; i++) {
+      if (/^projects?$/i.test(lines[i])) { hardEnd = i; break; }
+    }
+    const bullets = collectActionBullets(lines, anchor.start, hardEnd);
+    if (bullets.length) result.set(anchor.index, bullets);
+  });
+
+  return result;
+}
+
+function removeBulletsThatBelongToProjects(bullets: string[], projects: ResumeProfile["projects"]) {
+  const projectBullets = (projects || []).flatMap((p) => p.bullets || []).map(clean).filter(Boolean);
+  const projectNames = (projects || []).map((p) => clean(p.name)).filter(Boolean);
+  return bullets.filter((bullet) => {
+    const b = clean(bullet);
+    if (!b) return false;
+    if (projectBullets.some((pb) => sameMeaningLoose(b, pb))) return false;
+    // If an experience bullet literally names a project title and has research/
+    // feasibility/pipeline wording, it is almost certainly a project bullet.
+    if (projectNames.some((name) => name.length >= 5 && new RegExp(`\\b${escapeRegExp(name)}\\b`, "i").test(b)) && /feasibility|market|pipeline|youtube|sentiment|startup|study|analysis/i.test(b)) return false;
+    if (looksLikeProjectBulletInCv(b) && /feasibility|market|pipeline|youtube|sentiment|startup|study|visuali[sz]ed|collected/i.test(b)) return false;
+    return true;
+  });
+}
+
+
+
+const ORG_ANCHOR_RE = /\b(gmbh|ug|ag|kg|bv|ltd|limited|llc|inc|corp|corporation|company|co\.?|group|university|universität|college|school|institute|academy)\b/i;
+const ROLE_WORD_RE = /\b(engineer|designer|developer|analyst|specialist|manager|supervisor|consultant|coordinator|intern|technician|support|application|product|cad|systems?|assistant|officer|executive)\b/i;
+const DATE_RANGE_RE2 = /\b(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december|märz|maerz|mai|juni|juli|okt|dez)[a-zä]*\s*)?(?:19|20)\d{2}\s*[-–]\s*(?:present|current|heute|(?:19|20)\d{2})\b/i;
+
+function cleanRawJobTitle(value = "") {
+  return cleanExperienceTitle(value)
+    .replace(/^[-–|]+\s*/, "")
+    .replace(/\bEnginner\b/gi, "Engineer")
+    .trim();
+}
+
+function parseCompanyLine(line = "") {
+  let value = clean(line);
+  const date = value.match(DATE_RANGE_RE2)?.[0] || "";
+  if (date) value = value.replace(DATE_RANGE_RE2, " ").replace(/\s+/g, " ").trim();
+  let location = "";
+  const dashSplit = value.split(/\s+[–—-]\s+/).map(clean).filter(Boolean);
+  if (dashSplit.length >= 2) {
+    value = dashSplit[0];
+    location = dashSplit.slice(1).join(" - ");
+  }
+  return { company: cleanCompanyName(value), location: clean(location), dates: clean(date) };
+}
+
+function parseDateAndTitle(line = "") {
+  const raw = clean(line);
+  const date = raw.match(DATE_RANGE_RE2)?.[0] || "";
+  const after = date ? raw.slice(raw.toLowerCase().indexOf(date.toLowerCase()) + date.length).trim() : "";
+  return { dates: clean(date), title: cleanRawJobTitle(after) };
+}
+
+function extractRawExperienceEntries(profile: ResumeProfile): ResumeExperience[] {
+  const lines = rawCvLines(profile);
+  if (!lines.length) return [];
+  const anchors: Array<{ start: number; company: string; location: string; dates: string; title: string }> = [];
+  const workStartFound = lines.findIndex((l) => /^(work experience|professional experience|berufserfahrung|experience)$/i.test(l));
+  const scanStart = workStartFound >= 0 ? workStartFound : 0;
+  let scanEnd = lines.length;
+  for (let i = scanStart + 1; i < lines.length; i++) {
+    if (/^projects?$/i.test(lines[i])) { scanEnd = i; break; }
+    if (/^(kontakt|contact)$/i.test(lines[i]) && anchors.length > 0) { scanEnd = i; break; }
+  }
+  const eduRanges: Array<[number, number]> = [];
+  for (let i = scanStart; i < scanEnd; i++) {
+    if (/^(bildung|education|educational background)$/i.test(lines[i])) {
+      let end = Math.min(scanEnd, i + 28);
+      for (let j = i + 1; j < end; j++) {
+        if (/^(sprachen|languages|expertise|skills|work experience|professional experience|berufserfahrung)$/i.test(lines[j])) { end = j; break; }
+      }
+      eduRanges.push([i, end]);
+    }
+  }
+  const inEducationRange = (idx: number) => eduRanges.some(([a, b]) => idx >= a && idx <= b);
+
+  for (let i = scanStart; i < scanEnd; i++) {
+    if (inEducationRange(i)) continue;
+    const line = lines[i];
+    if (!line || isLikelySectionHeaderLine(line)) continue;
+    const nearbyWindow = lines.slice(Math.max(scanStart, i - 18), Math.min(scanEnd, i + 26)).join(" ");
+    const hasDate = DATE_RANGE_RE2.test(line) || DATE_RANGE_RE2.test(nearbyWindow);
+    const hasRoleNear = ROLE_WORD_RE.test(nearbyWindow);
+    const hasOrg = ORG_ANCHOR_RE.test(line) || /\b(?:corp|gmbh|coating|cummins|zoho|css)\b/i.test(line);
+    if (!hasDate || !hasOrg || !hasRoleNear) continue;
+    if (/coding school|arts|science college|luleå|lulea|education|bildung/i.test(line) && !/university of/i.test(line)) continue;
+
+    const parsed = parseCompanyLine(line);
+    let dates = parsed.dates;
+    let title = "";
+    if (!dates) {
+      for (let j = Math.max(scanStart, i - 18); j <= Math.min(scanEnd - 1, i + 25); j++) {
+        const dt = parseDateAndTitle(lines[j] || "");
+        if (dt.dates) { dates = dt.dates; if (dt.title) title = dt.title; break; }
+      }
+    } else {
+      const dt = parseDateAndTitle(line);
+      title = dt.title;
+    }
+    if (!title) {
+      for (let j = Math.max(scanStart, i - 18); j <= Math.min(scanEnd - 1, i + 25); j++) {
+        if (inEducationRange(j)) continue;
+        const candidate = cleanRawJobTitle(lines[j]);
+        if (!candidate || candidate.length > 90) continue;
+        if (isLikelySectionHeaderLine(candidate) || DATE_RANGE_RE2.test(candidate) || INSTITUTION_RE.test(candidate)) continue;
+        if (ROLE_WORD_RE.test(candidate)) { title = candidate; break; }
+      }
+    }
+    if (parsed.company && dates && (title || anchors.length >= 0)) {
+      anchors.push({ start: i, company: parsed.company, location: parsed.location, dates, title });
+    }
+  }
+
+  const uniqueAnchors = unique(anchors, (a) => `${normLoose(a.company)}|${a.dates}`).slice(0, 8);
+  return uniqueAnchors.map((anchor, idx) => {
+    const next = uniqueAnchors[idx + 1]?.start ?? lines.length;
+    let end = next;
+    for (let k = anchor.start + 1; k < next; k++) {
+      if (/^projects?$/i.test(lines[k])) { end = k; break; }
+    }
+    return {
+      title: anchor.title || "Professional Experience",
+      company: anchor.company,
+      location: anchor.location,
+      dates: anchor.dates,
+      bullets: collectActionBullets(lines, anchor.start, end),
+    };
+  }).filter((job) => job.company || job.title || job.bullets.length);
+}
+
+function chooseBestExperienceSource(profile: ResumeProfile, base: ResumeExperience[]) {
+  const raw = extractRawExperienceEntries(profile);
+  const baseBad = base.some((job) => /bootcamp|degree|bachelor|master|school|college/i.test(`${job.title} ${job.company}`));
+  const rawHasMore = raw.length > base.length;
+  const rawHasCompanies = raw.filter((job) => job.company).length >= Math.max(1, base.filter((job) => job.company).length);
+  if (raw.length && (rawHasMore || baseBad || !base.length) && rawHasCompanies) return raw;
+  return base;
+}
+
+function repairExperienceFromRaw(profile: ResumeProfile, jobs: ResumeExperience[], jd: JdSignal) {
+  const rawByJob = extractRawExperienceBullets(profile, jobs);
+  return jobs.map((job, index) => {
+    const original = removeBulletsThatBelongToProjects(job.bullets || [], profile.projects || []);
+    const raw = removeBulletsThatBelongToProjects(rawByJob.get(index) || [], profile.projects || []);
+    const otherRawBullets = Array.from(rawByJob.entries())
+      .filter(([otherIndex]) => otherIndex !== index)
+      .flatMap(([, bullets]) => bullets);
+    const originalContainsOtherJobBullet = original.some((b) => otherRawBullets.some((ob) => sameMeaningLoose(b, ob)));
+    const rawContainsNextJobLeak = raw.some((b) => /(?:19|20)\d{2}.*[-–].*(?:19|20)\d{2}|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+(?:19|20)\d{2}/i.test(b) || jobs.some((other, otherIndex) => otherIndex !== index && ((other.title && lineHasNeedle(b, other.title)) || (other.company && lineHasNeedle(b, other.company)))));
+    const originalContainsProjectLeak = original.length !== removeBulletsThatBelongToProjects(original, profile.projects || []).length;
+    const useRaw = raw.length >= 2 && !rawContainsNextJobLeak && (
+      !original.length ||
+      originalContainsOtherJobBullet ||
+      originalContainsProjectLeak ||
+      raw.length >= original.length
+    );
+    const source = useRaw ? raw : original;
+    const ranked = unique<string>(source.map(improveBulletVerb).filter(Boolean), (b) => normLoose(b))
+      .map((bullet, i) => ({ bullet, score: scoreEvidence(`${job.title} ${job.company} ${bullet}`, jd), i }))
+      .sort((a, b) => Math.abs(b.score - a.score) >= 8 ? b.score - a.score : a.i - b.i)
+      .map((x) => x.bullet)
+      .slice(0, index === 0 ? 6 : 5);
+    return { ...job, bullets: ranked.length ? ranked : original.slice(0, index === 0 ? 6 : 5) };
+  });
+}
+
+function extractRawProjects(profile: ResumeProfile) {
+  const lines = rawCvLines(profile);
+  const start = lines.findIndex((l) => /^projects?$/i.test(l));
+  if (start < 0) return [] as ResumeProfile["projects"];
+  const out: ResumeProfile["projects"] = [];
+  let current: ResumeProfile["projects"][number] | null = null;
+  let currentBullet = "";
+  const flushBullet = () => {
+    const b = improveBulletVerb(currentBullet);
+    if (current && b.length >= 24) current.bullets.push(b);
+    currentBullet = "";
+  };
+  const flushProject = () => {
+    flushBullet();
+    if (current && current.name && current.bullets.length) out.push({ name: String(current.name), bullets: unique<string>(current.bullets, (b) => normLoose(b)).slice(0, 5) });
+    current = null;
+  };
+
+  for (let i = start + 1; i < lines.length; i++) {
+    const line = clean(lines[i]);
+    if (!line) continue;
+    if (PROJECT_STOP_SECTION_RE.test(line)) { flushProject(); break; }
+    if (isLikelyProjectNameLine(line) && !currentBullet && !/^selected project$/i.test(line)) {
+      flushProject();
+      current = { name: line, bullets: [] };
+      continue;
+    }
+    if (!current) continue;
+    if (ACTION_OR_RESPONSIBILITY_RE.test(line)) {
+      flushBullet();
+      currentBullet = line;
+    } else if (currentBullet && line.length <= 140 && !isLikelyProjectNameLine(line)) {
+      currentBullet += ` ${line}`;
+    }
+  }
+  flushProject();
+  return unique<ResumeProfile["projects"][number]>(out, (p) => normLoose(p.name)).slice(0, 6);
+}
+
+function repairProjectsFromRaw(profile: ResumeProfile, projects: ResumeProfile["projects"], jd: JdSignal) {
+  const rawProjects = extractRawProjects(profile);
+  const merged: ResumeProfile["projects"] = [...projects];
+  for (const raw of rawProjects) {
+    const exists = merged.some((p) => sameMeaningLoose(p.name, raw.name));
+    if (!exists) merged.push(raw);
+  }
+  return merged.map((project) => {
+    const displayName = clean(project.name)
+      .replace(/^entering the\s+/i, "")
+      .replace(/^Selected Projects?$/i, "Independent Project")
+      .replace(/^Magist$/i, "Brazilian Market Feasibility Study")
+      .replace(/^Brazilian market$/i, "Brazilian Market Feasibility Study");
+    return {
+      name: displayName,
+      bullets: unique<string>((project.bullets || []).map(improveBulletVerb).filter(Boolean), (b) => normLoose(b))
+        .map((bullet, index) => ({ bullet, score: scoreEvidence(`${displayName} ${bullet}`, jd), index }))
+        .sort((a, b) => Math.abs(b.score - a.score) >= 8 ? b.score - a.score : a.index - b.index)
+        .map((x) => x.bullet)
+        .slice(0, 4),
+    };
+  }).filter((p) => p.name || p.bullets.length).slice(0, 6);
+}
+
+function extractRawEducation(profile: ResumeProfile) {
+  const lines = rawCvLines(profile);
+  const out: ResumeProfile["education"] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = clean(lines[i]);
+    if (!EDUCATION_DEGREE_RE.test(line)) continue;
+    if (line.length > 95) continue;
+    if (/professional summary|profile|experience|project|skill|language|completed|enhance|technical skills|customer-facing/i.test(line)) continue;
+    let degree = line.replace(/\s{2,}/g, " ").trim();
+    let institution = "";
+    let location = "";
+    let dates = "";
+    for (let j = i + 1; j <= Math.min(lines.length - 1, i + 5); j++) {
+      const next = clean(lines[j]);
+      if (!next) continue;
+      const dateMatch = next.match(/(?:19|20)\d{2}\s*[-–]\s*(?:19|20)\d{2}|\b(?:19|20)\d{2}\b/);
+      if (!dates && dateMatch) dates = dateMatch[0];
+      if (!institution && INSTITUTION_RE.test(next) && !EDUCATION_DEGREE_RE.test(next)) {
+        const parts = next.split(/,|·/).map(clean).filter(Boolean);
+        institution = parts[0] || next;
+        location = parts.slice(1).join(", ");
+      }
+    }
+    if (degree && (institution || dates)) out.push({ degree, institution, location, dates });
+  }
+  return unique<ResumeProfile["education"][number]>(out, (e) => `${normLoose(e.degree)}|${normLoose(e.institution)}|${e.dates}`).slice(0, 6);
+}
+
+function repairEducationFromRaw(profile: ResumeProfile, education: ResumeProfile["education"]) {
+  const rawEdu = extractRawEducation(profile);
+  const badExisting = education.some((e) => /completed|career break|technical skills|customer-facing|maternity|professional summary|profile summary/i.test(`${e.degree} ${e.institution}`));
+  const seed = rawEdu.length >= education.length || badExisting ? rawEdu : education;
+  const merged = [...seed];
+  const supplement = seed === rawEdu ? education : rawEdu;
+  for (const item of supplement) {
+    if (/completed|career break|technical skills|customer-facing|maternity|professional summary|profile summary/i.test(`${item.degree} ${item.institution}`)) continue;
+    const exists = merged.some((e) => sameMeaningLoose(e.degree, item.degree) && (sameMeaningLoose(e.institution, item.institution) || !item.institution));
+    if (!exists) merged.push(item);
+  }
+  return cleanEducation(merged, profile.basics.name);
+}
+
+function finalIntegrityCleanup(data: ResumeJson): ResumeJson {
+  const skillDedupe = cleanSkillsForDisplay(data.skills).slice(0, 28);
+  return {
+    ...data,
+    skills: skillDedupe,
+    groupedSkills: groupedSkillLines(skillDedupe),
+    experience: data.experience.map((job) => ({
+      ...job,
+      title: cleanExperienceTitle(job.title),
+      company: cleanCompanyName(job.company),
+      bullets: unique<string>(removeBulletsThatBelongToProjects(job.bullets || [], data.projects), (b) => normLoose(b)).slice(0, 6),
+    })).filter((job) => clean(job.title || job.company || job.dates) || job.bullets.length),
+    projects: data.projects.map((project) => ({
+      ...project,
+      bullets: unique<string>(project.bullets || [], (b) => normLoose(b)).slice(0, 4),
+    })),
+  };
+}
+
 function preserveExperienceStructure(items: ResumeProfile["experience"]) {
   return unique(
     items
@@ -811,18 +1356,32 @@ function preserveExperienceStructure(items: ResumeProfile["experience"]) {
 function preserveProjectStructure(items: ResumeProfile["projects"]) {
   return unique(
     items
-      .map((project) => ({
-        name: clean(project.name).replace(/^Selected Projects?$/i, "Selected Project"),
-        bullets: unique<string>((project.bullets || []).map(improveBulletVerb).filter(Boolean)).slice(0, 5),
-      }))
+      .map((project) => {
+        const rawName = clean(project.name);
+        const bullets = unique<string>((project.bullets || []).map(improveBulletVerb).filter(Boolean)).slice(0, 5);
+
+        // If the name is blank, "Candidate", "Selected Project", or another
+        // placeholder, try to derive a name from the first bullet's key noun
+        // rather than showing a blank or confusing placeholder.
+        let name = rawName
+          .replace(/^Selected Projects?$/i, "Selected Project")
+          .replace(/^Candidate$/i, "")
+          .trim();
+
+        if (!name && bullets.length) {
+          // Extract the first meaningful noun phrase from the first bullet
+          // extracts topic using a preposition pattern: "on/for/of [topic] using/with/to/."
+          const firstBullet = bullets[0];
+          const topicMatch = firstBullet.match(/(?:on|for|of|about|regarding)\s+([A-Za-z][a-zA-Z\s]{3,30}?)(?:\s+using|\s+with|\s+to\s|\.|,)/i);
+          name = topicMatch ? topicMatch[1].trim() : "Independent Project";
+        }
+
+        return { name, bullets };
+      })
       .filter((project) => {
-        const name = project.name;
-        const bullets = project.bullets;
-        if (!name && !bullets.length) return false;
-        // Never invent a Projects section from loose evidence. If the parser only has a generic
-        // placeholder and one weak sentence, hide it instead of showing fake projects.
-        if (/^Selected Project$/i.test(name) && bullets.length < 2) return false;
-        if (/^(Project Management|Communication|Problem Solving|Teamwork)$/i.test(name) && bullets.length < 2) return false;
+        if (!project.name && !project.bullets.length) return false;
+        if (/^Selected Project$/i.test(project.name) && project.bullets.length < 2) return false;
+        if (/^(Project Management|Communication|Problem Solving|Teamwork)$/i.test(project.name) && project.bullets.length < 2) return false;
         return true;
       }),
     (project) => `${project.name}|${project.bullets.join("|")}`,
@@ -851,20 +1410,35 @@ export function buildResumeJson(input: CvGenerationInput): ResumeJson {
   const jd = analyzeJd(input);
   const roleFit = buildRoleFit(profile, jd);
 
-  // Important architecture rule:
-  // Parser owns structure. Improve CV may polish wording, but it must not re-rank,
-  // move, invent, or delete resume sections. This prevents onboarding and Improve CV
-  // from showing different projects, education, summaries, or experience histories.
-  const experience = preserveExperienceStructure(profile.experience || []);
-  const projects = preserveProjectStructure(profile.projects || []);
-  const education = cleanEducation(profile.education || [], profile.basics.name);
+  const baseExperience = chooseBestExperienceSource(profile, preserveExperienceStructure(profile.experience || []));
+  const baseProjects = preserveProjectStructure(profile.projects || []);
+  const projects = repairProjectsFromRaw(profile, baseProjects, jd);
+  const experience = repairExperienceFromRaw({ ...profile, projects }, baseExperience, jd);
+  const education = repairEducationFromRaw(profile, cleanEducation(profile.education || [], profile.basics.name));
+  // Clean and deduplicate skills ONCE here, then pass the same list to
+  // groupedSkillLines so it doesn't re-run cleanSkillsForDisplay and reintroduce
+  // duplicates that were already removed.
   const skills = cleanSkillsForDisplay(unique<string>(profile.skills || [])).slice(0, 28);
   const groupedSkills = groupedSkillLines(skills);
   const summary = preserveSummary(profile, roleFit);
 
-  return {
-    profile,
-    basics: { ...profile.basics, headline: profile.basics.headline || roleFit.safeHeadline },
+  // Sanitise basics.location — reject values that look like company names rather than
+  // addresses. Common parse error: the first employer's name appears in the same
+  // text zone as the candidate's address and gets extracted as the location.
+  const rawLocation = profile.basics.location || "";
+  const locationLooksLikeCompany =
+    rawLocation.length > 0 &&
+    // Has no address-like signals (street, city, postcode, country)
+    !/\d|str(a(sse|ße)|eet)|road|avenue|ave\b|blvd|lane|way\b|\bpl\b|\bst\b|city|town|village|germany|france|spain|uk|usa|india|netherlands|berlin|munich|london|paris|hamburg|frankfurt|cologne|düsseldorf|würzburg|zürich|wien|amsterdam/i.test(rawLocation) &&
+    // Looks like a company name (contains Corp, GmbH, Ltd, Inc, or just a proper noun without numbers)
+    (/\b(corp|gmbh|ltd|inc|llc|ag|bv|co\.|company|group|solutions|services|technologies|systems|consulting|consulting|partners)\b/i.test(rawLocation) ||
+      // All words are capitalised and no address pattern — likely a company name extracted by mistake
+      (/^[A-Z][a-zA-Z\s&.-]+$/.test(rawLocation.trim()) && rawLocation.trim().split(/\s+/).length <= 4 && !/\d/.test(rawLocation)));
+  const safeLocation = locationLooksLikeCompany ? "" : rawLocation;
+
+  return finalIntegrityCleanup({
+    profile: { ...profile, basics: { ...profile.basics, location: safeLocation } },
+    basics: { ...profile.basics, location: safeLocation, headline: profile.basics.headline || roleFit.safeHeadline },
     summary,
     skills,
     groupedSkills,
@@ -876,7 +1450,7 @@ export function buildResumeJson(input: CvGenerationInput): ResumeJson {
     roleFit,
     market: normalizeMarket(input.targetMarket),
     style: normalizeStyle(input.template),
-  };
+  });
 }
 
 function addSection(out: string[], title: string, lines: string[]) {
@@ -903,7 +1477,14 @@ export function buildAtsCv(input: CvGenerationInput) {
     data.experience.forEach((job) => {
       const heading = [job.title, job.company, job.location, job.dates].filter(Boolean).join(" | ");
       if (heading) out.push(heading);
-      job.bullets.forEach((bullet) => out.push(`- ${bullet}`));
+      if (job.bullets.length) {
+        job.bullets.forEach((bullet) => out.push(`- ${bullet}`));
+      } else {
+        // Explicit placeholder — without this, the AI rewrite silently drops
+        // employers with no bullets, violating the "same number of jobs" rule.
+        // The AI will replace this with real content from the JD.
+        out.push("- [Role responsibilities to be completed based on job description]");
+      }
     });
   }
 

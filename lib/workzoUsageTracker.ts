@@ -114,6 +114,15 @@ export function resetWorkZoTestingUsage() {
 export function getWorkZoCurrentPlan(): WorkZoPlanType {
   if (typeof window === "undefined") return "free";
   try {
+    // A dev/test override always wins over whatever is cached from the DB,
+    // no matter which code path wrote the plain plan keys last. Without this
+    // check, any page that fetches the real plan and calls
+    // setWorkZoCurrentPlan()/writes workzo_plan directly (e.g. dashboard,
+    // settings) silently clobbers an active override for every other page
+    // that reads plan via this function.
+    const devOverride = window.localStorage.getItem(WORKZO_DEV_PLAN_OVERRIDE_KEY);
+    if (devOverride) return normalizeWorkZoPlan(devOverride);
+
     const direct =
       window.localStorage.getItem(WORKZO_PLAN_KEY) ||
       window.localStorage.getItem("workzo_plan") ||

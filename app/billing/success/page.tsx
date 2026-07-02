@@ -1,15 +1,58 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Crown, Sparkles, Star } from "lucide-react";
-import { getCurrentWorkZoUserSubscription } from "@/lib/workzoSubscription";
+import { getCurrentWorkZoUserSubscription, claimWorkZoPurchaseEmailSend } from "@/lib/workzoSubscription";
+import { getWorkZoPlanLimits } from "@/lib/workzoPlanLimits";
+import { sendWorkZoPurchaseConfirmation } from "@/lib/workzoEmail";
+import { getWorkZoStripeConfig } from "@/lib/workzoStripe";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import PremiumActivationClient from "@/components/premium/PremiumActivationClient";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Backstop for the Stripe webhook's confirmation email. The webhook is the
+ * primary sender and handles the vast majority of cases, but webhooks can
+ * be delayed, retried oddly, or fail outright — and until now, nothing
+ * caught that: a paying customer could land here having never gotten a
+ * confirmation email, with no second chance to get one.
+ *
+ * claimWorkZoPurchaseEmailSend is race-safe against the webhook (whichever
+ * fires first "wins" the claim), and safe against repeat page visits —
+ * once sent, it won't send again on refresh. Never throws into the page
+ * render; a failure here just means no fallback email, not a broken page.
+ */
+async function sendFallbackPurchaseEmailIfNeeded(plan: string) {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) return;
+
+    const canSend = await claimWorkZoPurchaseEmailSend(user.id);
+    if (!canSend) return;
+
+    const limits = getWorkZoPlanLimits(plan);
+    const appUrl = getWorkZoStripeConfig().appUrl.replace(/\/$/, "");
+    await sendWorkZoPurchaseConfirmation({
+      to: user.email,
+      planLabel: limits.label,
+      plan,
+      startUrl: `${appUrl}/onboarding`,
+      manageUrl: `${appUrl}/billing/manage`,
+    });
+  } catch (error) {
+    console.error("workzo_purchase_email_fallback_error", error);
+  }
+}
 
 export default async function BillingSuccessPage() {
   const subscription = await getCurrentWorkZoUserSubscription();
   const plan = subscription?.plan ?? "premium";
   const isPro = plan === "premium_pro";
   const isActive = subscription?.status === "premium" || !!subscription;
+
+  if (isActive) {
+    await sendFallbackPurchaseEmailIfNeeded(plan);
+  }
 
   return (
     <main className="min-h-screen bg-canvas px-5 text-fg">

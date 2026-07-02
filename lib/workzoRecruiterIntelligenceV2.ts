@@ -27,7 +27,7 @@ export type RecruiterIntelligenceSetup = {
   recruiterPersonality?: string;
   language?: string;
   // Pre-computed recruiter brain context from recruiterBrainEngine.ts —
-  // injected by /api/interview/route.ts before each LLM call.
+  // injected by /api/interview/reply/route.ts before each LLM call.
   recruiterBrainContext?: string;
   // Additional fields used by the interview route
   candidateName?: string;

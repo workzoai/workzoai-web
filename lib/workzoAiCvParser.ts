@@ -1126,7 +1126,9 @@ export function repairResumeProfileAfterParsing(profile: ResumeProfile, rawText:
   //    When all bullets appear before the second employer's header in the
   //    extracted text, the AI assigns everything to the first employer.
   //    Fix: if any employer has bullets:[] but there are enough bullets on
-  //    the first employer to share, redistribute the last N bullets.
+  //    the first employer to share, redistribute only the last few bullets.
+  //    CONSERVATIVE: only redistribute if first employer has 6+ bullets,
+  //    and give at most 2-3 to the second — never empty the first employer.
   const experience = sanitized.experience || [];
   if (experience.length >= 2) {
     for (let i = 1; i < experience.length; i++) {
@@ -1134,10 +1136,11 @@ export function repairResumeProfileAfterParsing(profile: ResumeProfile, rawText:
       const curr = experience[i];
       const prevBullets = prev.bullets || [];
       const currBullets = curr.bullets || [];
-      // Only redistribute if: previous has many bullets AND current has none
-      if (currBullets.length === 0 && prevBullets.length >= 4) {
-        // Give the last third of previous employer's bullets to current
-        const splitAt = Math.ceil(prevBullets.length * 0.65);
+      // Only redistribute if: previous has 6+ bullets AND current has none
+      // Give at most the last 2 bullets — never strip first employer bare
+      if (currBullets.length === 0 && prevBullets.length >= 6) {
+        const giveCount = Math.min(2, Math.floor(prevBullets.length * 0.25));
+        const splitAt = prevBullets.length - giveCount;
         experience[i - 1] = { ...prev, bullets: prevBullets.slice(0, splitAt) };
         experience[i] = { ...curr, bullets: prevBullets.slice(splitAt) };
       }

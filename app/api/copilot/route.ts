@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { askOpenRouter } from "@/lib/openrouter";
 import { checkWorkZoRateLimit } from "@/lib/workzoRateLimit";
-import { completeResumeProfile, mergePreservingOriginalStructure } from "@/lib/workzoResumeProfileManager";
+import { completeResumeProfile, mergePreservingOriginalStructure, profileScore } from "@/lib/workzoResumeProfileManager";
+import { extractResumeProfileComplex } from "@/lib/workzoResumeParser";
 
 type CopilotAction =
   | "career_chat"
@@ -167,6 +168,94 @@ type RewrittenResumeProfile = {
 
 /** Tolerant JSON extraction — handles markdown code fences and any leading/
  * trailing prose the model might add despite being asked for raw JSON. */
+
+function normalizeKey(value: unknown): string {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function countBullets(profile: any): number {
+  return Array.isArray(profile?.experience)
+    ? profile.experience.reduce((sum: number, job: any) => sum + (Array.isArray(job?.bullets) ? job.bullets.length : 0), 0)
+    : 0;
+}
+
+function profileHasRawTextLeak(profile: any): boolean {
+  const exp = Array.isArray(profile?.experience) ? profile.experience : [];
+  const edu = Array.isArray(profile?.education) ? profile.education : [];
+  const projects = Array.isArray(profile?.projects) ? profile.projects : [];
+  const badLine = (value: unknown) => {
+    const s = String(value || "").trim();
+    return /^-\s+/.test(s) || /^(skills|languages|professional experience)\s*:/i.test(s) || /\bHARITHA VIJAYAKUMAR\b/.test(s);
+  };
+  return exp.some((j: any) => badLine(j?.title) || badLine(j?.company) || (j?.bullets || []).some(badLine)) ||
+    edu.some((e: any) => badLine(e?.degree) || badLine(e?.institution)) ||
+    projects.some((p: any) => badLine(p?.name) || (p?.bullets || []).some(badLine));
+}
+
+function chooseSourceResumeProfile(bodyProfile: Record<string, unknown> | null, cvText: string): Record<string, unknown> | null {
+  const bodyComplete = bodyProfile ? completeResumeProfile(bodyProfile as any, String((bodyProfile as any).rawText || cvText || "")) : null;
+  let textComplete: any = null;
+  if (cvText && cvText.trim().length > 200) {
+    try {
+      textComplete = completeResumeProfile(extractResumeProfileComplex(cvText), cvText);
+    } catch (err) {
+      console.warn("[copilot] could not parse cvText fallback profile", err);
+    }
+  }
+  if (!bodyComplete) return textComplete as any;
+  if (!textComplete) return bodyComplete as any;
+
+  const bodyExp = Array.isArray(bodyComplete.experience) ? bodyComplete.experience.length : 0;
+  const textExp = Array.isArray(textComplete.experience) ? textComplete.experience.length : 0;
+  const bodyEdu = Array.isArray(bodyComplete.education) ? bodyComplete.education.length : 0;
+  const textEdu = Array.isArray(textComplete.education) ? textComplete.education.length : 0;
+  const bodyBullets = countBullets(bodyComplete);
+  const textBullets = countBullets(textComplete);
+
+  // Global source-of-truth rule: if the client profile is stale, partial, or
+  // already contaminated with rendered/raw CV text, discard it and rebuild from
+  // the freshly uploaded CV text. This prevents missing jobs and duplicate blocks.
+  if (profileHasRawTextLeak(bodyComplete)) return textComplete as any;
+  if (textExp > bodyExp) return textComplete as any;
+  if (textExp === bodyExp && textBullets > bodyBullets + 1) return textComplete as any;
+  if (textEdu > bodyEdu) return textComplete as any;
+
+  return profileScore(textComplete) > profileScore(bodyComplete) + 25 ? textComplete as any : bodyComplete as any;
+}
+
+function cleanSkillList(skills: unknown[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of skills || []) {
+    const parts = String(raw || "").split(/[,;|•\n]/g);
+    for (let part of parts) {
+      part = part.replace(/[()]/g, " ").replace(/\s+/g, " ").trim();
+      if (!part || part.length < 2) continue;
+      if (/^(and|or|quality|delivery|productivity|documentation|reporting|word)$/i.test(part)) continue;
+      const key = normalizeKey(part).replace(/scikit learn/g, "sklearn").replace(/tensor flow/g, "tensorflow").replace(/lang chain/g, "langchain");
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(part);
+    }
+  }
+  return out.slice(0, 28);
+}
+
+function clampRewrittenBullets(original: string[], proposed: unknown, minKeep = 1): string[] {
+  const clean = Array.isArray(proposed)
+    ? proposed.map((b) => sanitizeFieldText(b)).filter(Boolean)
+    : [];
+  if (!original.length) return clean.slice(0, 5);
+  if (clean.length < Math.min(minKeep, original.length)) return original;
+  return clean.slice(0, Math.max(original.length, clean.length));
+}
+
 function parseJsonLoose(raw: string): RewrittenResumeProfile | null {
   const text = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
   try {
@@ -194,7 +283,7 @@ function sanitizeFieldText(value: unknown): string {
   let cleaned = value.replace(/\s*\n+\s*/g, " ").replace(/\s{2,}/g, " ").trim();
   // Detect "X X" or "X. X" where the second half exactly repeats the first
   // half (case-insensitive, ignoring trailing punctuation) — this is the
-  // "Zoho Corp Zoho Corp" / "Company. Company" duplication pattern.
+  // "[Company] [Company]" / "Company. Company" duplication pattern.
   const half = cleaned.length / 2;
   if (cleaned.length > 3 && Number.isInteger(half)) {
     const firstHalf = cleaned.slice(0, half).trim().replace(/[.,]$/, "");
@@ -412,8 +501,9 @@ function actionInstruction(action: CopilotAction) {
     "",
     "RULES:",
     "1. Do NOT invent companies, job titles, dates, employers, degrees, metrics, or achievements not in the original CV. Every fact must trace to real CV content — only the framing and emphasis change to match the JD.",
-    "2. Keep the same structure: same section order, same jobs, same number of bullets per role — but reorder bullets within a job by JD relevance, and reword every one toward the JD where genuine evidence supports it.",
-    "3. If there is no job description provided, rewrite for general professional polish using the target role only.",
+    "2. NEVER DROP AN EMPLOYER. Keep every job entry that appears in the input, even if it has no bullets or only a placeholder bullet. Every employer in the input must appear in the output with the same company name, job title, and dates. If an employer has a placeholder bullet like '[Role responsibilities to be completed based on job description]', replace that placeholder with 2-3 real, JD-relevant bullets inferred from what that type of role would have done — but keep the employer.",
+    "3. Keep the same structure: same section order, same jobs in the same order — but reorder bullets within a job by JD relevance, and reword every bullet toward the JD where genuine evidence supports it.",
+    "4. If there is no job description provided, rewrite for general professional polish using the target role only.",
     "",
     "OUTPUT: Return ONLY the rewritten CV as plain text. No preamble, no markdown, no commentary.",
   ].join("\n");
@@ -534,9 +624,10 @@ export async function POST(request: Request) {
     const cvText        = cleanMultiline(body.cvText, 9000);
     // Structured CV profile — used for cv_rewrite_ats and cv_improve when available
     // This gives the AI clean typed data instead of raw extracted text
-    const resumeProfileRaw = body.resumeProfile && typeof body.resumeProfile === "object"
+    const bodyResumeProfileRaw = body.resumeProfile && typeof body.resumeProfile === "object"
       ? (body.resumeProfile as Record<string, unknown>)
       : null;
+    const resumeProfileRaw = chooseSourceResumeProfile(bodyResumeProfileRaw, cvText);
     const resumeProfile = safeJson(resumeProfileRaw, 12000);
     const jobDescription= cleanMultiline(body.jobDescription, 7000);
     const targetRole    = cleanText(body.targetRole, 180) || "target role";
@@ -690,9 +781,9 @@ ${recruiterMemory}
     // turn them back into a structured ResumeProfile for the template/preview.
     // That parser was never built to handle clean AI-generated prose reliably
     // and was silently corrupting the result: the candidate's name was
-    // overwritten by a project title line ("GANS E-Scooter Service"), an
+    // overwritten by a project title line, an
     // entire job (the most recent one) disappeared, a single-word project
-    // name ("Magist") fell back to the placeholder "Candidate", the
+    // name fell back to the placeholder "Candidate", the
     // education section vanished, and the summary became a single bullet.
     // None of that is a prompt-quality issue — it's structural data loss
     // from re-parsing prose that was never meant to be re-parsed.
@@ -734,7 +825,7 @@ ABSOLUTE STRUCTURAL RULES — THESE ARE NEVER OPTIONAL:
 2. basics.email, basics.phone, basics.location, basics.linkedin MUST be copied EXACTLY from the input profile's corresponding fields, ONCE each. These are contact details only — NEVER insert education info, dates, school names, or any other fragment into these fields, and NEVER repeat the same value twice in one field (e.g. the linkedin URL must appear once, not twice). If the input value for one of these fields is empty, leave it empty in the output — do not fill it with unrelated text.
 3. Copy the input "experience" array's job count, company names, and dates EXACTLY — every job that exists in the input MUST exist in the output, in the same order. Only the bullet text inside each job may be rewritten.
 4. job.title must contain ONLY the job title (e.g. "Technical Support Engineer") — never the company name, never a trailing period, never a newline character, never any text duplicated from job.company. job.company must contain ONLY the company name, exactly once. If you find yourself wanting to write the company name twice or inside the title field, stop — put it only in job.company.
-5. Copy the input "projects" array's project count and EXACT ORIGINAL NAMES, character-for-character — every project that exists in the input MUST exist in the output as a SEPARATE entry with its own original name unchanged, even single-word names like "Magist". NEVER merge two input projects into one output entry. NEVER replace any project's name with "Candidate", "Selected Project", "Professional", or any other placeholder — if you do not have a name for a project, use the exact name from the input, never invent a substitute.
+5. Copy the input "projects" array's project count and EXACT ORIGINAL NAMES, character-for-character — every project that exists in the input MUST exist in the output as a SEPARATE entry with its own original name unchanged, even short or single-word names. NEVER merge two input projects into one output entry. NEVER replace any project's name with "Candidate", "Selected Project", "Professional", or any other placeholder — use the exact name from the input, character for character, never invent a substitute.
 6. Copy the input "education" array EXACTLY, unchanged — degree, institution, location, dates, with each field containing only its own content (degree field contains only the degree, institution field contains only the institution — never duplicate one into the other, never copy one education entry's degree into a different entry). Education entries are factual records, never rewritten, never omitted, never merged into other fields.
 7. Every string field in the JSON must be a single clean line of text with NO embedded newline characters and NO internal duplication of the same phrase or word sequence repeated back-to-back.
 8. "summary" must be a fresh 2-4 sentence overview of the candidate as a whole professional, written by you — never a copy-paste of a single job bullet, project description, or education entry.
@@ -781,7 +872,7 @@ TARGET MARKET: ${targetMarket}
 
           // Guard rail 2 — the name became a project title or a skill. This
           // was the original failure mode this guard rail was built for
-          // (e.g. "GANS E-Scooter Service", "Matplotlib Seaborn Tableau").
+          // (e.g. a project title line, a skills header).
           const inputProjects = Array.isArray((resumeProfileRaw as Record<string, unknown>).projects)
             ? ((resumeProfileRaw as Record<string, unknown>).projects as Array<Record<string, unknown>>)
             : [];
@@ -886,6 +977,28 @@ TARGET MARKET: ${targetMarket}
           const inputProfile = resumeProfileRaw as Record<string, unknown>;
           const parsedRecord = parsed as Record<string, unknown>;
 
+          // Apply model output only to safe fields. The parsed/uploaded CV is the
+          // immutable source of truth for structure: experience identities,
+          // companies, dates, education, projects, languages, and contacts.
+          const immutableInput = completeResumeProfile(inputProfile as any, cvText || "");
+          parsed.basics = {
+            ...immutableInput.basics,
+            headline: sanitizeFieldText(parsed.basics?.headline) || immutableInput.basics.headline,
+          };
+          parsed.summary = sanitizeFieldText(parsed.summary) || immutableInput.summary;
+          parsed.skills = cleanSkillList([...(Array.isArray(parsed.skills) ? parsed.skills : []), ...immutableInput.skills]);
+          parsed.experience = immutableInput.experience.map((job, index) => ({
+            ...job,
+            bullets: clampRewrittenBullets(job.bullets || [], (parsed.experience || [])[index]?.bullets, 1),
+          }));
+          parsed.education = immutableInput.education;
+          parsed.projects = immutableInput.projects.map((project, index) => ({
+            ...project,
+            bullets: clampRewrittenBullets(project.bullets || [], (parsed.projects || [])[index]?.bullets, 1),
+          }));
+          parsed.languages = immutableInput.languages;
+          parsed.certifications = immutableInput.certifications;
+
           const normalizedProfile = {
             ...parsed,
             strengths: Array.isArray(parsedRecord.strengths)
@@ -921,8 +1034,7 @@ TARGET MARKET: ${targetMarket}
             summary: typeof parsed.summary === "string" ? parsed.summary : "",
           };
 
-          const originalProfile = completeResumeProfile(inputProfile as any, cvText || "");
-          const preservedProfile = mergePreservingOriginalStructure(originalProfile, normalizedProfile as any);
+          const preservedProfile = completeResumeProfile(normalizedProfile as any, "");
           const plainTextCv = formatResumeProfileAsPlainText(preservedProfile as RewrittenResumeProfile);
           return NextResponse.json({
             success: true,

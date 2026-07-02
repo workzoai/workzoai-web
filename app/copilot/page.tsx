@@ -8,6 +8,7 @@ import {
   Briefcase,
   FileText,
   Loader2,
+  Lock,
   Mail,
   MessageSquareText,
   Plus,
@@ -142,13 +143,13 @@ function buildMemory(setup: SavedSetup): MemoryItem[] {
 
 const SUGGESTIONS = [
   { label: "How strong is my CV for this role?", action: "cv_improve" },
-  { label: "What questions will they ask?", action: "interview_coach" },
+  { label: "What questions will they ask?", action: "interview_coach", proOnly: true },
   { label: "Write me a cover letter", action: "cover_letter" },
   { label: "Should I apply for this job?", action: "job_fit" },
   { label: "Help me find matching job titles", action: "find_jobs_strategy" },
   { label: "Write a LinkedIn message to a recruiter", action: "linkedin_message" },
-  { label: "Give me a 30-day career plan", action: "career_plan" },
-  { label: "Help me negotiate my salary", action: "career_chat" },
+  { label: "Give me a 30-day career plan", action: "career_plan", proOnly: true },
+  { label: "Help me negotiate my salary", action: "career_chat", proOnly: true },
 ];
 
 const FEATURE_LINKS = [
@@ -344,6 +345,7 @@ export default function WorkOBotCopilotPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isProUser, setIsProUser] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -356,6 +358,22 @@ export default function WorkOBotCopilotPage() {
       setActiveId(h[0].id);
       setMessages(h[0].messages);
     }
+  }, []);
+
+  // This is display-only (which suggestion chips show a lock badge) — the
+  // actual gate is server-side in /api/copilot's PRO_ONLY_ACTIONS check, so
+  // there's no security dependency on this fetch succeeding.
+  useEffect(() => {
+    let active = true;
+    fetch("/api/account/plan", { cache: "no-store", credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (active && data) setIsProUser(data.plan === "premium_pro");
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Auto-save: persist whenever messages change
@@ -392,9 +410,18 @@ export default function WorkOBotCopilotPage() {
 
   // ── Actions ──────────────────────────────────────────────────────────────────
 
-  async function send(text: string, action = "career_chat") {
+  async function send(text: string, action = "career_chat", proOnly = false) {
     const prompt = text.trim();
     if (!prompt || loading) return;
+
+    if (proOnly && !isProUser) {
+      const userMsg: ChatMessage = { id: uid(), role: "user", content: prompt };
+      const upgradeMsg =
+        "This feature is part of Premium Pro — AI Career Coach, 30/60/90 day roadmaps, salary coaching, and replay intelligence are all included. Upgrade to Premium Pro to unlock it.";
+      setMessages((p) => [...p, userMsg, { id: uid(), role: "assistant", content: upgradeMsg }]);
+      setInput("");
+      return;
+    }
 
     const userMsg: ChatMessage = { id: uid(), role: "user", content: prompt };
     const next = [...messages, userMsg];
@@ -595,10 +622,15 @@ export default function WorkOBotCopilotPage() {
                   </p>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {SUGGESTIONS.map(({ label, action }) => (
-                    <button key={label} type="button" onClick={() => void send(label, action)}
-                      className="rounded-lg border border-line bg-fg/[0.03] px-4 py-3 text-left text-sm text-muted transition hover:border-brand/25 hover:bg-brand/[0.06] hover:text-on-brand">
+                  {SUGGESTIONS.map(({ label, action, proOnly }) => (
+                    <button key={label} type="button" onClick={() => void send(label, action, proOnly)}
+                      className="relative rounded-lg border border-line bg-fg/[0.03] px-4 py-3 text-left text-sm text-muted transition hover:border-brand/25 hover:bg-brand/[0.06] hover:text-on-brand">
                       {label}
+                      {proOnly && !isProUser && (
+                        <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-brand/25 bg-brand/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-brand align-middle">
+                          <Lock className="h-2.5 w-2.5" />Pro
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>

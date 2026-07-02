@@ -9,6 +9,7 @@ import {
   getWorkZoPlanFromStripePriceId,
 } from "@/lib/workzoStripe";
 import {
+  resetAndClaimWorkZoPurchaseEmailSend,
   getWorkZoUserIdByStripeCustomer,
   markWorkZoSubscriptionCancelled,
   upsertWorkZoSubscription,
@@ -153,15 +154,18 @@ export async function POST(request: Request) {
 
           if (session.payment_status === "paid") {
             try {
-              const email = session.customer_details?.email || session.customer_email || undefined;
-              const limits = getWorkZoPlanLimits(plan);
-              await sendWorkZoPurchaseConfirmation({
-                to: email,
-                planLabel: limits.label,
-                plan,
-                startUrl: `${config.appUrl.replace(/\/$/, "")}/onboarding`,
-                manageUrl: `${config.appUrl.replace(/\/$/, "")}/billing/manage`,
-              });
+              const canSend = await resetAndClaimWorkZoPurchaseEmailSend(userId);
+              if (canSend) {
+                const email = session.customer_details?.email || session.customer_email || undefined;
+                const limits = getWorkZoPlanLimits(plan);
+                await sendWorkZoPurchaseConfirmation({
+                  to: email,
+                  planLabel: limits.label,
+                  plan,
+                  startUrl: `${config.appUrl.replace(/\/$/, "")}/onboarding`,
+                  manageUrl: `${config.appUrl.replace(/\/$/, "")}/billing/manage`,
+                });
+              }
             } catch (emailError) {
               console.error("workzo_purchase_email_error", emailError);
             }

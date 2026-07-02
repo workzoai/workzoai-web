@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   BarChart3,
+  BrainCircuit,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -17,6 +18,7 @@ import {
   Lightbulb,
   Lock,
   MessageSquareText,
+  PlayCircle,
   RefreshCcw,
   ShieldCheck,
   Sparkles,
@@ -2862,6 +2864,48 @@ export default function ResultsPage() {
                 this specific session, week by week. */}
             <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
               <h2 className="flex items-center gap-2 text-base font-black"><Sparkles className="h-4 w-4 text-brand" />30-day improvement plan</h2>
+
+            {/* Pro feature CTAs — highlighted buttons, not more content */}
+            {isPremium && (
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                <Link
+                  href="/career-coach"
+                  className="flex items-center gap-3 rounded-2xl border border-brand/25 bg-brand/[0.07] px-4 py-3.5 transition hover:bg-brand/[0.12]"
+                >
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand/20 text-brand">
+                    <BrainCircuit className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-fg">AI Career Coach</p>
+                    <p className="text-[11px] text-muted">Cross-session priorities</p>
+                  </div>
+                </Link>
+                <Link
+                  href="/career-plan"
+                  className="flex items-center gap-3 rounded-2xl border border-brand/25 bg-brand/[0.07] px-4 py-3.5 transition hover:bg-brand/[0.12]"
+                >
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand/20 text-brand">
+                    <TrendingUp className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-fg">Career Roadmap</p>
+                    <p className="text-[11px] text-muted">Your 30-day plan</p>
+                  </div>
+                </Link>
+                <Link
+                  href="/replay"
+                  className="flex items-center gap-3 rounded-2xl border border-brand/25 bg-brand/[0.07] px-4 py-3.5 transition hover:bg-brand/[0.12]"
+                >
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand/20 text-brand">
+                    <PlayCircle className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-fg">Replay Intelligence</p>
+                    <p className="text-[11px] text-muted">Best &amp; worst moments</p>
+                  </div>
+                </Link>
+              </div>
+            )}
               <div className="mt-4 space-y-3">
                 {report.thirtyDayPlan.map((item, index) => (
                   <div key={index} className="rounded-xl bg-brand/10 p-3">

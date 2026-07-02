@@ -30,6 +30,7 @@ export type WorkZoSubscriptionRecord = {
   billing_cycle?: WorkZoBillingCycle | null;
   status: WorkZoSubscriptionStatus;
   current_period_end?: string | null;
+  purchase_email_sent_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -94,6 +95,63 @@ export async function getWorkZoUserIdByStripeCustomer(stripeCustomerId: string) 
   }
 
   return typeof data?.user_id === "string" ? data.user_id : null;
+}
+
+/**
+ * Marks the purchase-confirmation email as sent for this user, but only if
+ * it hasn't been marked already — the update is conditioned on
+ * purchase_email_sent_at still being null, so if two callers race (e.g. the
+ * webhook and the /billing/success fallback firing close together), only
+ * the first one's update actually matches a row and returns true. The
+ * second sees zero rows updated and knows to skip sending.
+ *
+ * Use this from callers that don't know whether a NEW purchase just
+ * happened (e.g. /billing/success, which could be a fresh checkout or just
+ * someone revisiting the page later) — it only sends if nobody has yet.
+ *
+ * Returns true if this call "won" and should proceed to send the email,
+ * false if someone else already has (or already will).
+ */
+export async function claimWorkZoPurchaseEmailSend(userId: string): Promise<boolean> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from(WORKZO_SUBSCRIPTIONS_TABLE)
+    .update({ purchase_email_sent_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .is("purchase_email_sent_at", null)
+    .select("user_id");
+
+  if (error) {
+    console.error("workzo_purchase_email_claim_error", error);
+    // Fail closed: if we can't tell whether it was already sent, don't send
+    // a possibly-duplicate purchase email.
+    return false;
+  }
+
+  return Boolean(data && data.length > 0);
+}
+
+/**
+ * Same as claimWorkZoPurchaseEmailSend, but for the Stripe webhook
+ * specifically: checkout.session.completed means a purchase (first-time or
+ * an upgrade) definitely just happened, so the flag must be re-armed first
+ * — otherwise a user upgrading plans would never get a second confirmation
+ * email, since the flag from their first purchase would still be set.
+ *
+ * The reset-then-claim isn't a single atomic statement, so there's a
+ * theoretical sliver where /billing/success's plain claim could land
+ * between the reset and this claim and "win" instead. That's fine — either
+ * way exactly one confirmation email goes out for this purchase, which is
+ * the actual goal; which of the two code paths sends it doesn't matter.
+ */
+export async function resetAndClaimWorkZoPurchaseEmailSend(userId: string): Promise<boolean> {
+  const supabase = createServiceClient();
+  await supabase
+    .from(WORKZO_SUBSCRIPTIONS_TABLE)
+    .update({ purchase_email_sent_at: null })
+    .eq("user_id", userId);
+
+  return claimWorkZoPurchaseEmailSend(userId);
 }
 
 export async function upsertWorkZoSubscription(input: {

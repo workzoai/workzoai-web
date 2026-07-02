@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { ArrowLeft, Bell, CheckCircle2, CreditCard, FileText, History, LockKeyhole, LogOut, Settings, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getWorkZoPlanLimits, normalizeWorkZoPlan, type WorkZoPlanType } from "@/lib/workzoPlanLimits";
-import { setWorkZoCurrentPlan } from "@/lib/workzoUsageTracker";
+import { getWorkZoDevPlanOverride, setWorkZoCurrentPlan } from "@/lib/workzoUsageTracker";
 
 type AccountState = { email: string; signedIn: boolean; plan: WorkZoPlanType; status: string; renewal: string | null };
 
@@ -24,8 +24,12 @@ export default function DashboardSettingsPage() {
         const { data: { user } } = await supabase.auth.getUser();
         const res = await fetch("/api/account/plan", { cache: "no-store" });
         const planData = await res.json().catch(() => ({}));
-        const plan = normalizeWorkZoPlan(planData?.plan || "free");
-        setWorkZoCurrentPlan(plan);
+        // Respect an active dev/test override rather than writing the real
+        // DB plan back over it — see workzoUsageTracker.ts for why this
+        // matters for every other page that reads plan via getWorkZoCurrentPlan().
+        const devOverride = getWorkZoDevPlanOverride();
+        const plan = devOverride || normalizeWorkZoPlan(planData?.plan || "free");
+        if (!devOverride) setWorkZoCurrentPlan(plan);
         if (!active) return;
         setAccount({ email: user?.email || planData?.email || "", signedIn: Boolean(user || planData?.authenticated), plan, status: String(planData?.status || (plan === "free" ? "free" : "active")), renewal: planData?.currentPeriodEnd || null });
       } catch {

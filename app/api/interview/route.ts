@@ -25,6 +25,7 @@
 import { NextResponse } from "next/server";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { checkWorkZoRateLimit } from "@/lib/workzoRateLimit";
+import { resolveAllowedRecruiterKey } from "@/lib/workzoRecruiterPersonas";
 import {
   decideUnifiedRecruiterResponse,
   type TranscriptItem,
@@ -704,6 +705,19 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => ({}))) as ReplyRequestBody;
+
+  // ── Persona gate ── see workzoRecruiterPersonas.ts and the identical
+  // block in api/interview/reply/route.ts (the live route this duplicates).
+  {
+    const { key: safeRecruiterKey, downgraded } = resolveAllowedRecruiterKey(
+      body.recruiterPersonality,
+      resolved.plan === "premium_pro",
+    );
+    if (downgraded) {
+      console.warn(`[interview] Non-Pro user requested a Pro-only persona — downgrading. user=${resolved.userId} plan=${resolved.plan} requested="${body.recruiterPersonality}"`);
+      body.recruiterPersonality = safeRecruiterKey;
+    }
+  }
 
   const answer = stripRepeatedSpeech(cleanText(body.answer, 2000));
   if (!answer) {

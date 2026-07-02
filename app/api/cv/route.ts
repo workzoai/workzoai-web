@@ -1335,11 +1335,16 @@ function buildResponse(input: {
     error: nonBlockingError,
     warning: input.error && responseOk ? input.error : "",
     text: input.rawCvText,
-    cvText: cleanProfileText,
+    // GLOBAL ROUTER FIX: cvText/uploadedCvText/rawCvText must stay the original
+    // extracted CV text. The derived profile summary is useful for interview
+    // context, but feeding it back into CV rewrite routes caused education,
+    // skills, names, and prior generated CV blocks to leak into final resumes.
+    cvText: input.rawCvText,
     rawCvText: input.rawCvText,
     uploadedCvText: input.rawCvText,
-    resumeText: cleanProfileText,
-    candidateCv: cleanProfileText,
+    resumeText: input.rawCvText,
+    candidateCv: input.rawCvText,
+    profileText: cleanProfileText,
     content: input.rawCvText,
     resumeProfile: safeResumeProfile,
     profile: safeResumeProfile,
