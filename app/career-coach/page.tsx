@@ -66,14 +66,14 @@ export default function CareerCoachPage() {
       ) : (
         <div className="space-y-5">
           {/* Probability engine */}
-          {brain.probabilityEngine && (
+          {brain.probability && (
             <section className="rounded-2xl border border-line bg-fg/[0.03] p-5">
               <h2 className="text-sm font-black uppercase tracking-[0.18em] text-muted mb-4">Interview probability</h2>
               <div className="space-y-3">
                 {[
-                  { label: "Current profile", value: brain.probabilityEngine.currentProbability, color: "bg-warning" },
-                  { label: "After CV improvements", value: brain.probabilityEngine.afterCvImprovements, color: "bg-brand" },
-                  { label: "After interview prep", value: brain.probabilityEngine.afterInterviewPrep, color: "bg-success" },
+                  { label: "Current profile", value: brain.probability.current, color: "bg-warning" },
+                  { label: "After CV improvements", value: brain.probability.afterCv, color: "bg-brand" },
+                  { label: "After interview prep", value: brain.probability.afterPrep, color: "bg-success" },
                 ].map((row) => (
                   <div key={row.label}>
                     <div className="flex justify-between text-xs mb-1">
@@ -97,32 +97,32 @@ export default function CareerCoachPage() {
                 <div key={i} className="rounded-xl border border-warning/15 bg-canvas-soft p-3">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-sm font-black text-fg">{w.label}</p>
-                    <span className="text-[10px] font-black text-warning">seen {w.sessionCount}x</span>
+                    <span className="text-[10px] font-black text-warning">seen {w.count}x</span>
                   </div>
-                  <p className="text-xs leading-5 text-muted">{w.coachingNote}</p>
+                  <p className="text-xs leading-5 text-muted">{w.coachLine}</p>
                 </div>
               ))}
             </div>
           </section>
 
           {/* Career roadmap */}
-          {brain.careerRoadmap?.priorities?.length && (
+          {brain.roadmap?.length ? (
             <section className="rounded-2xl border border-line bg-fg/[0.03] p-5">
               <h2 className="text-sm font-black uppercase tracking-[0.18em] text-muted mb-4">Coaching priorities</h2>
               <div className="space-y-3">
-                {brain.careerRoadmap.priorities.map((p, i) => (
-                  <div key={i} className="flex gap-3">
+                {brain.roadmap.map((p, i) => (
+                  <div key={p.id || i} className="flex gap-3">
                     <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand/15 text-[10px] font-black text-brand">{i + 1}</div>
                     <div>
                       <p className="text-sm font-black text-fg">{p.title}</p>
                       <p className="text-xs leading-5 text-muted">{p.action}</p>
-                      {p.expectedGain && <p className="mt-0.5 text-[10px] font-black text-success">{p.expectedGain}</p>}
+                      {p.estimatedGain && <p className="mt-0.5 text-[10px] font-black text-success">{p.estimatedGain}</p>}
                     </div>
                   </div>
                 ))}
               </div>
             </section>
-          )}
+          ) : null}
 
           {/* Cross-feature actions */}
           {brain.crossFeatureActions?.length && (
