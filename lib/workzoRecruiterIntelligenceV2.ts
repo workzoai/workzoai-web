@@ -751,57 +751,66 @@ function makeReplyPersonaSpecific(reply: string, setup: RecruiterIntelligenceSet
 
 // ── Priority 5: JD Gap Engine ─────────────────────────────────────────────────
 
-const JD_SKILL_PATTERNS: Array<[RegExp, string]> = [
-  [/\bcustomer\s+success\b/i, "Customer Success"],
-  [/\bonboarding\b/i, "Customer Onboarding"],
-  [/\brenewal\b/i, "Renewals Management"],
-  [/\baccount\s+management\b/i, "Account Management"],
-  [/\bstakeholder\b/i, "Stakeholder Management"],
-  [/\bcsat\b|\bcustomer\s+satisfaction\b/i, "CSAT / Customer Satisfaction"],
-  [/\bnps\b/i, "NPS"],
-  [/\bsla\b/i, "SLA Management"],
-  [/\bactive\s+directory\b/i, "Active Directory"],
-  [/\bwindows\s+server\b/i, "Windows Server"],
-  [/\bnetwork(?:ing)?\b/i, "Networking"],
-  [/\bpowershell\b/i, "PowerShell"],
-  [/\bsql\b/i, "SQL"],
-  [/\bpython\b/i, "Python"],
-  [/\btableau\b/i, "Tableau"],
-  [/\bitil\b/i, "ITIL"],
-  [/\bitsm\b/i, "ITSM"],
-  [/\bcrm\b/i, "CRM"],
-  [/\bsalesforce\b/i, "Salesforce"],
-  [/\bdata\s+analysis\b|\bdata\s+analytics\b/i, "Data Analysis"],
-  [/\bproject\s+management\b/i, "Project Management"],
-  [/\bagile\b|\bscrum\b/i, "Agile / Scrum"],
-  [/\baws\b|\bamazon\s+web\s+services\b/i, "AWS"],
-  [/\bazure\b/i, "Microsoft Azure"],
-  [/\bapi\b/i, "API Integration"],
-  [/\breporting\b/i, "Reporting"],
-  [/\bpresent(?:ation)?\b/i, "Presentations"],
-  [/\bcommunic(?:ate|ation)\b/i, "Communication"],
-  [/\bleadership\b/i, "Leadership"],
-  [/\btraining\b/i, "Training & Coaching"],
-];
+// Generic, profession-agnostic requirement extraction — no hardcoded skill
+// vocabulary. Finds short requirement phrases in the JD text structurally,
+// via the trigger language job postings actually use ("experience with",
+// "knowledge of", "responsible for", "certified in", etc.) — the same way a
+// human reads a job posting, regardless of whether the role is software
+// engineering, nursing, law, teaching, or a trade.
+//
+// This replaces a closed list of ~30 tech/CSM-specific keywords
+// (Salesforce, AWS, SQL, ITIL, CSAT...) that matched almost nothing for any
+// profession outside tech/IT/customer-success — meaning a nurse's,
+// teacher's, or electrician's JD produced an empty or near-empty gap
+// analysis every time, not because they had no real skills gap, but
+// because the detector had no vocabulary for their field at all.
+const REQUIREMENT_TRIGGER_RE =
+  /\b(?:experience (?:with|in|of)|knowledge of|familiarity with|proficien(?:t|cy) (?:in|with)|skilled in|ability to|responsible for|understanding of|background in|certified in|licen[sc]ed (?:in|as|to)|trained in|expertise in|competen(?:t|cy) (?:in|with))\s+([a-z0-9][a-z0-9\s/&+.,'-]{2,60}?)(?=[.,;\n]|\s+and\s+(?:have\s+|be\s+|demonstrate\s+)?(?:experience|knowledge|familiarity|proficien|skilled|ability|responsible|understanding|background|certified|licen[sc]ed|trained|expertise|competen)|$)/gi;
+
+const JD_GAP_STOP_WORDS = new Set([
+  "the", "and", "or", "with", "a", "an", "of", "in", "to", "for", "on", "at",
+  "is", "are", "will", "our", "this", "that", "your", "you", "we", "as",
+  "including", "such", "etc", "role", "position", "candidate", "team",
+]);
+
+function extractRequirementPhrases(text: string): string[] {
+  const found: string[] = [];
+  const re = new RegExp(REQUIREMENT_TRIGGER_RE);
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    const phrase = match[1].trim().replace(/\s+/g, " ");
+    if (phrase.length >= 3 && phrase.length <= 60 && !found.includes(phrase)) found.push(phrase);
+    if (found.length >= 20) break;
+  }
+  return found;
+}
 
 function buildJdGapAnalysis(setup: RecruiterIntelligenceSetup): { matched: string[]; missing: string[] } {
   const jd = lower(setup.jobDescription || "");
   const cv = lower(setup.cvText || "");
   if (!jd) return { matched: [], missing: [] };
 
+  const requirements = extractRequirementPhrases(jd);
   const matched: string[] = [];
   const missing: string[] = [];
 
-  for (const [pattern, label] of JD_SKILL_PATTERNS) {
-    if (!pattern.test(jd)) continue; // Not in JD
-    if (pattern.test(cv)) {
+  for (const req of requirements) {
+    // A requirement "counts" as present if most of its core content words
+    // appear in the CV — a fuzzy match, not an exact phrase match, since a
+    // CV describes the same skill in its own words rather than echoing the
+    // JD's exact phrasing.
+    const words = req.split(/\s+/).filter((w) => w.length > 2 && !JD_GAP_STOP_WORDS.has(w));
+    if (!words.length) continue;
+    const presentCount = words.filter((w) => cv.includes(w)).length;
+    const label = req.replace(/\b\w/g, (m) => m.toUpperCase());
+    if (presentCount / words.length >= 0.5) {
       matched.push(label);
     } else {
       missing.push(label);
     }
   }
 
-  return { matched, missing };
+  return { matched: matched.slice(0, 10), missing: missing.slice(0, 8) };
 }
 
 function buildJdGapQuestion(missingSkill: string, setup: RecruiterIntelligenceSetup): string {

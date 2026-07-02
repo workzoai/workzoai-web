@@ -763,7 +763,7 @@ Trust and pressure:
 - Pressure: ${psychology.pressure}/100
 
 Candidate target:
-- Role: ${input.targetRole || "Unknown"}
+- Role: ${input.targetRole || "Not specified"}
 - Market: ${input.targetMarket || "Global"}
 - Company style: ${input.companyStyle || "Realistic"}
 
