@@ -33,12 +33,26 @@ function LoginContent() {
     (searchParams.get("plan") === "premium" ? "/billing/checkout?plan=premium" : null),
   );
   const error = searchParams.get("error");
+
+  // Raw error codes in the URL should never be shown to users verbatim
+  // ("auth_callback_failed" tells them nothing and looks broken).
+  const friendlyError = (code: string) => {
+    switch (code) {
+      case "auth_link_expired":
+        return "That sign-in link has expired or was already used. Enter your email below and we'll send you a fresh one.";
+      case "auth_link_invalid":
+      case "auth_callback_failed":
+        return "That sign-in link didn't work. Enter your email below and we'll send you a fresh one.";
+      default:
+        return code;
+    }
+  };
   const isPremiumCheckout = redirect.startsWith("/billing/checkout") || searchParams.get("checkout") === "1";
 
   const supabase = createSupabaseBrowserClient();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<LoginStatus>("idle");
-  const [errorMsg, setErrorMsg] = useState(error || "");
+  const [errorMsg, setErrorMsg] = useState(error ? friendlyError(error) : "");
 
   async function signInWithEmail(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

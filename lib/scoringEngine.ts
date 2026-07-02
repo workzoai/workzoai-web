@@ -1,3 +1,26 @@
+/**
+ * lib/scoringEngine.ts — FULL REPLACEMENT
+ *
+ * v3 ARCHITECTURE — STEP 17 (Scoring Engine)
+ *
+ * WHAT CHANGED vs original:
+ * The previous version scored answers by matching English keywords
+ * ("improved", "reduced", "increased"...). That is content-matching, not
+ * structural evaluation — and it silently zeroed the impact signal for every
+ * non-English interview, contradicting the multi-language requirement.
+ *
+ * This replacement scores STRUCTURE, which is language-neutral:
+ *   - quantification: digits, percentages, currency, ranges
+ *   - specificity: proper-noun density, dates/durations
+ *   - development: answer length in words (unicode-aware), sentence count
+ *   - vagueness: filler ratio via repetition + very short sentences
+ *
+ * The signature is kept API-compatible (evaluateAnswerScore, ScoringResult)
+ * so every existing call site works unchanged. Scores remain internal —
+ * the recruiter never argues with the candidate (weak answers reduce scores
+ * silently; the ledger's pivot rule limits probing).
+ */
+
 type ScoringInput = {
   candidateAnswer: string;
   targetRole: string;
@@ -13,107 +36,83 @@ export type ScoringResult = {
   recruiterTrust: number;
 };
 
-function clampScore(value: number) {
-  return Math.max(0, Math.min(100, value));
+function clamp(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-export function evaluateAnswerScore({
-  candidateAnswer,
-  targetRole,
-}: ScoringInput): ScoringResult {
-  const lower = candidateAnswer.toLowerCase();
+// Unicode-aware word split — counts words in any alphabetic script.
+function words(text: string): string[] {
+  return (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’\-+#./]*/gu) || []);
+}
 
-  const hasNumbers = /\d/.test(candidateAnswer);
-  const isLongEnough = candidateAnswer.length >= 120;
-  const isTooShort = candidateAnswer.length < 60;
+function sentences(text: string): string[] {
+  return text.split(/[.!?。！？]+/).map((s) => s.trim()).filter((s) => s.length > 0);
+}
 
-  const impactWords =
-    lower.includes("improved") ||
-    lower.includes("reduced") ||
-    lower.includes("increased") ||
-    lower.includes("resolved") ||
-    lower.includes("saved") ||
-    lower.includes("automated") ||
-    lower.includes("optimized") ||
-    lower.includes("delivered");
+/** Digits, %, currency symbols, and number-range structures. */
+function quantificationSignal(text: string): number {
+  const numbers = (text.match(/\d+(?:[.,]\d+)?/g) || []).length;
+  const pct = (text.match(/\d\s?%|percent|prozent|por ciento|pour cent/gi) || []).length;
+  const currency = (text.match(/[€$£¥₹]\s?\d|\d\s?(?:eur|usd|gbp)/gi) || []).length;
+  return Math.min(1, (numbers * 0.15) + (pct * 0.25) + (currency * 0.25));
+}
 
-  const vagueWords =
-    lower.includes("hardworking") ||
-    lower.includes("passionate") ||
-    lower.includes("quick learner") ||
-    lower.includes("team player");
+/** Mid-sentence capitalised tokens + date/duration structures. */
+function specificitySignal(text: string): number {
+  const ws = words(text);
+  if (ws.length < 5) return 0;
+  let proper = 0;
+  for (let i = 1; i < ws.length; i++) {
+    const w = ws[i];
+    const prevEndsSentence = /[.!?]$/.test(ws[i - 1]);
+    if (!prevEndsSentence && /^\p{Lu}\p{Ll}+/u.test(w)) proper++;
+  }
+  const dates = (text.match(/\b(19|20)\d{2}\b|\b\d+\s*(?:months?|years?|weeks?|monat|jahr|mois|ans?|meses?|años?|anni|jaar|jaren)\b/gi) || []).length;
+  return Math.min(1, proper / Math.max(8, ws.length / 6) + dates * 0.15);
+}
 
-  const roleWords = targetRole
-    .toLowerCase()
-    .split(" ")
-    .filter((word) => word.length > 2);
+/** Repetition of identical tokens as a language-neutral vagueness proxy. */
+function repetitionPenalty(text: string): number {
+  const ws = words(text.toLowerCase()).filter((w) => w.length >= 4);
+  if (ws.length < 10) return 0;
+  const counts = new Map<string, number>();
+  for (const w of ws) counts.set(w, (counts.get(w) || 0) + 1);
+  let repeats = 0;
+  for (const n of counts.values()) if (n >= 4) repeats += n - 3;
+  return Math.min(0.4, repeats / ws.length);
+}
 
-  const roleMatch = roleWords.some((word) => lower.includes(word));
+export function evaluateAnswerScore({ candidateAnswer }: ScoringInput): ScoringResult {
+  const text = (candidateAnswer || "").trim();
+  const ws = words(text);
+  const sents = sentences(text);
 
-  const technicalSignals =
-    lower.includes("sql") ||
-    lower.includes("python") ||
-    lower.includes("api") ||
-    lower.includes("dashboard") ||
-    lower.includes("model") ||
-    lower.includes("cloud") ||
-    lower.includes("data") ||
-    lower.includes("analysis");
+  const wordCount = ws.length;
+  const isTooShort = wordCount < 12;
+  const isDeveloped = wordCount >= 40;
+  const isVeryDeveloped = wordCount >= 90;
 
-  const confidence = clampScore(
-    55 +
-      (isLongEnough ? 15 : 0) +
-      (hasNumbers ? 10 : 0) -
-      (isTooShort ? 18 : 0) -
-      (vagueWords ? 10 : 0)
-  );
+  const quant = quantificationSignal(text);          // 0–1
+  const specific = specificitySignal(text);          // 0–1
+  const repPenalty = repetitionPenalty(text);        // 0–0.4
+  const avgSentenceLen = sents.length ? wordCount / sents.length : wordCount;
+  const structured = sents.length >= 2 && avgSentenceLen >= 6 && avgSentenceLen <= 35;
 
-  const clarity = clampScore(
-    58 +
-      (isLongEnough ? 10 : 0) +
-      (hasNumbers ? 12 : 0) -
-      (isTooShort ? 20 : 0) -
-      (vagueWords ? 12 : 0)
-  );
+  const base =
+    (isTooShort ? 30 : 55) +
+    (isDeveloped ? 10 : 0) +
+    (isVeryDeveloped ? 5 : 0) +
+    (structured ? 8 : 0) -
+    repPenalty * 40;
 
-  const relevance = clampScore(
-    55 +
-      (roleMatch ? 20 : 0) +
-      (impactWords ? 12 : 0) +
-      (technicalSignals ? 8 : 0) -
-      (vagueWords ? 12 : 0)
-  );
-
-  const technicalDepth = clampScore(
-    45 +
-      (technicalSignals ? 25 : 0) +
-      (hasNumbers ? 10 : 0) +
-      (impactWords ? 8 : 0)
-  );
-
-  const measurableImpact = clampScore(
-    40 +
-      (hasNumbers ? 30 : 0) +
-      (impactWords ? 25 : 0) -
-      (vagueWords ? 10 : 0)
-  );
-
-  const communication = clampScore(
-    60 +
-      (isLongEnough ? 10 : 0) -
-      (isTooShort ? 15 : 0) -
-      (vagueWords ? 10 : 0)
-  );
-
-  const recruiterTrust = clampScore(
-    Math.round(
-      confidence * 0.2 +
-        clarity * 0.2 +
-        relevance * 0.2 +
-        technicalDepth * 0.15 +
-        measurableImpact * 0.15 +
-        communication * 0.1
-    )
+  const measurableImpact = clamp(base * 0.5 + quant * 55 + specific * 15);
+  const clarity = clamp(base + (structured ? 8 : -5) - (avgSentenceLen > 40 ? 10 : 0));
+  const relevance = clamp(base + specific * 20);
+  const technicalDepth = clamp(base * 0.7 + specific * 25 + quant * 15);
+  const communication = clamp(base + (structured ? 10 : 0) - repPenalty * 30);
+  const confidence = clamp(base + (isTooShort ? -15 : 5) + quant * 10);
+  const recruiterTrust = clamp(
+    0.3 * measurableImpact + 0.25 * relevance + 0.25 * communication + 0.2 * clarity,
   );
 
   return {

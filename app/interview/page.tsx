@@ -6012,6 +6012,16 @@ function InterviewPageInner() {
               interest: recruiterSignalRef.current?.interest,
             },
             recruiterMemoryV2: recruiterMemoryV2Ref.current || undefined,
+            // Interview Engine v3 — browser/text engine only. Tell the server
+            // to enter its closing state machine once the UI has reached the
+            // wrap-up phase. This is NOT a raw timer: it reuses the same
+            // phase signals the sidebar stepper already uses, so there is one
+            // notion of "we're wrapping up", not a competing timer.
+            // Live Vapi voice sessions never reach this fetch, so their
+            // transcript-based closing is untouched.
+            wrapUpRequested:
+              closingInvitationSeenRef.current ||
+              questionIndexRef.current >= 12,
           }),
         });
 
@@ -6026,6 +6036,16 @@ function InterviewPageInner() {
         ) {
           if (data.recruiterMemoryV2) {
             recruiterMemoryV2Ref.current = data.recruiterMemoryV2;
+          }
+          // v3: record the server's closing verdict so the EXISTING closing
+          // effect can act on it. We do not end the interview here — that
+          // stays the single responsibility of the closing useEffect /
+          // endInterview flow, preventing a split-brain ending.
+          if (typeof data.interviewComplete === "boolean") {
+            serverInterviewCompleteRef.current = data.interviewComplete;
+          }
+          if (typeof data.closingPhase === "string") {
+            serverClosingPhaseRef.current = data.closingPhase;
           }
           if (
             data.provider &&
@@ -6969,21 +6989,30 @@ function InterviewPageInner() {
         vapiConnectedRef.current = false;
         setPremiumVoiceStatus("failed");
         setPremiumVoiceError(
-          "The live voice connection dropped. Your answers so far have been saved — please end the session and start a new one to continue.",
+          "The live voice connection dropped near the end. Your answers have been saved and the interview is being closed properly.",
         );
 
-        const apologyLine =
-          "I'm sorry, it looks like our connection just dropped. I have everything you've shared so far saved. Let's pick this back up properly: please start a new session to continue.";
+        // IMPORTANT UX FIX: never tell the candidate to start a new session
+        // after a long interview. In real testing, Vapi sometimes drops while
+        // the recruiter is answering the candidate's closing question. The old
+        // fallback line said "connection dropped... start a new session", which
+        // felt like a broken product and erased the psychological closure of the
+        // interview. Once we already have substantive answers, close the
+        // interview warmly, save the transcript, and send the user to results.
+        const candidateFirst = safeFirstName(activeSetup.candidateName);
+        const gracefulCloseLine = candidateFirst
+          ? `Thanks, ${candidateFirst}. I have everything I need from today's interview. That brings us to the end of our session. Thank you for taking the time to speak with me — you'll now receive your feedback and results. Take care.`
+          : "Thanks. I have everything I need from today's interview. That brings us to the end of our session. Thank you for taking the time to speak with me — you'll now receive your feedback and results. Take care.";
 
         addTranscript({
           role: "recruiter",
           speaker: `${activeSetup.recruiterName} · ${activeSetup.recruiterTitle}`,
-          text: apologyLine,
+          text: gracefulCloseLine,
         });
 
         stopRequestedRef.current = true;
         setStatus("ended");
-        window.setTimeout(() => { endInterview(); }, 1500);
+        window.setTimeout(() => { endInterview(); }, 4500);
         return;
       }
 
@@ -7195,6 +7224,34 @@ function InterviewPageInner() {
             stopRequestedRef.current = true;
             setStatus("ended");
             window.setTimeout(() => { endInterview(); }, 700);
+            return;
+          }
+
+          // If the live call ends after a meaningful interview but before the
+          // assistant manages to say a clean goodbye, do not leave the user on
+          // an idle/failed state. Append a short human closing line and save.
+          // This fixes sessions where the recruiter asks "Do you have any
+          // questions?", starts answering, then Vapi/Daily drops before the
+          // final goodbye.
+          const closingInvitationAlreadyAsked = savedTranscript.some(
+            (item) =>
+              item.role === "recruiter" &&
+              /do you have any questions|any questions for me|questions about the role|next steps/i.test(item.text),
+          );
+          if (candidateAnswers >= 4 && (closingInvitationAlreadyAsked || questionIndexRef.current >= 10)) {
+            const candidateFirst = safeFirstName(activeSetup.candidateName);
+            const gracefulCloseLine = candidateFirst
+              ? `Thanks, ${candidateFirst}. I have everything I need from today's interview. That brings us to the end of our session. Thank you for taking the time to speak with me — you'll now receive your feedback and results. Take care.`
+              : "Thanks. I have everything I need from today's interview. That brings us to the end of our session. Thank you for taking the time to speak with me — you'll now receive your feedback and results. Take care.";
+
+            addTranscript({
+              role: "recruiter",
+              speaker: `${activeSetup.recruiterName} · ${activeSetup.recruiterTitle}`,
+              text: gracefulCloseLine,
+            });
+            stopRequestedRef.current = true;
+            setStatus("ended");
+            window.setTimeout(() => { endInterview(); }, 2500);
             return;
           }
 
@@ -8054,6 +8111,12 @@ function InterviewPageInner() {
   // in-progress answer is never cut off unfinished.
   const closingInvitationSeenRef = useRef(false);
   const closingHandledRef = useRef(false);
+  // v3 server closing signals (browser/text engine path). The server's
+  // closing state machine sets interviewComplete once it has delivered the
+  // closing beats; the closing effect below treats that as one more valid
+  // trigger, alongside the existing transcript detection.
+  const serverInterviewCompleteRef = useRef(false);
+  const serverClosingPhaseRef = useRef<string>("active");
   // Vapi must not be stopped just because the UI progress is high or because
   // a closing-looking phrase appears while the candidate is still speaking.
   // We mark that a real closing was heard, then wait for Vapi/Daily to emit
@@ -8153,6 +8216,32 @@ function InterviewPageInner() {
       return;
     }
 
+    // ── v3 server-driven close (browser/text engine only) ──────────────
+    // When the server's closing state machine reports the interview is
+    // complete, honor it through the SAME endInterview path used below.
+    // Guarded so it can never fire for a live Vapi session (those never
+    // hit /api/interview/reply and manage their own closing) and never
+    // double-fires with the transcript triggers via closingHandledRef.
+    const isLiveVapiForV3 = vapiConnectedRef.current || premiumVoiceStatus === "connected";
+    if (
+      !isLiveVapiForV3 &&
+      serverInterviewCompleteRef.current &&
+      !closingHandledRef.current &&
+      last.role === "recruiter"
+    ) {
+      // The server already generated and returned the closing speech as
+      // this turn's reply (closing_delivered phase), so it has just been
+      // spoken. We only need to finalise: stop the loop and navigate.
+      closingHandledRef.current = true;
+      closingInvitationSeenRef.current = false;
+      stopRequestedRef.current = true;
+      stopListening();
+      setStatus("ended");
+      // Give the just-spoken closing line time to finish before navigating.
+      window.setTimeout(() => { endInterview(); }, 4000);
+      return;
+    }
+
     const candidateExchangeAfterInvitation =
       closingInvitationSeenRef.current && last.role === "candidate";
     // forcedCloseDueToStuckLoop: emergency exit ONLY.
@@ -8217,6 +8306,7 @@ function InterviewPageInner() {
     addTranscript,
     endInterview,
     stopListening,
+    premiumVoiceStatus,
   ]);
 
   const toggleMic = useCallback(() => {

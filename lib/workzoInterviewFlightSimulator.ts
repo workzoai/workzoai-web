@@ -152,7 +152,25 @@ function hasCompany(setup: Record<string, unknown>) {
 
 export function getWorkZoSimulationPersona(setup: Record<string, unknown>): WorkZoSimulationPersona {
   const recruiterId = safe(setup.recruiterId, "friendly_hr").toLowerCase();
-  const base = DEFAULT_PERSONAS[recruiterId] || DEFAULT_PERSONAS.friendly_hr;
+
+  // "german_corporate" is the app-wide id; this map historically used
+  // "corporate_recruiter" for the same persona.
+  const mapped =
+    DEFAULT_PERSONAS[recruiterId] ||
+    (recruiterId === "german_corporate" ? DEFAULT_PERSONAS.corporate_recruiter : undefined);
+
+  // Persona not in this map (all premium/pro personas: Alex Chen, Zoe Park,
+  // Victoria Stern, James Harrington, Aisha, David Kimura, ...). Previously
+  // this silently fell back to friendly_hr, so the waiting-room countdown
+  // showed "Sarah Chen" no matter which recruiter the user selected. Build
+  // the persona from the recruiterName/recruiterTitle already present in the
+  // setup instead, keeping friendly_hr only for behavioral defaults.
+  const base: WorkZoSimulationPersona = mapped || {
+    ...DEFAULT_PERSONAS.friendly_hr,
+    id: recruiterId,
+    name: safe(setup.recruiterName, DEFAULT_PERSONAS.friendly_hr.name),
+    title: safe(setup.recruiterTitle, DEFAULT_PERSONAS.friendly_hr.title),
+  };
   const targetCompany = safe(setup.targetCompany);
 
   if (!targetCompany) return base;

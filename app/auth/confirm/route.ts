@@ -1,7 +1,26 @@
 import { NextResponse } from "next/server";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentWorkZoUserSubscription } from "@/lib/workzoSubscription";
 import { normalizeWorkZoPlan } from "@/lib/workzoPlanLimits";
+
+// Magic-link confirmation via token_hash + verifyOtp.
+//
+// WHY THIS EXISTS: the old /auth/callback flow uses PKCE code exchange, which
+// requires the code_verifier cookie stored in the browser that REQUESTED the
+// link. Users who request the link on the site and then tap it inside Gmail /
+// Outlook open it in a different browser context with no verifier cookie —
+// exchangeCodeForSession fails and they see auth_callback_failed.
+//
+// verifyOtp with token_hash needs no cookie from the requesting browser, so
+// the link works no matter where it is opened.
+//
+// REQUIRES a Supabase email template change (Dashboard → Authentication →
+// Email Templates → Magic Link):
+//   <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/onboarding">Sign in</a>
+//
+// /auth/callback stays in place unchanged for Google OAuth, which is a
+// same-browser redirect and unaffected by this problem.
 
 function sanitizeRedirect(value: string | null) {
   if (!value) return "/onboarding";
@@ -29,27 +48,36 @@ function readAfterLoginCookie(request: Request) {
   }
 }
 
+const VALID_OTP_TYPES: EmailOtpType[] = ["email", "magiclink", "signup", "invite", "recovery", "email_change"];
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
-  const code = requestUrl.searchParams.get("code");
-  const error = requestUrl.searchParams.get("error");
+  const tokenHash = requestUrl.searchParams.get("token_hash");
+  const typeParam = requestUrl.searchParams.get("type") || "email";
   const redirectParam = requestUrl.searchParams.get("next") || requestUrl.searchParams.get("redirect");
   const cookieRedirect = readAfterLoginCookie(request);
 
   const redirectPath = sanitizeRedirect(redirectParam || cookieRedirect || "/onboarding");
-  const loginErrorUrl = new URL("/login?error=auth_callback_failed", requestUrl.origin);
+  const loginErrorUrl = new URL("/login?error=auth_link_invalid", requestUrl.origin);
 
-  if (error || !code) {
+  if (!tokenHash) {
     return NextResponse.redirect(loginErrorUrl);
   }
 
+  const type = (VALID_OTP_TYPES.includes(typeParam as EmailOtpType) ? typeParam : "email") as EmailOtpType;
+
   try {
     const supabase = await createSupabaseServerClient();
-    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+    const { error: verifyError } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
 
-    if (exchangeError) {
-      console.error("Supabase auth callback exchange failed:", exchangeError.message);
-      return NextResponse.redirect(loginErrorUrl);
+    if (verifyError) {
+      // Expired and already-used links land here — give the user a hint that
+      // requesting a fresh link will work, instead of a generic failure.
+      console.error("[auth/confirm] verifyOtp failed:", verifyError.message);
+      const expired = /expired|invalid/i.test(verifyError.message || "");
+      return NextResponse.redirect(
+        new URL(`/login?error=${expired ? "auth_link_expired" : "auth_link_invalid"}`, requestUrl.origin),
+      );
     }
 
     const destination = new URL(redirectPath, requestUrl.origin);
@@ -67,8 +95,8 @@ export async function GET(request: Request) {
     });
 
     return response;
-  } catch (callbackError) {
-    console.error("WorkZo auth callback failed:", callbackError);
+  } catch (confirmError) {
+    console.error("[auth/confirm] failed:", confirmError);
     return NextResponse.redirect(loginErrorUrl);
   }
 }
