@@ -3,6 +3,34 @@
 import { getWorkZoDevPlanOverride } from "@/lib/workzoUsageTracker";
 import { normalizeWorkZoPlan } from "@/lib/workzoPlanLimits";
 
+// Best-effort cache of the signed-in user's email, so every analytics event
+// can carry it automatically — the same way `plan` and `devOverrideActive`
+// already are. Without this, the founder-analytics internal-email exclusion
+// filter (FOUNDER_ANALYTICS_INTERNAL_EMAILS) has nothing to check against
+// unless every single trackWorkZoEvent() call site remembers to pass email
+// manually, which in practice almost none of them did — meaning the
+// founder's own real account activity (which has a genuine, permanent plan
+// in the DB, not a temporary dev-tools override) was leaking into
+// production metrics with no way for the filter to catch it.
+//
+// getSession() is used instead of getUser() because it reads the persisted
+// session locally (no network round-trip), keeping this fully non-blocking.
+// undefined = not yet resolved this page load; null = resolved, signed out.
+let cachedUserEmail: string | null | undefined = undefined;
+
+function resolveAndCacheUserEmail() {
+  if (cachedUserEmail !== undefined || typeof window === "undefined") return;
+  cachedUserEmail = null; // Claim immediately so concurrent calls don't all kick off a fetch.
+  import("@/lib/supabase/client")
+    .then(({ createSupabaseBrowserClient }) => createSupabaseBrowserClient().auth.getSession())
+    .then(({ data }) => {
+      cachedUserEmail = data?.session?.user?.email || null;
+    })
+    .catch(() => {
+      cachedUserEmail = null;
+    });
+}
+
 export type WorkZoEventName =
   | "page_view"
   | "cv_uploaded"
@@ -224,6 +252,12 @@ export function trackWorkZoEvent(payload: WorkZoAnalyticsPayload) {
   const plan = currentPlanForAnalytics();
   const devOverrideActive = Boolean(getWorkZoDevPlanOverride());
 
+  // Kick off (or reuse) the background email lookup. Whatever's cached so
+  // far gets attached below — it may be undefined for the very first event
+  // of a page load, but will be populated for every event after that.
+  resolveAndCacheUserEmail();
+  const email = cachedUserEmail || undefined;
+
   const body = {
     ...payload,
     visitorId,
@@ -240,7 +274,7 @@ export function trackWorkZoEvent(payload: WorkZoAnalyticsPayload) {
     deployment: process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.VERCEL_ENV || null,
     userAgent: navigator.userAgent,
     timestamp: new Date().toISOString(),
-    metadata: { ...cleanMetadata(payload.metadata), plan, devOverrideActive },
+    metadata: { ...cleanMetadata(payload.metadata), plan, devOverrideActive, email },
   };
 
   storeLocalAnalyticsEvent(body);

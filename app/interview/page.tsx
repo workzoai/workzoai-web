@@ -50,6 +50,8 @@ import {
   type WorkZoEmotionalMemory,
   type WorkZoRecruiterVisualState,
 } from "@/lib/workzoPremiumExperienceEngine";
+import { fetchWorkZoAiLiveReaction } from "@/lib/workzoLiveReactionAi";
+import { readCareerMemory, buildWorkZoProOpeningCallback } from "@/lib/workzoCareerMemory";
 import { detectShareableMoment } from "@/lib/shareableMoments";
 
 import {
@@ -5123,6 +5125,49 @@ function InterviewPageInner() {
     "free" | "premium" | "premium_pro"
   >("free");
   const [planLoading, setPlanLoading] = useState(true);
+
+  // Server plan mirrored into a ref so stable callbacks (empty dependency
+  // arrays, e.g. the Vapi transcript handler) can read the CURRENT plan
+  // without re-creating themselves on every plan fetch.
+  const serverPlanRef = useRef<"free" | "premium" | "premium_pro">("free");
+  useEffect(() => {
+    serverPlanRef.current = serverPlan;
+  }, [serverPlan]);
+
+  // LLM-graded live reaction (paid plans). The heuristic reaction from
+  // getWorkZoLiveReaction() is applied instantly at every call site; this
+  // upgrades it ~1-2s later with a reaction that quotes the candidate's
+  // actual words. The sequence guard ensures a slow response for answer N
+  // never overwrites the reaction already shown for answer N+1.
+  const aiReactionSeqRef = useRef(0);
+  const requestAiLiveReaction = useCallback((answer: string) => {
+    if (serverPlanRef.current === "free") return; // heuristic stays; no LLM cost on free
+    const seq = ++aiReactionSeqRef.current;
+    void fetchWorkZoAiLiveReaction(answer, {
+      targetRole: setupRef.current?.targetRole,
+    }).then((reaction) => {
+      if (!reaction) return; // keep heuristic reaction on any failure
+      if (seq !== aiReactionSeqRef.current) return; // superseded by newer answer
+      setRecruiterVisualState(reaction.visualState);
+      setRecruiterNoteText(reaction.noteText || "");
+      setLiveReactionText(reaction.text);
+    });
+  }, []);
+
+  // Premium Pro: one line at the start of the session proving the coach
+  // remembers the last one. English-only (career memory coach lines are
+  // English); other languages keep the clean localized greeting untouched.
+  const withProOpeningCallback = useCallback((greeting: string, setup: InterviewSetup) => {
+    try {
+      if (serverPlanRef.current !== "premium_pro") return greeting;
+      const languageCode = normalizeInterviewLanguage(setup.language).code.toLowerCase();
+      if (!languageCode.startsWith("en")) return greeting;
+      const callback = buildWorkZoProOpeningCallback(readCareerMemory());
+      return callback ? `${greeting} ${callback}` : greeting;
+    } catch {
+      return greeting;
+    }
+  }, []);
   // Technical mode: premium/premium_pro only
   const isTechnicalRecruiter = (id: string) =>
     id === "faang_hiring_manager" || id === "alex" || id.includes("faang");
@@ -6106,6 +6151,7 @@ function InterviewPageInner() {
           setRecruiterVisualState(reaction.visualState);
           setRecruiterNoteText(reaction.noteText || "");
           setLiveReactionText(reaction.text);
+          requestAiLiveReaction(answer);
           const nextEmoMem = updateWorkZoEmotionalMemory(
             emotionalMemoryRef.current,
             answer,
@@ -6453,6 +6499,7 @@ function InterviewPageInner() {
       setRecruiterVisualState(reaction.visualState);
       setRecruiterNoteText(reaction.noteText || "");
       setLiveReactionText(reaction.text);
+      requestAiLiveReaction(answer);
       const nextEmoMem = updateWorkZoEmotionalMemory(
         emotionalMemoryRef.current,
         answer,
@@ -6751,6 +6798,7 @@ function InterviewPageInner() {
         const reaction = getWorkZoLiveReaction(answer);
         setRecruiterVisualState(reaction.visualState);
         setRecruiterNoteText(reaction.noteText || "");
+        requestAiLiveReaction(answer);
         setEmotionalMemory((prev) => {
           const updated = updateWorkZoEmotionalMemory(prev, answer);
           emotionalMemoryRef.current = updated;
@@ -6870,6 +6918,7 @@ function InterviewPageInner() {
     setRecruiterVisualState(reaction.visualState);
     setRecruiterNoteText(reaction.noteText || "");
     setLiveReactionText(reaction.text);
+    requestAiLiveReaction(answer);
     const nextEmoMem = updateWorkZoEmotionalMemory(
       emotionalMemoryRef.current,
       answer,
@@ -6950,7 +6999,7 @@ function InterviewPageInner() {
 
       window.setTimeout(() => {
         setQuestionIndex(1);
-        speakRecruiter(localizedOpeningQuestion(activeSetup));
+        speakRecruiter(withProOpeningCallback(localizedOpeningQuestion(activeSetup), activeSetup));
       }, 120);
     },
     [speakRecruiter, addTranscript],
@@ -7293,7 +7342,7 @@ function InterviewPageInner() {
         const variableValues = buildWorkZoVapiVariableValues({
           language: selectedLanguage.code,
           languageLabel: selectedLanguage.label,
-          openingGreeting: buildLocalizedGreeting(activeSetup),
+          openingGreeting: withProOpeningCallback(buildLocalizedGreeting(activeSetup), activeSetup),
           openingIntroQuestion: buildLocalizedIntroQuestion(activeSetup),
           candidateName: safePromptCandidateName(activeSetup.candidateName),
           recruiterName: activeSetup.recruiterName,

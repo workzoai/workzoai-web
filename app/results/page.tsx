@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { trackWorkZoLaunchEvent } from "@/lib/workzoLaunchAnalytics";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -50,6 +51,7 @@ import {
   type WorkZoSkillDrill,
   type WorkZoWhatTheyHeard,
 } from "@/lib/workzoHiringCommitteeEngine";
+import { buildWorkZoVerdictEmail, type WorkZoVerdictEmail } from "@/lib/workzoVerdictEmail";
 
 type TranscriptTurn = {
   role?: string;
@@ -184,6 +186,7 @@ type RichReport = {
   missedOpportunities: string[];
   recruiterSummary: string;
   hiringCommittee: WorkZoHiringCommitteeMemo;
+  verdictEmail: WorkZoVerdictEmail;
   shadowScores: WorkZoShadowScore[];
   whatTheyHeard: WorkZoWhatTheyHeard[];
   targetedDrills: WorkZoSkillDrill[];
@@ -1214,6 +1217,15 @@ function buildRichReport(result: StoredResult, isPremium: boolean, jobDescriptio
     redFlags,
     contradictions,
   });
+  // The email this performance would have earned. Deterministic — derived
+  // from the committee memo so email and memo can never disagree.
+  const verdictEmail = buildWorkZoVerdictEmail({
+    memo: hiringCommittee,
+    candidateName: cleanText((result as Record<string, unknown>).candidateName as string | undefined),
+    roleLabel,
+    companyLabel,
+    recruiterName,
+  });
   const shadowScores = buildShadowScores({
     trustScore,
     evidenceQuality,
@@ -1313,6 +1325,7 @@ function buildRichReport(result: StoredResult, isPremium: boolean, jobDescriptio
       biggestBlocker,
     }),
     hiringCommittee,
+    verdictEmail,
     shadowScores,
     whatTheyHeard,
     targetedDrills,
@@ -1359,6 +1372,52 @@ function HiringCommitteeMemoCard({ memo }: { memo: WorkZoHiringCommitteeMemo }) 
           <div className="mt-2 space-y-1">{memo.nextRoundFocus.map((item) => <p key={item} className="rounded-lg bg-brand/10 px-2.5 py-1.5 text-xs leading-5 text-muted">{item}</p>)}</div>
         </div>
       </div>
+    </section>
+  );
+}
+
+function VerdictEmailCard({ email }: { email: WorkZoVerdictEmail }) {
+  const tone =
+    email.kind === "offer"
+      ? { border: "border-success/25", chip: "bg-success/15 text-success", label: "The email you would have received" }
+      : email.kind === "next_round"
+        ? { border: "border-brand/25", chip: "bg-brand/15 text-brand", label: "The email you would have received" }
+        : { border: "border-danger/25", chip: "bg-danger/15 text-danger", label: "The email you would have received" };
+
+  return (
+    <section className={cn("mt-4 rounded-2xl border bg-fg/[0.035] p-5", tone.border)}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted">{tone.label}</p>
+        <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em]", tone.chip)}>
+          {email.kind === "offer" ? "Offer stage" : email.kind === "next_round" ? "Next round" : "Rejection"}
+        </span>
+      </div>
+
+      <div className="mt-3 rounded-2xl border border-line bg-canvas-soft p-4">
+        <div className="border-b border-line pb-3">
+          <p className="text-xs text-muted">
+            From: <span className="font-bold text-fg">{email.senderName}</span> · {email.senderTitle}
+          </p>
+          <p className="mt-1 text-sm font-black text-fg">Subject: {email.subject}</p>
+        </div>
+        <div className="mt-3 space-y-3">
+          <p className="text-sm leading-6 text-fg">{email.greeting}</p>
+          {email.paragraphs.map((paragraph) => (
+            <p key={paragraph} className="text-sm leading-6 text-fg">{paragraph}</p>
+          ))}
+          <p className="text-sm leading-6 text-fg">{email.signOff}</p>
+          <p className="text-sm font-bold leading-6 text-fg">{email.senderName}</p>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-warning/25 bg-warning/[0.08] p-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-warning">{email.decidingFactorLabel}</p>
+        <p className="mt-1.5 text-sm leading-6 text-fg">{email.decidingFactor}</p>
+      </div>
+
+      <p className="mt-2 text-[10px] leading-4 text-muted">
+        Generated from this session&apos;s hiring committee decision — this is the outcome this performance would have earned, not a real employer email.
+      </p>
     </section>
   );
 }
@@ -2290,6 +2349,11 @@ export default function ResultsPage() {
   const [careerBrain, setCareerBrain] = useState<PhaseCCareerBrain | null>(null);
   const [sessionsRemaining, setSessionsRemaining] = useState(1);
   const reportGate = useWorkZoAdvancedReportGate();
+  // Guards results_viewed from firing more than once per mount. This event
+  // had no call site anywhere in the codebase before this fix — the
+  // dashboard's "Results viewed" number was reading only stale historical
+  // rows from before a past refactor removed whatever used to fire it.
+  const resultsViewedTrackedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -2310,6 +2374,11 @@ export default function ResultsPage() {
       setResult(sourceResult);
       setSetupContext(storedSetup);
       setLoadState(nextLoadState);
+
+      if (nextLoadState !== "empty" && !resultsViewedTrackedRef.current) {
+        resultsViewedTrackedRef.current = true;
+        trackWorkZoLaunchEvent({ event: "results_viewed" });
+      }
 
       try {
         const premiumNow = reportGate.allowed;
@@ -2522,6 +2591,7 @@ export default function ResultsPage() {
         )}
 
         <HiringCommitteeMemoCard memo={report.hiringCommittee} />
+        <VerdictEmailCard email={report.verdictEmail} />
         <ShadowScoreSection scores={report.shadowScores} />
 
         <section className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">

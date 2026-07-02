@@ -575,6 +575,15 @@ export default function OnboardingPage() {
   const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
   const [uploading, setUploading] = useState(false);
   const uploadInFlightRef = useRef(false);
+  // Guards cv_uploaded from firing more than once for the same upload. The
+  // event used to only fire from persist() (called on navigating forward),
+  // which meant: (1) a user who uploaded a CV and then abandoned the flow
+  // before persist() ran was never counted at all, undercounting real
+  // uploads, and (2) once handleCvUpload also tracks the event immediately
+  // on parse success, persist()'s check would otherwise fire it AGAIN for
+  // the same CV (it sets manualCv too), double-counting. This ref makes
+  // whichever path completes first "win" and suppresses the other.
+  const cvUploadTrackedRef = useRef(false);
   const [uploadError, setUploadError] = useState("");
   const [fileName, setFileName] = useState("");
   const [manualCv, setManualCv] = useState("");
@@ -738,7 +747,8 @@ export default function OnboardingPage() {
   async function persist() {
     const cvText = effectiveCvText.trim();
     const jdText = jobDescription.trim();
-    if (cvText) {
+    if (cvText && !cvUploadTrackedRef.current) {
+      cvUploadTrackedRef.current = true;
       trackWorkZoLaunchEvent({ event: "cv_uploaded", role, market, recruiter: recruiterLabel(recruiter) });
       recordWorkZoCvUploaded({ role, market }); // also sends to usage_events (works on localhost)
     }
@@ -790,6 +800,7 @@ export default function OnboardingPage() {
     if (!file) return;
     if (uploadInFlightRef.current) return;
     uploadInFlightRef.current = true;
+    cvUploadTrackedRef.current = false; // a new file selection is a new upload attempt
     setFileName(file.name);
     setUploading(true);
     setUploadError("");
@@ -830,6 +841,16 @@ export default function OnboardingPage() {
       saveCanonicalProfile(profile, rawCvText, file.name);
       lockInterviewLanguage(interviewLanguage);
       // ─────────────────────────────────────────────────────────────────────
+
+      // Track the upload here — at the moment it genuinely succeeds — rather
+      // than only from persist() when the user reaches the next step. A user
+      // who uploads successfully and then abandons the flow before clicking
+      // Continue still had a real, successful upload; it should count.
+      if (!cvUploadTrackedRef.current) {
+        cvUploadTrackedRef.current = true;
+        trackWorkZoLaunchEvent({ event: "cv_uploaded", role, market, recruiter: recruiterLabel(recruiter) });
+        recordWorkZoCvUploaded({ role, market });
+      }
 
       setManualCv(rawCvText);
       const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || profile.basics.headline || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });

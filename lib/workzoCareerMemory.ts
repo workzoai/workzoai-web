@@ -451,3 +451,52 @@ function buildProgressSummary(memory: WorkZoCareerMemory, probability: Interview
   }
   return `Current interview probability is ${probability.current}%. WorkZo will become more personalized after more sessions.`;
 }
+
+// ── Premium Pro: cross-session opening callback ─────────────────────────────
+// Builds the one line the recruiter says at the START of a new session that
+// proves the coach remembers the last one. English-only by design — callers
+// must skip it for non-English interviews. Returns "" when there is nothing
+// real to reference, so it can be appended unconditionally.
+function openingCallbackPhraseForSignal(signal: CareerMemorySignal): string {
+  switch (signal) {
+    case "missing_metrics": return "your answers kept missing measurable results";
+    case "weak_ownership": return "it was not always clear what you personally owned";
+    case "vague_answer": return "several answers stayed too general";
+    case "rambling": return "your stories ran long past the result";
+    case "confidence_drop": return "your delivery lost confidence under pressure";
+    case "weak_structure": return "your answers were hard to follow without a clear structure";
+    case "contradiction_risk": return "a few of your claims did not fully line up";
+    case "career_gap_risk": return "the gaps in your timeline were left unexplained";
+    case "strong_metrics":
+    case "clear_ownership":
+    case "strong_structure":
+    case "good_recovery":
+    case "company_alignment":
+      return "";
+    default:
+      return "";
+  }
+}
+
+export function buildWorkZoProOpeningCallback(memory: WorkZoCareerMemory): string {
+  const last = (memory.interviewHistory || [])[0]; // history is newest-first
+  const top = getTopCareerPattern(memory);
+  if (!last && !top) return "";
+
+  const weakPhrase = top ? openingCallbackPhraseForSignal(top.signal) : "";
+  const roleRef = last?.targetRole ? ` for the ${last.targetRole} role` : "";
+
+  if (weakPhrase && (top?.count || 0) >= 2) {
+    return `Before we start — last time we spoke${roleRef}, ${weakPhrase}. I will be listening for that today.`;
+  }
+
+  if (last && last.score >= 70) {
+    return `Before we start — your last session${roleRef} scored ${last.score}, and your evidence was getting stronger. Today I will push harder to see if it holds.`;
+  }
+
+  if (last?.biggestBlocker) {
+    return `Before we start — last time, the biggest blocker was: ${last.biggestBlocker.replace(/\.$/, "")}. Let us see if that has changed.`;
+  }
+
+  return "";
+}
