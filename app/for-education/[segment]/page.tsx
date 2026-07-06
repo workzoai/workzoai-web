@@ -689,7 +689,7 @@ export default async function EducationDetailPage({
         <SectionHeading
           eyebrow="Request a demo"
           title={`Bring WorkZo AI to your ${page.eyebrow.toLowerCase()}`}
-          text="We reply within one business day and shape the pilot around your cohort."
+          intro="We reply within one business day and shape the pilot around your cohort."
         />
         <div className="mt-8">
           <B2BLeadForm source={`education-${segment}`} />

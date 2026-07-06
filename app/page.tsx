@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import WorkZoFooter from "@/components/WorkZoFooter";
 import AuthNavButton from "@/components/auth/AuthNavButton";
+import { SectionHeading } from "@/components/marketing/kit";
+import B2BLeadForm from "@/components/marketing/B2BLeadForm";
 import { getWorkZoDisplayPrices } from "@/lib/workzoLocalizedPricing";
 
 const trustItems = [
@@ -55,7 +57,7 @@ const PRODUCT_FACTS = [
   { value: "11", label: "recruiter personas, from friendly HR screens to principal-engineer system design" },
   { value: "15", label: "interview languages with native question generation" },
   { value: "CV + JD", label: "every question grounded in your real background and the actual job posting" },
-  { value: "0", label: "generic question banks — interviews are generated per session" },
+  { value: "0", label: "generic question banks - interviews are generated per session" },
 ];
 
 const RECRUITER_PERSONAS = [
@@ -1617,6 +1619,17 @@ export default function LandingPage() {
               <FaqItem key={question} question={question} answer={answer} />
             ))}
           </div>
+        </div>
+      </section>
+
+      <section id="contact" className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+        <SectionHeading
+          eyebrow="Request a demo"
+          title="Bring WorkZo AI to your team or cohort"
+          intro="Running interview prep for a bootcamp, university, or hiring team? Tell us your cohort size and goals — we reply within one business day and shape a pilot around you."
+        />
+        <div className="mt-8">
+          <B2BLeadForm source="landing" />
         </div>
       </section>
 

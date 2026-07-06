@@ -101,7 +101,7 @@ export default function SecurityPage() {
         <SectionHeading
           eyebrow="Subprocessors"
           title="Who processes data on our behalf"
-          text="Each provider receives only the data required for its purpose. This list is kept current; if it changes, this page changes."
+          intro="Each provider receives only the data required for its purpose. This list is kept current; if it changes, this page changes."
         />
         <div className="mt-8 overflow-hidden rounded-xl border border-line">
           {SUBPROCESSORS.map((sp, i) => (

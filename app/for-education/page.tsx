@@ -155,7 +155,7 @@ export default function ForEducationOverview() {
         <SectionHeading
           eyebrow="Request a demo"
           title="Tell us about your program"
-          text="We reply within one business day. Pilots start small: your cohort gets full access via invitation, and you get completion reports every week."
+          intro="We reply within one business day. Pilots start small: your cohort gets full access via invitation, and you get completion reports every week."
         />
         <div className="mt-8">
           <B2BLeadForm source="education" />

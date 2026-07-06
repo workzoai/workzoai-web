@@ -104,7 +104,7 @@ export default function EnterprisePage() {
         <SectionHeading
           eyebrow="Get in touch"
           title="Tell us about your organization"
-          text="We reply within one business day. Pilots start small: your cohort gets full access via invitation, you get completion reports, and we shape the rollout together."
+          intro="We reply within one business day. Pilots start small: your cohort gets full access via invitation, you get completion reports, and we shape the rollout together."
         />
         <div className="mt-8">
           <B2BLeadForm source="enterprise" />
