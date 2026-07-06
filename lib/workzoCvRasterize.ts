@@ -59,7 +59,12 @@ export async function rasterizePdfToImages(
     const ctx = canvas.getContext("2d");
 
     // pdfjs expects a canvas-2d-like context; @napi-rs/canvas is compatible.
+    // pdfjs-dist v5+ made `canvas` a required property of RenderParameters;
+    // @napi-rs/canvas isn't an HTMLCanvasElement, so both need casts. Runtime
+    // behavior is unchanged — pdfjs draws through the context either way.
     await page.render({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      canvas: canvas as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       canvasContext: ctx as any,
       viewport,
