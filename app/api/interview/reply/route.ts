@@ -526,6 +526,95 @@ function isBadRecruiterReply(reply: string, transcript: TranscriptItem[]) {
   return getBadRecruiterReplyReason(reply, transcript) !== null;
 }
 
+
+// ── Global conversational quality guard ─────────────────────────────────────
+// Fixes the common "question-bank" failure mode globally: candidate says
+// "next question" or the LLM bundles several unrelated questions in one turn.
+// This is role-agnostic and language-safe enough to run before/after the LLM.
+function isCandidateSkipRequest(answer: string): boolean {
+  const clean = normalizeForSimilarity(answer);
+  if (!clean) return false;
+  return /^(next|next question|skip|skip this|pass|move on|another question|i don t know|dont know|no idea|not sure|can we move on|let s move on|lets move on)$/.test(clean);
+}
+
+function recentSkipCount(transcript: TranscriptItem[]): number {
+  const recentCandidate = transcript.filter((turn) => turn.role === "candidate").slice(-4);
+  let count = 0;
+  for (const turn of recentCandidate) {
+    if (isCandidateSkipRequest(turn.text)) count++;
+  }
+  return count;
+}
+
+function hasAskedAbout(transcript: TranscriptItem[], pattern: RegExp): boolean {
+  return transcript
+    .filter((turn) => turn.role === "recruiter")
+    .some((turn) => pattern.test(turn.text));
+}
+
+function buildGlobalSkipReply(body: ReplyRequestBody, transcript: TranscriptItem[]): string {
+  const role = cleanRoleLabel(body.targetRole);
+  const skips = recentSkipCount(transcript);
+  const prefix = skips <= 1
+    ? "That's fine. Let me ask it from a different angle. "
+    : "No problem, I'll move to a different area. ";
+
+  // Pick ONE next question only, based on what has not been covered recently.
+  // These are intentionally universal and JD/CV-aware through the target role;
+  // the LLM can resume adaptive probing on the candidate's next real answer.
+  const options: Array<{ seen: RegExp; q: string }> = [
+    {
+      seen: /motivat|why.*role|interested|apply|opportunity/i,
+      q: `What interests you most about this ${role} opportunity?`,
+    },
+    {
+      seen: /specific example|project|piece of work|completed|built|delivered/i,
+      q: `Can you describe one specific piece of work, project, or experience that best shows your readiness for ${role}?`,
+    },
+    {
+      seen: /strength|strongest|good at/i,
+      q: `Which part of ${role} do you feel strongest in today?`,
+    },
+    {
+      seen: /ramp|improve|weakness|gap|learn/i,
+      q: `Which part of ${role} would need the most ramp-up for you?`,
+    },
+    {
+      seen: /collaborat|team|stakeholder|colleague/i,
+      q: `Tell me about a time you worked with other people to solve a problem. What was your role?`,
+    },
+    {
+      seen: /priorit|deadline|multiple tasks|workload/i,
+      q: `How do you handle multiple requests or priorities when they arrive at the same time?`,
+    },
+  ];
+
+  const next = options.find((item) => !hasAskedAbout(transcript, item.seen))?.q
+    || `Before we wrap up this section, what is one thing about your background that you want me to remember for ${role}?`;
+  return localizeRecruiterFallback(prefix + next, body.language);
+}
+
+function countQuestionMarks(text: string): number {
+  return (text.match(/\?/g) || []).length;
+}
+
+function enforceOneQuestionPerTurn(reply: string): string {
+  const clean = reply.replace(/\s+/g, " ").trim();
+  if (!clean || countQuestionMarks(clean) <= 1) return clean;
+
+  // Keep everything up to the first question mark, then stop. This prevents
+  // bundled turns like "Can you explain X? Also, how would you do Y?".
+  const firstQuestionEnd = clean.indexOf("?");
+  if (firstQuestionEnd < 0) return clean;
+  const first = clean.slice(0, firstQuestionEnd + 1).trim();
+
+  // If the first chunk still contains multiple long sentences before the
+  // question, shorten to the final acknowledgement + question where possible.
+  const sentences = first.match(/[^.!?]+[.!?]+/g) || [first];
+  if (sentences.length <= 2) return first;
+  return sentences.slice(-2).join(" ").replace(/\s+/g, " ").trim();
+}
+
 // Language-aware fallback reply builder.
 // Translates the English fallback reply into the interview language so the
 // rule-engine fallback (used when GPT-4o times out or is unavailable) does
@@ -654,7 +743,7 @@ function buildSafeFallbackRecruiterReply(body: ReplyRequestBody, answer: string,
     return localizeRecruiterFallback(`That gives me context. What changed after your work, even qualitatively, such as a calmer customer, a resolved issue, faster response, better handover, or improved trust?`, body.language);
   }
 
-  return `That helps. Let’s move to a new area: what part of ${role} do you feel strongest in today, and what part would need the most ramp-up?`;
+  return localizeRecruiterFallback(`That helps. Let's move to a new area: what part of ${role} do you feel strongest in today?`, body.language);
 }
 
 // Structured, greppable logging so a degraded/failed LLM turn is always
@@ -834,6 +923,23 @@ export async function POST(request: Request) {
     });
   }
 
+  // Global skip handling: do not let "next question" create a robotic chain
+  // of unrelated questions. Return exactly one adaptive replacement question.
+  if (!isOpeningTurn && isCandidateSkipRequest(answer)) {
+    const skipReply = buildGlobalSkipReply(body, transcript);
+    logReplyOutcome({ userId: resolved.userId, outcome: "deterministic_guard", durationMs: Date.now() - requestStartedAt, reason: "candidate_skip_request", questionIndex: body.questionIndex });
+    return NextResponse.json({
+      success: true,
+      reply: skipReply,
+      displayQuestion: skipReply,
+      trustDelta: -2,
+      recruiterState: "interested",
+      shouldAdvanceQuestion: true,
+      provider: "skip_guard",
+      recruiterMemoryV2: body.recruiterMemoryV2 || undefined,
+    });
+  }
+
   try {
     // ── Step 1: Run V2 engine to update persistent state ──────────────────
     // V2 tracks: competency coverage (never re-tests covered dimensions),
@@ -963,7 +1069,8 @@ export async function POST(request: Request) {
 
     const badReplyReason = getBadRecruiterReplyReason(unifiedReply, transcript);
     const deterministicReply = badReplyReason ? buildSafeFallbackRecruiterReply(body, answer, transcript) : null;
-    const reply = badReplyReason && deterministicReply ? deterministicReply : unifiedReply;
+    const replyRaw = badReplyReason && deterministicReply ? deterministicReply : unifiedReply;
+    const reply = enforceOneQuestionPerTurn(replyRaw);
 
     logReplyOutcome({
       userId: resolved.userId,

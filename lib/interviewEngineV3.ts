@@ -213,16 +213,18 @@ export async function runInterviewEngineV3FromTranscript(input: {
   //    only calls us when it's the assistant's turn, i.e. the candidate has
   //    just finished, so candidateStillSpeaking is always false here, which
   //    is exactly why a mid-answer cutoff cannot occur on this path.
-  // Wrap-up begins one question before the hard budget so each closing phase
-  // (wrap_up → candidate_questions → closing) gets its own turn.
-  const WRAP_UP_AT = 11;
+  // Wrap-up is driven by ANSWERED exchanges (candidate turns) and natural
+  // blueprint exhaustion, never by the raw number of questions asked: a
+  // question the candidate never answered must not burn down the interview
+  // clock. The ceiling is a safety net; blueprint exhaustion normally ends it
+  // first, and a struggling candidate exhausts budgets faster (topics are
+  // moved on from sooner), so the interview shortens naturally.
+  const ANSWERED_CEILING = 13;
 
   let candidateSeen = 0;
-  let recruiterSeen = 0;
   for (let i = 0; i < input.transcript.length; i++) {
     const turn = input.transcript[i];
     if (turn.role === "recruiter") {
-      recruiterSeen++;
       continue;
     }
     // candidate turn
@@ -245,7 +247,7 @@ export async function runInterviewEngineV3FromTranscript(input: {
     // text engine drives it), so phases progress naturally instead of via a
     // pre-computed step count.
     const wrapNow =
-      !!input.wrapUpRequested || recruiterSeen >= WRAP_UP_AT || blueprintExhausted(blueprint);
+      !!input.wrapUpRequested || candidateSeen >= ANSWERED_CEILING || blueprintExhausted(blueprint);
     const closingState = advanceClosingState(state.closing, {
       turn: candidateSeen,
       wrapUpRequested: wrapNow,

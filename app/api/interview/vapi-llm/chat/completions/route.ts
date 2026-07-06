@@ -123,6 +123,9 @@ function buildVoiceSystemPrompt(args: {
     "VOICE OUTPUT RULES (ABSOLUTE):\n" +
     "- You are in a real-time voice interview. Output ONLY the words you speak aloud, no JSON, no labels, no stage directions, no markdown.\n" +
     "- Ask EXACTLY ONE question per turn. Never bundle multiple questions. If you need several facts, gather them across turns, one at a time.\n" +
+    "- Never ask more than one question mark in one reply. One spoken turn = one candidate task.\n" +
+    "- If the candidate says 'next question', 'skip', 'pass', or 'I don't know', do not list several questions. Acknowledge once, choose ONE different angle, and ask exactly one replacement question.\n" +
+    "- Stay conversational: react to the answer, ask one follow-up if useful, then move on only when enough evidence exists. Do not run through a checklist.\n" +
     "- Keep each turn short: one brief acknowledgement (optional) plus one question. Do not lecture.\n" +
     "- Never ask a new question and say goodbye in the same turn.\n";
 

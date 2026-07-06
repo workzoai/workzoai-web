@@ -36,6 +36,9 @@ export type RedFlag = {
   turn: number;
 };
 
+/** How engaged/substantive the candidate's latest answer was. */
+export type AnswerEngagement = "substantive" | "declined" | "cannot_answer" | "deferred";
+
 export type ConversationLedger = {
   version: 3;
   turn: number;
@@ -44,6 +47,13 @@ export type ConversationLedger = {
   establishedFacts: string[];        // deduped, max 30
   /** followupCount per topic slug, Step 9 pivot rule (max 2). */
   followupsByTopic: Record<string, number>;
+  /** Topics where the candidate declined / couldn't answer / deflected.
+   *  A single weak answer here means STOP drilling that topic. */
+  weakAnswersByTopic: Record<string, number>;
+  /** Consecutive weak answers across topics; drives pressure de-escalation. */
+  disengagementStreak: number;
+  /** Classification of the most recent answer (for the next turn's directive). */
+  lastAnswerClass: AnswerEngagement;
   activeTopic: string | null;
   /** Last N reply openers, Step 10 anti-repetition. */
   recentOpeners: string[];
@@ -57,6 +67,9 @@ export function emptyLedger(): ConversationLedger {
     redFlags: [],
     establishedFacts: [],
     followupsByTopic: {},
+    weakAnswersByTopic: {},
+    disengagementStreak: 0,
+    lastAnswerClass: "substantive",
     activeTopic: null,
     recentOpeners: [],
   };
@@ -171,6 +184,72 @@ export function detectRedFlags(answer: string, turn: number): RedFlag[] {
   return flags;
 }
 
+// ── Answer engagement (implicit skill-ceiling backstop) ─────────────────────
+// The observed dead-end: an interviewer keeps escalating into harder
+// sub-questions after the candidate has already signalled they can't go
+// deeper, ending in an explicit "I don't know". The explicit skill-ceiling
+// patterns above only fire on "I never used X" style phrasings; these classes
+// catch the softer signals a human reads instantly. Structural, no topic- or
+// candidate-specific content. Same multilingual backstop philosophy: the
+// prompt also states the rule so the LLM enforces it in any language.
+
+// Unicode-aware word boundaries: JS `\b` is ASCII-only, so a trailing `\b`
+// after an accented letter (é, ò, …) fails to match, silently dropping valid
+// non-English phrases. These wrappers use \p{L}/\p{N} lookaround instead.
+const WB_START = "(?<![\\p{L}\\p{N}])";
+const WB_END = "(?![\\p{L}\\p{N}])";
+const eng = (alts: string) => new RegExp(`${WB_START}(?:${alts})${WB_END}`, "iu");
+
+// Candidate explicitly declines / disengages from the question.
+const DECLINE_RE = eng(
+  "next question|skip (?:this|that|it|the question|ahead)|(?:let['’]?s |can we |could we )?move on|" +
+  "i['’]?ll pass|pass(?:ing)? on (?:this|that)|i['’]?d rather not (?:answer|say)|no comment|" +
+  "n[äa]chste frage|[üu]berspringen|weiter bitte|lass uns weitermachen|keine antwort|" +
+  "question suivante|on passe|passons|sans commentaire|" +
+  "siguiente pregunta|saltar|pasemos|sin comentarios|" +
+  "prossima domanda|saltiamo|passiamo|senza commento|" +
+  "pr[óo]xima pergunta|pular|vamos em frente|sem coment[áa]rio|" +
+  "volgende vraag|overslaan|laten we verdergaan|geen commentaar",
+);
+
+// Candidate cannot answer / does not know.
+const CANNOT_ANSWER_RE = eng(
+  "i (?:really |just )?(?:don['’]?t|do not) know|i have no (?:idea|clue)|no idea|" +
+  "i['’]?m not sure|i am not sure|not sure how|i can['’]?t (?:answer|say|help)|" +
+  "i cannot (?:answer|say)|i couldn['’]?t (?:say|tell you)|" +
+  "ich wei[ßs] (?:es )?nicht|keine ahnung|ich bin (?:mir )?nicht sicher|kann ich nicht beantworten|" +
+  "je ne sais pas|aucune id[ée]e|je ne suis pas s[ûu]re?|je ne peux pas r[ée]pondre|" +
+  "no lo sé|no sé|ni idea|no estoy segur[oa]?|no puedo responder|" +
+  "non lo so|nessuna idea|non sono sicur[oa]?|non saprei|non posso rispondere|" +
+  "n[ãa]o sei responder|n[ãa]o sei|nenhuma ideia|n[ãa]o tenho certeza|" +
+  "ik weet het niet|geen idee|ik weet (?:het )?niet zeker|ik kan niet antwoorden",
+);
+
+// Candidate defers present capability to the future ("I'll learn it").
+const DEFERRED_RE = eng(
+  "quick learner|fast learner|i['’]?(?:ll| will) learn|i can learn|willing to learn|eager to learn|" +
+  "i['’]?ll (?:pick it up|figure it out|figure this out)|i['’]?ll try to learn|" +
+  "learn (?:it|this|that|about (?:it|this)) later|tell you later|" +
+  "schnell lerne|ich lerne (?:das )?schnell|ich kann (?:das )?lernen|bereit zu lernen|werde ich (?:noch )?lernen|sp[äa]ter lernen|" +
+  "j['’]?apprends vite|apprendre rapidement|je vais apprendre|je peux apprendre|pr[êe]te? [àa] apprendre|je me d[ée]brouillerai|" +
+  "aprendo r[áa]pido|voy a aprender|puedo aprender|dispuest[oa] a aprender|lo aprenderé|" +
+  "imparo (?:in fretta|velocemente)|imparer[òo]|posso imparare|disposto a imparare|lo imparer[òo]|" +
+  "ik leer snel|ik zal (?:het )?leren|ik kan leren|bereid om te leren",
+);
+
+/**
+ * Classifies how engaged/substantive an answer is. Priority: an explicit
+ * decline outranks a can't-answer, which outranks a future-deflection. Anything
+ * else is treated as a real attempt (substantive) and does not throttle depth.
+ */
+export function classifyAnswerEngagement(answer: string): AnswerEngagement {
+  const a = answer || "";
+  if (DECLINE_RE.test(a)) return "declined";
+  if (CANNOT_ANSWER_RE.test(a)) return "cannot_answer";
+  if (DEFERRED_RE.test(a)) return "deferred";
+  return "substantive";
+}
+
 // ── STEP 10, Transition variety ─────────────────────────────────────────────
 // The pool is prompt GUIDANCE (the LLM renders transitions natively in the
 // interview language). The deterministic part is the recent-opener tracker:
@@ -221,8 +300,26 @@ export function updateLedger(
     redFlags: [...ledger.redFlags],
     establishedFacts: [...ledger.establishedFacts],
     followupsByTopic: { ...ledger.followupsByTopic },
+    weakAnswersByTopic: { ...(ledger.weakAnswersByTopic || {}) },
+    disengagementStreak: ledger.disengagementStreak || 0,
+    lastAnswerClass: ledger.lastAnswerClass || "substantive",
     recentOpeners: [...ledger.recentOpeners],
   };
+
+  // Answer engagement (implicit ceiling / disengagement). A weak answer on a
+  // topic means that topic must NOT be drilled further; consecutive weak
+  // answers across topics trigger pressure de-escalation.
+  const answerClass = classifyAnswerEngagement(input.candidateAnswer);
+  next.lastAnswerClass = answerClass;
+  if (answerClass === "substantive") {
+    next.disengagementStreak = 0;
+  } else {
+    next.disengagementStreak = (next.disengagementStreak || 0) + 1;
+    if (input.currentTopicId) {
+      next.weakAnswersByTopic[input.currentTopicId] =
+        (next.weakAnswersByTopic[input.currentTopicId] || 0) + 1;
+    }
+  }
 
   // Skill ceilings, first admission wins; never upgraded by later probing.
   for (const ceiling of detectSkillCeilings(input.candidateAnswer, turn)) {
@@ -293,6 +390,27 @@ export function renderLedgerForPrompt(ledger: ConversationLedger): string {
   const exhausted = Object.entries(ledger.followupsByTopic).filter(([, n]) => n >= 2);
   if (exhausted.length)
     lines.push("PIVOT RULE TRIGGERED, 2 follow-ups used on: " + exhausted.map(([t]) => t).join(", ") + ". Accept the answer, score internally, MOVE ON now.");
+
+  // Implicit-ceiling throttle: one weak answer on a topic ends drilling on it.
+  const weakTopics = Object.entries(ledger.weakAnswersByTopic || {}).filter(([, n]) => n >= 1);
+  if (weakTopics.length)
+    lines.push(
+      "WEAK / DECLINED TOPICS, the candidate declined, could not answer, or deflected here. Do NOT ask any further question or harder sub-question on these, and do NOT rephrase and re-ask. Accept it, score internally, and move to a DIFFERENT competency: " +
+      weakTopics.map(([t]) => t).join(", ") + ".",
+    );
+
+  // Pressure de-escalation, driven by consecutive weak answers.
+  const streak = ledger.disengagementStreak || 0;
+  if (streak >= 2) {
+    lines.push(
+      "DE-ESCALATION (BINDING): the candidate has disengaged or struggled on the last " + streak +
+      " answers. Ease off now. Do NOT stack harder sub-questions, 'give me a step-by-step example', or 'go deeper' probes. Switch to a genuinely different, more accessible area (motivation, a strength they clearly have, a lighter behavioural question), keep your tone encouraging, and rebuild momentum before any further depth. This overrides any persona pressure setting.",
+    );
+  } else if (ledger.lastAnswerClass && ledger.lastAnswerClass !== "substantive") {
+    lines.push(
+      "The candidate just declined or could not answer the previous question. Do NOT re-ask it or a reworded version. Acknowledge briefly and move to a genuinely different, accessible area.",
+    );
+  }
 
   if (ledger.establishedFacts.length)
     lines.push("ESTABLISHED FACTS, never ask the candidate to repeat these; build on them instead:", ...ledger.establishedFacts.slice(-12).map((f) => `  - ${f}`));

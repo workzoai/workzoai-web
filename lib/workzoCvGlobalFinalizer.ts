@@ -294,7 +294,61 @@ function hasExternalIdentitySupport(value: string, emailHandles: string[], fileN
   return false;
 }
 
-function passesIdentityEvidenceGate(candidate: { value: string; source: string; index: number; score: number }, emailHandles: string[], fileNameCandidate: string): boolean {
+function supportedNameTokenCount(value: string, emailHandles: string[], fileNameCandidate: string): number {
+  const tokens = tokenize(value).split(" ").filter((token) => token.length >= 3);
+  if (!tokens.length) return 0;
+
+  // For concatenated email handles, substring token matching can falsely accept
+  // a distorted local-parser name ("harithavi" inside "harithavijayakumar").
+  // Token support is therefore counted only against visibly separated support
+  // text, such as "first.last", "first_last", or filename words.
+  const separatedSupportTokens = [
+    ...emailHandles,
+    fileNameCandidate,
+  ]
+    .join(" ")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z]+/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length >= 3);
+
+  return tokens.filter((token) => separatedSupportTokens.includes(token)).length;
+}
+
+function hasExactRawLineSupport(value: string, rawLines: string[], maxIndex = 12): boolean {
+  const wanted = tokenize(fixSpacedTypography(value || ""));
+  if (!wanted) return false;
+  return rawLines.slice(0, maxIndex).some((line) => tokenize(fixSpacedTypography(line || "")) === wanted);
+}
+
+function isUnsafeLocalParserWinner(
+  candidate: { value: string; source: string; index: number; score: number },
+  rawLines: string[],
+  emailHandles: string[],
+  fileNameCandidate: string,
+): boolean {
+  if (candidate.source !== "local.parser") return false;
+
+  // Local PDF text is often column-broken and may invent boundaries inside a
+  // compact header name. A local parser name is accepted only when it is exactly
+  // present as an early rendered/text line, or when every meaningful name token
+  // is supported by email/filename evidence. One partial token match is not
+  // enough: e.g. "Harithavi Jayakumar" must not pass just because the email
+  // contains "jayakumar".
+  if (hasExactRawLineSupport(candidate.value, rawLines, 14)) return false;
+
+  const tokens = tokenize(candidate.value).split(" ").filter((token) => token.length >= 3);
+  const supported = supportedNameTokenCount(candidate.value, emailHandles, fileNameCandidate);
+  if (tokens.length >= 2 && supported >= tokens.length) return false;
+
+  return true;
+}
+
+function passesIdentityEvidenceGate(candidate: { value: string; source: string; index: number; score: number }, emailHandles: string[], fileNameCandidate: string, rawLines: string[] = []): boolean {
+  if (isUnsafeLocalParserWinner(candidate, rawLines, emailHandles, fileNameCandidate)) return false;
+
   // Important global guard for placeholder/template CVs.
   // A late raw line such as "Data Engineering" or "Soft Skills" can have a
   // human-name shape, but it is not identity evidence unless corroborated by
@@ -409,7 +463,7 @@ export async function resolveUniversalIdentityDecision(payload: UniversalValidat
     .sort((a, b) => b.score - a.score);
 
   const winner = scored[0];
-  if (winner && passesIdentityEvidenceGate(winner, emailHandles, fileNameCandidate)) {
+  if (winner && passesIdentityEvidenceGate(winner, emailHandles, fileNameCandidate, rawLines)) {
     return {
       selectedName: winner.normalized,
       selectedNameSource: winner.source,
@@ -510,7 +564,7 @@ function resolveUniversalIdentityDecisionSync(payload: UniversalValidationPayloa
     .sort((a, b) => b.score - a.score);
 
   const winner = scored[0];
-  if (winner && passesIdentityEvidenceGate(winner, emailHandles, fileNameCandidate)) {
+  if (winner && passesIdentityEvidenceGate(winner, emailHandles, fileNameCandidate, rawLines)) {
     return {
       selectedName: winner.normalized,
       selectedNameSource: winner.source,
@@ -536,6 +590,97 @@ function resolveUniversalIdentityDecisionSync(payload: UniversalValidationPayloa
     selectedName: "Candidate",
     selectedNameSource: "needs_confirmation",
     rejectedCandidates: unique(rejectedCandidates).slice(0, 40),
+  };
+}
+
+
+const SINGLE_WORD_HEADLINE_FRAGMENTS = /^(analyst|scientist|engineer|developer|manager|designer|specialist|consultant|administrator|coordinator|assistant|professional|intern|trainee)$/i;
+const HEADLINE_SECTION_NOISE = /^(profile|summary|contact|skills?|experience|education|languages?|certifications?|projects?|portfolio|references?)$/i;
+const HEADLINE_ROLE_WORDS = /\b(junior|senior|lead|principal|staff|graduate|intern|trainee|data|business|financial|marketing|product|project|technical|support|software|frontend|backend|full[-\s]?stack|machine\s+learning|ml|ai|cloud|devops|security|cybersecurity|qa|quality|customer|success|sales|operations|hr|human\s+resources|analyst|scientist|engineer|developer|manager|designer|specialist|consultant|administrator|coordinator|assistant|architect|director|officer)\b/i;
+
+const JOINED_HEADLINE_MAP: Record<string, string> = {
+  juniordataanalyst: "Junior Data Analyst",
+  juniordatascientist: "Junior Data Scientist",
+  dataanalyst: "Data Analyst",
+  datascientist: "Data Scientist",
+  businessanalyst: "Business Analyst",
+  softwareengineer: "Software Engineer",
+  technicalsupportengineer: "Technical Support Engineer",
+  itsupportspecialist: "IT Support Specialist",
+  customersuccessmanager: "Customer Success Manager",
+  productmanager: "Product Manager",
+  projectmanager: "Project Manager",
+  machinelearningengineer: "Machine Learning Engineer",
+};
+
+function expandJoinedHeadline(value: string): string {
+  const clean = compact(fixSpacedTypography(value || ""));
+  const key = flattenAlpha(clean);
+  return JOINED_HEADLINE_MAP[key] || clean;
+}
+
+function normalizeHeadlineText(value: string): string {
+  return expandJoinedHeadline(value)
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => {
+      if (/^(ai|ml|qa|hr|ui|ux|it|sql|aws|gcp)$/i.test(word)) return word.toUpperCase();
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ")
+    .replace(/\bAnd\b/g, "and")
+    .trim();
+}
+
+function isValidGlobalHeadline(value: string): boolean {
+  const clean = expandJoinedHeadline(value);
+  if (!clean || clean.length < 4 || clean.length > 90) return false;
+  if (HEADLINE_SECTION_NOISE.test(clean)) return false;
+  if (SINGLE_WORD_HEADLINE_FRAGMENTS.test(clean)) return false;
+  if (/[0-9@+]|https?:\/\/|www\.|\.com|\.net|\.org|\.de|\.io/i.test(clean)) return false;
+  if (/\b(years of|responsible for|provided|assisting|clients|customers|summary|profile)\b/i.test(clean)) return false;
+  return HEADLINE_ROLE_WORDS.test(clean);
+}
+
+function extractBestHeadlineFromRaw(rawLines: string[], currentName: string): string {
+  const lines = rawLines.map((line) => compact(fixSpacedTypography(line || ""))).filter(Boolean);
+  const nameFlat = flattenAlpha(currentName);
+  const max = Math.min(lines.length, 30);
+  const candidates: Array<{ value: string; score: number }> = [];
+
+  for (let i = 0; i < max; i += 1) {
+    const line = expandJoinedHeadline(lines[i]);
+    if (!line || (nameFlat && flattenAlpha(line) === nameFlat)) continue;
+    if (!isValidGlobalHeadline(line)) continue;
+
+    const words = line.split(/\s+/).length;
+    let score = 80 - i;
+    if (words >= 2) score += 30;
+    if (/\b(junior|senior|lead|principal|graduate|intern|trainee)\b/i.test(line)) score += 10;
+    if (/\b(data|business|software|technical|support|customer|product|project)\b/i.test(line)) score += 10;
+    candidates.push({ value: line, score });
+  }
+
+  return candidates.sort((a, b) => b.score - a.score)[0]?.value || "";
+}
+
+function finalizeProfileHeadline<T extends Record<string, any>>(profile: T, rawText = ""): T {
+  const basics = typeof profile?.basics === "object" && profile.basics ? profile.basics : {};
+  const current = compact(String((basics as any).headline || (profile as any).headline || ""));
+  const rawLines = rawText ? rawText.split(/\r?\n/) : [];
+  const rawHeadline = extractBestHeadlineFromRaw(rawLines, String((basics as any).name || (profile as any).name || ""));
+
+  const selected = isValidGlobalHeadline(current) ? current : rawHeadline;
+  const finalHeadline = selected ? normalizeHeadlineText(selected) : (current && !SINGLE_WORD_HEADLINE_FRAGMENTS.test(current) ? normalizeHeadlineText(current) : "Professional");
+
+  return {
+    ...profile,
+    basics: {
+      ...basics,
+      headline: finalHeadline,
+    },
+    headline: finalHeadline,
   };
 }
 
@@ -569,7 +714,8 @@ export function finalizeCanonicalCvProfile<T extends Record<string, any>>(
     confidence: options?.confidence,
   });
 
-  const next = enforceCanonicalCvProfileName(profile, decision.selectedName);
+  const namedProfile = enforceCanonicalCvProfileName(profile, decision.selectedName);
+  const next = finalizeProfileHeadline(namedProfile, options?.rawText || "");
   const oldConfidence = typeof (next as any).confidence === "object" && (next as any).confidence ? (next as any).confidence : {};
 
   return {
