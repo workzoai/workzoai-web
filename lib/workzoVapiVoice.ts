@@ -115,15 +115,46 @@ export function getWorkZoVapiRecruiterKey(
 
 
 function sanitizeSpokenCandidateName(value: unknown): string {
+  // GLOBAL FIX: structural human-name validation instead of a keyword
+  // blocklist. The old list enumerated one CV's vocabulary (matplotlib,
+  // seaborn, tensorflow...) and still leaked; blocklists always do. A
+  // spoken name must LOOK like a name: 1-4 capitalizable word tokens,
+  // letters only, no role/section/degree grammar anywhere in it.
   const text = String(value || "")
     .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ' .-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (!text || text.length < 2 || text.length > 60) return "";
-  if (/\b(resume|cv|candidate|user|profile|summary|contact|skills?|experience|education|projects?|languages?|achievement|achievements|accomplishment|accomplishments|awards?|honou?rs?|certifications?|technical|support|engineer|analyst|manager|specialist|consultant|developer|director|assistant|associate|recruiter|hiring|data|science|python|sql|tableau|matplotlib|seaborn|tensorflow|sklearn|langchain|gcp|aws|azure|customer|success|project|management|leadership|communication|teamwork|public|relations|critical|thinking|time|professional|bootcamp|school|college|university|degree|bachelor|master)\b/i.test(text)) return "";
   const parts = text.split(" ").filter(Boolean);
-  if (parts.length > 4) return "";
+  if (parts.length < 1 || parts.length > 4) return "";
+  // Generic role/section/credential GRAMMAR (not any specific CV's skills):
+  const NOT_A_NAME_RE =
+    /\b(junior|senior|lead|head|chief|principal|staff|intern|trainee|graduate|engineer|developer|scientist|analyst|manager|specialist|consultant|designer|architect|recruiter|director|assistant|associate|officer|coordinator|administrator|technician|candidate|user|guest|there|unknown|resume|cv|profile|summary|contact|skills?|experience|education|projects?|languages?|certifications?|bachelor|master|degree|bootcamp|university|college|school|data|science|support|technical|professional)\b/i;
+  if (NOT_A_NAME_RE.test(text)) return "";
+  if (!parts.every((w) => /^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'.-]{0,27}$/.test(w))) return "";
   return text;
+}
+
+/**
+ * GLOBAL FIX: the canonical resolver for the name spoken in interviews.
+ * The parsed resume profile is the source the CV pipeline actually
+ * validated (its identity finalizer logs a selectedName); the client
+ * session's candidateName can carry stale or mis-extracted values (e.g. a
+ * headline like "Junior Data Scientist" from an old parse). Prefer the
+ * profile, fall back to the session value, validate both structurally,
+ * and return "" when nothing passes so callers greet with "there".
+ */
+export function resolveSpokenCandidateName(
+  sessionName: unknown,
+  resumeProfile?: unknown,
+): string {
+  const p = resumeProfile as Record<string, unknown> | null | undefined;
+  const basics = (p && typeof p === "object" ? p.basics : null) as Record<string, unknown> | null;
+  const profileName = sanitizeSpokenCandidateName(
+    (basics && basics.name) || (p && typeof p === "object" ? p.name : ""),
+  );
+  if (profileName) return profileName;
+  return sanitizeSpokenCandidateName(sessionName);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,7 +202,7 @@ export function buildWorkZoVapiAssistantOverrides(input: {
   const interviewStyle = String(input.variableValues.interviewStyle || "");
   const languageLabel = input.languageLabel || "English";
 
-  const safeCandidateName = sanitizeSpokenCandidateName(input.candidateName);
+  const safeCandidateName = resolveSpokenCandidateName(input.candidateName, input.resumeProfile);
 
   const systemPrompt = [
     `You are ${input.recruiterName || "Sarah"}, a ${input.recruiterRole || "recruiter"} conducting a job interview.`,
@@ -187,6 +218,15 @@ export function buildWorkZoVapiAssistantOverrides(input: {
     verifiedCvJdBlock,
     "═══════════════════════════════════════════════",
     "",
+    "CV USAGE STYLE, MANDATORY: Treat the CV as preparation material, not a script.",
+    "Never enumerate employers, skills, technologies, education, or projects back to the candidate.",
+    "Never read CV lines aloud, never list more than ONE CV fact in a single response, and never",
+    "use the words 'verified', 'extracted', 'profile data', or anything implying a database.",
+    "Refer to their background in one natural sentence at most, only when it sets up the next question",
+    "(e.g. 'I noticed you moved from support into data work — what drove that?').",
+    "If a CV detail looks garbled or inconsistent, silently ignore it and ask the candidate to",
+    "describe their experience instead of repeating the garbled text.",
+    "",
     "ABSOLUTE RULE: The employers, roles, dates, education, skills, and projects listed",
     "above are verified facts from the candidate's uploaded CV. You have already read",
     "and confirmed this CV. NEVER say 'I do not see', 'I cannot verify', 'not listed',",
@@ -195,10 +235,10 @@ export function buildWorkZoVapiAssistantOverrides(input: {
     "and ask a positive follow-up about responsibilities, scope, achievements, or outcomes.",
     "",
     "JOB DESCRIPTION GROUNDING, MANDATORY:",
-    "This interview must feel specific to the posted role and company, not like a generic support interview.",
-    "In the first six substantive questions, cover: why this role/company, why the candidate wants to move into this role, gaps between CV and JD, customer onboarding/project kickoff, implementation partner coordination, HR administration/process understanding, stakeholder/management-level communication, change management, milestone/to-do tracking, and escalation to management when customer/partner progress stalls, but only if those ideas appear in the JD below.",
-    "Do not repeatedly ask documentation/escalation questions. After one process question, move to a different JD requirement.",
-    "When the CV appears weaker than the JD asks for, ask naturally: 'I see more technical support experience in your CV; what makes you ready for a customer success/project ownership role like this?' Do not mark it as a failure immediately; probe motivation and transferable evidence.",
+    "This interview must feel specific to the posted role and company, never generic.",
+    "Extract the top requirements FROM THE JD BELOW and make sure the first six substantive questions cover: why this role and company, the candidate's motivation for the move, the gaps between CV and JD, and the JD's own most heavily weighted responsibilities, in the JD's own vocabulary. Never import requirements from other roles or industries.",
+    "Do not ask two questions in a row about the same JD requirement. After one process-style question, move to a different requirement.",
+    "When the CV appears weaker than the JD asks for, name the gap neutrally using the candidate's actual background and the JD's actual requirement (for example: 'Your CV shows more X; what makes you ready for Y as this role requires?'). Do not mark it as a failure immediately; probe motivation and transferable evidence.",
     "",
     interviewStyle,
   ]
@@ -351,11 +391,17 @@ function extractLikelyCompaniesFromContext(value?: string, resumeProfile?: unkno
     }
   }
 
-  // Secondary: also scan the raw text lines for any companies that regex can find
-  // (handles cases where resumeProfile is absent or a company appears in the JD).
+  // GLOBAL FIX: the raw-text scan is a FALLBACK ONLY. When the structured
+  // profile already produced employers, scanning raw lines is actively
+  // harmful for multi-column CVs, whose extracted text interleaves columns
+  // and glues sidebar skills onto employer lines ("Matplotlib Zoho Corp",
+  // "programming CSS Corp"). Structured data wins; raw text only fills in
+  // when parsing produced nothing.
+  if (companies.size > 0) return Array.from(companies).slice(0, 18);
+
   const lines = extractContextLines(value, 80);
   const companyHint =
-    /\b(corp|corporation|gmbh|ltd|limited|inc|llc|company|technologies|technology|systems|solutions|university|group|co\.?|ai|cloud|digital|industries|cummins|zoho|css|visomax|visteon)\b/i;
+    /\b(corp|corporation|gmbh|ag|ltd|limited|inc|llc|company|technologies|technology|systems|solutions|university|group|co\.?|ai|cloud|digital|industries|holdings?|labs)\b/i;
   for (const line of lines) {
     // Split on pipe/bullet separators, structured CV puts "Title | Company | Dates"
     // so we check each segment independently rather than stripping from the title.
@@ -685,7 +731,7 @@ export function buildWorkZoVapiVariableValues(input: {
 }) {
   const languageLabel = input.languageLabel || "English";
   const isEnglish = languageLabel.toLowerCase() === "english";
-  const safeCandidateName = sanitizeSpokenCandidateName(input.candidateName);
+  const safeCandidateName = resolveSpokenCandidateName(input.candidateName, input.resumeProfile);
   const openingGreeting = (input.openingGreeting || "").trim();
   const openingIntroQuestion = (input.openingIntroQuestion || "").trim();
   const verifiedCvJdBlock = buildVerifiedCvJdBlock(

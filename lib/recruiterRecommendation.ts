@@ -73,17 +73,16 @@ const DOMAINS: Domain[] = [
   {
     id: "customer_success",
     pattern:
-      /\b(customer success|customer success manager|client success|account manager|key account|customer onboarding|onboarding|implementation manager|implementation consultant|implementation specialist|implementation partner|success manager|customer project|customer relationship|customer adoption|customer retention|customer satisfaction|stakeholder management|executive stakeholders?|management level|customer workshop|workshops?|hr software|hr management|software implementation|go[- ]?live|rollout|change management|escalat(?:e|ion)|project start|customer needs|full potential|customer value)\b/i,
+      /\b(customer success|client success|account manager|key account|customer onboarding|success manager|customer relationship|customer adoption|customer retention|customer satisfaction|csat|nps|renewal|churn|escalat(?:e|ion))\b/i,
     free: "analytical_hiring_manager",
-    pro: "executive_recruiter",
-    reason: "the JD is mainly about customer onboarding, stakeholder management, change management, and executive communication",
+    pro: "sales_director",
+    reason: "customer success interviews are commercial — expect questions on renewals, churn, escalations, and measurable customer outcomes",
   },
   {
     id: "implementation_delivery",
     pattern:
-      /\b(project implementation|implementation|rollout|go[- ]?live|project manager|project management|program manager|programme|milestones?|to[- ]dos?|delivery|customer project|change management|escalat(?:e|ion)|implementation partner|stakeholder|cross[- ]functional|customer requirements?|prepare the project|structured onboarding)\b/i,
+      /\b(implementation|rollout|go[- ]?live|project manager|project management|program(?:me)? manager|milestones?|delivery|change management|cross[- ]functional)\b/i,
     free: "german_corporate",
-    pro: "enterprise_recruiter",
     reason: "implementation and delivery roles need structured stakeholder handling, escalation discipline, and clear project ownership",
   },
   {
@@ -91,7 +90,8 @@ const DOMAINS: Domain[] = [
     pattern:
       /\b(software engineer|frontend engineer|backend engineer|full[- ]?stack engineer|devops engineer|site reliability|sre|system design|microservices|distributed systems|kubernetes|docker|typescript|javascript|golang|rust|c\+\+|java developer|python developer|software developer|programmer|coding interview|code review|live coding|algorithms?|data structures?|technical interviewer|architecture interview|cloud engineer|ml engineer|machine learning engineer|data engineer)\b/i,
     free: "faang_hiring_manager",
-    reason: "the JD itself is technical — expect engineering depth, trade-offs, and implementation reasoning",
+    pro: "enterprise_recruiter",
+    reason: "the JD itself is technical — expect engineering depth, trade-offs, and a senior system-design interviewer",
   },
   {
     id: "data",
@@ -128,17 +128,21 @@ const DOMAINS: Domain[] = [
   {
     id: "leadership",
     pattern:
-      /\b(director|vp|vice president|head of|chief|cto|ceo|cfo|coo|executive|leadership team|board|c[- ]level|principal|senior|seasoned|management level|eloquent|standing|empathi[sz]e|strategic)\b/i,
+      /\b(director|vp|vice president|head of|chief|cto|ceo|cfo|coo|executive|leadership team|board|c[- ]level|principal)\b/i,
     free: "analytical_hiring_manager",
     pro: "executive_recruiter",
     reason: "the JD expects senior communication, judgement, and leadership-level stakeholder handling",
   },
   {
     id: "enterprise",
+    // GLOBAL FIX: this pattern had been stuffed with vocabulary from one
+    // specific job posting (company names, "old loft", "conferences",
+    // "quarterly", brand names). Sample-specific tokens are banned — they
+    // misroute every CV that happens to mention a common word. Structural
+    // role-signal keywords only.
     pattern:
-      /\b(governance|enterprise|pmo|compliance|microsoft|global customers?|international customers?|corporate|process[- ]oriented|documentation|old loft|quarterly|financial participation|edeka|porsche|conference|conferences)\b/i,
+      /\b(stakeholder management|governance|program(?:me)? manager|cross[- ]functional|escalation|compliance|enterprise|pmo|change management|itil|process[- ]oriented|matrix(?:ed)? organi[sz]ation)\b/i,
     free: "german_corporate",
-    pro: "enterprise_recruiter",
     reason: "enterprise roles need structured answers around process, stakeholders, and accountability",
   },
   {

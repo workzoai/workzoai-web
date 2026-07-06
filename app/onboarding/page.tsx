@@ -48,6 +48,7 @@ import { useWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 import { buildWorkZoCompanyBlueprint } from "@/lib/workzoCompanyBlueprint";
 import { recommendRecruiters, type RecruiterRecommendation } from "@/lib/recruiterRecommendation";
+import { saveCandidateIdentity } from "@/lib/workzoCandidateIdentity";
 
 type Market = "Global" | "Germany" | "US" | "UK" | "India" | "Netherlands";
 type CompanyStyle = "Realistic" | "Startup" | "Corporate" | "Technical" | "Consulting";
@@ -89,7 +90,7 @@ const proRecruiters: { key: RecruiterKey; name: string; role: string; avatar: st
   { key: "sales_director", name: "Noah Jones", role: "Sales Director", avatar: "👨🏾‍💼", quote: "Give me a number. Revenue impact, quota attainment, deal size: be specific.", description: "Numbers-first, commercial mindset. Will push you to quantify everything." },
   { key: "product_leader", name: "Aisha Patel", role: "Product Leader", avatar: "👩🏾‍💼", quote: "How did you decide what NOT to build, and what was the user evidence?", description: "User empathy, prioritisation, and cross-functional influence. Expects product sense." },
   { key: "executive_recruiter", name: "Victoria Stern", role: "Executive Recruiter", avatar: "👩🏼‍💼", quote: "What would your last manager say is your biggest development area? Be honest.", description: "Senior-level strategic questioning. Expects board-ready communication and leadership narrative." },
-  { key: "enterprise_recruiter", name: "David Kimura", role: "Enterprise Recruiter", avatar: "👨🏻‍💼", quote: "How did you manage stakeholders at different levels? Give me a cross-functional example.", description: "Process, governance, and stakeholder management. Structured answers with clear escalation." },
+  { key: "enterprise_recruiter", name: "David Kimura", role: "Principal Engineer", avatar: "👨🏻‍💻", quote: "Why that architecture? Walk me through the trade-offs and what breaks first at 10x load.", description: "System design, architecture trade-offs, and technical leadership for senior engineers." },
 ];
 
 const interviewLanguages: { label: InterviewLanguage; nativeLabel: string; hint: string }[] = [
@@ -1037,6 +1038,22 @@ export default function OnboardingPage() {
       } catch {
         /* proceed even if re-save fails; interview still has prior canonical */
       }
+
+      // Also sync the legacy identity store so every reader agrees with the
+      // user's explicit confirmation, the highest-authority identity source.
+      try {
+        saveCandidateIdentity({ name: edited.name, headline: edited.headline });
+      } catch { /* non-fatal */ }
+
+      // GLOBAL FIX (stale-state race): launchInterview() calls persistFast(),
+      // which persists the component's CURRENT React state, and the
+      // setAiResumeProfile above has not committed yet in this tick. That
+      // persist was OVERWRITING the corrected setup saved two lines earlier
+      // with the pre-confirmation one, which is exactly why the confirmed
+      // name never reached the interview. Navigate directly; the corrected
+      // setup is already saved via saveCanonicalCvSetup.
+      router.push("/interview");
+      return;
     }
 
     launchInterview();

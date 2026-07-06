@@ -23,10 +23,14 @@ function clean(value: unknown) {
 
 function isGenericName(value = "") {
   const name = clean(value);
-  return (
-    /^(candidate|user|workzo user)$/i.test(name) ||
-    /\b(public\s+relations|project\s+management|communication|leadership|teamwork|time\s+management|critical\s+thinking|english|german|python|sql|skills|experience|education|summary|profile)\b/i.test(name)
-  );
+  if (!name) return true;
+  if (/^(candidate|user|workzo user|there)$/i.test(name)) return true;
+  // GLOBAL FIX: structural role/section grammar instead of an enumerated
+  // skills blocklist. The old list missed headline fragments like
+  // "Junior Data" / "Junior Data Scientist", which were then persisted in
+  // localStorage as a "valid" identity and resurfaced in later interviews
+  // even after the CV parsed correctly.
+  return /\b(junior|senior|lead|head|chief|principal|staff|intern|trainee|graduate|engineer|developer|scientist|analyst|manager|specialist|consultant|designer|architect|recruiter|director|assistant|associate|officer|coordinator|administrator|technician|resume|cv|profile|summary|contact|skills?|experience|education|projects?|languages?|certifications?|bachelor|master|degree|bootcamp|university|college|school|data|science|support|technical|professional|public\s+relations|project\s+management|communication|leadership|teamwork|time\s+management|critical\s+thinking)\b/i.test(name);
 }
 
 function readStoredIdentity(): WorkZoCandidateIdentity | null {

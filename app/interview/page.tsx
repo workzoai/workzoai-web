@@ -2377,7 +2377,12 @@ function buildVapiTranscriberOverride(setup: InterviewSetup) {
 
 function buildLocalizedGreeting(setup: InterviewSetup) {
   const language = normalizeInterviewLanguage(setup.language);
-  const name = safeGreetingName(setup.candidateName);
+  // GLOBAL FIX: prefer the parsed profile's validated name over the session
+  // value. setup.candidateName can carry stale or mis-extracted values (a
+  // headline like "Junior Data Scientist" from an older parse), while the CV
+  // pipeline's identity finalizer has already validated the profile name.
+  const profileBasics = (setup as unknown as { resumeProfile?: { basics?: { name?: string } } }).resumeProfile?.basics;
+  const name = safeGreetingName(profileBasics?.name || setup.candidateName);
   const hasRealName = name !== "there" && name.length > 1;
 
   switch (language.code) {
@@ -4360,7 +4365,6 @@ function cleanRecruiterFinalText(text: string, setup: InterviewSetup) {
 
   return (
     cleanVisibleTranscriptText(text)
-      .replace(/\bMichel,?\s*/gi, "")
       .replace(/\bthe first few time,?\s*/gi, "")
       // Hard-block the old robotic metric prompt if any legacy assistant still emits it.
       .replace(
@@ -5315,9 +5319,11 @@ function InterviewPageInner() {
       return greeting;
     }
   }, []);
-  // Technical mode: premium/premium_pro only
+  // Technical mode: auto-enabled for the technical interviewers — Alex
+  // (free tier) and David Kimura / Principal Engineer (Pro tier).
   const isTechnicalRecruiter = (id: string) =>
-    id === "faang_hiring_manager" || id === "alex" || id.includes("faang");
+    id === "faang_hiring_manager" || id === "alex" || id.includes("faang") ||
+    id === "enterprise_recruiter" || id === "david" || id.includes("kimura");
   const [technicalMode, setTechnicalMode] = useState(() => isTechnicalRecruiter(setup.recruiterId || ""));
   const [codeSnapshot, setCodeSnapshot] = useState("");
   const [codeLanguage, setCodeLanguage] = useState("python");
@@ -7929,7 +7935,7 @@ function InterviewPageInner() {
         text:
           blockedPlan === "premium"
             ? `You've used all ${sessionPersistResult.limit} interviews this month. Upgrade to Premium Pro for unlimited voice interviews.`
-            : `You've used all ${sessionPersistResult.limit} free interviews this month. Upgrade to Premium for 120 voice minutes per month, with top-up boosts when you need more.`,
+            : `You've used all ${sessionPersistResult.limit} free interviews this month. Upgrade to Premium for 300 voice minutes per month.`,
       });
       setStatus("idle");
       return;
