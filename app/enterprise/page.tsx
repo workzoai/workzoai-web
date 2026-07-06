@@ -5,6 +5,7 @@ import {
 import {
   MarketingShell, Reveal, Eyebrow, SectionHeading, StatBand, FeatureCard, FaqAccordion, CTASection, BackLink, PrimaryButton, GhostButton,
 } from "@/components/marketing/kit";
+import B2BLeadForm from "@/components/marketing/B2BLeadForm";
 
 export const metadata: Metadata = {
   title: "Enterprise — WorkZo AI",
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 
 const capabilities = [
   { icon: Users, title: "One standard for everyone", text: "Every candidate prepares with the same structured, role-specific interview, so preparation no longer depends on which manager you happen to report to." },
-  { icon: GaugeCircle, title: "Readiness you can see", text: "Group-level dashboards show engagement and readiness trends, so talent teams can run targeted workshops before a formal panel." },
+  { icon: GaugeCircle, title: "Readiness you can see", text: "Cohort completion and readiness reports delivered on a regular cadence, so talent teams can run targeted workshops before a formal panel. A self-serve dashboard is on the roadmap and shaped with early partners." },
   { icon: Layers, title: "Every role, one engine", text: "Interviews are built from the job description, covering internal mobility, graduate intakes, promotion loops, and leadership roles." },
   { icon: Languages, title: "Global by default", text: "Practice runs in the language and interview culture of each market, so preparation is fair across every location." },
   { icon: LockKeyhole, title: "Privacy and access controls", text: "Scoped administrator access and clear data handling, with a managed rollout your DPO and IT teams can review up front." },
@@ -21,12 +22,12 @@ const capabilities = [
 ];
 
 const included = [
-  "Shared voice-minute pool sized to your organization",
+  "Voice-minute allocation sized to your organization",
   "All 11 recruiter personas across HR, technical, and leadership styles",
-  "Group-level readiness and engagement view",
+  "Cohort completion and readiness reporting",
   "Managed onboarding and rollout support",
   "GDPR-friendly data handling and scoped admin access",
-  "Priority support and a named point of contact",
+  "Direct access to the founder for support and rollout",
 ];
 
 export default function EnterprisePage() {
@@ -47,7 +48,7 @@ export default function EnterprisePage() {
               Internal mobility, graduate intakes, and promotion cases all depend on people interviewing well. WorkZo AI gives your organization a single, fair, structured way to prepare them, with the readiness data to coach at scale.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <PrimaryButton href="mailto:support@workzoai.com?subject=WorkZo%20AI%20Enterprise%20Enquiry" external>Talk to sales</PrimaryButton>
+              <PrimaryButton href="#contact">Talk to sales</PrimaryButton>
               <GhostButton href="/pricing">See plans</GhostButton>
             </div>
           </Reveal>
@@ -99,10 +100,21 @@ export default function EnterprisePage() {
         </Reveal>
       </section>
 
+      <section id="contact" className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+        <SectionHeading
+          eyebrow="Get in touch"
+          title="Tell us about your organization"
+          text="We reply within one business day. Pilots start small: your cohort gets full access via invitation, you get completion reports, and we shape the rollout together."
+        />
+        <div className="mt-8">
+          <B2BLeadForm source="enterprise" />
+        </div>
+      </section>
+
       <CTASection
         title="Let's talk about your organization"
         intro="Tell us your team size, the roles you hire and promote for, and your timeline. We'll shape a pilot that proves the value quickly."
-        primary={{ href: "mailto:support@workzoai.com?subject=WorkZo%20AI%20Enterprise%20Enquiry", label: "Talk to sales", external: true }}
+        primary={{ href: "#contact", label: "Talk to sales" }}
         secondary={{ href: "/for-education", label: "For education" }}
       />
     </MarketingShell>

@@ -29,6 +29,7 @@ import {
   PrimaryButton,
   GhostButton,
 } from "@/components/marketing/kit";
+import B2BLeadForm from "@/components/marketing/B2BLeadForm";
 
 type Stat = { value: string; label: string };
 type Pair = { title: string; text: string };
@@ -476,14 +477,6 @@ const SEGMENTS: Record<string, Segment> = {
 
 const SEGMENT_ORDER = Object.keys(SEGMENTS);
 
-function demoMailto(label: string) {
-  const subject = encodeURIComponent(`WorkZo AI ${label} Demo Request`);
-  const body = encodeURIComponent(
-    `Hi WorkZo AI team,\n\nI would like to request a demo for ${label}.\n\nOrganization name:\nCohort size:\nUse case:\nPreferred demo time:\n\nThank you.`,
-  );
-  return `mailto:support@workzoai.com?subject=${subject}&body=${body}`;
-}
-
 export function generateStaticParams() {
   return SEGMENT_ORDER.map((segment) => ({ segment }));
 }
@@ -497,9 +490,9 @@ export async function generateMetadata({
   const page = SEGMENTS[segment];
   if (!page) return { title: "WorkZo AI for Education" };
   return {
-    title: `${page.eyebrow} — WorkZo AI for Education`,
+    title: `${page.eyebrow}, WorkZo AI for Education`,
     description: page.intro,
-    openGraph: { title: `${page.eyebrow} — WorkZo AI`, description: page.intro },
+    openGraph: { title: `${page.eyebrow}, WorkZo AI`, description: page.intro },
   };
 }
 
@@ -532,7 +525,7 @@ export default async function EducationDetailPage({
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">{page.intro}</p>
             <p className="mt-5 text-sm font-black uppercase tracking-[0.14em] text-brand">{page.audience}</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <PrimaryButton href={demoMailto(page.eyebrow)} external>Request a demo</PrimaryButton>
+              <PrimaryButton href="#contact">Request a demo</PrimaryButton>
               {page.slug === "admin-dashboard" ? (
                 <GhostButton href="/admin">See a live demo</GhostButton>
               ) : (
@@ -692,10 +685,21 @@ export default async function EducationDetailPage({
         </div>
       </section>
 
+      <section id="contact" className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+        <SectionHeading
+          eyebrow="Request a demo"
+          title={`Bring WorkZo AI to your ${page.eyebrow.toLowerCase()}`}
+          text="We reply within one business day and shape the pilot around your cohort."
+        />
+        <div className="mt-8">
+          <B2BLeadForm source={`education-${segment}`} />
+        </div>
+      </section>
+
       <CTASection
         title={`Ready to prepare your ${page.eyebrow.toLowerCase()} cohort?`}
         intro="Tell us your group size, target roles, and timeline. We'll help you shape a practical pilot before a full rollout."
-        primary={{ href: demoMailto(page.eyebrow), label: "Request a demo", external: true }}
+        primary={{ href: "#contact", label: "Request a demo" }}
         secondary={{ href: "/for-education", label: "Back to overview" }}
       />
     </MarketingShell>

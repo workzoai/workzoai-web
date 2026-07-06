@@ -37,23 +37,6 @@ const quickFeatures = [
 
 const TESTIMONIALS = [
   {
-    quote: "I’d been getting to final rounds and bombing. WorkZo showed me my trust score dropped every time I answered ownership questions. Two sessions later I had a framework: got an offer the following week.",
-    name: "Fayaz Ahmed",
-    role: "Product Manager",
-    location: "London",
-    score: 84,
-    // Stable AI-generated face via randomuser.me: replace with real photo when available
-    avatar: "",
-  },
-  {
-    quote: "The follow-up questions are what got me. I’d give an answer I thought was fine, then Sarah would ask ‘what was the measurable outcome?’ and I’d realise I had nothing. Fixed that in three sessions.",
-    name: "Johanna De Vries",
-    role: "Senior Data Analyst",
-    location: "Amsterdam",
-    score: 79,
-    avatar: "",
-  },
-  {
     quote: "Finally, an interview practice tool that feels like talking to a real recruiter. The feedback was actionable, and I felt more prepared after just a few sessions.",
     name: "Eliana Teixeira",
     role: "Data Analyst",
@@ -61,6 +44,18 @@ const TESTIMONIALS = [
     score: 87,
     avatar: "/testimonials/eliana-teixeira.jpg",
   },
+];
+
+// Real, verifiable product facts shown alongside the testimonial. As more
+// genuine user quotes arrive (with permission), add them to TESTIMONIALS —
+// never add invented names or AI-generated faces: fabricated reviews are
+// illegal under German UWG / the EU Omnibus Directive and would end any
+// university or B2B procurement conversation instantly.
+const PRODUCT_FACTS = [
+  { value: "11", label: "recruiter personas, from friendly HR screens to principal-engineer system design" },
+  { value: "15", label: "interview languages with native question generation" },
+  { value: "CV + JD", label: "every question grounded in your real background and the actual job posting" },
+  { value: "0", label: "generic question banks — interviews are generated per session" },
 ];
 
 const RECRUITER_PERSONAS = [
@@ -713,6 +708,17 @@ function TestimonialsSection() {
         </div>
 
         <div className="mt-12 grid gap-5 md:grid-cols-3">
+          {/* Verifiable product facts shown alongside the real testimonial.
+              These replaced two previously fabricated quotes — real quotes
+              get added to TESTIMONIALS as users grant permission. */}
+          <div className="flex flex-col justify-center gap-5 rounded-xl border border-line bg-canvas-soft p-6 backdrop-blur-sm">
+            {PRODUCT_FACTS.slice(0, 2).map((f) => (
+              <div key={f.label}>
+                <div className="text-2xl font-black text-fg">{f.value}</div>
+                <div className="mt-1 text-sm leading-6 text-muted">{f.label}</div>
+              </div>
+            ))}
+          </div>
           {TESTIMONIALS.map((t) => (
             <div
               key={t.name}
@@ -757,6 +763,14 @@ function TestimonialsSection() {
               </div>
             </div>
           ))}
+          <div className="flex flex-col justify-center gap-5 rounded-xl border border-line bg-canvas-soft p-6 backdrop-blur-sm">
+            {PRODUCT_FACTS.slice(2).map((f) => (
+              <div key={f.label}>
+                <div className="text-2xl font-black text-fg">{f.value}</div>
+                <div className="mt-1 text-sm leading-6 text-muted">{f.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -1485,7 +1499,7 @@ export default function LandingPage() {
                 regular: localizedPlans.premium.regular,
                 suffix: "/month",
                 text: "For active job seekers who want daily interview practice and full application tools.",
-                features: ["300 AI voice minutes / month", "Unlimited Resume / CV optimization", "Unlimited ATS analysis", "Unlimited cover letters", "Basic progress tracking", "All languages"],
+                features: ["120 AI voice minutes / month (top-ups available)", "Unlimited Resume / CV optimization", "Unlimited ATS analysis", "Unlimited cover letters", "Basic progress tracking", "All languages"],
                 cta: "Upgrade Now",
                 href: "/pricing?plan=premium",
                 featured: true,
@@ -1498,7 +1512,7 @@ export default function LandingPage() {
                 regular: localizedPlans.premiumPro.regular,
                 suffix: "/month",
                 text: "For high-stakes interviews where face-to-face delivery and coaching matter.",
-                features: ["600 AI voice minutes / month", "60 AI video minutes / month (early access)", "Detailed interview feedback", "Advanced performance analysis", "Multi-session interview history", "AI improvement suggestions"],
+                features: ["240 AI voice minutes / month (top-ups available)", "60 AI video minutes / month (early access)", "Detailed interview feedback", "Advanced performance analysis", "Multi-session interview history", "AI improvement suggestions"],
                 cta: "Go Pro",
                 href: "/pricing?plan=premium_pro",
                 featured: false,

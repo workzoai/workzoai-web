@@ -3,7 +3,7 @@ import { Mail, MessageCircle, ShieldCheck, Building2, GraduationCap, Clock } fro
 import { MarketingShell, Reveal, Eyebrow, BackLink } from "@/components/marketing/kit";
 
 export const metadata: Metadata = {
-  title: "Contact — WorkZo AI",
+  title: "Contact, WorkZo AI",
   description: "Reach the WorkZo AI team for support, bug reports, data requests, education, and enterprise enquiries.",
 };
 
@@ -11,8 +11,8 @@ const cards = [
   { icon: Mail, tone: "brand", title: "Support", line: "support@workzoai.com", href: "mailto:support@workzoai.com", cta: "Email support" },
   { icon: MessageCircle, tone: "brand", title: "Report a bug", line: "Tell us the page, your browser, and what happened.", href: "mailto:support@workzoai.com?subject=WorkZo%20AI%20Bug%20Report&body=Page:%0ABrowser:%0AWhat%20happened:%0A", cta: "Report a bug" },
   { icon: ShieldCheck, tone: "success", title: "Data request", line: "Request access, correction, or deletion of your data.", href: "mailto:support@workzoai.com?subject=Data%20Request", cta: "Make a request" },
-  { icon: GraduationCap, tone: "brand", title: "Education", line: "Bootcamps, universities, and academies.", href: "mailto:support@workzoai.com?subject=WorkZo%20AI%20Education%20Enquiry", cta: "Talk to us" },
-  { icon: Building2, tone: "brand", title: "Enterprise", line: "Rollouts across teams and locations.", href: "mailto:support@workzoai.com?subject=WorkZo%20AI%20Enterprise%20Enquiry", cta: "Talk to sales" },
+  { icon: GraduationCap, tone: "brand", title: "Education", line: "Bootcamps, universities, and academies.", href: "/for-education#contact", cta: "Talk to us" },
+  { icon: Building2, tone: "brand", title: "Enterprise", line: "Rollouts across teams and locations.", href: "/enterprise#contact", cta: "Talk to sales" },
   { icon: Clock, tone: "muted", title: "Response time", line: "We usually reply within one business day.", href: "mailto:support@workzoai.com", cta: "Get in touch" },
 ];
 

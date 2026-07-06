@@ -25,9 +25,10 @@ import {
   PrimaryButton,
   GhostButton,
 } from "@/components/marketing/kit";
+import B2BLeadForm from "@/components/marketing/B2BLeadForm";
 
 export const metadata: Metadata = {
-  title: "For Education & Organizations — WorkZo AI",
+  title: "For Education & Organizations, WorkZo AI",
   description:
     "Realistic, CV-aware interview practice for bootcamps, universities, training academies, enterprises, and recruitment agencies. One engine, every cohort, measurable readiness.",
 };
@@ -66,7 +67,7 @@ export default function ForEducationOverview() {
             WorkZo AI gives every student, learner, or candidate realistic, CV-aware interview practice, and gives your team the readiness signals to coach the people who need it, before the deadline.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <PrimaryButton href="mailto:support@workzoai.com?subject=WorkZo%20AI%20Education%20Demo%20Request" external>Request a demo</PrimaryButton>
+            <PrimaryButton href="#contact">Request a demo</PrimaryButton>
             <GhostButton href="/pricing">See plans</GhostButton>
           </div>
         </Reveal>
@@ -150,10 +151,21 @@ export default function ForEducationOverview() {
         </div>
       </section>
 
+      <section id="contact" className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+        <SectionHeading
+          eyebrow="Request a demo"
+          title="Tell us about your program"
+          text="We reply within one business day. Pilots start small: your cohort gets full access via invitation, and you get completion reports every week."
+        />
+        <div className="mt-8">
+          <B2BLeadForm source="education" />
+        </div>
+      </section>
+
       <CTASection
         title="Let's shape a pilot for your program"
         intro="Tell us your cohort size, target roles, and timeline. We'll help you start small and prove the value before any deeper rollout."
-        primary={{ href: "mailto:support@workzoai.com?subject=WorkZo%20AI%20Education%20Demo%20Request", label: "Request a demo", external: true }}
+        primary={{ href: "#contact", label: "Request a demo" }}
         secondary={{ href: "/resources", label: "Browse resources" }}
       />
     </MarketingShell>

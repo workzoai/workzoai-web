@@ -12,6 +12,8 @@ const productLinks = [
 
 const resourceLinks = [
   { label: "About", href: "/about" },
+  { label: "For Universities & Bootcamps", href: "/for-education" },
+  { label: "Enterprise", href: "/enterprise" },
   { label: "Roadmap", href: "/roadmap" },
   { label: "Changelog", href: "/changelog" },
   { label: "FAQ", href: "/faq" },
@@ -21,6 +23,7 @@ const resourceLinks = [
 
 const legalLinks = [
   { label: "Privacy Policy", href: "/legal/privacy" },
+  { label: "Security & Data", href: "/security" },
   { label: "Terms of Service", href: "/legal/terms" },
   { label: "Cookie Policy", href: "/legal/cookies" },
   { label: "Disclaimer", href: "/legal/disclaimer" },
