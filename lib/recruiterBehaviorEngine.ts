@@ -4,7 +4,7 @@
  * WHAT CHANGED vs original:
  * - Trust / pressure scoring is now quality-weighted, not keyword-density based.
  *   The original rewarded answers that contained words like "reduced", "improved",
- *   "saved" regardless of context — a candidate could pad any answer with generic
+ *   "saved" regardless of context, a candidate could pad any answer with generic
  *   metric-sounding words and gain trust mechanically.
  *
  *   The new scoring considers:
@@ -14,7 +14,7 @@
  *   · Is the metric plausible relative to the seniority/role signals?
  *   · Is the answer length appropriate (too short = partial, too long = rambling)?
  *
- * - analyzeRecruiterPressure now returns a `trustQuality` score (0–100) in
+ * - analyzeRecruiterPressure now returns a `trustQuality` score (0-100) in
  *   addition to trustDelta. Callers can use this for the trust timeline.
  *
  * - interruptionPool is expanded and recruiter-persona-weighted so the same
@@ -44,7 +44,7 @@ export type PressureAnalysis = {
   recruiterLine?: string;
   pressureDelta: number;
   trustDelta: number;
-  trustQuality: number;   // 0–100, replaces raw keyword scoring
+  trustQuality: number;   // 0-100, replaces raw keyword scoring
   shouldInterrupt?: boolean;
   issues: string[];
   strengths: string[];
@@ -84,29 +84,29 @@ export type RecruiterBehaviorDecision = {
 
 const interruptionPool = {
   default: [
-    "Hold on — you still haven't answered what you personally did.",
+    "Hold on, you still haven't answered what you personally did.",
     "That sounds rehearsed. Give me a real example from your own work.",
     "Be specific. What exactly did YOU do in that situation?",
     "You're speaking too broadly. Let's narrow this.",
-    "Before we move on — what was the actual outcome?",
+    "Before we move on, what was the actual outcome?",
     "You're giving me the team story. What's your story in it?",
     "I need one concrete result, not a description of the process.",
   ],
   analytical: [
-    "Let me stop you there — what was your decision-making process, specifically?",
+    "Let me stop you there, what was your decision-making process, specifically?",
     "That's a big claim. What data or evidence supported that decision?",
     "You've described what happened. I need to know why you made the calls you made.",
     "What trade-off did you consciously accept in that situation?",
   ],
   friendly: [
-    "Thanks — I just want to make sure I understand your personal role. What part did you own?",
-    "I hear the situation — could you focus on what you specifically contributed?",
+    "Thanks, I just want to make sure I understand your personal role. What part did you own?",
+    "I hear the situation, could you focus on what you specifically contributed?",
     "Can you give me a quick outcome? Even a rough one is fine.",
   ],
   startup: [
-    "Okay, quick — what changed because of what you did?",
+    "Okay, quick, what changed because of what you did?",
     "What would have broken if you hadn't been there?",
-    "Speed this up — what was the result?",
+    "Speed this up, what was the result?",
   ],
 };
 
@@ -128,7 +128,7 @@ function pickInterruption(recruiterType?: string): string {
 
 /**
  * Score the QUALITY of evidence in the answer, not the density of
- * metric-adjacent keywords. Returns 0–100.
+ * metric-adjacent keywords. Returns 0-100.
  *
  * Key distinction:
  * - "I improved customer satisfaction" = keyword hit, no evidence → low score
@@ -148,7 +148,7 @@ function scoreEvidenceQuality(text: string): number {
       lower,
     );
 
-  // Weak ownership — "we" without "I" follow-through, or passive voice
+  // Weak ownership, "we" without "I" follow-through, or passive voice
   const weakOwnership =
     !strongOwnership &&
     /\b(we|the team|the company|it was|there was|the process)\b/i.test(lower);
@@ -254,7 +254,7 @@ export function analyzeRecruiterPressure(
   const strengths: string[] = [];
 
   if (!hasPlausibleMetric && !hasQualitativeResult) issues.push("no measurable or qualitative outcome");
-  if (!strongOwnership) issues.push("ownership unclear — too much 'we'");
+  if (!strongOwnership) issues.push("ownership unclear, too much 'we'");
   if (!hasSituation && wordCount > 25) issues.push("no specific situation referenced");
   if (wordCount > 150 && !hasOutcome) issues.push("rambling without a result");
   if (wordCount < 20) issues.push("answer too brief to evaluate");
@@ -344,7 +344,7 @@ export function buildRecruiterBehaviorDecision(
     followUpFocus = "What did YOU specifically do, and what changed because of it?";
   } else if (emotion === "confused") {
     responseMode = "probe";
-    pressureInstruction = "Ask for one concrete grounding detail — a situation or a result.";
+    pressureInstruction = "Ask for one concrete grounding detail, a situation or a result.";
     followUpFocus = "Give me one real example from your experience.";
   } else if (emotion === "engaged" || trustQuality >= 70) {
     responseMode = trustQuality >= 82 ? "move_on" : "continue";

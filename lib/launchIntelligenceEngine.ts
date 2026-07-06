@@ -398,7 +398,7 @@ export function runWorkobotAction({
     return ["Make ownership clearer:", "• Replace “we worked on” with “I owned / I coordinated / I resolved”.", "• Mention the decision you made.", "• Mention who depended on your work.", "• End with the result."].join("\n");
   }
   if (action === "star") {
-    return ["STAR structure:", "S — Situation: What was the problem?", "T — Task: What were you responsible for?", "A — Action: What exactly did you do?", "R — Result: What changed because of your action?", "", signals.hasMetric ? "Good: your answer already has some measurable signal." : "Missing: add one number or measurable outcome."].join("\n");
+    return ["STAR structure:", "S, Situation: What was the problem?", "T, Task: What were you responsible for?", "A, Action: What exactly did you do?", "R, Result: What changed because of your action?", "", signals.hasMetric ? "Good: your answer already has some measurable signal." : "Missing: add one number or measurable outcome."].join("\n");
   }
   return ["Stronger answer draft:", `“One relevant example is from my experience with ${cvSignals.strengths[0] || "a real work situation"}. The challenge was [specific problem]. I was responsible for [your ownership]. I handled it by [clear action]. The result was [metric/result]. This connects to ${targetRole || "this role"} because it shows [role-relevant skill].”`, "", "Recruiter note:", signals.vague ? "Your original answer is still too broad. Add a real example." : "Your answer has useful direction. Make the result more measurable."].join("\n");
 }

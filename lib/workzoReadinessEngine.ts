@@ -3,13 +3,13 @@
  *
  * Phase 3 of the WorkZo roadmap: Interview Readiness Score.
  *
- * Combines all available signals into one unified Readiness Score (0–100):
+ * Combines all available signals into one unified Readiness Score (0-100):
  *
- *   CV Score          — quality and JD match of the uploaded CV
- *   Interview Score   — performance in the AI interview session
- *   Technical Score   — result of the technical assessment (Phase 2)
- *   Communication     — clarity, structure, ownership language across answers
- *   JD Fit            — how well the candidate matches the job description
+ *   CV Score        , quality and JD match of the uploaded CV
+ *   Interview Score , performance in the AI interview session
+ *   Technical Score , result of the technical assessment (Phase 2)
+ *   Communication   , clarity, structure, ownership language across answers
+ *   JD Fit          , how well the candidate matches the job description
  *
  * Each dimension is independently computable so the score degrades gracefully
  * when only some signals are available (e.g. no technical assessment yet).
@@ -29,17 +29,17 @@ import type { TechnicalAssessmentResult } from "./workzoTechnicalAssessmentEngin
 
 export type ReadinessDimension = {
   label: string;
-  score: number;            // 0–100
-  weight: number;           // 0–1, sum of all weights = 1
+  score: number;            // 0-100
+  weight: number;           // 0-1, sum of all weights = 1
   available: boolean;       // false = not yet assessed, shown as "--"
-  grade: "A" | "B" | "C" | "D" | "F" | "—";
+  grade: "A" | "B" | "C" | "D" | "F" | "-";
   topInsight: string;       // 1-line actionable note
   improvementTarget: string;// what a 10-point gain would require
 };
 
 export type ReadinessScoreInput = {
   // From CV analysis (Phase A)
-  cvScore?: number;                         // 0–100 from PhaseA readinessScore
+  cvScore?: number;                         // 0-100 from PhaseA readinessScore
   cvInsights?: PhaseAInsights;
 
   // From interview session
@@ -55,7 +55,7 @@ export type ReadinessScoreInput = {
   technicalResult?: TechnicalAssessmentResult;
 
   // From JD analysis
-  jdMatchPercent?: number;                  // 0–100, from workzoInterviewEvidencePlanner matchedSkills/total
+  jdMatchPercent?: number;                  // 0-100, from workzoInterviewEvidencePlanner matchedSkills/total
   missingSkillCount?: number;
   matchedSkillCount?: number;
 
@@ -67,7 +67,7 @@ export type ReadinessScoreInput = {
 };
 
 export type ReadinessScoreOutput = {
-  overall: number;                          // 0–100 weighted composite
+  overall: number;                          // 0-100 weighted composite
   grade: "A" | "B" | "C" | "D" | "F";
   label: "Interview Ready" | "Nearly Ready" | "Developing" | "Needs Work" | "Not Ready";
   dimensions: {
@@ -82,7 +82,7 @@ export type ReadinessScoreOutput = {
   nextAction: string;
   progressMessage: string;
   readyForLiveInterview: boolean;
-  estimatedOfferProbability: number;        // 0–100, rough signal
+  estimatedOfferProbability: number;        // 0-100, rough signal
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ function buildCvDimension(input: ReadinessScoreInput): ReadinessDimension {
     score: available ? score : 0,
     weight: 0.20,
     available,
-    grade: available ? gradeFrom(score) : "—",
+    grade: available ? gradeFrom(score) : "-",
     topInsight,
     improvementTarget,
   };
@@ -163,7 +163,7 @@ function buildInterviewDimension(input: ReadinessScoreInput): ReadinessDimension
     !available
       ? "Complete an interview to unlock this score."
       : score >= 80
-        ? "Interview performance is strong — evidence and ownership are clear."
+        ? "Interview performance is strong, evidence and ownership are clear."
         : score >= 65
           ? "Interview is solid. Work on adding metrics to claims."
           : score >= 50
@@ -174,7 +174,7 @@ function buildInterviewDimension(input: ReadinessScoreInput): ReadinessDimension
     score < 65
       ? "For every claim you make, add a number, a scope, and your personal role."
       : score < 80
-        ? "Reduce vague ownership ('we did') — replace with personal actions ('I built / I led')."
+        ? "Reduce vague ownership ('we did'), replace with personal actions ('I built / I led')."
         : "Push for depth on your strongest examples. Anticipate follow-up questions.";
 
   return {
@@ -182,7 +182,7 @@ function buildInterviewDimension(input: ReadinessScoreInput): ReadinessDimension
     score,
     weight: 0.30,
     available,
-    grade: available ? gradeFrom(score) : "—",
+    grade: available ? gradeFrom(score) : "-",
     topInsight,
     improvementTarget,
   };
@@ -217,7 +217,7 @@ function buildTechnicalDimension(input: ReadinessScoreInput): ReadinessDimension
     score,
     weight: 0.25,
     available,
-    grade: available ? gradeFrom(score) : "—",
+    grade: available ? gradeFrom(score) : "-",
     topInsight,
     improvementTarget,
   };
@@ -257,7 +257,7 @@ function buildCommunicationDimension(input: ReadinessScoreInput): ReadinessDimen
         ? "Answers are clear, structured, and confident."
         : score >= 65
           ? "Generally clear but some answers lack structure or ramble."
-          : "Communication needs work — answers are too vague or too long.";
+          : "Communication needs work, answers are too vague or too long.";
 
   const improvementTarget =
     score < 65
@@ -271,7 +271,7 @@ function buildCommunicationDimension(input: ReadinessScoreInput): ReadinessDimen
     score: available ? score : 0,
     weight: 0.12,
     available: available ?? false,
-    grade: (available ?? false) ? gradeFrom(score) : "—",
+    grade: (available ?? false) ? gradeFrom(score) : "-",
     topInsight,
     improvementTarget,
   };
@@ -333,17 +333,17 @@ function buildJdFitDimension(input: ReadinessScoreInput): ReadinessDimension {
   const topInsight = !available
     ? "Upload a job description to unlock JD Fit scoring."
     : score >= 85
-      ? "Excellent JD match — your profile covers the core requirements."
+      ? "Excellent JD match, your profile covers the core requirements."
       : score >= 70
         ? `Good match with ${missingCount} skill gap${missingCount !== 1 ? "s" : ""} to address.`
         : score >= 55
-          ? `Moderate JD fit — ${missingCount} required skills not evidenced in your CV.`
-          : `Low JD fit — significant skill gaps versus what the employer needs.`;
+          ? `Moderate JD fit, ${missingCount} required skills not evidenced in your CV.`
+          : `Low JD fit, significant skill gaps versus what the employer needs.`;
 
   const improvementTarget = !available
     ? "Upload a job description."
     : score < 70
-      ? `Address the missing JD skills — especially any marked as 'required'. Add evidence or transferable experience.`
+      ? `Address the missing JD skills, especially any marked as 'required'. Add evidence or transferable experience.`
       : `Address remaining ${missingCount} gap${missingCount !== 1 ? "s" : ""} with concrete examples in interview answers.`;
 
   return {
@@ -351,7 +351,7 @@ function buildJdFitDimension(input: ReadinessScoreInput): ReadinessDimension {
     score: available ? score : 0,
     weight: 0.13,
     available,
-    grade: available ? gradeFrom(score) : "—",
+    grade: available ? gradeFrom(score) : "-",
     topInsight,
     improvementTarget,
   };
@@ -386,14 +386,14 @@ export function buildReadinessScore(input: ReadinessScoreInput): ReadinessScoreO
   const worstDim = sortedByScore[sortedByScore.length - 1];
 
   const topStrength = topDim
-    ? `${topDim.label} (${topDim.score}/100) — ${topDim.topInsight}`
+    ? `${topDim.label} (${topDim.score}/100), ${topDim.topInsight}`
     : "Complete your interview and technical assessment to identify strengths.";
 
   const biggestGap = worstDim && worstDim.score < 70
-    ? `${worstDim.label} (${worstDim.score}/100) — ${worstDim.improvementTarget}`
+    ? `${worstDim.label} (${worstDim.score}/100), ${worstDim.improvementTarget}`
     : "No critical gaps detected.";
 
-  // Next action — most impactful thing the candidate can do right now
+  // Next action, most impactful thing the candidate can do right now
   const nextAction = buildNextAction(cv, interview, technical, jdFit, overall);
 
   const progressMessage = buildProgressMessage(overall, label, topDim, worstDim);
@@ -432,10 +432,10 @@ function buildNextAction(
 ): string {
   if (!cv.available) return "Upload your CV to unlock your full readiness profile.";
   if (!jdFit.available) return "Upload the job description you're targeting to get a JD Fit score.";
-  if (!interview.available) return "Start your first AI interview — it's the highest-impact action right now.";
+  if (!interview.available) return "Start your first AI interview, it's the highest-impact action right now.";
   if (!technical.available) return "Take the technical assessment to complete your readiness profile.";
 
-  // All available — give the most targeted improvement
+  // All available, give the most targeted improvement
   const dims = [cv, interview, technical, jdFit].sort((a, b) => a.score - b.score);
   const worst = dims[0];
   return worst.improvementTarget;
@@ -454,27 +454,27 @@ function buildProgressMessage(
     return `Almost there. A ${worstDim?.label || "few areas"} improvement would move you into ready territory.`;
   }
   if (overall >= 58) {
-    return `You're building momentum. Focus on ${worstDim?.label || "your weakest area"} — that's your biggest unlock.`;
+    return `You're building momentum. Focus on ${worstDim?.label || "your weakest area"}, that's your biggest unlock.`;
   }
   if (overall >= 42) {
     return `Work to do, but you're moving. Complete the full assessment to see exactly what to prioritise.`;
   }
-  return `Start with the basics — complete an interview and technical assessment to get a full picture.`;
+  return `Start with the basics, complete an interview and technical assessment to get a full picture.`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SERIALIZER — for injecting into LLM prompt or results page
+// SERIALIZER, for injecting into LLM prompt or results page
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function serializeReadinessScore(result: ReadinessScoreOutput): string {
   const dims = result.dimensions;
   const lines = [
     `READINESS SCORE (${result.label}): ${result.overall}/100 (${result.grade})`,
-    `  CV:            ${dims.cv.available ? `${dims.cv.score}/100 (${dims.cv.grade})` : "— not assessed"}`,
-    `  Interview:     ${dims.interview.available ? `${dims.interview.score}/100 (${dims.interview.grade})` : "— not assessed"}`,
-    `  Technical:     ${dims.technical.available ? `${dims.technical.score}/100 (${dims.technical.grade})` : "— not assessed"}`,
-    `  Communication: ${dims.communication.available ? `${dims.communication.score}/100 (${dims.communication.grade})` : "— not assessed"}`,
-    `  JD Fit:        ${dims.jdFit.available ? `${dims.jdFit.score}/100 (${dims.jdFit.grade})` : "— not assessed"}`,
+    `  CV:            ${dims.cv.available ? `${dims.cv.score}/100 (${dims.cv.grade})` : "- not assessed"}`,
+    `  Interview:     ${dims.interview.available ? `${dims.interview.score}/100 (${dims.interview.grade})` : "- not assessed"}`,
+    `  Technical:     ${dims.technical.available ? `${dims.technical.score}/100 (${dims.technical.grade})` : "- not assessed"}`,
+    `  Communication: ${dims.communication.available ? `${dims.communication.score}/100 (${dims.communication.grade})` : "- not assessed"}`,
+    `  JD Fit:        ${dims.jdFit.available ? `${dims.jdFit.score}/100 (${dims.jdFit.grade})` : "- not assessed"}`,
     `  Top strength:  ${result.topStrength}`,
     `  Biggest gap:   ${result.biggestGap}`,
     `  Next action:   ${result.nextAction}`,
@@ -484,7 +484,7 @@ export function serializeReadinessScore(result: ReadinessScoreOutput): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HISTORY TRACKER — persists readiness progress across sessions
+// HISTORY TRACKER, persists readiness progress across sessions
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ReadinessHistoryEntry = {

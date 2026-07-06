@@ -118,7 +118,7 @@ function SmallTrend({ label, values }: { label: string; values: number[] }) {
     <div className="rounded-lg border border-line bg-canvas-soft p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-subtle">{label}</p>
-        <p className="text-lg font-black text-fg">{latest || "—"}</p>
+        <p className="text-lg font-black text-fg">{latest || "-"}</p>
       </div>
       <div className="mt-3 flex h-10 items-end gap-1">
         {safeValues.map((value, index) => (

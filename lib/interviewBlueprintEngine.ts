@@ -1,13 +1,13 @@
 /**
  * lib/interviewBlueprintEngine.ts
  *
- * v3 ARCHITECTURE — STEP 1 (Blueprint), STEP 5 (Competency Budgets),
+ * v3 ARCHITECTURE, STEP 1 (Blueprint), STEP 5 (Competency Budgets),
  * STEP 12 (JD-Driven Generation, 70/30 weighting)
  *
  * Generates the internal Interview Blueprint ONCE per interview from the
  * Job Description (primary, 70%) and the CV (supporting context, 30%).
  * The blueprint is persisted inside the v3 memory blob and consumed
- * identically by every persona — this is the shared engine stage that
+ * identically by every persona, this is the shared engine stage that
  * guarantees the JD determines WHAT is interviewed.
  *
  * DESIGN NOTES (per WorkZo engineering principles):
@@ -17,7 +17,7 @@
  *   blueprint survives LLM outages and costs nothing.
  * - Language note: domain detection patterns are keyword-based and strongest
  *   in English JDs. Non-English JDs fall back to the universal competency
- *   set (still fully functional — every role needs communication, problem
+ *   set (still fully functional, every role needs communication, problem
  *   solving, experience depth, and role fit). The LLM applies the blueprint
  *   natively in the interview language either way.
  */
@@ -27,7 +27,7 @@
 export type BlueprintCompetency = {
   id: string;            // stable slug, e.g. "customer_communication"
   label: string;         // human label injected into prompts
-  weight: number;        // 0–100, all competencies sum to 100
+  weight: number;        // 0-100, all competencies sum to 100
   questionBudget: number;// max questions before forced move-on (Step 5)
   askedCount: number;    // updated per turn by the ledger
   status: "untested" | "in_progress" | "explored";
@@ -240,6 +240,19 @@ export function generateInterviewBlueprint(input: {
   const template = detectDomain(jd, targetRole);
   let competencies = (template ? template.competencies : UNIVERSAL_COMPETENCIES).map((c) => ({ ...c }));
 
+  // Mandatory global interview dimensions. These are required for every job,
+  // regardless of persona. They fix the observed gap where interviews skipped
+  // "why this role/company" and never explored missing JD requirements.
+  if (!competencies.some((c) => c.id === "career_motivation" || c.id === "role_fit")) {
+    competencies = competencies.map((c) => ({ ...c, weight: Math.round(c.weight * 0.9) }));
+    competencies.push({ id: "career_motivation", label: "Career Motivation & Why This Role", weight: 10 });
+  }
+
+  if (jd.trim() && cv.trim() && !competencies.some((c) => c.id === "resume_jd_gap")) {
+    competencies = competencies.map((c) => ({ ...c, weight: Math.round(c.weight * 0.85) }));
+    competencies.push({ id: "resume_jd_gap", label: "Resume vs JD Gaps & Missing Requirements", weight: 15 });
+  }
+
   // Append leadership when the JD asks for it, rebalancing weights.
   if (LEADERSHIP_PATTERN.test(jd) && !competencies.some((c) => c.id === "leadership")) {
     competencies = competencies.map((c) => ({ ...c, weight: Math.round(c.weight * 0.85) }));
@@ -282,28 +295,33 @@ export function generateInterviewBlueprint(input: {
 
 /**
  * Renders the blueprint block injected into the LLM system prompt every turn.
- * This is identical for every persona — the shared engine stage.
+ * This is identical for every persona, the shared engine stage.
  */
 export function renderBlueprintForPrompt(bp: InterviewBlueprint): string {
   const remaining = bp.competencies.filter((c) => c.status !== "explored");
   const explored = bp.competencies.filter((c) => c.status === "explored");
   const lines: string[] = [
-    "=== INTERVIEW BLUEPRINT (internal — never reveal to candidate) ===",
+    "=== INTERVIEW BLUEPRINT (internal, never reveal to candidate) ===",
     `TARGET ROLE: ${bp.targetRole} (domain: ${bp.domain})`,
     "CONTENT SOURCE RULE: Questions come from the JOB DESCRIPTION first (70%); the CV is supporting context only (30%). The interview is for the NEW role, not the previous one.",
-    "COMPETENCY PLAN (weight% — budget used):",
+    "COMPETENCY PLAN (weight%, budget used):",
     ...bp.competencies.map(
-      (c) => `  - ${c.label} (${c.weight}% — ${c.askedCount}/${c.questionBudget} questions, ${c.status})`,
+      (c) => `  - ${c.label} (${c.weight}%, ${c.askedCount}/${c.questionBudget} questions, ${c.status})`,
     ),
   ];
   if (remaining.length)
     lines.push("FOCUS NEXT ON: " + remaining.slice(0, 3).map((c) => c.label).join(", "));
   if (explored.length)
-    lines.push("EXPLORED — DO NOT RETURN TO: " + explored.map((c) => c.label).join(", "));
+    lines.push("EXPLORED, DO NOT RETURN TO: " + explored.map((c) => c.label).join(", "));
   if (bp.jdSignals.length)
     lines.push("JD REQUIREMENTS (primary question source):", ...bp.jdSignals.map((s) => `  • ${s}`));
   lines.push(
-    "RULES: One objective per question — never bundle multiple asks. Once a competency's budget is used, move to the next; never let one topic dominate.",
+    "MANDATORY COVERAGE BEFORE CLOSING:",
+    "  • Ask why this role/company or why the candidate is changing into this role.",
+    "  • Ask at least one JD-specific scenario, not just generic CV questions.",
+    "  • Ask at least one Resume-vs-JD gap question: mention a missing or weaker requirement respectfully and ask for transferable evidence.",
+    "  • If the JD requires a skill not obvious in the CV, ask comfort level and learning approach instead of pretending it is listed.",
+    "RULES: One objective per question, never bundle multiple asks. Once a competency's budget is used, move to the next; never let one topic dominate.",
     "=== END BLUEPRINT ===",
   );
   return lines.join("\n");
@@ -332,7 +350,7 @@ export function spendCompetencyQuestion(bp: InterviewBlueprint, competencyId: st
 /**
  * Classifies which blueprint competency a question/answer exchange touched.
  * Structural: matches against the competency's own label tokens plus the
- * domain template's id — no hardcoded content beyond the blueprint itself.
+ * domain template's id, no hardcoded content beyond the blueprint itself.
  */
 export function classifyCompetency(bp: InterviewBlueprint, text: string): string | null {
   const t = (text || "").toLowerCase();

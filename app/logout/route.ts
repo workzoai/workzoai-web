@@ -31,13 +31,13 @@ async function signOut() {
 // pattern in auth/callback/route.ts) rather than NEXT_PUBLIC_APP_URL. That
 // env var falling back to "http://localhost:3000" meant that if it was ever
 // unset or stale in production, every real user's browser got redirected
-// to localhost after logout — which just fails to load from their side.
+// to localhost after logout, which just fails to load from their side.
 // Building the URL from the request itself can't drift out of sync with
 // whatever domain the user is actually on.
 //
 // status: 303 is required here, not optional. NextResponse.redirect()
 // defaults to 307, which per HTTP spec tells the browser to replay the
-// SAME method on the target — so a POST to /logout would 307-redirect into
+// SAME method on the target, so a POST to /logout would 307-redirect into
 // a POST to "/", and since the homepage only handles GET, that's an
 // immediate 405. 303 ("See Other") is the standard status for redirecting
 // after a form POST specifically because it forces the follow-up request

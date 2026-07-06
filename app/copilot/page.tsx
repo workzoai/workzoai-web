@@ -204,7 +204,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       i++; continue;
     }
 
-    // Headers — strip leading emoji/symbols from header text
+    // Headers, strip leading emoji/symbols from header text
     const hMatch = line.match(/^(#{1,3})\s+(.+)/);
     if (hMatch) {
       const level = hMatch[1].length;
@@ -217,7 +217,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       i++; continue;
     }
 
-    // Blockquote — collect consecutive > lines into one block
+    // Blockquote, collect consecutive > lines into one block
     // Also handles blockquotes immediately after list items (no blank line)
     if (line.trimStart().startsWith(">")) {
       const blockKey = i; // capture before loop advances i
@@ -236,7 +236,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       continue;
     }
 
-    // Table — collect all | lines
+    // Table, collect all | lines
     if (line.trim().startsWith("|")) {
       const tableKey = i; // capture before loop advances i
       const tableLines: string[] = [];
@@ -278,7 +278,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       continue;
     }
 
-    // Checkbox list item — [ ] or [x]
+    // Checkbox list item, [ ] or [x]
     const checkMatch = raw.match(/^(\s*)- \[( |x|X)\] (.+)/);
     if (checkMatch) {
       const checked = checkMatch[2].toLowerCase() === "x";
@@ -360,7 +360,7 @@ export default function WorkOBotCopilotPage() {
     }
   }, []);
 
-  // This is display-only (which suggestion chips show a lock badge) — the
+  // This is display-only (which suggestion chips show a lock badge), the
   // actual gate is server-side in /api/copilot's PRO_ONLY_ACTIONS check, so
   // there's no security dependency on this fetch succeeding.
   useEffect(() => {
@@ -417,7 +417,7 @@ export default function WorkOBotCopilotPage() {
     if (proOnly && !isProUser) {
       const userMsg: ChatMessage = { id: uid(), role: "user", content: prompt };
       const upgradeMsg =
-        "This feature is part of Premium Pro — AI Career Coach, 30/60/90 day roadmaps, salary coaching, and replay intelligence are all included. Upgrade to Premium Pro to unlock it.";
+        "This feature is part of Premium Pro, AI Career Coach, 30/60/90 day roadmaps, salary coaching, and replay intelligence are all included. Upgrade to Premium Pro to unlock it.";
       setMessages((p) => [...p, userMsg, { id: uid(), role: "assistant", content: upgradeMsg }]);
       setInput("");
       return;
@@ -458,7 +458,7 @@ export default function WorkOBotCopilotPage() {
           const requiredPlan = data?.requiredPlan || "premium";
           const isPro = requiredPlan === "premium_pro";
           const upgradeMsg = isPro
-            ? "This feature is part of Premium Pro — AI Career Coach, 30/60/90 day roadmaps, salary coaching, and replay intelligence are all included. Upgrade to Premium Pro to unlock it."
+            ? "This feature is part of Premium Pro, AI Career Coach, 30/60/90 day roadmaps, salary coaching, and replay intelligence are all included. Upgrade to Premium Pro to unlock it."
             : "This feature requires Premium. CV rewriting, cover letters, ATS optimisation, job fit analysis, and more are all included. Upgrade to Premium to unlock it.";
           setMessages((p) => [...p, { id: uid(), role: "assistant", content: upgradeMsg }]);
           return;
@@ -617,7 +617,7 @@ export default function WorkOBotCopilotPage() {
                   </div>
                   <h1 className="text-2xl font-black">Ask Work-O-Bot anything</h1>
                   <p className="mt-2 text-sm leading-6 text-muted">
-                    Career advice, interview prep, salary negotiation, job search strategy — whatever you need.
+                    Career advice, interview prep, salary negotiation, job search strategy, whatever you need.
                     {memory.length > 0 && " I already have your CV and JD loaded."}
                   </p>
                 </div>

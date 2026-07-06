@@ -12,6 +12,7 @@ export type WorkZoUsageState = {
   interviewsStarted: number;
   interviewsCompleted: number;
   reportsViewed: number;
+  voiceMinutesUsed: number;
   tavusInterviewsStarted: number;
   tavusMinutesUsed: number;
   upgradeClicks: number;
@@ -33,6 +34,7 @@ function emptyUsage(): WorkZoUsageState {
     interviewsStarted: 0,
     interviewsCompleted: 0,
     reportsViewed: 0,
+    voiceMinutesUsed: 0,
     tavusInterviewsStarted: 0,
     tavusMinutesUsed: 0,
     upgradeClicks: 0,
@@ -47,6 +49,7 @@ function normalizeUsage(value: Partial<WorkZoUsageState> | null): WorkZoUsageSta
     interviewsStarted: Number(value.interviewsStarted || 0),
     interviewsCompleted: Number(value.interviewsCompleted || 0),
     reportsViewed: Number(value.reportsViewed || 0),
+    voiceMinutesUsed: Number(value.voiceMinutesUsed || 0),
     tavusInterviewsStarted: Number(value.tavusInterviewsStarted || 0),
     tavusMinutesUsed: Number(value.tavusMinutesUsed || 0),
     upgradeClicks: Number(value.upgradeClicks || 0),
@@ -70,11 +73,9 @@ async function sendUsageEvent(eventName: string, metadata: Record<string, unknow
 export function isWorkZoFounderTestMode() {
   if (typeof window === "undefined") return false;
   try {
-    const query = new URLSearchParams(window.location.search);
-    if (query.get("test") === "1" || query.get("founder") === "1") {
-      window.localStorage.setItem(WORKZO_TEST_MODE_KEY, "1");
-      return true;
-    }
+    // This is intentionally NOT enabled from a public query parameter.
+    // The server marks dev-unlimited accounts through /api/account/plan only
+    // when the signed-in user's email is present in WORKZO_FOUNDER_DEV_EMAILS.
     return window.localStorage.getItem(WORKZO_TEST_MODE_KEY) === "1";
   } catch {
     return false;
@@ -245,14 +246,28 @@ function getEffectiveInterviewLimit(plan: WorkZoPlanType) {
 export function checkWorkZoInterviewAllowed(plan = getWorkZoCurrentPlan()) {
   const normalizedPlan = normalizeWorkZoPlan(plan);
   const usage = readWorkZoUsage();
+  const limits = getWorkZoPlanLimits(normalizedPlan);
   const used = usage.interviewsStarted;
   const limit = getEffectiveInterviewLimit(normalizedPlan);
+
+  const minutesLimit = isWorkZoFounderTestMode() ? 999999 : limits.voiceMinutesPerMonth;
+  const minutesUsed = usage.voiceMinutesUsed;
+  const minutesRemaining = Math.max(0, minutesLimit - minutesUsed);
+
+  // Two gates, both must pass: session count (matters on Free) and the
+  // monthly voice-minute pool (the primary metric on paid plans).
+  const sessionOk = used < limit;
+  const minutesOk = minutesUsed < minutesLimit;
+
   return {
-    allowed: used < limit,
-    reason: used < limit ? "ok" : "interview_limit_reached",
+    allowed: sessionOk && minutesOk,
+    reason: !sessionOk ? "interview_limit_reached" : !minutesOk ? "voice_minutes_limit" : "ok",
     remaining: Math.max(0, limit - used),
     limit,
     used,
+    minutesRemaining,
+    minutesLimit,
+    minutesUsed,
     plan: normalizedPlan,
   };
 }
@@ -266,22 +281,22 @@ export function checkWorkZoTavusAllowed(plan = getWorkZoCurrentPlan()) {
     return { allowed: true, reason: "test_mode", remaining: 999, limit: 999, used: usage.tavusInterviewsStarted, minutesRemaining: 999, minutesLimit: 999, minutesUsed: usage.tavusMinutesUsed, plan: normalizedPlan };
   }
 
-  if (!limits.tavus) {
-    return { allowed: false, reason: "video_recruiter_locked", remaining: 0, limit: limits.tavusInterviewsPerMonth, used: usage.tavusInterviewsStarted, minutesRemaining: 0, minutesLimit: limits.tavusMinutesPerMonth, minutesUsed: usage.tavusMinutesUsed, plan: normalizedPlan };
+  if (!limits.videoRecruiter || !limits.video) {
+    return { allowed: false, reason: "video_recruiter_locked", remaining: 0, limit: limits.videoInterviewsPerMonth, used: usage.tavusInterviewsStarted, minutesRemaining: 0, minutesLimit: limits.videoMinutesPerMonth, minutesUsed: usage.tavusMinutesUsed, plan: normalizedPlan };
   }
 
-  if (usage.tavusMinutesUsed >= limits.tavusMinutesPerMonth) {
-    return { allowed: false, reason: "video_recruiter_minutes_limit", remaining: 0, limit: limits.tavusInterviewsPerMonth, used: usage.tavusInterviewsStarted, minutesRemaining: 0, minutesLimit: limits.tavusMinutesPerMonth, minutesUsed: usage.tavusMinutesUsed, plan: normalizedPlan };
+  if (usage.tavusMinutesUsed >= limits.videoMinutesPerMonth) {
+    return { allowed: false, reason: "video_recruiter_minutes_limit", remaining: 0, limit: limits.videoInterviewsPerMonth, used: usage.tavusInterviewsStarted, minutesRemaining: 0, minutesLimit: limits.videoMinutesPerMonth, minutesUsed: usage.tavusMinutesUsed, plan: normalizedPlan };
   }
 
   return {
     allowed: true,
     reason: "ok",
-    remaining: Math.max(0, limits.tavusInterviewsPerMonth - usage.tavusInterviewsStarted),
-    limit: limits.tavusInterviewsPerMonth,
+    remaining: Math.max(0, limits.videoInterviewsPerMonth - usage.tavusInterviewsStarted),
+    limit: limits.videoInterviewsPerMonth,
     used: usage.tavusInterviewsStarted,
-    minutesRemaining: Math.max(0, limits.tavusMinutesPerMonth - usage.tavusMinutesUsed),
-    minutesLimit: limits.tavusMinutesPerMonth,
+    minutesRemaining: Math.max(0, limits.videoMinutesPerMonth - usage.tavusMinutesUsed),
+    minutesLimit: limits.videoMinutesPerMonth,
     minutesUsed: usage.tavusMinutesUsed,
     plan: normalizedPlan,
   };
@@ -297,9 +312,25 @@ export function recordWorkZoInterviewStarted() {
   return next;
 }
 
-export function recordWorkZoInterviewCompleted() {
-  const next = updateWorkZoUsage((usage) => ({ ...usage, interviewsCompleted: usage.interviewsCompleted + 1 }));
-  void sendUsageEvent("interview_completed", { usage: next, testMode: isWorkZoFounderTestMode() });
+export function recordWorkZoInterviewCompleted(durationSeconds?: number) {
+  // Minutes are billed rounded-up per session (structural, not persona- or
+  // sample-specific): a 61-second call consumes 2 minutes from the pool.
+  const minutes = Number.isFinite(durationSeconds) && Number(durationSeconds) > 0
+    ? Math.ceil(Number(durationSeconds) / 60)
+    : 0;
+  const next = updateWorkZoUsage((usage) => ({
+    ...usage,
+    interviewsCompleted: usage.interviewsCompleted + 1,
+    voiceMinutesUsed: usage.voiceMinutesUsed + minutes,
+  }));
+  void sendUsageEvent("interview_completed", { usage: next, voiceMinutes: minutes, testMode: isWorkZoFounderTestMode() });
+  return next;
+}
+
+export function recordWorkZoVoiceMinutes(minutes: number) {
+  const safeMinutes = Math.max(0, Math.ceil(Number(minutes) || 0));
+  const next = updateWorkZoUsage((usage) => ({ ...usage, voiceMinutesUsed: usage.voiceMinutesUsed + safeMinutes }));
+  void sendUsageEvent("voice_minutes_used", { minutes: safeMinutes, usage: next, testMode: isWorkZoFounderTestMode() });
   return next;
 }
 
@@ -334,6 +365,7 @@ export function getWorkZoUsageSummary(plan = getWorkZoCurrentPlan()) {
   const limits = getWorkZoPlanLimits(normalizedPlan);
   const interviewLimit = getEffectiveInterviewLimit(normalizedPlan);
   const tavusAllowed = checkWorkZoTavusAllowed(normalizedPlan);
+  const voiceMinutesLimit = isWorkZoFounderTestMode() ? 999999 : limits.voiceMinutesPerMonth;
 
   return {
     plan: normalizedPlan,
@@ -341,9 +373,12 @@ export function getWorkZoUsageSummary(plan = getWorkZoCurrentPlan()) {
     usage,
     testMode: isWorkZoFounderTestMode(),
     interviewsRemaining: Math.max(0, interviewLimit - usage.interviewsStarted),
+    voiceMinutesUsed: usage.voiceMinutesUsed,
+    voiceMinutesLimit,
+    voiceMinutesRemaining: Math.max(0, voiceMinutesLimit - usage.voiceMinutesUsed),
     tavusInterviewsRemaining: tavusAllowed.remaining,
     tavusMinutesRemaining: tavusAllowed.minutesRemaining,
     tavusMinutesUsed: usage.tavusMinutesUsed,
-    tavusMinutesLimit: limits.tavusMinutesPerMonth,
+    tavusMinutesLimit: isWorkZoFounderTestMode() ? 999999 : limits.videoMinutesPerMonth,
   };
 }

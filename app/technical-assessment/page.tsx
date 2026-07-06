@@ -253,7 +253,7 @@ export default function TechnicalAssessmentPage() {
   function handleNext() {
     if (!assessment) return;
     const captured = captureCurrentAnswer();
-    if (!captured) return; // nothing selected — block advance
+    if (!captured) return; // nothing selected, block advance
 
     const updatedAnswers = [...answers, captured];
     setAnswers(updatedAnswers);
@@ -265,7 +265,7 @@ export default function TechnicalAssessmentPage() {
       setCurrentOpen("");
       startTimer(nextQ.timeSeconds);
     } else {
-      // All answered — submit
+      // All answered, submit
       submitAssessment(updatedAnswers);
     }
   }
@@ -377,7 +377,7 @@ export default function TechnicalAssessmentPage() {
               <p className="text-xs font-black text-warning">Before you start</p>
               <ul className="mt-2 space-y-1">
                 {[
-                  "Each question has a time limit — answer within the timer",
+                  "Each question has a time limit, answer within the timer",
                   "Multiple choice: tap to select, then click Next",
                   "Open questions: write clearly and specifically",
                   "Your score feeds into your Readiness Score on the results page",

@@ -1,7 +1,7 @@
 // lib/workzoVerdictEmail.ts
 //
 // Turns the hiring committee decision into the actual email the candidate
-// would have received after this performance — the polite rejection, the
+// would have received after this performance, the polite rejection, the
 // next-round invite, or the offer note.
 //
 // Deliberately deterministic: built entirely from the committee memo so it
@@ -22,7 +22,7 @@ export type WorkZoVerdictEmail = {
   signOff: string;
   senderName: string;
   senderTitle: string;
-  // The line the committee actually wrote — the reason behind the email
+  // The line the committee actually wrote, the reason behind the email
   // that no company would ever put in writing to the candidate.
   decidingFactor: string;
   decidingFactorLabel: string;
@@ -36,10 +36,18 @@ function firstNameOf(fullName: string) {
   const name = clean(fullName);
   if (!name) return "";
   const first = name.split(" ")[0] || "";
-  // Guard against placeholder values that sometimes survive setup ("there",
-  // "candidate", single letters).
+  // Guard against placeholder / non-name values that can survive from a failed
+  // CV parse ("Unknown", "N/A") or a CV section header ("Achievements", "Skills").
+  // Better to greet with "Hi," than to address the candidate by a wrong word.
   if (first.length < 2) return "";
-  if (/^(there|candidate|user|guest|anonymous)$/i.test(first)) return "";
+  if (/\d|@/.test(first)) return "";
+  if (
+    /^(there|candidate|user|guest|anonymous|anon|unknown|none|null|undefined|nan|tbd|na|n\/a|profile|summary|experience|education|skills?|projects?|languages?|contact|objective|overview|achievements?|accomplishments?|awards?|resume|cv|professional)$/i.test(
+      first,
+    )
+  ) {
+    return "";
+  }
   return first;
 }
 
@@ -80,12 +88,12 @@ export function buildWorkZoVerdictEmail(input: {
   if (kind === "offer") {
     return {
       kind,
-      subject: `Next steps — ${role} at ${company}`,
+      subject: `Next steps, ${role} at ${company}`,
       greeting,
       paragraphs: [
         `Thank you for taking the time to speak with us about the ${role} position. I'm pleased to share that the interview panel was impressed, and we would like to move you forward to the offer stage.`,
         `Someone from our team will reach out shortly with details on compensation and start dates. In the meantime, please let me know if you have any questions.`,
-        `Congratulations — we're excited about the possibility of you joining ${company}.`,
+        `Congratulations, we're excited about the possibility of you joining ${company}.`,
       ],
       signOff: "Best regards,",
       senderName: recruiter,
@@ -98,7 +106,7 @@ export function buildWorkZoVerdictEmail(input: {
   if (kind === "next_round") {
     return {
       kind,
-      subject: `Interview update — ${role} at ${company}`,
+      subject: `Interview update, ${role} at ${company}`,
       greeting,
       paragraphs: [
         `Thank you for speaking with us about the ${role} position. We enjoyed the conversation and would like to invite you to the next round of interviews.`,
@@ -115,7 +123,7 @@ export function buildWorkZoVerdictEmail(input: {
 
   return {
     kind,
-    subject: `Your application — ${role} at ${company}`,
+    subject: `Your application, ${role} at ${company}`,
     greeting,
     paragraphs: [
       `Thank you for taking the time to interview for the ${role} position. We appreciate the effort you put into the process.`,
@@ -126,6 +134,6 @@ export function buildWorkZoVerdictEmail(input: {
     senderName: recruiter,
     senderTitle: "Talent Acquisition",
     decidingFactor: topConcern || "The panel couldn't find enough verifiable, specific evidence to commit to a hire.",
-    decidingFactorLabel: "What actually decided it — the line they'd never send you",
+    decidingFactorLabel: "What actually decided it, the line they'd never send you",
   };
 }

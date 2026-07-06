@@ -4,7 +4,7 @@
  * Universal role knowledge engine.
  *
  * Rather than hardcoding knowledge for 7 roles, this uses GPT-4o to generate
- * a role intelligence brief for ANY role the user targets — Customer Success Manager,
+ * a role intelligence brief for ANY role the user targets, Customer Success Manager,
  * Nurse, Quantity Surveyor, Kindergarten Teacher, DevOps Engineer, anything.
  *
  * The brief is generated ONCE at interview setup, cached per session, and injected
@@ -85,8 +85,8 @@ Rules:
 - redFlags: 4-6 answer patterns that signal a weak or dishonest candidate.
 - greenFlags: 4-6 signals that indicate a genuinely strong candidate.
 - cvToRoleGapSignals: 3-5 specific things to probe when the candidate is transitioning from an adjacent field.
-- roleKnowledgeContext: Write this so the recruiter sounds genuinely knowledgeable about the domain — not a generic description.
-- If this is a niche role (nurse, pilot, quantity surveyor, chef, teacher) — use real industry knowledge.
+- roleKnowledgeContext: Write this so the recruiter sounds genuinely knowledgeable about the domain, not a generic description.
+- If this is a niche role (nurse, pilot, quantity surveyor, chef, teacher), use real industry knowledge.
 - If JD is provided, tailor ALL answers to the specific requirements in that JD.
 - If market is Germany/DACH, include awareness of German work culture and expectations.`;
 
@@ -118,7 +118,7 @@ Rules:
 }
 
 /**
- * Fallback brief when AI is unavailable — generic but better than nothing.
+ * Fallback brief when AI is unavailable, generic but better than nothing.
  */
 function buildFallbackBrief(role: string): RoleIntelligenceBrief {
   return {
@@ -234,7 +234,7 @@ export function serializeRoleBriefForPrompt(brief: RoleIntelligenceBrief): strin
     `Common weaknesses in candidates for this role:`,
     ...brief.commonWeaknesses.map(w => `  - ${w}`),
     "",
-    `When CV background differs from this role — probe:`,
+    `When CV background differs from this role, probe:`,
     ...brief.cvToRoleGapSignals.map(s => `  - ${s}`),
     "",
     `Recruiter domain knowledge context:`,

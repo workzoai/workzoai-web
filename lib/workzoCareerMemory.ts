@@ -333,7 +333,7 @@ function buildRoadmapFromInput(input: PhaseCCareerBrainInput, memory: WorkZoCare
   };
   if ((input.evidenceQuality || 0) < 75 || memory.patterns.some((p) => p.signal === "missing_metrics" && p.count >= 2)) add("add_metrics", "Priority 1", "Add measurable outcomes", "Improve CV bullets and interview stories with truthful numbers: %, time saved, tickets handled, users supported, quality improvement, or business impact.", "cv", "+8 to +12 pts");
   if ((input.ownershipScore || 0) < 72 || memory.patterns.some((p) => p.signal === "weak_ownership" && p.count >= 2)) add("clarify_ownership", "Priority 2", "Make ownership unmistakable", "Rewrite examples to show what you personally decided, handled, built, improved, or delivered.", "interview", "+5 to +9 pts");
-  if ((input.structureScore || 0) < 72 || memory.patterns.some((p) => p.signal === "weak_structure" || p.signal === "rambling")) add("tighten_star", "Priority 3", "Use tighter STAR delivery", "Prepare 60–90 second answers with situation, task, action, result, and role connection.", "interview", "+4 to +8 pts");
+  if ((input.structureScore || 0) < 72 || memory.patterns.some((p) => p.signal === "weak_structure" || p.signal === "rambling")) add("tighten_star", "Priority 3", "Use tighter STAR delivery", "Prepare 60-90 second answers with situation, task, action, result, and role connection.", "interview", "+4 to +8 pts");
   if ((input.contradictions || []).length || memory.patterns.some((p) => p.signal === "contradiction_risk")) add("fix_consistency", "Priority 4", "Resolve consistency risks", "Clarify timeline, role scope, skills, and leadership claims so CV, Job Assist, and interview answers tell the same story.", "global", "+4 to +7 pts");
   return items.length ? items : [
     { id: "keep_practicing", priority: "Priority 1", title: "Repeat one focused mock interview", action: "Run one more interview and intentionally use metrics, ownership, and concise STAR answers.", source: "interview", estimatedGain: "+3 to +6 pts", completed: false, updatedAt: now },
@@ -408,7 +408,7 @@ function coachLineForSignal(signal: CareerMemorySignal) {
     case "missing_metrics": return "Add numbers, scale, time saved, quality improvement, customer impact, or rough truthful estimates.";
     case "weak_ownership": return "Say what you personally handled, decided, built, improved, or delivered.";
     case "vague_answer": return "Replace broad claims with one concrete example from a real project, customer, or problem.";
-    case "rambling": return "Keep the story within 60–90 seconds and stop after the result.";
+    case "rambling": return "Keep the story within 60-90 seconds and stop after the result.";
     case "confidence_drop": return "Use firmer language and avoid maybe/probably when the answer is known.";
     case "weak_structure": return "Use STAR: situation, task, action, result, and role connection.";
     case "contradiction_risk": return "Align CV, job narrative, and interview claims before the next session.";
@@ -454,7 +454,7 @@ function buildProgressSummary(memory: WorkZoCareerMemory, probability: Interview
 
 // ── Premium Pro: cross-session opening callback ─────────────────────────────
 // Builds the one line the recruiter says at the START of a new session that
-// proves the coach remembers the last one. English-only by design — callers
+// proves the coach remembers the last one. English-only by design, callers
 // must skip it for non-English interviews. Returns "" when there is nothing
 // real to reference, so it can be appended unconditionally.
 function openingCallbackPhraseForSignal(signal: CareerMemorySignal): string {
@@ -487,15 +487,15 @@ export function buildWorkZoProOpeningCallback(memory: WorkZoCareerMemory): strin
   const roleRef = last?.targetRole ? ` for the ${last.targetRole} role` : "";
 
   if (weakPhrase && (top?.count || 0) >= 2) {
-    return `Before we start — last time we spoke${roleRef}, ${weakPhrase}. I will be listening for that today.`;
+    return `Before we start, last time we spoke${roleRef}, ${weakPhrase}. I will be listening for that today.`;
   }
 
   if (last && last.score >= 70) {
-    return `Before we start — your last session${roleRef} scored ${last.score}, and your evidence was getting stronger. Today I will push harder to see if it holds.`;
+    return `Before we start, your last session${roleRef} scored ${last.score}, and your evidence was getting stronger. Today I will push harder to see if it holds.`;
   }
 
   if (last?.biggestBlocker) {
-    return `Before we start — last time, the biggest blocker was: ${last.biggestBlocker.replace(/\.$/, "")}. Let us see if that has changed.`;
+    return `Before we start, last time, the biggest blocker was: ${last.biggestBlocker.replace(/\.$/, "")}. Let us see if that has changed.`;
   }
 
   return "";

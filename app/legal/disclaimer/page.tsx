@@ -26,7 +26,7 @@ const sections = [
   },
   {
     title: "Accuracy of feedback",
-    body: "Recruiter trust scores, verdicts, and session reports are simulations based on AI models. They are designed to help you practise — not to accurately represent how a real recruiter would evaluate you.",
+    body: "Recruiter trust scores, verdicts, and session reports are simulations based on AI models. They are designed to help you practise, not to accurately represent how a real recruiter would evaluate you.",
   },
   {
     title: "Data accuracy",

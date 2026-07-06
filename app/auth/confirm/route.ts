@@ -9,7 +9,7 @@ import { normalizeWorkZoPlan } from "@/lib/workzoPlanLimits";
 // WHY THIS EXISTS: the old /auth/callback flow uses PKCE code exchange, which
 // requires the code_verifier cookie stored in the browser that REQUESTED the
 // link. Users who request the link on the site and then tap it inside Gmail /
-// Outlook open it in a different browser context with no verifier cookie —
+// Outlook open it in a different browser context with no verifier cookie -
 // exchangeCodeForSession fails and they see auth_callback_failed.
 //
 // verifyOtp with token_hash needs no cookie from the requesting browser, so
@@ -71,7 +71,7 @@ export async function GET(request: Request) {
     const { error: verifyError } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
 
     if (verifyError) {
-      // Expired and already-used links land here — give the user a hint that
+      // Expired and already-used links land here, give the user a hint that
       // requesting a fresh link will work, instead of a generic failure.
       console.error("[auth/confirm] verifyOtp failed:", verifyError.message);
       const expired = /expired|invalid/i.test(verifyError.message || "");

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { createWorkZoSupabaseServiceClient } from "@/lib/workzoSupabaseService";
 import { getWorkZoPlanLimits } from "@/lib/workzoPlanLimits";
+import { isWorkZoFounderDevEmail, WORKZO_FOUNDER_DEV_LIMITS } from "@/lib/workzoFounderAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,14 +13,22 @@ export async function GET() {
   let usage = {
     interviewsStarted: 0,
     interviewsCompleted: 0,
-    interviewsRemaining: 2,
-    interviewLimit: 2,
+    interviewsRemaining: 1,
+    interviewLimit: 1,
     canStartInterview: true,
+    voiceMinutesUsed: 0,
+    voiceMinutesRemaining: 15,
+    voiceMinutesLimit: 15,
+    videoMinutesUsed: 0,
+    videoMinutesRemaining: 0,
+    videoMinutesLimit: 0,
+    devUnlimited: false,
   };
 
   try {
     const limits = getWorkZoPlanLimits(resolved.plan);
-    const interviewLimit = limits.unlimitedVoiceInterviews ? 999999 : limits.interviewsPerMonth;
+    const founderDev = isWorkZoFounderDevEmail(resolved.email);
+    const interviewLimit = founderDev ? 999999 : limits.unlimitedVoiceInterviews ? 999999 : limits.interviewsPerMonth;
     let interviewsStarted = 0;
     let interviewsCompleted = 0;
 
@@ -45,9 +54,16 @@ export async function GET() {
     usage = {
       interviewsStarted,
       interviewsCompleted,
-      interviewsRemaining: limits.unlimitedVoiceInterviews ? 999999 : Math.max(0, interviewLimit - interviewsStarted),
+      interviewsRemaining: founderDev ? WORKZO_FOUNDER_DEV_LIMITS.interviewsRemaining : limits.unlimitedVoiceInterviews ? 999999 : Math.max(0, interviewLimit - interviewsStarted),
       interviewLimit,
-      canStartInterview: limits.unlimitedVoiceInterviews || interviewsStarted < interviewLimit,
+      canStartInterview: founderDev || limits.unlimitedVoiceInterviews || interviewsStarted < interviewLimit,
+      voiceMinutesUsed: 0,
+      voiceMinutesRemaining: founderDev ? WORKZO_FOUNDER_DEV_LIMITS.voiceMinutesRemaining : limits.voiceMinutesPerMonth,
+      voiceMinutesLimit: founderDev ? WORKZO_FOUNDER_DEV_LIMITS.voiceMinutesLimit : limits.voiceMinutesPerMonth,
+      videoMinutesUsed: 0,
+      videoMinutesRemaining: founderDev ? WORKZO_FOUNDER_DEV_LIMITS.videoMinutesRemaining : limits.videoMinutesPerMonth,
+      videoMinutesLimit: founderDev ? WORKZO_FOUNDER_DEV_LIMITS.videoMinutesLimit : limits.videoMinutesPerMonth,
+      devUnlimited: founderDev,
     };
   } catch (error) {
     console.warn("[account/plan] usage count failed", error);

@@ -1,10 +1,10 @@
 /**
  * lib/persona/index.ts
  *
- * v3 ARCHITECTURE — STEP 11 (Persona Isolation)
+ * v3 ARCHITECTURE, STEP 11 (Persona Isolation)
  *
  * Loads exactly ONE persona per interview via dynamic import. The map below
- * contains only module paths — no prompts. This guarantees no shared prompt
+ * contains only module paths, no prompts. This guarantees no shared prompt
  * ever contains more than one recruiter, which is what caused the historical
  * persona-bleed bugs (Markus key mismatch → Daniel's prompt; the six Premium
  * Pro personas falling through to Daniel).
@@ -43,7 +43,7 @@ const ALIAS_TO_KEY: Record<string, string> = {
   alex_chen: "faang_hiring_manager",
   alexchen: "faang_hiring_manager",
   markus: "german_corporate",
-  corporate_recruiter: "german_corporate", // historical bug alias — keep mapped forever
+  corporate_recruiter: "german_corporate", // historical bug alias, keep mapped forever
   zoe: "startup_founder",
   zoe_park: "startup_founder",
   james: "consulting_partner",
@@ -80,7 +80,7 @@ export function resolvePersonaKey(
   const byKey = ALIAS_TO_KEY[normalize(recruiterPersonality)];
   if (byKey) return { key: byKey, matched: true };
 
-  // Try the recruiter's display name — first token first ("Alex Chen" → "alex")
+  // Try the recruiter's display name, first token first ("Alex Chen" → "alex")
   const name = normalize(recruiterName);
   if (name) {
     if (ALIAS_TO_KEY[name]) return { key: ALIAS_TO_KEY[name], matched: true };
@@ -94,13 +94,13 @@ export function resolvePersonaKey(
 export type LoadedPersona = PersonaStyle & {
   /** Final prompt block for the LLM: style prompt + global style contract. */
   promptBlock: string;
-  /** True when resolution fell back to the default — surfaced for telemetry. */
+  /** True when resolution fell back to the default, surfaced for telemetry. */
   fallback: boolean;
 };
 
 /**
  * Loads the single persona for this interview. Never loads any other
- * persona module. A failed resolution is LOGGED, never silent — the
+ * persona module. A failed resolution is LOGGED, never silent, the
  * historical failure mode was users silently getting Daniel.
  */
 export async function loadPersona(
@@ -110,7 +110,7 @@ export async function loadPersona(
   const { key, matched } = resolvePersonaKey(recruiterPersonality, recruiterName);
   if (!matched) {
     console.warn(
-      `[persona] Unresolved persona — personality="${recruiterPersonality}" name="${recruiterName}". ` +
+      `[persona] Unresolved persona, personality="${recruiterPersonality}" name="${recruiterName}". ` +
       `Falling back to ${DEFAULT_PERSONA_KEY}. This should never happen for a real recruiter selection.`,
     );
   }
@@ -120,7 +120,7 @@ export async function loadPersona(
     ...persona,
     fallback: !matched,
     promptBlock:
-      `RECRUITER PERSONA — ${persona.name} (${persona.role})\n` +
+      `RECRUITER PERSONA, ${persona.name} (${persona.role})\n` +
       `${persona.stylePrompt}\n\n${PERSONA_STYLE_CONTRACT}`,
   };
 }

@@ -87,11 +87,11 @@ export default function ProductHuntAssetsPage() {
               <h2 className="text-xl font-black">Demo video structure</h2>
             </div>
             <div className="space-y-2 text-sm leading-6 text-muted">
-              <p>0–3s: “Your recruiter already read your CV.”</p>
-              <p>3–8s: Upload CV + JD → recruiter memory prepared.</p>
-              <p>8–18s: Interview room with a CV-specific follow-up.</p>
-              <p>18–25s: Trust drops or improves based on answer quality.</p>
-              <p>25–35s: Results: “Here is where the recruiter lost confidence.”</p>
+              <p>0-3s: “Your recruiter already read your CV.”</p>
+              <p>3-8s: Upload CV + JD → recruiter memory prepared.</p>
+              <p>8-18s: Interview room with a CV-specific follow-up.</p>
+              <p>18-25s: Trust drops or improves based on answer quality.</p>
+              <p>25-35s: Results: “Here is where the recruiter lost confidence.”</p>
             </div>
           </div>
 

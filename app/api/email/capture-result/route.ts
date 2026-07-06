@@ -4,7 +4,7 @@
  * Called by the EmailCapture component on the free results page.
  * Sends the user a personalised 5-day improvement plan by email.
  *
- * No auth required — this is a lead capture endpoint for free users
+ * No auth required, this is a lead capture endpoint for free users
  * who may not be logged in. Rate limited by IP to 3 requests/hour.
  *
  * Env vars needed (already used by other email routes):
@@ -18,7 +18,7 @@ import { sendWorkZoTransactionalEmail } from "@/lib/workzoEmail";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Simple in-memory rate limit — resets on function cold start.
+// Simple in-memory rate limit, resets on function cold start.
 // For production, replace with Redis or Upstash.
 const recentRequests = new Map<string, number[]>();
 
@@ -62,7 +62,7 @@ function buildSessionAwareDays(
 ): Array<{ day: string; title: string; tip: string }> {
   const days: Array<{ day: string; title: string; tip: string }> = [];
 
-  // Day 1 — always the most impactful gap first
+  // Day 1, always the most impactful gap first
   if (signals.ownershipGap) {
     days.push({
       day: "Day 1",
@@ -73,7 +73,7 @@ function buildSessionAwareDays(
     days.push({
       day: "Day 1",
       title: "Add one number to every story",
-      tip: `You gave strong examples but none included a measurable result. Pick your three best stories and add one number each: time saved, customers helped, tickets resolved, revenue impact, or quality improvement. Even rough numbers — "around 30 customers a week" — close the gap fast.`,
+      tip: `You gave strong examples but none included a measurable result. Pick your three best stories and add one number each: time saved, customers helped, tickets resolved, revenue impact, or quality improvement. Even rough numbers, "around 30 customers a week", close the gap fast.`,
     });
   } else {
     days.push({
@@ -83,45 +83,45 @@ function buildSessionAwareDays(
     });
   }
 
-  // Day 2 — second biggest gap
+  // Day 2, second biggest gap
   if (signals.metricGap && signals.ownershipGap) {
     days.push({
       day: "Day 2",
       title: "Add one number",
-      tip: `Pick your strongest story and attach one measurable result: time saved, customers helped, tickets resolved, revenue impacted. Even rough numbers — "around 30%" — are better than none. This alone can move your score ${gap > 10 ? "8–12" : "4–8"} points.`,
+      tip: `Pick your strongest story and attach one measurable result: time saved, customers helped, tickets resolved, revenue impacted. Even rough numbers, "around 30%", are better than none. This alone can move your score ${gap > 10 ? "8-12" : "4-8"} points.`,
     });
   } else if (signals.structureGap) {
     days.push({
       day: "Day 2",
       title: "Use the STAR structure",
-      tip: `Several answers wandered before getting to the point. For every story: open with the Situation (one sentence), your Task (what you were responsible for), your Action (what you personally did), and the Result (what changed). Aim for 60–90 seconds per answer.`,
+      tip: `Several answers wandered before getting to the point. For every story: open with the Situation (one sentence), your Task (what you were responsible for), your Action (what you personally did), and the Result (what changed). Aim for 60-90 seconds per answer.`,
     });
   } else if (signals.shortAnswerCount >= 2) {
     days.push({
       day: "Day 2",
       title: "Expand your shortest answers",
-      tip: `${signals.shortAnswerCount} of your answers ended in under 25 words — the recruiter needed more evidence before moving on. For each short answer, add one concrete detail: a customer, a process, a number, or a decision you made. Aim for at least 60–90 seconds per answer.`,
+      tip: `${signals.shortAnswerCount} of your answers ended in under 25 words, the recruiter needed more evidence before moving on. For each short answer, add one concrete detail: a customer, a process, a number, or a decision you made. Aim for at least 60-90 seconds per answer.`,
     });
   } else {
     days.push({
       day: "Day 2",
       title: "Add one number",
-      tip: `Pick your strongest story and add one measurable result: time saved, customers helped, tickets resolved, revenue impacted. Even rough numbers are better than none. This alone can move your score ${gap > 10 ? "8–12" : "4–8"} points.`,
+      tip: `Pick your strongest story and add one measurable result: time saved, customers helped, tickets resolved, revenue impacted. Even rough numbers are better than none. This alone can move your score ${gap > 10 ? "8-12" : "4-8"} points.`,
     });
   }
 
-  // Day 3 — filler words if relevant, otherwise consistency
+  // Day 3, filler words if relevant, otherwise consistency
   if (signals.fillerWordCount >= 5) {
     days.push({
       day: "Day 3",
       title: `Cut the ${signals.fillerWordCount} filler words`,
-      tip: `${signals.fillerWordCount} filler words were detected in this session. Record yourself answering "Tell me about yourself" and count every "um", "like", "basically", and "you know". Recruiters score confidence lower when they hear these. Aim for zero in your opening answer — pauses are better than fillers.`,
+      tip: `${signals.fillerWordCount} filler words were detected in this session. Record yourself answering "Tell me about yourself" and count every "um", "like", "basically", and "you know". Recruiters score confidence lower when they hear these. Aim for zero in your opening answer, pauses are better than fillers.`,
     });
   } else if (signals.fillerWordCount > 0) {
     days.push({
       day: "Day 3",
       title: "Clean up your delivery",
-      tip: `A few filler words were detected (${signals.fillerWordCount} total). They didn't dominate, but removing them signals more confidence. Record your opening answer once and listen back. Replace every "um" and "like" with a short pause — silence reads as composure, not uncertainty.`,
+      tip: `A few filler words were detected (${signals.fillerWordCount} total). They didn't dominate, but removing them signals more confidence. Record your opening answer once and listen back. Replace every "um" and "like" with a short pause, silence reads as composure, not uncertainty.`,
     });
   } else {
     days.push({
@@ -131,18 +131,18 @@ function buildSessionAwareDays(
     });
   }
 
-  // Day 4 — always the follow-up pressure drill
+  // Day 4, always the follow-up pressure drill
   days.push({
     day: "Day 4",
     title: "Prepare for the pressure follow-up",
-    tip: `The follow-up the recruiter for ${role} would most likely push on: "${signals.biggestBlocker.toLowerCase().includes("metric") ? "Let's be specific — what exactly changed, by how much, and how do you know your work caused it?" : signals.biggestBlocker.toLowerCase().includes("ownership") ? "What exactly did you personally own — not the team, just you?" : "What was the actual measurable outcome of your work there?"}". Practice answering this cold, with a number and a clear personal contribution, in under 90 seconds.`,
+    tip: `The follow-up the recruiter for ${role} would most likely push on: "${signals.biggestBlocker.toLowerCase().includes("metric") ? "Let's be specific, what exactly changed, by how much, and how do you know your work caused it?" : signals.biggestBlocker.toLowerCase().includes("ownership") ? "What exactly did you personally own, not the team, just you?" : "What was the actual measurable outcome of your work there?"}". Practice answering this cold, with a number and a clear personal contribution, in under 90 seconds.`,
   });
 
-  // Day 5 — always compare
+  // Day 5, always compare
   days.push({
     day: "Day 5",
     title: "Run a full session and compare",
-    tip: `Do a full WorkZo interview. Compare your trust score to today's ${score}/100. If you applied the four days of work, you should see a 6–15 point improvement. The threshold for most ${role} roles is 78. This time, lead every answer with "I" and end every story with a number.`,
+    tip: `Do a full WorkZo interview. Compare your trust score to today's ${score}/100. If you applied the four days of work, you should see a 6-15 point improvement. The threshold for most ${role} roles is 78. This time, lead every answer with "I" and end every story with a number.`,
   });
 
   return days;
@@ -201,7 +201,7 @@ function buildEmailHtml(roleLabel: string, overallScore: number, signals?: Parti
       <p style="margin:0 0 4px;font-size:11px;font-weight:900;letter-spacing:0.2em;text-transform:uppercase;color:#93c5fd;">Your session score</p>
       <p style="margin:0;font-size:56px;font-weight:900;color:#ffffff;line-height:1;">${overallScore}</p>
       <p style="margin:4px 0 0;font-size:13px;color:#6b7280;">/100 · ${roleShort}</p>
-      ${gap > 0 ? `<p style="margin:12px 0 0;font-size:13px;color:#fbbf24;">You need +${gap} pts to reach the typical interview threshold (${threshold}).</p>` : `<p style="margin:12px 0 0;font-size:13px;color:#34d399;">You are above the typical threshold — keep practising to widen the gap.</p>`}
+      ${gap > 0 ? `<p style="margin:12px 0 0;font-size:13px;color:#fbbf24;">You need +${gap} pts to reach the typical interview threshold (${threshold}).</p>` : `<p style="margin:12px 0 0;font-size:13px;color:#34d399;">You are above the typical threshold, keep practising to widen the gap.</p>`}
     </div>
 
     <!-- Plan -->
@@ -213,11 +213,11 @@ function buildEmailHtml(roleLabel: string, overallScore: number, signals?: Parti
       <p style="margin:0 0 8px;font-size:16px;font-weight:900;color:#ffffff;">Ready to close the gap faster?</p>
       <p style="margin:0 0 20px;font-size:13px;line-height:1.6;color:#94a3b8;">
         Premium keeps your full session history and coaches you on the exact weakness this session identified.
-        The recruiter remembers what you said and adapts — not a generic script.
+        The recruiter remembers what you said and adapts, not a generic script.
       </p>
       <a href="${appUrl}/pricing?intent=email-plan&score=${overallScore}"
         style="display:inline-block;background:#3b82f6;color:#ffffff;font-weight:900;font-size:14px;padding:14px 28px;border-radius:14px;text-decoration:none;">
-        Unlock Premium — from €19 / month →
+        Unlock Premium, from €19 / month →
       </a>
       <p style="margin:12px 0 0;font-size:11px;color:#4b5563;">Cancel anytime · No hidden fees · Stripe</p>
     </div>
@@ -253,9 +253,9 @@ function buildEmailText(roleLabel: string, overallScore: number, signals?: Parti
 
   const dayText = days.map(d => `${d.day} - ${d.title}\n${d.tip}`).join("\n\n");
 
-  return `Your WorkZo AI Interview Report — ${roleShort}
+  return `Your WorkZo AI Interview Report, ${roleShort}
 
-Score: ${overallScore}/100 ${gap > 0 ? `(+${gap} pts to reach the threshold of ${threshold})` : "(above threshold — keep going)"}
+Score: ${overallScore}/100 ${gap > 0 ? `(+${gap} pts to reach the threshold of ${threshold})` : "(above threshold, keep going)"}
 
 YOUR 5-DAY IMPROVEMENT PLAN
 
@@ -265,7 +265,7 @@ ${dayText}
 Upgrade to Premium to unlock all recruiter signals and session memory:
 ${appUrl}/pricing?intent=email-plan&score=${overallScore}
 
-WorkZo AI — Cancel anytime
+WorkZo AI, Cancel anytime
 `;
 }
 
@@ -307,7 +307,7 @@ export async function POST(request: Request) {
       ? Math.round(Math.max(0, Math.min(100, body.overallScore)))
       : 0;
 
-  // Session signals — optional, fall back to safe defaults in buildEmailHtml/Text
+  // Session signals, optional, fall back to safe defaults in buildEmailHtml/Text
   const signals: Partial<SessionSignals> = {
     fillerWordCount: typeof body.fillerWordCount === "number" ? body.fillerWordCount : undefined,
     ownershipGap: typeof body.ownershipGap === "boolean" ? body.ownershipGap : undefined,
@@ -326,14 +326,14 @@ export async function POST(request: Request) {
   try {
     const result = await sendWorkZoTransactionalEmail({
       to: email,
-      subject: `Your WorkZo report + 5-day plan${roleLabel ? ` — ${roleLabel}` : ""} (score: ${overallScore}/100)`,
+      subject: `Your WorkZo report + 5-day plan${roleLabel ? `, ${roleLabel}` : ""} (score: ${overallScore}/100)`,
       html: buildEmailHtml(roleLabel, overallScore, signals),
       text: buildEmailText(roleLabel, overallScore, signals),
     });
 
     if (!result.ok && result.skipped) {
-      // Email service not configured — don't error the user, just log
-      console.warn("[email/capture-result] Email service not configured — skipping send");
+      // Email service not configured, don't error the user, just log
+      console.warn("[email/capture-result] Email service not configured, skipping send");
       return NextResponse.json({ ok: true, skipped: true });
     }
 

@@ -337,7 +337,7 @@ export function analyzeWorkZoActiveDisruption(input: {
     return {
       shouldDisrupt: true,
       severity: "pushback",
-      line: `I’m going to push for evidence. What changed after your work — time saved, errors reduced, tickets closed, quality improved, revenue protected, or customer satisfaction improved?`,
+      line: `I’m going to push for evidence. What changed after your work, time saved, errors reduced, tickets closed, quality improved, revenue protected, or customer satisfaction improved?`,
       memoTag: "Repeated missing metrics",
       whatTheyHeard: "You understand the task, but the impact level is still unclear.",
     };

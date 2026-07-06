@@ -1,5 +1,5 @@
 /**
- * WorkZo AI — Resume Parser v5
+ * WorkZo AI, Resume Parser v5
  * Replace: lib/workzoResumeParser.ts
  *
  * Global approach:
@@ -137,13 +137,13 @@ const COMPANY_WORD_RE =
 // ("the technology sector", "media outlets", "global initiatives").
 //
 // These only count as a company signal when the line is SHORT (<=4 words)
-// and looks like a proper-noun phrase — i.e. the structural pattern of a
+// and looks like a proper-noun phrase, i.e. the structural pattern of a
 // company name, not prose. See isLikelyCompanyPhrase().
 const COMPANY_WEAK_WORD_RE =
   /\b(global|international|digital|media|network|networks|platform|platforms|analytics|data|cloud|security|health|healthcare|finance|financial|bank|banking|insurance|retail|logistics|telecom|telecommunications|management|insights|edge|technology)\b/i;
 
 /**
- * isLikelyCompanyPhrase — true if `line` has the STRUCTURE of a company name
+ * isLikelyCompanyPhrase, true if `line` has the STRUCTURE of a company name
  * (short, 1-4 words, each word capitalized / proper-noun-like) rather than
  * being a sentence fragment that happens to contain a company-ish word.
  *
@@ -156,7 +156,7 @@ function isLikelyCompanyPhrase(line: string): boolean {
   if (!clean || clean.length > 60) return false;
   const words = clean.split(/\s+/).filter(Boolean);
   if (words.length === 0 || words.length > 4) return false;
-  // Every word should look like a proper noun (starts with capital) — no
+  // Every word should look like a proper noun (starts with capital), no
   // lowercase function words like "and", "in", "the", "of".
   return words.every((word) => /^[A-ZÀ-Ö][A-Za-zÀ-ÖØ-öø-ÿ&.'-]*$/.test(word));
 }
@@ -295,19 +295,19 @@ const SOFT_SKILLS = [
 
 export function normalizeResumeText(value = "") {
   return String(value)
-    // ── Encoding artefacts — universal, apply to any PDF/DOCX text ────────────
+    // ── Encoding artefacts, universal, apply to any PDF/DOCX text ────────────
     .replace(/\x00/g, " ")
     .replace(/\r/g, "\n")
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
-    .replace(/â|â€“|â€”|–|—/g, "-")
+    .replace(/â|â€“|â€”|-|-/g, "-")
     .replace(/â¢|•|▪|◦|●|·/g, "-")
     .replace(/\u00a0/g, " ")
-    // Mojibake repair for UTF-8 text misread as Latin-1 — generic pattern that
+    // Mojibake repair for UTF-8 text misread as Latin-1, generic pattern that
     // affects ANY word containing umlauts/accents (ü, ä, ö, ß, é, etc.), not
     // tied to any specific city or candidate. Example: "WÃ¼rzburg" -> "Würzburg".
     .replace(/Ã¤/g, "ä").replace(/Ã„/g, "Ä")
-    .replace(/Ã¶/g, "ö").replace(/Ã–/g, "Ö")
+    .replace(/Ã¶/g, "ö").replace(/Ã-/g, "Ö")
     .replace(/Ã¼/g, "ü").replace(/Ãœ/g, "Ü")
     .replace(/ÃŸ/g, "ß")
     .replace(/Ã©/g, "é")
@@ -341,7 +341,7 @@ export function normalizeResumeText(value = "") {
     // When a PDF renders two separate text runs with no space between them,
     // extraction often produces "wordsRunTogetherLikeThis". This generically
     // inserts a space before a capital letter that starts a new lowercase
-    // word, for ANY text — not specific to any candidate's CV wording.
+    // word, for ANY text, not specific to any candidate's CV wording.
     // e.g. "DetailorientedIT" -> "Detailoriented IT"
     .replace(/([a-z])([A-Z]{2,})\b/g, "$1 $2")
     .replace(/([a-z]{3,})([A-Z][a-z])/g, "$1 $2")
@@ -359,7 +359,7 @@ export function normalizeResumeText(value = "") {
     .replace(/\bOpen\s+AI\b/gi, "OpenAI")
     .replace(/\bSecure\s+Net\b/gi, "SecureNet")
     .replace(/\bCyber\s+Fort\b/gi, "CyberFort")
-    // ── Common OCR/typo corrections — generic English words that any CV
+    // ── Common OCR/typo corrections, generic English words that any CV
     // could contain (not tied to a specific employer or person) ────────────
     .replace(/\bEnginner\b/gi, "Engineer")
     .replace(/\bEngince\b/gi, "Engine")
@@ -368,7 +368,7 @@ export function normalizeResumeText(value = "") {
     .replace(/\bAnalisys\b/gi, "Analysis")
     .replace(/\bVizualization\b/gi, "Visualization")
     .replace(/\bScrapping\b/gi, "Scraping")
-    // ── Common tech/product name word-splits — generic, apply to any CV
+    // ── Common tech/product name word-splits, generic, apply to any CV
     // mentioning these widely-used tools (not specific to one employer) ─────
     .replace(/\bYou\s*Tube\b/gi, "YouTube")
     .replace(/\bMy\s*SQL\b/gi, "MySQL")
@@ -457,13 +457,13 @@ function compactSpacedCaps(value = "") {
 }
 
 /**
- * isSpacedCapsLine — true when the ENTIRE line consists of 4+ single
+ * isSpacedCapsLine, true when the ENTIRE line consists of 4+ single
  * uppercase letters separated by spaces, e.g. "E X P E R I E N C E S" or
  * "B E R U F S E R F A H R U N G". This is the same condition
  * compactSpacedCaps uses for its whole-line join.
  *
  * Used to gate logic that should only apply to lines that were originally
- * styled as spaced-out section headers — NOT to normal prose, which is
+ * styled as spaced-out section headers, NOT to normal prose, which is
  * never written this way regardless of language.
  */
 function isSpacedCapsLine(value = ""): boolean {
@@ -480,13 +480,13 @@ function isSpacedCapsLine(value = ""): boolean {
  *   SURNAME + ROLE TITLE (one line, spaced caps, no separator)
  * e.g. "O L I V I A" / "W I L S O N P R M A N A G E R"
  *
- * After compactSpacedCaps, the second line becomes "WILSONPRMANAGER" — a
+ * After compactSpacedCaps, the second line becomes "WILSONPRMANAGER", a
  * single uppercase token. This function checks if such a token ENDS with
  * a known role-title suffix (with spaces removed) and, if so, splits it
  * into { surname: "WILSON", role: "PR MANAGER" }.
  *
  * Returns null if no known role suffix matches (so normal processing continues).
- * Works for any surname — does not require the surname itself to be known.
+ * Works for any surname, does not require the surname itself to be known.
  */
 function splitSurnameAndRole(compactToken: string): { surname: string; role: string } | null {
   if (!/^[A-ZÄÖÜ]{5,30}$/.test(compactToken)) return null;
@@ -497,7 +497,7 @@ function splitSurnameAndRole(compactToken: string): { surname: string; role: str
       const surnameLen = compactToken.length - suffix.length;
       const surname = compactToken.slice(0, surnameLen);
       const roleCompact = compactToken.slice(surnameLen);
-      // Title-case the role: "PRMANAGER" → "PR Manager" — but since these are
+      // Title-case the role: "PRMANAGER" → "PR Manager", but since these are
       // known suffixes, map common ones to readable forms.
       const role = decompactRoleSuffix(roleCompact);
       return { surname, role };
@@ -507,7 +507,7 @@ function splitSurnameAndRole(compactToken: string): { surname: string; role: str
 }
 
 /**
- * decompactRoleSuffix — turns a compacted role suffix like "PRMANAGER" or
+ * decompactRoleSuffix, turns a compacted role suffix like "PRMANAGER" or
  * "DATAANALYST" into readable title-case ("PR Manager", "Data Analyst").
  * Generic word-boundary insertion based on the known suffix list.
  */
@@ -581,7 +581,7 @@ function decompactKnownPhrases(value = "", wasSpacedCaps = false) {
   // strong visual-header signal used by many CV templates) AND, once
   // compacted, forms a long (18+ char) string of letters with no digits and
   // no recognized prefix, it's almost certainly a concatenation of section
-  // headers in SOME language we don't have in our prefix list — not a
+  // headers in SOME language we don't have in our prefix list, not a
   // person's name. Mark it as an unknown section header.
   //
   // CRITICAL: this fallback is GATED on wasSpacedCaps. Without this gate, a
@@ -595,7 +595,7 @@ function decompactKnownPhrases(value = "", wasSpacedCaps = false) {
   }
 
   // Only canonical section-header remappings belong here.
-  // Role titles are handled generically via ROLE_RE + titleCase — no
+  // Role titles are handled generically via ROLE_RE + titleCase, no
   // specific role title lookups that would tie this parser to any
   // particular candidate's CV template.
   const known: Record<string, string> = {
@@ -677,13 +677,13 @@ function splitSections(lines: string[]) {
   // ── Implicit section-switch detection ────────────────────────────────────────
   // PDF extraction can place a section header in the wrong position relative
   // to its content (e.g. a misplaced "SKILLS" header that's immediately
-  // followed by the candidate's name, job history, and education — content
+  // followed by the candidate's name, job history, and education, content
   // that has nothing to do with skills). Without this guard, ALL of that
   // content gets dumped into sections.skills.
   //
   // Generic heuristic: a line that consists of ONLY a date range (e.g.
   // "10 / 2020 - HEUTE", "Jan 2020 - Present") is a very strong, structural
-  // signal that an experience (or education) entry begins here — regardless
+  // signal that an experience (or education) entry begins here, regardless
   // of which section we currently think we're in. If we're not already in
   // "experience" or "education" when we see this, switch to "experience".
   //
@@ -751,9 +751,9 @@ function isContactLine(line: string) {
 }
 
 function isLocationLine(line: string) {
-  // GLOBAL FIX: structural location detection — postal codes and address-type
+  // GLOBAL FIX: structural location detection, postal codes and address-type
   // words work for any city or country worldwide, without enumerating them.
-  // Previous versions had lists of ~50 cities/countries — those lists will
+  // Previous versions had lists of ~50 cities/countries, those lists will
   // always miss most of the world (Tokyo, Lagos, São Paulo, Jakarta, Cairo...).
   const c = cleanLine(line);
   if (/\b\d{4,6}\b/.test(c)) return true; // postal code anywhere in line
@@ -796,7 +796,7 @@ function parseCompanyLine(line: string, options: { allowEducationOrg?: boolean }
   if (!clean) return null;
   // Strong signal (legal suffix etc.) matches anywhere. Weak signal (common
   // words like "Media", "Digital", "Health") only counts if the line itself
-  // has the short, proper-noun STRUCTURE of a company name — preventing
+  // has the short, proper-noun STRUCTURE of a company name, preventing
   // ordinary sentences that merely contain these words ("media outlets",
   // "the technology sector") from being mistaken for company lines.
   const hasStrongSignal = COMPANY_WORD_RE.test(clean);
@@ -835,7 +835,7 @@ function extractTitleFromLine(line: string) {
   // Capture up to 2 capitalized modifier words immediately before the matched
   // role keyword, so "PR Manager" returns "PR Manager" not just "Manager",
   // and "Communications Coordinator" returns "Communications Coordinator"
-  // not just "Coordinator". Generic — works for any role title in any CV.
+  // not just "Coordinator". Generic, works for any role title in any CV.
   const matchIndex = match.index ?? 0;
   const before = clean.slice(0, matchIndex).trim();
   const beforeWords = before.split(/\s+/).filter(Boolean);
@@ -888,7 +888,7 @@ function extractBasics(lines: string[], rawText: string) {
     if (/@|linkedin|github|outlook|gmail/i.test(line)) return false;
     // Reject skill category lines with colons: "Programming: Python, SQL"
     if (/:/.test(line)) return false;
-    // Reject if the ORIGINAL line contains digits — addresses, phone numbers,
+    // Reject if the ORIGINAL line contains digits, addresses, phone numbers,
     // and postal codes must never become a "name" after digit-stripping.
     // e.g. "123 Anywhere St., Any City" must not become "Anywhere St".
     if (/\d/.test(line)) return false;
@@ -1005,7 +1005,7 @@ function extractSummary(lines: string[], sections: SectionMap) {
 
 function normalizeSkillToken(value = "") {
   let clean = cleanLine(value)
-    // Strip any "Category: " prefix — handles "Programming: Python", "Machine Learning: Sklearn" etc.
+    // Strip any "Category: " prefix, handles "Programming: Python", "Machine Learning: Sklearn" etc.
     .replace(/^[A-Za-z][A-Za-z\s&]+:\s*/g, "")
     // Also strip known category labels without colon
     .replace(/^(skills|core skills|technical skills|expertise|tools|programming|machine learning|data visualization|data visualisation|data engineering|generative ai|3d cad tools|3d printing|product lifecycle management|visualization)\s*[:：]?\s*/i, "")
@@ -1052,7 +1052,7 @@ function isPollutedSkill(value = "") {
   if (/\d/.test(clean) && !/^(3D CAD|3D Printing|Catia V5|FFF)$/i.test(clean)) return true;
   if (/^(and|or|in|with|using|education|languages|contact|profile|summary|work experience|experience|projects|berufserfahrung|bildung|kontakt|sprachen)$/i.test(clean)) return true;
   if (/@|linkedin|outlook|gmail|\+\d|\b\d{4}\b/i.test(clean)) return true;
-  // Reject lines that look like addresses or locations — use the generic location detector
+  // Reject lines that look like addresses or locations, use the generic location detector
   if (isLocationLine(clean)) return true;
   if (/experience|responsible|supported|collaborated|delivered|developed|designed|analyzed|proven|track record|background|fluent in|bachelor|master|degree|university|college|satellite|docking|retrieval|generation|implementation|configuration|performance optimization$/i.test(clean)) return true;
   // Reject language proficiency entries that sneak into skills section
@@ -1077,14 +1077,14 @@ function isPollutedSkill(value = "") {
  * pipeline (workzoAiCvParser) can apply the same splitting logic as a
  * safety net, regardless of how the source data was produced.
  *
- * Works for any candidate, any CV template — no hardcoded category names.
+ * Works for any candidate, any CV template, no hardcoded category names.
  */
 const LANGUAGE_CATEGORY_RE = /^(english|german|deutsch|french|français|spanish|español|arabic|hindi|tamil|malayalam|telugu|kannada|dutch|italian|portuguese|mandarin|chinese|japanese|korean|russian|polish|swedish|norwegian|danish|finnish|turkish|greek|hebrew|urdu|bengali|punjabi|vietnamese|thai)$/i;
 
 export function splitGroupedSkillEntries(rawSkills: string[]): string[] {
   // First split grouped categories at colon: "Programming: Python, SQL" → ["Python", "SQL"]
   // EXCEPTION: if the part before the colon is a language name (e.g. "English: Fluent"),
-  // keep it as one combined entry — "English Fluent" — so it survives to be
+  // keep it as one combined entry, "English Fluent", so it survives to be
   // recognised as a language by separateLanguagesFromSkills, instead of losing
   // the language name and leaving an orphan proficiency word.
   const flatSource: string[] = [];
@@ -1118,7 +1118,7 @@ export function splitGroupedSkillEntries(rawSkills: string[]): string[] {
     .filter(Boolean)
     .map((token) => {
       // Preserve "English Fluent"-style language entries through normalization
-      // and the polluted-skill filter — separateLanguagesFromSkills handles them next.
+      // and the polluted-skill filter, separateLanguagesFromSkills handles them next.
       if (LANGUAGE_ENTRY_RE.test(token)) return token;
       return normalizeSkillToken(token);
     })
@@ -1168,10 +1168,10 @@ export function separateLanguagesFromSkills(skills: string[]): { skills: string[
       }
     }
 
-    // Bare proficiency word with no language — drop it (orphan from colon split)
+    // Bare proficiency word with no language, drop it (orphan from colon split)
     if (PROFICIENCY_RE.test(token)) continue;
 
-    // Bare language name with no proficiency — still move to languages
+    // Bare language name with no proficiency, still move to languages
     if (LANGUAGE_NAME_RE.test(token)) {
       languages.push(titleCase(token));
       continue;
@@ -1351,7 +1351,7 @@ function repairProjectsFromGlobalLines(lines: string[], projects: ResumeProject[
 
   // Generic: for each parsed project, find bullet lines in the full text that mention
   // the project name or contain project-action vocabulary near it.
-  // No hardcoded project names — works for any candidate's projects.
+  // No hardcoded project names, works for any candidate's projects.
   for (const project of repaired) {
     const nameParts = project.name
       .split(/\s+/)
@@ -1386,11 +1386,11 @@ function extractExperience(sections: SectionMap, lines: string[], projects: Resu
     // ── Fallback anchor detection ────────────────────────────────────────────
     // parseCompanyLine requires a legal-entity suffix (Inc, GmbH, Ltd, Solutions,
     // etc.) via COMPANY_WORD_RE. Many real and placeholder company names have
-    // NO such suffix (e.g. "Borcelle", "Google", "Spotify", "Acme").
+    // NO such suffix (e.g. "ExampleCo", "Google", "Spotify", "Acme").
     //
     // Generic fallback: a line containing a date range, where the text before
     // the date is short (1-4 words), capitalized, and not itself a role title,
-    // section header, degree, or bullet — is almost certainly a "Company |
+    // section header, degree, or bullet, is almost certainly a "Company |
     // Dates" or "Company, Dates" job/education anchor line.
     const clean = cleanLine(line);
     const date = extractDate(clean);
@@ -1425,13 +1425,13 @@ function extractExperience(sections: SectionMap, lines: string[], projects: Resu
   // company/date anchor, with the dated entries for the OTHER roles following
   // later with no title line of their own:
   //
-  //   Borcelle | Jan 2020 - Present   <- anchor 0
+  //   ExampleCo | Jan 2020 - Present   <- anchor 0
   //   PR Manager                       <- title for anchor 0
   //   PR Specialist                    <- title for anchor 1
   //   Communications Coordinator (Intern) <- title for anchor 2
   //   [bullets for PR Manager...]
-  //   Borcelle | Jun 2017 - Dec 2019   <- anchor 1 (no title nearby)
-  //   Borcelle | Jun 2016 - May 2017   <- anchor 2 (no title nearby)
+  //   ExampleCo | Jun 2017 - Dec 2019   <- anchor 1 (no title nearby)
+  //   ExampleCo | Jun 2016 - May 2017   <- anchor 2 (no title nearby)
   //
   // Detect this by checking: does anchor 0 have 2+ consecutive title-like
   // lines immediately after it? If so, and if anchors 1..N have no title of
@@ -1534,15 +1534,15 @@ function extractExperience(sections: SectionMap, lines: string[], projects: Resu
    * collectStackedTitles
    *
    * Some CV templates list a job's title, then immediately list the titles
-   * of OTHER roles at the same company before any bullets appear — e.g.:
+   * of OTHER roles at the same company before any bullets appear, e.g.:
    *
-   *   Borcelle | January 2020 – Present
+   *   ExampleCo | January 2020 - Present
    *   PR Manager
    *   PR Specialist
    *   Communications Coordinator (Intern)
    *   [bullets for PR Manager only]
-   *   Borcelle | June 2017 – December 2019    <- no title here
-   *   Borcelle | June 2016 – May 2017          <- no title here
+   *   ExampleCo | June 2017 - December 2019    <- no title here
+   *   ExampleCo | June 2016 - May 2017          <- no title here
    *
    * This collects ALL consecutive role-title lines immediately after an
    * anchor (before any bullet or section break), in order.
@@ -1556,7 +1556,7 @@ function extractExperience(sections: SectionMap, lines: string[], projects: Resu
       const line = source[j] || "";
       if (!line) continue;
       if (parseCompanyLine(line, { allowEducationOrg: true }) || findSectionKind(line)) break;
-      if (isProbablyBullet(line)) break; // bullets start — stop collecting titles
+      if (isProbablyBullet(line)) break; // bullets start, stop collecting titles
       const title = extractTitleFromLine(line);
       if (!title) break; // first non-title, non-bullet line ends the stack
       titles.push(title);
@@ -1582,7 +1582,7 @@ function extractExperience(sections: SectionMap, lines: string[], projects: Resu
   // (more than the number of jobs that already have a real title), and
   // SUBSEQUENT jobs have "Professional Experience" as a placeholder title,
   // pair the extra titles with those jobs in order: titles[1] -> jobs[1],
-  // titles[2] -> jobs[2], etc. This is generic — it only fires when the
+  // titles[2] -> jobs[2], etc. This is generic, it only fires when the
   // stacked-title pattern is detected and there are placeholder titles to fill.
   if (companyAnchors.length >= 2 && jobs.length >= 2) {
     const stackedTitles = collectStackedTitles(companyAnchors[0].index);
@@ -1601,7 +1601,7 @@ function extractExperience(sections: SectionMap, lines: string[], projects: Resu
   // Some CVs write achievements for multiple roles as one continuous block
   // positioned entirely before the SECOND company's anchor line (a common PDF
   // text-extraction artefact for stacked "Company / Dates / Title" entries).
-  // The result: the first job absorbs every bullet, the next job has none —
+  // The result: the first job absorbs every bullet, the next job has none -
   // even though some of those bullets plausibly belong to the second role.
   //
   // Generic heuristic, no hardcoded content: if a job has a substantial number
@@ -1609,7 +1609,7 @@ function extractExperience(sections: SectionMap, lines: string[], projects: Resu
   // block so the later portion (which is positionally closer to the next
   // job's anchor in the original CV) moves to that job. This keeps the first
   // few (most senior-sounding / role-defining) bullets with the donor and
-  // gives the tail — often more generic support/ops bullets — to the
+  // gives the tail, often more generic support/ops bullets, to the
   // recipient, which matches how CVs are typically written (headline
   // achievements first, supporting duties later).
   const MIN_BULLETS_TO_SPLIT = 6;
@@ -1777,7 +1777,7 @@ export function extractResumeProfile(rawText: string): ResumeProfile {
 // - Keep education out of experience and dates attached to correct section.
 // =========================================================
 
-const WORKZO_BAD_NAME_WORDS = /\b(product|stability|tier|support|engineer|developer|analyst|manager|specialist|consultant|supervisor|professional|experience|education|skills|summary|profile|contact|email|phone|linkedin|location|service|delivery|requirements|analysis|python|sql|excel|tableau|microsoft|word|street|road|weg|public\s+relations|project\s+management|communication|leadership|teamwork|time\s+management|critical\s+thinking|english|german|french|dutch|spanish|italian|portuguese|fluent|conversational|native|programming|machine\s+learning|visualization|visualisation|engineering|generative|bootcamp|school|college|bachelor|master|candidate|retrieval|augmented|generation|pipeline|scraping|automation|integration|f[äa]higkeiten|kontakt|kenntnisse|profil|profil[üu]bersicht|ausbildung|bildung|bildungsweg|sprachen|berufserfahrung|berufliches|erfahrung|werdegang|qualifikationen|zertifikate|projekte|referenzen|interessen|sonstiges|kompetenzen|f[äa]higkeit|tools?|systeme|netzwerke|programmierung|expertise|references|qualifications|certifications|projects|interests|languages|tools|systems|networks)\b/i;
+const WORKZO_BAD_NAME_WORDS = /\b(product|stability|tier|support|engineer|developer|analyst|manager|specialist|consultant|supervisor|professional|experience|education|skills|summary|profile|contact|email|phone|linkedin|location|service|delivery|requirements|analysis|python|sql|excel|tableau|microsoft|word|street|road|weg|public\s+relations|project\s+management|communication|leadership|teamwork|time\s+management|critical\s+thinking|english|german|french|dutch|spanish|italian|portuguese|fluent|conversational|native|programming|machine\s+learning|visualization|visualisation|engineering|generative|bootcamp|school|college|bachelor|master|candidate|retrieval|augmented|generation|pipeline|scraping|automation|integration|f[äa]higkeiten|kontakt|kenntnisse|profil|profil[üu]bersicht|ausbildung|bildung|bildungsweg|sprachen|berufserfahrung|berufliches|erfahrung|werdegang|qualifikationen|zertifikate|projekte|referenzen|interessen|sonstiges|kompetenzen|f[äa]higkeit|kernkompetenzen|kompetenz|sprechen|lesen|schreiben|hören|hoeren|muttersprache|verhandlungssicher|grundkenntnisse|kenntnis|tools?|systeme|netzwerke|programmierung|expertise|references|qualifications|certifications|projects|interests|languages|tools|systems|networks)\b/i;
 
 
 // Role-title words (with spaces removed) that commonly appear concatenated
@@ -1799,7 +1799,7 @@ const COMPACT_ROLE_SUFFIXES = [
   "assistentin", "koordinatorin", "spezialistin",
 ];
 function wzBetterClean(value = "") {
-  // Generic normalisation only — no hardcoded candidate-specific phrases.
+  // Generic normalisation only, no hardcoded candidate-specific phrases.
   // normalizeResumeText already handles encoding artefacts, OCR typos, and
   // word-split repairs for any CV.
   return normalizeResumeText(value)
@@ -1808,11 +1808,11 @@ function wzBetterClean(value = "") {
 }
 
 function wzLooksLikePersonName(value = "") {
-  // Reject immediately if original value contains a colon — these are skill category lines
+  // Reject immediately if original value contains a colon, these are skill category lines
   // e.g. "Programming: Python, SQL" or "Generative AI: LangChain, RAG"
   if (/:/.test(wzBetterClean(value))) return false;
 
-  // Reject lines that are fully uppercase with 3+ words — these are almost
+  // Reject lines that are fully uppercase with 3+ words, these are almost
   // always concatenated section headers, e.g. "PROFILE SUMMARY EXPERIENCE"
   // or "SKILLS EDUCATION LANGUAGES". A genuine 2-word all-caps name (e.g.
   // "JONAS LAUSCH") is common in visual CV headers, so 2-word all-caps lines
@@ -1839,7 +1839,7 @@ function wzLooksLikePersonName(value = "") {
 
   const parts = clean.split(" ").filter(Boolean);
   if (parts.length < 2 || parts.length > 4) return false;
-  // Every word must start with a capital letter — real names do, skill categories don't
+  // Every word must start with a capital letter, real names do, skill categories don't
   if (!parts.every((part) => /^[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'.-]{1,}$/.test(part))) return false;
   // Reject if any word looks like a skill/tech/tool keyword
   const joinedLower = clean.toLowerCase();
@@ -1853,7 +1853,7 @@ function wzTitleCaseCompactName(value = "") {
 
   // Known safe splits for compact names from email addresses or spaced-cap CV headers.
   // This prevents multi-column PDFs from using skill words as the candidate name.
-  // No hardcoded person-specific splits — use generic logic only
+  // No hardcoded person-specific splits, use generic logic only
   // Names from email addresses or file names are handled by the email prefix path
 
   return "";
@@ -1931,7 +1931,7 @@ function wzExtractBetterName(text = "") {
     // trusted as a name near the top of the document. Section header phrases
     // in other languages that aren't in WORKZO_BAD_NAME_WORDS (e.g. an
     // unrecognised "XXXX YYYY" header pair) typically appear further down,
-    // alongside the experience/education sections — a real name header is
+    // alongside the experience/education sections, a real name header is
     // always within the first few lines.
     const isFullyUpper = /^[A-ZÄÖÜÀ-ÞØ\s.'-]+$/.test(clean) && clean.split(" ").filter(Boolean).length >= 2;
     if (isFullyUpper && index >= 5) continue;
@@ -1960,7 +1960,7 @@ export function sanitizeResumeProfileIdentity(profile: ResumeProfile, source: { 
   const currentName = wzLooksLikePersonName(profile.basics.name) ? profile.basics.name : "";
 
   // Only run the expensive text extraction if the current name is absent or invalid.
-  // If we already have a valid name from the AI parser, trust it — don't override it
+  // If we already have a valid name from the AI parser, trust it, don't override it
   // with a text-scan that may pick up address fragments from sidebar-first PDFs.
   const betterName = currentName ? "" : (wzExtractBetterName(text) || wzNameFromFileName(source.fileName || ""));
   const name = currentName || betterName || "Candidate";
@@ -1993,7 +1993,7 @@ function wzSectionWindow(text: string, startPatterns: RegExp[], endPatterns: Reg
       // an "EXPERIENCE" section header. A genuine section header line is short
       // (just the heading, optionally with trailing whitespace) and sits at the
       // start of a line. Reject matches where the containing line has
-      // substantial additional text — those are prose mentions, not headers.
+      // substantial additional text, those are prose mentions, not headers.
       const lineStart = lower.lastIndexOf("\n", match.index) + 1;
       const lineEnd = (() => {
         const idx = lower.indexOf("\n", match.index);
@@ -2209,7 +2209,7 @@ function wzExtractBetterExperience(text = ""): ResumeExperience[] {
     }
 
     if (looksBullet) {
-      // Don't create a fake "Professional Experience" container for stray bullets —
+      // Don't create a fake "Professional Experience" container for stray bullets -
       // attach them to the most recent real job if there is one, otherwise discard.
       if (current) {
         current.bullets.push(line.replace(/^[-•*]\s*/, ""));
@@ -2238,9 +2238,30 @@ function wzExtractBetterExperience(text = ""): ResumeExperience[] {
 
 const workzoOriginalExtractResumeProfile = extractResumeProfile;
 
+function wzLooksLikeStrongHeadline(value = "") {
+  const clean = cleanLine(value);
+  if (!clean || clean.length < 3 || clean.length > 120) return false;
+  if (/\b(19|20)\d{2}\b/.test(clean)) return false;
+  if (/^(professional|candidate|company|skills?|contact|education|experience|profile|summary)$/i.test(clean)) return false;
+  if (EDUCATION_ORG_RE.test(clean) || DEGREE_RE.test(clean)) return false;
+  if (COMPANY_WORD_RE.test(clean) && !ROLE_RE.test(clean)) return false;
+  if (WORKZO_BAD_NAME_WORDS.test(clean) && !ROLE_RE.test(clean)) return false;
+  return ROLE_RE.test(clean);
+}
+
+function wzPickHeadline(baseHeadline: string, experience: ResumeExperience[], lines: string[]) {
+  if (wzLooksLikeStrongHeadline(baseHeadline)) return titleCase(baseHeadline);
+  const fromExperience = experience.map((item) => item.title).find(wzLooksLikeStrongHeadline);
+  if (fromExperience) return titleCase(fromExperience);
+  const fromHeader = lines.slice(0, 80).find((line) => wzLooksLikeStrongHeadline(line));
+  if (fromHeader) return titleCase(fromHeader);
+  return "Professional";
+}
+
 export function extractResumeProfileComplex(rawText = ""): ResumeProfile {
   const base = workzoOriginalExtractResumeProfile(rawText);
   const text = normalizeResumeText(rawText);
+  const lines = text.split(/\n+/).map(cleanLine).filter(Boolean);
   const contact = wzExtractContactBasics(text);
   const betterName = wzExtractBetterName(text);
   const betterSkills = wzExtractBetterSkills(text);
@@ -2253,10 +2274,10 @@ export function extractResumeProfileComplex(rawText = ""): ResumeProfile {
     (wzLooksLikePersonName(base.basics.name) ? base.basics.name : "") ||
     "Candidate";
 
-  // Prefer betterExperience generally — it's better at parsing modern,
+  // Prefer betterExperience generally, it's better at parsing modern,
   // section-labeled CVs. But for CVs where the EXPERIENCE section uses a
   // "stacked titles" layout (one company/date anchor followed by several
-  // role titles for the same company at different times, e.g. "Borcelle |
+  // role titles for the same company at different times, e.g. "ExampleCo |
   // Jan 2020 - Present / PR Manager / PR Specialist / Communications
   // Coordinator"), wzExtractBetterExperience's single-pass line scanner
   // treats each title line as a separate job with its own (empty) entry,
@@ -2274,12 +2295,8 @@ export function extractResumeProfileComplex(rawText = ""): ResumeProfile {
 
   const experience = betterExperience.length && !betterLooksFragmented ? betterExperience : base.experience.length ? base.experience : betterExperience;
 
-  // Don't fall back to a garbage experience title for the headline
-  const firstGoodTitle = experience.find((e) => e.title && findSectionKind(e.title) === null && !WORKZO_BAD_NAME_WORDS.test(e.title))?.title;
-  const headline =
-    base.basics.headline && !WORKZO_BAD_NAME_WORDS.test(base.basics.headline)
-      ? base.basics.headline
-      : firstGoodTitle || "Professional";
+  // Don't fall back to a company/date/section fragment for the headline.
+  const headline = wzPickHeadline(base.basics.headline, experience, lines);
 
   const education = betterEducation.length ? betterEducation : base.education;
   const skills = betterSkills.length ? betterSkills : base.skills;

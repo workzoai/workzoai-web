@@ -4,6 +4,7 @@ import {
   createWorkZoStripeClient,
   getWorkZoAbsoluteUrl,
   getWorkZoStripePriceId,
+  normalizeWorkZoStripeCurrency,
 } from "@/lib/workzoStripe";
 import {
   getCurrentWorkZoUserSubscription,
@@ -31,6 +32,8 @@ type CheckoutBody = {
   promoCode?: unknown;
   feature?: unknown;
   source?: unknown;
+  currency?: unknown;
+  countryHint?: unknown;
 };
 
 function safePath(value: unknown, fallback: string) {
@@ -52,6 +55,8 @@ function buildPlanMetadata(input: {
   promoCode?: unknown;
   feature?: unknown;
   source?: unknown;
+  currency?: unknown;
+  countryHint?: unknown;
 }) {
   const limits = getWorkZoPlanLimits(input.plan);
 
@@ -65,9 +70,11 @@ function buildPlanMetadata(input: {
     promo_code: safeMetadataValue(input.promoCode),
     feature: safeMetadataValue(input.feature) || input.plan,
     source: safeMetadataValue(input.source) || "workzo_checkout",
+    checkout_currency: safeMetadataValue(input.currency),
+    checkout_country_hint: safeMetadataValue(input.countryHint),
     voice_interviews_per_month: String(limits.voiceInterviewsPerMonth),
     unlimited_voice_interviews: String(limits.unlimitedVoiceInterviews),
-    tavus_minutes_per_month: String(limits.tavusMinutesPerMonth),
+    tavus_minutes_per_month: String(limits.videoMinutesPerMonth),
     video_recruiter: String(limits.videoRecruiter),
   };
 }
@@ -101,7 +108,9 @@ export async function POST(request: Request) {
 
     const stripe = createWorkZoStripeClient();
     const existing = await getCurrentWorkZoUserSubscription();
-    const priceId = getWorkZoStripePriceId(plan, billingCycle);
+    const currency = normalizeWorkZoStripeCurrency(body.currency);
+    const countryHint = safeMetadataValue(body.countryHint);
+    const priceId = getWorkZoStripePriceId(plan, billingCycle, currency);
     const planMetadata = buildPlanMetadata({
       userId: user.id,
       plan,
@@ -110,6 +119,8 @@ export async function POST(request: Request) {
       promoCode: body.promoCode,
       feature: body.feature,
       source: body.source,
+      currency,
+      countryHint,
     });
 
     let customerId = existing?.stripe_customer_id || undefined;
@@ -120,6 +131,8 @@ export async function POST(request: Request) {
         metadata: {
           workzo_user_id: user.id,
           product: "workzo_ai",
+          checkout_currency: currency,
+          checkout_country_hint: countryHint,
         },
       });
 
@@ -163,6 +176,8 @@ export async function POST(request: Request) {
       plan,
       billingCycle,
       priceId,
+      currency,
+      countryHint,
     });
   } catch (error) {
     console.error("workzo_stripe_checkout_error", error);

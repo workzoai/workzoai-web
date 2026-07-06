@@ -46,7 +46,7 @@ export default function ImpressumPage() {
           <section className="rounded-xl border border-line bg-fg/[0.03] p-6">
             <h2 className="text-base font-black text-fg">Verantwortlich für den Inhalt / Responsible for content</h2>
             <p className="mt-3 text-sm leading-7 text-muted">
-              Haritha Vijayakumar, Würzburg, Germany — gemäß § 18 Abs. 2 MStV.
+              Haritha Vijayakumar, Würzburg, Germany, gemäß § 18 Abs. 2 MStV.
             </p>
           </section>
 

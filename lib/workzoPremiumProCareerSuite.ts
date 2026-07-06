@@ -107,7 +107,7 @@ function buildWeeklyPriorities(brain: PhaseCCareerBrain, input: PhaseCCareerBrai
 function buildRoadmap(brain: PhaseCCareerBrain, input: PhaseCCareerBrainInput): WorkZoPremiumProRoadmap {
   const base = brain.roadmap.length ? brain.roadmap : [
     roadmapItem("metrics", "Priority 1", "Add proof to your strongest stories", "Rewrite your top 3 examples with metrics, ownership, result, and role connection.", "interview", "+8 to +12 pts"),
-    roadmapItem("star", "Priority 2", "Tighten STAR delivery", "Practice concise 60–90 second answers without over-explaining.", "interview", "+5 to +8 pts"),
+    roadmapItem("star", "Priority 2", "Tighten STAR delivery", "Practice concise 60-90 second answers without over-explaining.", "interview", "+5 to +8 pts"),
   ];
 
   const days30 = base.slice(0, 4);

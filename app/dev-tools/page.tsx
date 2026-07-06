@@ -106,7 +106,7 @@ export default function DevToolsPage() {
           <p className="mt-1 text-muted">
             Active override:{" "}
             <span className="font-bold text-brand">
-              {override || "none — using real plan"}
+              {override || "none, using real plan"}
             </span>
           </p>
         </div>
@@ -158,6 +158,12 @@ export default function DevToolsPage() {
             Founder dashboard
           </Link>
           <Link
+            href="/dev-tools/enterprise"
+            className="inline-flex items-center justify-center rounded-lg border border-line px-5 py-3 text-sm font-black text-muted hover:bg-fg/[0.06] hover:text-fg"
+          >
+            Enterprise portal (mock)
+          </Link>
+          <Link
             href="/founder/analytics"
             className="inline-flex items-center justify-center rounded-lg border border-line px-5 py-3 text-sm font-black text-muted hover:bg-fg/[0.06] hover:text-fg"
           >
@@ -177,7 +183,7 @@ export default function DevToolsPage() {
         <p className="mt-2 text-sm leading-6 text-muted">
           Open any page below in the plan currently active above. Pages that
           are gated by <code className="rounded bg-fg/10 px-1">PremiumFeatureGate</code>{" "}
-          show whether the active plan can access them — switch the plan
+          show whether the active plan can access them, switch the plan
           above and reload a page to see the locked vs. unlocked state.
         </p>
 

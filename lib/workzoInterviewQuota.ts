@@ -13,13 +13,13 @@ export type WorkZoInterviewQuotaResult =
  * IMPORTANT: this must be called from EVERY route that can create a new
  * interview_sessions row for a user (currently /api/db/interview-session
  * and /api/interview-sessions). It used to live inline in only one of
- * those routes — any endpoint that skips this check is a live bypass of
+ * those routes, any endpoint that skips this check is a live bypass of
  * the plan limit, not just a display inconsistency, since nothing else
  * stops a new row from being written.
  *
  * `localId` is the client's session identifier. If a row with this
  * user_id + local_id already exists, this is an update to an existing
- * session (e.g. periodic autosave), not a new interview — so it must not
+ * session (e.g. periodic autosave), not a new interview, so it must not
  * count against the quota again.
  */
 export async function checkWorkZoInterviewQuota(

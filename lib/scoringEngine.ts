@@ -1,12 +1,12 @@
 /**
- * lib/scoringEngine.ts — FULL REPLACEMENT
+ * lib/scoringEngine.ts, FULL REPLACEMENT
  *
- * v3 ARCHITECTURE — STEP 17 (Scoring Engine)
+ * v3 ARCHITECTURE, STEP 17 (Scoring Engine)
  *
  * WHAT CHANGED vs original:
  * The previous version scored answers by matching English keywords
  * ("improved", "reduced", "increased"...). That is content-matching, not
- * structural evaluation — and it silently zeroed the impact signal for every
+ * structural evaluation, and it silently zeroed the impact signal for every
  * non-English interview, contradicting the multi-language requirement.
  *
  * This replacement scores STRUCTURE, which is language-neutral:
@@ -16,7 +16,7 @@
  *   - vagueness: filler ratio via repetition + very short sentences
  *
  * The signature is kept API-compatible (evaluateAnswerScore, ScoringResult)
- * so every existing call site works unchanged. Scores remain internal —
+ * so every existing call site works unchanged. Scores remain internal -
  * the recruiter never argues with the candidate (weak answers reduce scores
  * silently; the ledger's pivot rule limits probing).
  */
@@ -40,7 +40,7 @@ function clamp(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-// Unicode-aware word split — counts words in any alphabetic script.
+// Unicode-aware word split, counts words in any alphabetic script.
 function words(text: string): string[] {
   return (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’\-+#./]*/gu) || []);
 }
@@ -92,9 +92,9 @@ export function evaluateAnswerScore({ candidateAnswer }: ScoringInput): ScoringR
   const isDeveloped = wordCount >= 40;
   const isVeryDeveloped = wordCount >= 90;
 
-  const quant = quantificationSignal(text);          // 0–1
-  const specific = specificitySignal(text);          // 0–1
-  const repPenalty = repetitionPenalty(text);        // 0–0.4
+  const quant = quantificationSignal(text);          // 0-1
+  const specific = specificitySignal(text);          // 0-1
+  const repPenalty = repetitionPenalty(text);        // 0-0.4
   const avgSentenceLen = sents.length ? wordCount / sents.length : wordCount;
   const structured = sents.length >= 2 && avgSentenceLen >= 6 && avgSentenceLen <= 35;
 

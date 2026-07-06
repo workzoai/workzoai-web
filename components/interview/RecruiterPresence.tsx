@@ -126,7 +126,7 @@ function getMoodStyles(mood: RecruiterPresenceMood, state: RecruiterPresenceStat
 
 function getCaption(state: RecruiterPresenceState, mood: RecruiterPresenceMood, caption?: string) {
   if (caption) return caption;
-  if (state === "interrupting") return "Hold on — the recruiter is ready to challenge that answer.";
+  if (state === "interrupting") return "Hold on, the recruiter is ready to challenge that answer.";
   if (state === "skeptical") return "Looking for proof, ownership, and measurable impact.";
   if (state === "thinking") return "Brief pause while the recruiter evaluates your answer.";
   if (state === "typing_notes") return "Saving notes about clarity, confidence, and role fit.";

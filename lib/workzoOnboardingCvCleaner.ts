@@ -1,10 +1,10 @@
 /**
- * WorkZo AI — Onboarding CV Cleaner
+ * WorkZo AI, Onboarding CV Cleaner
  * lib/workzoOnboardingCvCleaner.ts
  *
  * This module is now a thin wrapper around the universal CV cleaner
  * and the generic resume parser. All person-specific hardcoded logic
- * has been removed — this now works for any candidate, any CV template,
+ * has been removed, this now works for any candidate, any CV template,
  * any country, any language.
  *
  * The old file contained hardcoded references to one specific person's
@@ -71,17 +71,17 @@ export type CleanedOnboardingCv = {
  * cleanOnboardingCvExtraction
  *
  * Cleans raw CV text and returns a structured resume profile.
- * Works for any candidate — no hardcoded names, companies, or content.
+ * Works for any candidate, no hardcoded names, companies, or content.
  *
  * Step 1: normalise encoding artefacts and fix multi-column reading order
  * Step 2: parse into structured sections using the generic resume parser
  * Step 3: return both the cleaned text and the structured profile
  */
 export function cleanOnboardingCvExtraction(rawText: string): CleanedOnboardingCv {
-  // Step 1: Universal text cleaning — handles sidebar PDFs, encoding artefacts, etc.
+  // Step 1: Universal text cleaning, handles sidebar PDFs, encoding artefacts, etc.
   const cleanedText = cleanExtractedCvText(normalizeResumeText(rawText));
 
-  // Step 2: Generic structured parsing — works for any CV from any candidate
+  // Step 2: Generic structured parsing, works for any CV from any candidate
   const profile = extractResumeProfileComplex(cleanedText);
 
   // Step 3: Convert to the legacy StructuredResume shape for backward compatibility
@@ -127,7 +127,7 @@ export function cleanOnboardingCvExtraction(rawText: string): CleanedOnboardingC
 
 /**
  * getCleanedOnboardingCvText
- * Quick helper — returns just the cleaned text string.
+ * Quick helper, returns just the cleaned text string.
  */
 export function getCleanedOnboardingCvText(rawText: string): string {
   return cleanOnboardingCvExtraction(rawText).cleanedText;

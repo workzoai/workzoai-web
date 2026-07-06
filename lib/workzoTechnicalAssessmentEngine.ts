@@ -4,7 +4,7 @@
  * Phase 2 of the WorkZo roadmap: Technical Assessments.
  *
  * Generates role-specific technical test questions, evaluates answers,
- * and produces a technicalScore (0–100) that feeds into the Readiness Score.
+ * and produces a technicalScore (0-100) that feeds into the Readiness Score.
  *
  * Supported role clusters:
  *   - Data Analyst / BI       → SQL, Excel, Power BI / Tableau, Statistics
@@ -15,11 +15,11 @@
  *   - Marketing / Growth      → Campaign analysis, Funnel, A/B Testing
  *
  * Assessment types:
- *   "multiple_choice"  — choose 1 from 4 options (auto-scored)
- *   "open_text"        — free-text answer (LLM-scored via evaluateTechnicalAnswer)
- *   "scenario"         — situational prompt (LLM-scored)
- *   "sql"              — write a SQL query (pattern-scored + LLM)
- *   "code"             — write code (pattern-scored + LLM)
+ *   "multiple_choice", choose 1 from 4 options (auto-scored)
+ *   "open_text"      , free-text answer (LLM-scored via evaluateTechnicalAnswer)
+ *   "scenario"       , situational prompt (LLM-scored)
+ *   "sql"            , write a SQL query (pattern-scored + LLM)
+ *   "code"           , write code (pattern-scored + LLM)
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -60,7 +60,7 @@ export type TechnicalAssessment = {
 export type TechnicalAnswerResult = {
   questionId: string;
   skill: string;
-  score: number;                      // 0–100
+  score: number;                      // 0-100
   passed: boolean;                    // score >= 60
   feedback: string;
   strengths: string[];
@@ -70,7 +70,7 @@ export type TechnicalAnswerResult = {
 export type TechnicalAssessmentResult = {
   roleCluster: string;
   targetRole: string;
-  technicalScore: number;             // 0–100, weighted average
+  technicalScore: number;             // 0-100, weighted average
   passed: boolean;                    // technicalScore >= 65
   grade: "A" | "B" | "C" | "D" | "F";
   bySkill: TechnicalAnswerResult[];
@@ -135,7 +135,7 @@ export function detectRoleCluster(targetRole: string): RoleCluster {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// QUESTION BANKS — per cluster
+// QUESTION BANKS, per cluster
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DATA_ANALYST_QUESTIONS: TechnicalQuestion[] = [
@@ -159,7 +159,7 @@ const DATA_ANALYST_QUESTIONS: TechnicalQuestion[] = [
     type: "sql",
     difficulty: "intermediate",
     question:
-      "Given two tables — `customers(customer_id, name, country)` and `orders(order_id, customer_id, order_date, total_amount)` — write a query to find all customers who placed more than 3 orders in the last 90 days. Return customer name and order count.",
+      "Given two tables, `customers(customer_id, name, country)` and `orders(order_id, customer_id, order_date, total_amount)`, write a query to find all customers who placed more than 3 orders in the last 90 days. Return customer name and order count.",
     context:
       "Tables: customers(customer_id, name, country), orders(order_id, customer_id, order_date, total_amount)",
     scoringGuide:
@@ -172,7 +172,7 @@ const DATA_ANALYST_QUESTIONS: TechnicalQuestion[] = [
     type: "open_text",
     difficulty: "advanced",
     question:
-      "A query joining 3 tables is taking 45 seconds to run on a 10 million row fact table. Walk me through your optimisation approach — what do you look at first, and what changes would you make?",
+      "A query joining 3 tables is taking 45 seconds to run on a 10 million row fact table. Walk me through your optimisation approach, what do you look at first, and what changes would you make?",
     scoringGuide:
       "Good answer covers: EXPLAIN plan, index checks, avoid SELECT *, filter early (push WHERE before joins), check join order, consider partitioning, avoid functions on indexed columns, materialised views.",
     timeSeconds: 180,
@@ -184,7 +184,7 @@ const DATA_ANALYST_QUESTIONS: TechnicalQuestion[] = [
     type: "multiple_choice",
     difficulty: "foundational",
     question:
-      "You have customer data in columns A–D (customer_id, name, region, revenue). You want to sum revenue for all customers in 'North' region. Which formula is correct?",
+      "You have customer data in columns A-D (customer_id, name, region, revenue). You want to sum revenue for all customers in 'North' region. Which formula is correct?",
     options: [
       "=SUMIF(C:C, \"North\", D:D)",
       "=VLOOKUP(\"North\", A:D, 4, FALSE)",
@@ -215,9 +215,9 @@ const DATA_ANALYST_QUESTIONS: TechnicalQuestion[] = [
     question:
       "You run an A/B test. Variant B has a 5% higher conversion rate than Control A. The p-value is 0.08. What do you do?",
     options: [
-      "Ship Variant B — a 5% lift is significant enough",
-      "Do not ship — the result is not statistically significant at p < 0.05",
-      "Ship Variant B — p-value close to 0.05 is good enough",
+      "Ship Variant B, a 5% lift is significant enough",
+      "Do not ship, the result is not statistically significant at p < 0.05",
+      "Ship Variant B, p-value close to 0.05 is good enough",
       "The p-value doesn't matter if the lift is positive",
     ],
     correctOption: 1,
@@ -271,7 +271,7 @@ const SOFTWARE_ENGINEER_QUESTIONS: TechnicalQuestion[] = [
     question: "What is the time complexity of binary search?",
     options: ["O(n)", "O(n log n)", "O(log n)", "O(1)"],
     correctOption: 2,
-    scoringGuide: "O(log n) — halves the search space each step.",
+    scoringGuide: "O(log n), halves the search space each step.",
     timeSeconds: 30,
   },
   {
@@ -292,7 +292,7 @@ const SOFTWARE_ENGINEER_QUESTIONS: TechnicalQuestion[] = [
     difficulty: "foundational",
     question:
       "Write a Python function that reads a CSV file of transactions (columns: date, amount, category) and returns a dictionary with total spending per category, sorted by total descending.",
-    context: "Assume CSV has a header row. Use standard library or pandas — your choice.",
+    context: "Assume CSV has a header row. Use standard library or pandas, your choice.",
     scoringGuide:
       "Must: open/read CSV, aggregate by category, return sorted dict. Bonus: handles missing values, uses pandas groupby correctly or csv.DictReader.",
     timeSeconds: 240,
@@ -306,7 +306,7 @@ const CUSTOMER_SUCCESS_QUESTIONS: TechnicalQuestion[] = [
     type: "scenario",
     difficulty: "intermediate",
     question:
-      "A key enterprise client (£200k ARR) sends you an angry email at 4:30pm on Friday saying they're considering cancellation. They've had 3 unresolved support tickets for 2 weeks and feel ignored. How do you respond — and what do you do next?",
+      "A key enterprise client (£200k ARR) sends you an angry email at 4:30pm on Friday saying they're considering cancellation. They've had 3 unresolved support tickets for 2 weeks and feel ignored. How do you respond, and what do you do next?",
     scoringGuide:
       "Strong: respond within 30 min acknowledging frustration, don't be defensive, take personal ownership ('I will personally oversee this'), schedule a call for Monday AM, loop in support lead immediately, get all 3 tickets reviewed before the call, prepare a recovery plan not just an apology.",
     timeSeconds: 300,
@@ -319,7 +319,7 @@ const CUSTOMER_SUCCESS_QUESTIONS: TechnicalQuestion[] = [
     question:
       "You're 60 days from renewal with an account that hasn't logged into your product in 45 days. Their contract is £80k/year. They haven't responded to your last two emails. What's your plan?",
     scoringGuide:
-      "Strong: don't send another generic email — call, get internal champion on side, find out what changed (new budget pressure? competing tool? team change?), prepare ROI data to show value delivered, offer a re-onboarding session, escalate to your manager if needed. Flag as at-risk internally.",
+      "Strong: don't send another generic email, call, get internal champion on side, find out what changed (new budget pressure? competing tool? team change?), prepare ROI data to show value delivered, offer a re-onboarding session, escalate to your manager if needed. Flag as at-risk internally.",
     timeSeconds: 300,
   },
   {
@@ -347,7 +347,7 @@ const CUSTOMER_SUCCESS_QUESTIONS: TechnicalQuestion[] = [
     ],
     correctOption: 1,
     scoringGuide:
-      "Product adoption/usage is the strongest leading indicator — customers who stop using the product churn before they say they will. NPS is lagging. MRR measures revenue not risk. Ticket volume is indirect.",
+      "Product adoption/usage is the strongest leading indicator, customers who stop using the product churn before they say they will. NPS is lagging. MRR measures revenue not risk. Ticket volume is indirect.",
     timeSeconds: 60,
   },
   {
@@ -358,7 +358,7 @@ const CUSTOMER_SUCCESS_QUESTIONS: TechnicalQuestion[] = [
     question:
       "You have a customer who is happy, hits all their success metrics, and their contract is up for renewal in 3 months. Their team of 20 could realistically expand to 50 seats. How do you structure the expansion conversation?",
     scoringGuide:
-      "Strong: don't lead with price, lead with value already delivered + ROI data. Build a business case for expansion (what does 50 seats unlock?). Identify internal champion who benefits from expansion. Time the ask 8–12 weeks before renewal. Handle procurement early. Offer a phased expansion plan.",
+      "Strong: don't lead with price, lead with value already delivered + ROI data. Build a business case for expansion (what does 50 seats unlock?). Identify internal champion who benefits from expansion. Time the ask 8-12 weeks before renewal. Handle procurement early. Offer a phased expansion plan.",
     timeSeconds: 300,
   },
 ];
@@ -372,7 +372,7 @@ const TECHNICAL_SUPPORT_QUESTIONS: TechnicalQuestion[] = [
     question:
       "A user calls saying they can browse the internet but cannot send or receive emails. They're using Outlook on Windows 10. Walk me through your troubleshooting process.",
     scoringGuide:
-      "Structured approach: verify credentials, check Outlook settings (SMTP/IMAP config), test webmail (is it a client issue?), check firewall/antivirus blocking port 587/993, check email server status, check .pst file corruption. Systematic elimination — don't assume.",
+      "Structured approach: verify credentials, check Outlook settings (SMTP/IMAP config), test webmail (is it a client issue?), check firewall/antivirus blocking port 587/993, check email server status, check .pst file corruption. Systematic elimination, don't assume.",
     timeSeconds: 240,
   },
   {
@@ -389,7 +389,7 @@ const TECHNICAL_SUPPORT_QUESTIONS: TechnicalQuestion[] = [
     ],
     correctOption: 1,
     scoringGuide:
-      "DNS failure — they can reach an IP (proving connectivity) but cannot resolve domain names to IPs. Check DNS settings / try alternate DNS (8.8.8.8 as DNS server).",
+      "DNS failure, they can reach an IP (proving connectivity) but cannot resolve domain names to IPs. Check DNS settings / try alternate DNS (8.8.8.8 as DNS server).",
     timeSeconds: 60,
   },
   {
@@ -402,7 +402,7 @@ const TECHNICAL_SUPPORT_QUESTIONS: TechnicalQuestion[] = [
       "An Incident is planned; a Problem is unplanned",
       "An Incident is a single disruption; a Problem is the underlying root cause of one or more Incidents",
       "A Problem is always more urgent than an Incident",
-      "There is no difference — the terms are interchangeable",
+      "There is no difference, the terms are interchangeable",
     ],
     correctOption: 1,
     scoringGuide:
@@ -417,7 +417,7 @@ const TECHNICAL_SUPPORT_QUESTIONS: TechnicalQuestion[] = [
     question:
       "You're 20 minutes into a call with a frustrated VIP customer. You've tried the standard fixes and nothing has worked. You've never seen this issue before. Your team lead is in a meeting. What do you do?",
     scoringGuide:
-      "Strong: empathise and set expectation ('I want to make sure this is fully resolved — I'm going to escalate this to our senior team right now'), document everything tried so far, send a Teams/Slack message to team lead with full context, log as Priority 1, callback the customer within 30 min with an update even if no fix yet.",
+      "Strong: empathise and set expectation ('I want to make sure this is fully resolved, I'm going to escalate this to our senior team right now'), document everything tried so far, send a Teams/Slack message to team lead with full context, log as Priority 1, callback the customer within 30 min with an update even if no fix yet.",
     timeSeconds: 240,
   },
 ];
@@ -453,7 +453,7 @@ const PRODUCT_MANAGER_QUESTIONS: TechnicalQuestion[] = [
     question:
       "The VP of Sales wants a feature that will help close 2 specific enterprise deals this quarter. Your data shows it would only benefit ~3% of your user base and has no product-market-fit signal. How do you handle this?",
     scoringGuide:
-      "Strong: acknowledge commercial importance, but don't just say yes — quantify the tradeoff (what are you not building?), explore alternatives (can it be done in a limited/configurable way?), involve CEO if needed, document the decision with rationale. Protect roadmap integrity while being business-aware.",
+      "Strong: acknowledge commercial importance, but don't just say yes, quantify the tradeoff (what are you not building?), explore alternatives (can it be done in a limited/configurable way?), involve CEO if needed, document the decision with rationale. Protect roadmap integrity while being business-aware.",
     timeSeconds: 300,
   },
   {
@@ -622,7 +622,7 @@ function pickDiverseQuestions(questions: TechnicalQuestion[], max: number): Tech
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SCORING — multiple choice (deterministic)
+// SCORING, multiple choice (deterministic)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function scoreMultipleChoice(
@@ -640,12 +640,12 @@ export function scoreMultipleChoice(
       ? "Correct answer selected."
       : `Incorrect. The correct answer was: "${question.options?.[correct]}"`,
     strengths: passed ? [`Solid knowledge of ${question.skill}`] : [],
-    gaps: passed ? [] : [`Review ${question.skill} fundamentals — ${question.scoringGuide}`],
+    gaps: passed ? [] : [`Review ${question.skill} fundamentals, ${question.scoringGuide}`],
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SCORING — open text / SQL / code / scenario (pattern-based pre-score)
+// SCORING, open text / SQL / code / scenario (pattern-based pre-score)
 // These are augmented by the LLM in evaluateTechnicalAnswer below.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -685,11 +685,11 @@ export function preScoreOpenAnswer(
   const matches = scoringKeywords.filter(kw => a.includes(kw)).length;
   score += Math.min(matches * 4, 20);
 
-  return Math.min(score, 90); // cap pre-score — LLM adds final calibration
+  return Math.min(score, 90); // cap pre-score, LLM adds final calibration
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LLM EVALUATION PROMPT — pass this to your /api/interview or /api/technical endpoint
+// LLM EVALUATION PROMPT, pass this to your /api/interview or /api/technical endpoint
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function buildTechnicalEvalPrompt(
@@ -699,7 +699,7 @@ export function buildTechnicalEvalPrompt(
 ): string {
   return `You are a senior technical evaluator assessing a ${targetRole} candidate's answer.
 
-QUESTION (${question.skill} — ${question.difficulty}):
+QUESTION (${question.skill}, ${question.difficulty}):
 ${question.question}
 ${question.context ? `\nCONTEXT:\n${question.context}` : ""}
 
@@ -719,11 +719,11 @@ Evaluate the answer. Respond ONLY as valid JSON with this exact structure:
 }
 
 Scoring guide:
-- 90-100: Exceptional — covers all required elements plus nuance
-- 75-89: Strong — covers most required elements clearly
-- 60-74: Adequate — covers core elements but misses depth
-- 40-59: Weak — partial understanding, significant gaps
-- 0-39: Insufficient — wrong, missing, or too vague to evaluate
+- 90-100: Exceptional, covers all required elements plus nuance
+- 75-89: Strong, covers most required elements clearly
+- 60-74: Adequate, covers core elements but misses depth
+- 40-59: Weak, partial understanding, significant gaps
+- 0-39: Insufficient, wrong, missing, or too vague to evaluate
 
 Be specific. Do not give generic feedback. Reference the actual answer content.`.trim();
 }
@@ -744,8 +744,8 @@ export function aggregateTechnicalResults(
       passed: false,
       grade: "F",
       bySkill: [],
-      strongestSkill: "—",
-      weakestSkill: "—",
+      strongestSkill: "-",
+      weakestSkill: "-",
       recommendation: "No answers submitted.",
       readyForRole: false,
     };
@@ -756,8 +756,8 @@ export function aggregateTechnicalResults(
   const passed = technicalScore >= 65;
 
   const sorted = [...answerResults].sort((a, b) => b.score - a.score);
-  const strongestSkill = sorted[0]?.skill || "—";
-  const weakestSkill = sorted[sorted.length - 1]?.skill || "—";
+  const strongestSkill = sorted[0]?.skill || "-";
+  const weakestSkill = sorted[sorted.length - 1]?.skill || "-";
 
   const grade: TechnicalAssessmentResult["grade"] =
     technicalScore >= 90 ? "A" :
@@ -789,7 +789,7 @@ export function aggregateTechnicalResults(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SERIALIZER — injects technical context into interview prompt
+// SERIALIZER, injects technical context into interview prompt
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function serializeTechnicalResultForInterview(
@@ -798,14 +798,14 @@ export function serializeTechnicalResultForInterview(
   if (!result.bySkill.length) return "";
   const lines = [
     `TECHNICAL ASSESSMENT RESULTS (${result.targetRole}):`,
-    `  Technical Score: ${result.technicalScore}/100 (${result.grade}) — ${result.passed ? "PASSED" : "FAILED"}`,
+    `  Technical Score: ${result.technicalScore}/100 (${result.grade}), ${result.passed ? "PASSED" : "FAILED"}`,
     `  Strongest: ${result.strongestSkill} | Weakest: ${result.weakestSkill}`,
     `  Skill breakdown:`,
     ...result.bySkill.map(
-      (r) => `    [${r.skill}] ${r.score}/100 — ${r.gaps[0] || "No major gaps"}`,
+      (r) => `    [${r.skill}] ${r.score}/100, ${r.gaps[0] || "No major gaps"}`,
     ),
     `  Recruiter note: Do NOT re-test skills already verified in technical assessment.`,
-    `  Gap focus: Probe ${result.bySkill.filter(r => !r.passed).map(r => r.skill).join(", ") || "nothing — all passed"} in the interview.`,
+    `  Gap focus: Probe ${result.bySkill.filter(r => !r.passed).map(r => r.skill).join(", ") || "nothing, all passed"} in the interview.`,
   ];
   return lines.join("\n");
 }

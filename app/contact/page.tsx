@@ -1,34 +1,63 @@
-import Link from "next/link";
-import { Mail, MessageCircle, ShieldCheck } from "lucide-react";
+import type { Metadata } from "next";
+import { Mail, MessageCircle, ShieldCheck, Building2, GraduationCap, Clock } from "lucide-react";
+import { MarketingShell, Reveal, Eyebrow, BackLink } from "@/components/marketing/kit";
+
+export const metadata: Metadata = {
+  title: "Contact — WorkZo AI",
+  description: "Reach the WorkZo AI team for support, bug reports, data requests, education, and enterprise enquiries.",
+};
+
+const cards = [
+  { icon: Mail, tone: "brand", title: "Support", line: "support@workzoai.com", href: "mailto:support@workzoai.com", cta: "Email support" },
+  { icon: MessageCircle, tone: "brand", title: "Report a bug", line: "Tell us the page, your browser, and what happened.", href: "mailto:support@workzoai.com?subject=WorkZo%20AI%20Bug%20Report&body=Page:%0ABrowser:%0AWhat%20happened:%0A", cta: "Report a bug" },
+  { icon: ShieldCheck, tone: "success", title: "Data request", line: "Request access, correction, or deletion of your data.", href: "mailto:support@workzoai.com?subject=Data%20Request", cta: "Make a request" },
+  { icon: GraduationCap, tone: "brand", title: "Education", line: "Bootcamps, universities, and academies.", href: "mailto:support@workzoai.com?subject=WorkZo%20AI%20Education%20Enquiry", cta: "Talk to us" },
+  { icon: Building2, tone: "brand", title: "Enterprise", line: "Rollouts across teams and locations.", href: "mailto:support@workzoai.com?subject=WorkZo%20AI%20Enterprise%20Enquiry", cta: "Talk to sales" },
+  { icon: Clock, tone: "muted", title: "Response time", line: "We usually reply within one business day.", href: "mailto:support@workzoai.com", cta: "Get in touch" },
+];
 
 export default function ContactPage() {
   return (
-    <main className="min-h-screen bg-canvas px-5 py-10 text-fg">
-      <div className="mx-auto max-w-5xl">
-        <Link href="/" className="text-sm font-bold text-muted hover:text-fg">← Back home</Link>
-        <section className="mt-12 rounded-lg border border-line bg-gradient-to-br from-brand/15 via-white/[0.04] to-brand/10 p-8">
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-brand">Contact</p>
-          <h1 className="mt-3 text-4xl font-black tracking-[-0.04em] sm:text-3xl">Need help with WorkZo AI?</h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted">For support, bugs, data requests, feedback, or partnership questions, contact the WorkZo AI team.</p>
-        </section>
-        <div className="mt-8 grid gap-5 md:grid-cols-3">
-          <a href="mailto:support@workzoai.com" className="rounded-xl border border-line bg-fg/[0.04] p-6 transition hover:bg-fg/[0.07]">
-            <Mail className="h-6 w-6 text-brand" />
-            <h2 className="mt-4 text-lg font-black">Support</h2>
-            <p className="mt-2 text-sm text-muted">support@workzoai.com</p>
-          </a>
-          <a href="mailto:support@workzoai.com?subject=WorkZo%20AI%20Bug%20Report" className="rounded-xl border border-line bg-fg/[0.04] p-6 transition hover:bg-fg/[0.07]">
-            <MessageCircle className="h-6 w-6 text-brand" />
-            <h2 className="mt-4 text-lg font-black">Report a bug</h2>
-            <p className="mt-2 text-sm text-muted">Send browser, page, and what happened.</p>
-          </a>
-          <a href="mailto:support@workzoai.com?subject=Data%20Request" className="rounded-xl border border-line bg-fg/[0.04] p-6 transition hover:bg-fg/[0.07]">
-            <ShieldCheck className="h-6 w-6 text-success" />
-            <h2 className="mt-4 text-lg font-black">Data request</h2>
-            <p className="mt-2 text-sm text-muted">Request access, correction, or deletion.</p>
-          </a>
-        </div>
+    <MarketingShell>
+      <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8">
+        <BackLink href="/">Back home</BackLink>
       </div>
-    </main>
+
+      <section className="mx-auto max-w-7xl px-4 pb-12 pt-8 text-center sm:px-6 lg:px-8">
+        <Reveal>
+          <div className="flex justify-center"><Eyebrow icon={Mail}>Contact</Eyebrow></div>
+          <h1 className="mx-auto mt-5 max-w-2xl text-4xl font-black tracking-tight sm:text-5xl">
+            We're here to help.
+          </h1>
+          <p className="mx-auto mt-5 max-w-xl text-lg leading-8 text-muted">
+            Support, bugs, data requests, partnerships, or a question about a plan. Pick the right inbox and we'll get back to you.
+          </p>
+        </Reveal>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {cards.map((c, i) => {
+            const Icon = c.icon;
+            const iconCls =
+              c.tone === "success" ? "bg-success/10 text-success"
+              : c.tone === "muted" ? "bg-fg/[0.06] text-muted"
+              : "bg-brand/10 text-brand";
+            return (
+              <Reveal key={c.title} delay={(i % 3) * 60}>
+                <a href={c.href} className="group flex h-full flex-col rounded-2xl border border-line bg-surface/70 p-6 transition hover:-translate-y-1 hover:border-brand/30 hover:bg-surface">
+                  <span className={`grid h-11 w-11 place-items-center rounded-xl ${iconCls}`}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <h2 className="mt-5 text-lg font-black tracking-tight">{c.title}</h2>
+                  <p className="mt-2 flex-1 text-sm leading-6 text-muted">{c.line}</p>
+                  <span className="mt-4 text-sm font-black text-brand">{c.cta} →</span>
+                </a>
+              </Reveal>
+            );
+          })}
+        </div>
+      </section>
+    </MarketingShell>
   );
 }

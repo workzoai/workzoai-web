@@ -1,7 +1,7 @@
 /**
  * workzoCvScore.ts
  *
- * A JD-less CV quality score (0–100).
+ * A JD-less CV quality score (0-100).
  *
  * This is deliberately NOT the same thing as the ATS/keyword-match score on
  * the Improve CV page (lib logic in app/cv/page.tsx), which scores a CV
@@ -11,7 +11,7 @@
  * This score instead measures structural CV quality that holds regardless
  * of which job the candidate is targeting: completeness, evidence of impact
  * (quantified bullets), and internal consistency. It reuses the same
- * ResumeProfile the parser already produces — no new parsing, no AI call.
+ * ResumeProfile the parser already produces, no new parsing, no AI call.
  *
  * Server/client safe: no "use client", pure functions only.
  */
@@ -19,24 +19,24 @@
 import type { ResumeProfile } from "@/lib/workzoResumeParser";
 
 export type WorkZoAccountScores = {
-  avgInterviewScore: number | null; // 0–100, all-time average of overall_score
+  avgInterviewScore: number | null; // 0-100, all-time average of overall_score
   bestInterviewScore: number | null;
   scoredInterviewCount: number; // how many sessions actually have a score
 };
 
 
 export type CvScoreBreakdown = {
-  score: number; // 0–100
+  score: number; // 0-100
   label: "Excellent" | "Strong" | "Good" | "Needs work" | "Incomplete";
   topGap: string; // single highest-value next action
   dimensions: {
-    contact: number; // 0–10
-    summary: number; // 0–10
-    experience: number; // 0–40
+    contact: number; // 0-10
+    summary: number; // 0-10
+    experience: number; // 0-40
     quantifiedImpact: number; // included inside experience, surfaced separately for messaging
-    skills: number; // 0–15
-    education: number; // 0–10
-    extras: number; // 0–15 (projects, certifications, languages)
+    skills: number; // 0-15
+    education: number; // 0-10
+    extras: number; // 0-15 (projects, certifications, languages)
   };
 };
 
@@ -73,7 +73,7 @@ function scoreExperience(profile: ResumeProfile): { total: number; quantifiedRat
   const avgBullets = bulletsPerEntry.reduce((s, n) => s + n, 0) / exp.length;
   const bulletDepthScore = Math.min(10, Math.round((avgBullets / 3) * 10));
 
-  // Up to 20 pts for quantified impact — the single strongest predictor of
+  // Up to 20 pts for quantified impact, the single strongest predictor of
   // a CV actually landing interviews. Measures the share of bullets across
   // all roles that contain a number, %, or currency symbol.
   const allBullets = exp.flatMap((e) => e.bullets || []);
@@ -118,14 +118,14 @@ function labelFor(score: number): CvScoreBreakdown["label"] {
  * dimension recruiters weight most (quantified impact, then summary).
  */
 function topGapFor(d: CvScoreBreakdown["dimensions"], quantifiedRatio: number): string {
-  if (d.experience === 0) return "Add your work experience — this is the section recruiters check first.";
+  if (d.experience === 0) return "Add your work experience, this is the section recruiters check first.";
   if (quantifiedRatio < 0.3) return "Add measurable outcomes (numbers, %, revenue, team size) to your bullet points.";
   if (d.summary < 7) return "Add a short professional summary at the top of your CV.";
-  if (d.skills < 11) return "List more relevant skills — aim for 6-8 that match your target roles.";
+  if (d.skills < 11) return "List more relevant skills, aim for 6-8 that match your target roles.";
   if (d.contact < 10) return "Fill in missing contact details (email, phone, or location).";
   if (d.education === 0) return "Add your education history.";
   if (d.extras < 8) return "Add certifications or notable projects to strengthen your profile.";
-  return "Your CV is well-rounded — keep it updated as you gain new experience.";
+  return "Your CV is well-rounded, keep it updated as you gain new experience.";
 }
 
 /**

@@ -226,7 +226,7 @@
 	height: 100%;
 }
 
-/* Self view container — pinned to top-right so captions own the bottom band. */
+/* Self view container, pinned to top-right so captions own the bottom band. */
 .selfViewContainer {
 	position: absolute;
 	top: 1rem;

@@ -60,7 +60,7 @@ export type TrustTimelinePoint = {
 
 export type ResultsInsight = {
   trust: number;
-  hiringSignal: "Strong" | "Promising" | "Mixed" | "At risk" | "Not enough signal";
+  hiringSignal: string;
   continuationVerdict: string;
   recruiterSummary: string;
   strongestAnswer: AnswerSignal;
@@ -162,43 +162,78 @@ function countMatches(text: string, regex: RegExp) {
   return (text.match(regex) || []).length;
 }
 
-function detectAnswerSignals(answer: string, question = ""): AnswerSignal {
+function detectAnswerSignals(answer: string, question = "", opts: { isTruncated?: boolean } = {}): AnswerSignal {
   const text = cleanText(answer, 4000);
   const lower = text.toLowerCase();
-  const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0;
+  const words = text ? text.split(/\s+/).filter(Boolean) : [];
+  const wordCount = words.length;
 
-  const hasMetric = /\b\d+(?:\.\d+)?\s*(%|percent|customers?|users?|tickets?|cases?|incidents?|hours?|days?|weeks?|months?|people|team members?|revenue|€|\$|kpis?|projects?|reports?|calls?|leads?)\b/i.test(text);
-  const hasOwnership = /\b(i|my|me|owned|led|managed|built|created|implemented|coordinated|resolved|improved|reduced|handled|delivered|designed|developed|trained|mentored|analyzed|presented)\b/i.test(text);
-  const hasStructure = /\b(situation|task|action|result|challenge|approach|outcome|impact|because|therefore|as a result)\b/i.test(text);
-  const hasRoleFit = /\b(role|job|customer|client|stakeholder|team|business|quality|delivery|sales|support|data|product|operations|manufacturing|process|report|dashboard|communication)\b/i.test(text);
-  const hasSpecificExample = /\b(example|project|case|incident|customer|client|team|product|system|process|issue|problem|deadline|release|escalation)\b/i.test(text);
-  const fillerCount = countMatches(lower, /\b(um|uh|like|basically|actually|you know|kind of|sort of|maybe|i think)\b/g);
+  // ── STT-robust, language-neutral METRIC detection ─────────────────────────
+  // The old regex required a number IMMEDIATELY followed by an English unit
+  // word, so speech-to-text noise ("96, 97 out of 100" → "$96.97, customers")
+  // and any non-English answer scored as "no metric". This version counts a
+  // metric whenever the answer contains quantified proof in ANY language:
+  // a percentage, a currency amount, a "N out of M" pattern, or simply a
+  // number sitting near an outcome-ish token in the same clause.
+  const hasPercent = /\d+(?:[.,]\d+)?\s*(%|percent|percentage|prozent|por ?ciento|pour ?cent|per ?cento)/i.test(text);
+  const hasCurrency = /[€$£¥₹]\s?\d|\d[\d.,]*\s?(eur|usd|gbp|inr|dollars?|euros?|rupees?)/i.test(text);
+  const hasOutOf = /\b\d+(?:[.,]\d+)?\s*(?:out of|of|\/|von|sur|su|de)\s*\d+/i.test(text);
+  const numberCount = (text.match(/\b\d+(?:[.,]\d+)?\b/g) || []).length;
+  // A number appearing anywhere in a substantive answer is treated as
+  // quantified proof (STT frequently fractures the surrounding unit words).
+  const hasLooseNumber = numberCount >= 1 && wordCount >= 20;
+  const hasMetric = hasPercent || hasCurrency || hasOutOf || hasLooseNumber;
+
+  // ── OWNERSHIP, first-person action, language-tolerant ────────────────────
+  // Keep the English action-verb signal but also accept first-person pronouns
+  // across the platform's languages so non-English answers aren't zeroed.
+  const hasOwnership =
+    /\b(i|my|me|we|our|owned|led|managed|built|created|implemented|coordinated|resolved|improved|reduced|handled|delivered|designed|developed|trained|mentored|analy[sz]ed|presented)\b/i.test(text) ||
+    /\b(ich|mein|wir|unser|je|mon|nous|notre|yo|mi|mí|nosotros|io|mio|noi|ik|mijn|wij)\b/i.test(text);
+
+  const hasStructure = /\b(situation|task|action|result|challenge|approach|outcome|impact|because|therefore|as a result|so that|which meant|led to|so i|then i)\b/i.test(text);
+  const hasRoleFit = /\b(role|job|customer|client|stakeholder|team|business|quality|delivery|sales|support|data|product|operations|manufacturing|process|report|dashboard|communication|onboarding|retention|escalation)\b/i.test(text);
+  const hasSpecificExample = /\b(example|project|case|incident|customer|client|team|product|system|process|issue|problem|deadline|release|escalation|one time|there was|situation where)\b/i.test(text) ||
+    // A concrete narrative usually names a length or has past-tense verbs.
+    /\b(i (tried|took|checked|involved|sent|closed|handled|resolved|fixed|worked))\b/i.test(text);
+
+  const fillerCount = countMatches(lower, /\b(um|uh|like|basically|actually|you know|kind of|sort of)\b/g);
   const vagueTerms = countMatches(lower, /\b(various|many things|etc|stuff|some tasks|helped with|worked on things|responsible for things|good communication|hard working)\b/g);
-  const isTooShort = wordCount > 0 && wordCount < 30;
-  const isRambling = wordCount > 190;
-  const isVague = vagueTerms > 0 || (!hasSpecificExample && wordCount < 70);
 
-  let score = 46;
-  if (wordCount >= 45 && wordCount <= 145) score += 10;
-  if (hasMetric) score += 17;
-  if (hasOwnership) score += 16;
-  if (hasStructure) score += 10;
-  if (hasRoleFit) score += 8;
-  if (hasSpecificExample) score += 8;
-  if (isTooShort) score -= 18;
-  if (isVague) score -= 14;
-  if (isRambling) score -= 12;
-  if (fillerCount >= 4) score -= 7;
+  // Cut-off awareness: an answer truncated by the app's own closing bug must
+  // not be scored as "too short", that would penalise the candidate for the
+  // interview being cut off mid-sentence.
+  const isTruncated = !!opts.isTruncated;
+  const isTooShort = !isTruncated && wordCount > 0 && wordCount < 22;
+  const isRambling = wordCount > 220;
+  const isVague = vagueTerms > 0 || (!hasSpecificExample && wordCount < 55);
+
+  // ── Calibrated scoring ────────────────────────────────────────────────────
+  // Target: a substantive-but-imperfect answer lands in the mid-60s; a strong,
+  // specific, quantified answer reaches the high-70s/low-80s; a genuinely weak
+  // or evasive answer stays clearly below 55. Voice filler is NOT penalised
+  // (natural speech always has "um/uh").
+  let score = 48;
+  if (wordCount >= 40 && wordCount <= 170) score += 7;   // developed answer
+  else if (wordCount >= 25) score += 4;                  // at least substantive
+  if (hasMetric) score += 9;
+  if (hasOwnership) score += 5;
+  if (hasStructure) score += 5;
+  if (hasRoleFit) score += 3;
+  if (hasSpecificExample) score += 6;
+  if (isTooShort) score -= 16;
+  if (isVague) score -= 12;
+  if (isRambling) score -= 6;
+  if (fillerCount >= 10) score -= 3;
   if (!text) score = 0;
 
   const reasons = [
-    !hasMetric && "missing measurable impact",
-    !hasOwnership && "unclear personal ownership",
-    !hasSpecificExample && "needs one concrete example",
-    !hasStructure && "STAR structure is not obvious",
-    isTooShort && "answer is too short",
-    isRambling && "answer is too long",
-    fillerCount >= 4 && "too many filler words",
+    !hasMetric && "add one measurable detail (a number, %, or before/after)",
+    !hasOwnership && "make your personal role a little clearer",
+    !hasSpecificExample && "anchor it in one concrete example",
+    !hasStructure && "a quick situation → action → result arc would sharpen it",
+    isTooShort && "give it a bit more detail",
+    isRambling && "tighten it toward the key result",
   ].filter(Boolean) as string[];
 
   return {
@@ -215,16 +250,16 @@ function detectAnswerSignals(answer: string, question = ""): AnswerSignal {
     isTooShort,
     isRambling,
     fillerCount,
-    reasons: reasons.length ? reasons : ["clear enough, but can be sharper with stronger role connection"],
+    reasons: reasons.length ? reasons : ["strong answer, keep this one, and connect it even more directly to the target role"],
   };
 }
 
 function scoreLabel(score: number) {
-  if (score >= 84) return "Strong";
-  if (score >= 72) return "Promising";
-  if (score >= 58) return "Mixed";
-  if (score > 0) return "At risk";
-  return "Not enough signal";
+  if (score >= 82) return "Strong";
+  if (score >= 68) return "Solid, nearly there";
+  if (score >= 55) return "Promising, a few sharpens away";
+  if (score > 0) return "Early, good foundation to build on";
+  return "Not yet scored";
 }
 
 
@@ -321,7 +356,7 @@ function buildTrustRecoveryReasons(signals: AnswerSignal[]) {
 function buildTopFixesBeforeRealInterview(weakest: AnswerSignal, patterns: Array<{ label: string; count: number; reason: string }>, unsupportedClaims: string[]) {
   const fixes: string[] = [];
   if (unsupportedClaims.length) fixes.push("Clarify any career timeline or experience claim that does not clearly appear in the CV.");
-  if (!weakest.hasMetric || patterns.some((p) => /metrics/i.test(p.label))) fixes.push("Prepare 2–3 measurable outcomes: %, time saved, tickets handled, revenue, quality, delivery, or users impacted.");
+  if (!weakest.hasMetric || patterns.some((p) => /metrics/i.test(p.label))) fixes.push("Prepare 2-3 measurable outcomes: %, time saved, tickets handled, revenue, quality, delivery, or users impacted.");
   if (!weakest.hasOwnership || patterns.some((p) => /ownership/i.test(p.label))) fixes.push("Rewrite examples with stronger ‘I did…’ ownership instead of only team-level wording.");
   if (!weakest.hasStructure) fixes.push("Use STAR: situation → task → action → result, and end with impact.");
   if (weakest.isVague || patterns.some((p) => /vague/i.test(p.label))) fixes.push("Replace generic explanations with one concrete story from a real project, client, or problem.");
@@ -400,24 +435,27 @@ function average(values: number[]) {
 }
 
 function buildScoreCards(signals: AnswerSignal[], fallbackScores?: ResultScores) {
+  // Gentler present/absent spreads: a single missing signal should nudge a
+  // category, not collapse it. Absent floors sit in the high-50s (a fair
+  // "room to grow"), present values in the low-80s.
   const clarity = signals.length
-    ? average(signals.map((s) => (s.isTooShort || s.isRambling ? 54 : Math.min(92, s.score + 5))))
+    ? average(signals.map((s) => (s.isTooShort || s.isRambling ? 60 : Math.min(92, s.score + 6))))
     : clamp(Number(fallbackScores?.clarity ?? fallbackScores?.communication ?? 0));
   const ownership = signals.length
-    ? average(signals.map((s) => (s.hasOwnership ? 82 : 45)))
+    ? average(signals.map((s) => (s.hasOwnership ? 82 : 60)))
     : clamp(Number(fallbackScores?.ownership ?? fallbackScores?.ownershipClarity ?? 0));
   const metrics = signals.length
-    ? average(signals.map((s) => (s.hasMetric ? 84 : 42)))
+    ? average(signals.map((s) => (s.hasMetric ? 83 : 58)))
     : clamp(Number(fallbackScores?.metrics ?? fallbackScores?.impactEvidence ?? 0));
   const structure = signals.length
-    ? average(signals.map((s) => (s.hasStructure ? 78 : 48)))
+    ? average(signals.map((s) => (s.hasStructure ? 80 : 60)))
     : clamp(Number(fallbackScores?.star ?? fallbackScores?.structure ?? 0));
 
   return [
-    { label: "Clarity", value: clarity || 50, note: "How easy the answer was to follow." },
-    { label: "Ownership", value: ownership || 50, note: "Whether your personal role was clear." },
-    { label: "Metrics", value: metrics || 45, note: "Proof through numbers or measurable impact." },
-    { label: "STAR", value: structure || 48, note: "Situation, task, action, result structure." },
+    { label: "Clarity", value: clarity || 60, note: "How easy your answers were to follow." },
+    { label: "Ownership", value: ownership || 60, note: "How clearly your personal role came through." },
+    { label: "Metrics", value: metrics || 58, note: "Proof through numbers or measurable impact." },
+    { label: "STAR", value: structure || 60, note: "Situation, task, action, result structure." },
   ];
 }
 
@@ -427,7 +465,7 @@ function buildCoachingPlan(weakest: AnswerSignal, trust: number) {
   if (!weakest.hasOwnership) plan.push("Make your personal ownership explicit: say what you decided, built, handled, or improved.");
   if (!weakest.hasStructure) plan.push("Use a 4-part STAR answer: situation → task → action → result.");
   if (!weakest.hasSpecificExample) plan.push("Use one real example instead of a general explanation.");
-  if (weakest.isRambling) plan.push("Cut the answer to 60–90 seconds and end with the result.");
+  if (weakest.isRambling) plan.push("Cut the answer to 60-90 seconds and end with the result.");
   if (trust < 65) plan.push("Prepare one stronger proof story before the next interview round.");
   return plan.slice(0, 5).length ? plan.slice(0, 5) : ["Keep this answer, but connect it more directly to the job description."];
 }
@@ -472,11 +510,28 @@ function buildAtmosphere(payload: ResultPayload, trust: number, answerCount: num
 
 export function buildResultsInsight(payload: ResultPayload): ResultsInsight {
   const answerPairs = getAnswerPairs(payload.transcript);
-  const signals = answerPairs.map((pair) => detectAnswerSignals(pair.answer, pair.question));
+  // The final answer is treated as possibly truncated: interviews can end
+  // (timer/closing) while the candidate is mid-sentence, and that last answer
+  // should not be scored as "too short", that penalises the candidate for the
+  // interview being cut off, not for their answer.
+  const signals = answerPairs.map((pair, i) =>
+    detectAnswerSignals(pair.answer, pair.question, { isTruncated: i === answerPairs.length - 1 }),
+  );
   const strongest = signals.length ? signals.reduce((best, item) => (item.score > best.score ? item : best), signals[0]) : EMPTY_ANSWER;
   const weakest = signals.length ? signals.reduce((worst, item) => (item.score < worst.score ? item : worst), signals[0]) : EMPTY_ANSWER;
   const computedTrust = signals.length ? average(signals.map((s) => s.score)) : 0;
-  const trust = clamp(Number(payload.recruiterTrust ?? payload.overallScore ?? computedTrust ?? 0)) || computedTrust || 50;
+  // Blend the recruiter's live trust score with the recalibrated answer-quality
+  // score rather than letting live trust dominate. The live LLM trust runs
+  // harsh (it drops fast on any hesitation and rarely fully recovers), so on
+  // its own it produced discouraging overalls that ignored genuinely solid
+  // answers. Weighting answer quality at 60% keeps the number honest but fair,
+  // and anchored to what the candidate actually said. If no live trust is
+  // present, fall back to the computed score alone.
+  const rawTrust = Number(payload.recruiterTrust ?? payload.overallScore);
+  const hasLiveTrust = Number.isFinite(rawTrust) && rawTrust > 0;
+  const trust = hasLiveTrust
+    ? clamp(0.6 * (computedTrust || 50) + 0.4 * clamp(rawTrust))
+    : (computedTrust || 50);
   const hiringSignal = scoreLabel(trust);
   const timeline = buildTimeline(signals, trust);
   const scoreCards = buildScoreCards(signals, payload.scores);
@@ -488,13 +543,13 @@ export function buildResultsInsight(payload: ResultPayload): ResultsInsight {
 
   const continuationVerdict =
     trust >= 84
-      ? "Likely to continue — strong signal, now sharpen one high-impact story."
+      ? "Likely to continue, strong signal, now sharpen one high-impact story."
       : trust >= 72
-        ? "Could continue — recruiter sees potential but needs stronger measurable proof."
+        ? "Could continue, recruiter sees potential but needs stronger measurable proof."
         : trust >= 58
-          ? "Borderline — the next answer must be more specific and evidence-based."
+          ? "Borderline, the next answer must be more specific and evidence-based."
           : signals.length
-            ? "Unlikely right now — recruiter confidence dropped because proof was too weak."
+            ? "Unlikely right now, recruiter confidence dropped because proof was too weak."
             : "Not enough interview data yet.";
 
   const recruiterSummary =

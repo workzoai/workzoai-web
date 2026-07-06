@@ -58,10 +58,10 @@ export function generateFollowup(signals: FollowUpSignals): FollowUpDecision {
   const isSarah = recruiterType === "sarah" || recruiterType === "friendly_hr";
   const isPriya = recruiterType === "priya" || recruiterType === "startup_recruiter";
 
-  // ── Credibility issues — always stay and challenge ────────────────────────
+  // ── Credibility issues, always stay and challenge ────────────────────────
   if (contradiction) {
     return {
-      question: `Hold on — earlier ${contradiction.toLowerCase().startsWith("the") ? "" : "you mentioned "}${contradiction}. Help me understand that — are both things true at the same time?`,
+      question: `Hold on, earlier ${contradiction.toLowerCase().startsWith("the") ? "" : "you mentioned "}${contradiction}. Help me understand that, are both things true at the same time?`,
       style: "skeptical",
       stayOnQuestion: true,
     };
@@ -69,16 +69,16 @@ export function generateFollowup(signals: FollowUpSignals): FollowUpDecision {
 
   if (unsupportedClaim) {
     return {
-      question: `That sounds significant. ${unsupportedClaim}. What was your actual scope — who else was involved, and what did you personally own?`,
+      question: `That sounds significant. ${unsupportedClaim}. What was your actual scope, who else was involved, and what did you personally own?`,
       style: "skeptical",
       stayOnQuestion: true,
     };
   }
 
-  // ── Rambling without a result — interrupt and narrow ─────────────────────
+  // ── Rambling without a result, interrupt and narrow ─────────────────────
   if (rambling && !hasQualitativeOutcome && !hasQuantitativeOutcome) {
     return {
-      question: "Let me pause you there — what was the actual outcome of all that? Give me the result in one or two sentences.",
+      question: "Let me pause you there, what was the actual outcome of all that? Give me the result in one or two sentences.",
       style: "pressure",
       stayOnQuestion: true,
     };
@@ -102,13 +102,13 @@ export function generateFollowup(signals: FollowUpSignals): FollowUpDecision {
       return {
         question: isDaniel
           ? `Okay, I'll accept that as a qualitative result. Now: what was the hardest decision you made during that situation?`
-          : `Fair enough — I'll take that as a directional outcome. ${buildDepthQuestion(targetRole, conversationStage, recruiterType)}`,
+          : `Fair enough, I'll take that as a directional outcome. ${buildDepthQuestion(targetRole, conversationStage, recruiterType)}`,
         style: "deepening",
         stayOnQuestion: false,
       };
     }
     return {
-      question: "What was the measurable outcome? Even a rough number — time saved, customer satisfaction, fewer escalations — helps me understand the real impact.",
+      question: "What was the measurable outcome? Even a rough number, time saved, customer satisfaction, fewer escalations, helps me understand the real impact.",
       style: "analytical",
       stayOnQuestion: true,
     };
@@ -117,13 +117,13 @@ export function generateFollowup(signals: FollowUpSignals): FollowUpDecision {
   // ── Vague language without specifics ─────────────────────────────────────
   if (vague && !hasQualitativeOutcome) {
     return {
-      question: "Give me one specific example — a real situation, not a general description of what you usually do.",
+      question: "Give me one specific example, a real situation, not a general description of what you usually do.",
       style: "analytical",
       stayOnQuestion: true,
     };
   }
 
-  // ── Good answer — advance with a deepening follow-up ─────────────────────
+  // ── Good answer, advance with a deepening follow-up ─────────────────────
   const depthQuestion = buildDepthQuestion(targetRole, conversationStage, recruiterType);
   return {
     question: depthQuestion,
@@ -142,7 +142,7 @@ function buildDepthQuestion(
   const isPriya = recruiterType === "priya" || recruiterType === "startup_recruiter";
 
   if (stage === "strengths") {
-    return "What would you say is your biggest development area right now — and how are you actively working on it?";
+    return "What would you say is your biggest development area right now, and how are you actively working on it?";
   }
 
   if (stage === "weakness") {
@@ -153,7 +153,7 @@ function buildDepthQuestion(
 
   if (stage === "behavioral") {
     if (/customer success|account manager|client success/.test(role)) {
-      return "After that situation was resolved, how would you follow up to make sure the customer stays successful long term — not just temporarily satisfied?";
+      return "After that situation was resolved, how would you follow up to make sure the customer stays successful long term, not just temporarily satisfied?";
     }
     if (/data analyst|business analyst/.test(role)) {
       return "What decision changed because of that analysis, and how did you know it was the right call?";
@@ -161,7 +161,7 @@ function buildDepthQuestion(
     if (/sales|business development/.test(role)) {
       return isPriya
         ? "What would you do differently if you ran that deal again from scratch?"
-        : "Walk me through one prospect conversation from initial contact to close — what moved them forward?";
+        : "Walk me through one prospect conversation from initial contact to close, what moved them forward?";
     }
     return isDaniel
       ? "What was the hardest trade-off you had to make in that situation?"
@@ -172,6 +172,6 @@ function buildDepthQuestion(
     return `I see the gap. How would you close it quickly in the first 90 days if you joined as ${targetRole}?`;
   }
 
-  // Generic fallback — used when stage is unclear
+  // Generic fallback, used when stage is unclear
   return "Give me one concrete example where you took ownership and something measurable improved because of it.";
 }

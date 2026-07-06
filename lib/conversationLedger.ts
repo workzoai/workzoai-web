@@ -1,8 +1,8 @@
 /**
  * lib/conversationLedger.ts
  *
- * v3 ARCHITECTURE — STEP 4 (Dynamic Skill Ceiling), STEP 7 (Conversation
- * Memory), STEP 8 (Red Flag — one probe), STEP 9 (Pivot Rule — max 2
+ * v3 ARCHITECTURE, STEP 4 (Dynamic Skill Ceiling), STEP 7 (Conversation
+ * Memory), STEP 8 (Red Flag, one probe), STEP 9 (Pivot Rule, max 2
  * follow-ups), STEP 10 (Transition Variety)
  *
  * The ledger is the single deterministic memory consolidating what
@@ -15,7 +15,7 @@
  *   major languages (en/de/fr/es/it/pt/nl). It is a BACKSTOP: the same rules
  *   are also stated in the prompt so the LLM enforces them natively in every
  *   language, including ones the patterns don't cover. Either layer alone
- *   catching the signal is sufficient — the ledger persists it forever after.
+ *   catching the signal is sufficient, the ledger persists it forever after.
  * - No candidate-specific content. Skill names are captured from the
  *   candidate's own words, never from a hardcoded list.
  */
@@ -42,10 +42,10 @@ export type ConversationLedger = {
   skillCeilings: SkillCeiling[];
   redFlags: RedFlag[];
   establishedFacts: string[];        // deduped, max 30
-  /** followupCount per topic slug — Step 9 pivot rule (max 2). */
+  /** followupCount per topic slug, Step 9 pivot rule (max 2). */
   followupsByTopic: Record<string, number>;
   activeTopic: string | null;
-  /** Last N reply openers — Step 10 anti-repetition. */
+  /** Last N reply openers, Step 10 anti-repetition. */
   recentOpeners: string[];
 };
 
@@ -62,9 +62,9 @@ export function emptyLedger(): ConversationLedger {
   };
 }
 
-// ── STEP 4 — Skill ceiling detection (multilingual backstop) ────────────────
+// ── STEP 4, Skill ceiling detection (multilingual backstop) ────────────────
 // Structure: [limitation marker] ... [skill phrase]. The skill is whatever
-// the candidate named — captured, not matched against any list.
+// the candidate named, captured, not matched against any list.
 
 const LIMITATION_PATTERNS: Array<{ re: RegExp; level: SkillCeiling["level"] }> = [
   // English
@@ -136,7 +136,7 @@ export function detectSkillCeilings(answer: string, turn: number): SkillCeiling[
   return found;
 }
 
-// ── STEP 8 — Red flag detection (deterministic backstop) ────────────────────
+// ── STEP 8, Red flag detection (deterministic backstop) ────────────────────
 // Pattern classes, not phrase lists: blame-shifting, ownership avoidance,
 // ethics. The prompt layer handles the same classes in all languages.
 
@@ -171,7 +171,7 @@ export function detectRedFlags(answer: string, turn: number): RedFlag[] {
   return flags;
 }
 
-// ── STEP 10 — Transition variety ─────────────────────────────────────────────
+// ── STEP 10, Transition variety ─────────────────────────────────────────────
 // The pool is prompt GUIDANCE (the LLM renders transitions natively in the
 // interview language). The deterministic part is the recent-opener tracker:
 // the engine extracts each reply's opening words and bans reuse.
@@ -180,14 +180,14 @@ export const TRANSITION_POOL: string[] = [
   "That makes sense.", "Thanks for explaining.", "Interesting.", "I appreciate the detail.",
   "Fair enough.", "Good context.", "Right.", "Okay, that helps.", "I can see that.",
   "That's a useful example.", "Clear.", "Got it.", "That answers it.", "Helpful.",
-  "I follow.", "Makes sense to me.", "Alright.", "That's fair.", "Understood — thanks.",
-  "Appreciate that.", "Nice example.", "That paints a picture.", "Good — thanks.",
+  "I follow.", "Makes sense to me.", "Alright.", "That's fair.", "Understood, thanks.",
+  "Appreciate that.", "Nice example.", "That paints a picture.", "Good, thanks.",
   "Let's explore another area.", "I'd like to understand something else.",
   "Changing topics slightly...", "Let's switch gears.", "Moving to a different area...",
   "On a related note...", "Let me take this somewhere else.", "Building on that...",
   "Something you said earlier caught my attention.", "Let's zoom out for a moment.",
   "Let's get more specific.", "Coming back to the role itself...", "One more angle on this...",
-  "Before we move on —", "While we're on this...", "Taking a step back...",
+  "Before we move on -", "While we're on this...", "Taking a step back...",
   "Now, thinking about the day-to-day...", "Shifting focus a little...",
   "Let me ask about a different situation.", "Here's a different kind of question.",
   "I want to look at another side of this.", "Turning to your experience with people...",
@@ -224,7 +224,7 @@ export function updateLedger(
     recentOpeners: [...ledger.recentOpeners],
   };
 
-  // Skill ceilings — first admission wins; never upgraded by later probing.
+  // Skill ceilings, first admission wins; never upgraded by later probing.
   for (const ceiling of detectSkillCeilings(input.candidateAnswer, turn)) {
     if (!next.skillCeilings.some((s) => s.skill === ceiling.skill)) {
       next.skillCeilings.push(ceiling);
@@ -234,7 +234,7 @@ export function updateLedger(
     }
   }
 
-  // Red flags — recorded once per id.
+  // Red flags, recorded once per id.
   for (const flag of detectRedFlags(input.candidateAnswer, turn)) {
     if (!next.redFlags.some((f) => f.id === flag.id)) next.redFlags.push(flag);
   }
@@ -271,10 +271,10 @@ export function markRedFlagProbed(ledger: ConversationLedger, id: string): Conve
 // ── Prompt rendering ─────────────────────────────────────────────────────────
 
 export function renderLedgerForPrompt(ledger: ConversationLedger): string {
-  const lines: string[] = ["=== CONVERSATION LEDGER (binding — internal) ==="];
+  const lines: string[] = ["=== CONVERSATION LEDGER (binding, internal) ==="];
 
   if (ledger.skillCeilings.length) {
-    lines.push("SKILL CEILINGS — the candidate has stated these limits. NEVER ask advanced/optimization/architecture questions on these skills again. Pivot to adjacent competencies (collaboration, requirements gathering, communication, how they worked with specialists):");
+    lines.push("SKILL CEILINGS, the candidate has stated these limits. NEVER ask advanced/optimization/architecture questions on these skills again. Pivot to adjacent competencies (collaboration, requirements gathering, communication, how they worked with specialists):");
     for (const s of ledger.skillCeilings)
       lines.push(`  - ${s.skill}: ${s.level.toUpperCase()} ("${s.quotedFrom}")`);
   }
@@ -283,29 +283,29 @@ export function renderLedgerForPrompt(ledger: ConversationLedger): string {
   const probed = ledger.redFlags.filter((f) => f.probed);
   if (unprobed.length) {
     lines.push(
-      "BEHAVIOURAL FLAG — probe EXACTLY ONCE with an empathetic clarification (pattern: 'I understand your intention. How would you handle that while maintaining the relationship?'), then score internally and move on:",
+      "BEHAVIOURAL FLAG, probe EXACTLY ONCE with an empathetic clarification (pattern: 'I understand your intention. How would you handle that while maintaining the relationship?'), then score internally and move on:",
       ...unprobed.map((f) => `  - ${f.summary}`),
     );
   }
   if (probed.length)
-    lines.push("FLAGS ALREADY PROBED — NEVER raise again, score silently: " + probed.map((f) => f.id).join(", "));
+    lines.push("FLAGS ALREADY PROBED, NEVER raise again, score silently: " + probed.map((f) => f.id).join(", "));
 
   const exhausted = Object.entries(ledger.followupsByTopic).filter(([, n]) => n >= 2);
   if (exhausted.length)
-    lines.push("PIVOT RULE TRIGGERED — 2 follow-ups used on: " + exhausted.map(([t]) => t).join(", ") + ". Accept the answer, score internally, MOVE ON now.");
+    lines.push("PIVOT RULE TRIGGERED, 2 follow-ups used on: " + exhausted.map(([t]) => t).join(", ") + ". Accept the answer, score internally, MOVE ON now.");
 
   if (ledger.establishedFacts.length)
-    lines.push("ESTABLISHED FACTS — never ask the candidate to repeat these; build on them instead:", ...ledger.establishedFacts.slice(-12).map((f) => `  - ${f}`));
+    lines.push("ESTABLISHED FACTS, never ask the candidate to repeat these; build on them instead:", ...ledger.establishedFacts.slice(-12).map((f) => `  - ${f}`));
 
   if (ledger.recentOpeners.length)
     lines.push(
-      "TRANSITION VARIETY — do NOT open your reply with any of these recently used openers: " +
+      "TRANSITION VARIETY, do NOT open your reply with any of these recently used openers: " +
       ledger.recentOpeners.map((o) => `"${o}..."`).join(", ") +
-      ". Vary acknowledgements naturally, and roughly one turn in three use NO acknowledgement at all — go straight to the question.",
+      ". Vary acknowledgements naturally, and roughly one turn in three use NO acknowledgement at all, go straight to the question.",
     );
 
   lines.push(
-    "GLOBAL PRINCIPLES: One objective per question. Never bundle asks. Never re-test an explored competency. Never argue with the candidate — score silently. These rules apply in every language.",
+    "GLOBAL PRINCIPLES: One objective per question. Never bundle asks. Never re-test an explored competency. Never argue with the candidate, score silently. These rules apply in every language.",
     "=== END LEDGER ===",
   );
   return lines.join("\n");

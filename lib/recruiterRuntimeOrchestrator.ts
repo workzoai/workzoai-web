@@ -201,17 +201,17 @@ export type RecruiterRuntimeOutput = {
   trust: number;
   trustTrend: RecruiterTrustTrend;
 
-  /** 0–100 emotional patience. Lower values mean recruiter is mentally checking out. */
+  /** 0-100 emotional patience. Lower values mean recruiter is mentally checking out. */
   patienceLevel: number;
   patienceTrend: RecruiterPatienceTrend;
 
-  /** 0–100 small pause/hesitation signal for realistic recruiter cadence. */
+  /** 0-100 small pause/hesitation signal for realistic recruiter cadence. */
   hesitationLevel: number;
 
   /** Whether the recruiter stays focused or has to reset the conversational thread. */
   conversationDrift: RecruiterConversationDrift;
 
-  /** 0–100 uncertainty in the recruiter's interpretation of the answer. */
+  /** 0-100 uncertainty in the recruiter's interpretation of the answer. */
   emotionalUncertainty: number;
 
   /** Direction of the next follow-up. */
@@ -225,16 +225,16 @@ export type RecruiterRuntimeOutput = {
   selfCorrectionLine: string | null;
   selfCorrectionStyle: RecruiterSelfCorrectionStyle;
 
-  /** 0–100 recruiter attention investment. Lower means they are checking out. */
+  /** 0-100 recruiter attention investment. Lower means they are checking out. */
   engagementLevel: number;
 
-  /** 0–100 curiosity about the candidate's answer. */
+  /** 0-100 curiosity about the candidate's answer. */
   curiosityLevel: number;
 
   /** Silent judgment state: the recruiter may stop probing even before the interview ends. */
   silentJudgment: RecruiterSilentJudgment;
 
-  /** 0–100 risk that the recruiter has mentally moved on. */
+  /** 0-100 risk that the recruiter has mentally moved on. */
   mentalCheckoutRisk: number;
 
   /** Whether emotional investment is rising or fading. */
@@ -836,7 +836,7 @@ function buildMemoryEscalatedInterruption({
       shouldInterrupt: true,
       severity: pressureLevel >= 82 ? "high" : "medium",
       interruptionMessage:
-        "Let me stop you there. This is the same broad pattern again — give me one specific situation and what you personally did.",
+        "Let me stop you there. This is the same broad pattern again, give me one specific situation and what you personally did.",
     };
   }
 
@@ -854,7 +854,7 @@ function buildMemoryEscalatedInterruption({
       shouldInterrupt: true,
       severity: "medium",
       interruptionMessage:
-        "Let me pause you there. This is still incomplete — give me the situation, your action, and the result in order.",
+        "Let me pause you there. This is still incomplete, give me the situation, your action, and the result in order.",
     };
   }
 
@@ -895,7 +895,7 @@ function buildRuntimeMemoryLine({
     previousSignals.has(signal);
 
   if (answerSignals.vague && hasPreviousPattern("vague_answer")) {
-    return "I’m noticing the same pattern again — this is still too general. Give me one specific situation and what you personally did.";
+    return "I’m noticing the same pattern again, this is still too general. Give me one specific situation and what you personally did.";
   }
 
   if (answerSignals.missingMetrics && hasPreviousPattern("missing_metrics")) {
@@ -995,7 +995,7 @@ function buildPressureAwareReactionLines({
     answerSignals.vague
   ) {
     return [
-      "Hold on — this is the same vague pattern again.",
+      "Hold on, this is the same vague pattern again.",
       "I’m not hearing measurable impact yet.",
       "Give me the exact action and result.",
     ];
@@ -1008,7 +1008,7 @@ function buildPressureAwareReactionLines({
     answerSignals.missingMetrics
   ) {
     return [
-      "Hold on — you are avoiding impact again.",
+      "Hold on, you are avoiding impact again.",
       "A rough number is better than no evidence.",
       "What changed because of your work?",
     ];
@@ -1058,7 +1058,7 @@ function determineRuntimeDecision({
 
   if (recoveryLine) return "recover";
 
-  // Do not overuse memory callbacks in the first 1–2 turns.
+  // Do not overuse memory callbacks in the first 1-2 turns.
   if (memoryLine && turnIndex >= 2) return "memory_callback";
 
   if (mood === "pressuring" || mood === "skeptical") return "challenge";
@@ -1749,7 +1749,7 @@ function determineSelfCorrection({
     return {
       shouldSelfCorrect: true,
       style: "clarify_intent",
-      line: "Wait, no — what I really want to understand is this.",
+      line: "Wait, no, what I really want to understand is this.",
     };
   }
 

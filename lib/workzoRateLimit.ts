@@ -19,7 +19,7 @@
 // CREATE INDEX IF NOT EXISTS workzo_rate_limits_key_idx ON workzo_rate_limits (rate_key, window_start DESC);
 //
 // Old rows can be cleaned up periodically (they're tiny and naturally age out
-// of relevance), or left as-is — a single user generates at most ~1 row per
+// of relevance), or left as-is, a single user generates at most ~1 row per
 // minute, which is negligible storage.
 
 import { createClient } from "@supabase/supabase-js";
@@ -39,11 +39,11 @@ function getServiceClient() {
  *
  * @param key  Unique identifier for the thing being limited, e.g.
  *             `copilot:${userId}` or `interview:${ip}`. Scope by user ID
- *             where possible — IP-based keys are easy to evade with proxies
+ *             where possible, IP-based keys are easy to evade with proxies
  *             and unfairly group multiple users behind the same NAT/VPN.
  * @param limit Max requests allowed within the current window.
  * @param windowMs Window size in milliseconds. Defaults to 60 seconds.
- * @returns `{ allowed, remaining }` — fails OPEN (allowed: true) if the
+ * @returns `{ allowed, remaining }`, fails OPEN (allowed: true) if the
  *          database is unreachable, so a Supabase outage degrades to "no
  *          rate limiting" rather than blocking every request in the app.
  */
@@ -89,7 +89,7 @@ export async function checkWorkZoRateLimit(
         .eq("rate_key", key)
         .eq("window_start", windowStart);
     } else {
-      // Insert can race with a concurrent request creating the same row —
+      // Insert can race with a concurrent request creating the same row -
       // that's fine, a duplicate-key error here just means another request
       // beat us to it; the user's request still proceeds (fail open on
       // races, never on the limit check itself).

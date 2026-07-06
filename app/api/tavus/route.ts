@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
+import { getWorkZoPlanLimits } from "@/lib/workzoPlanLimits";
+import { isWorkZoFounderDevEmail } from "@/lib/workzoFounderAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Tavus Live AI Recruiter is a Premium Pro exclusive feature.
-// Server-side monthly minute limit is enforced here via Supabase.
-const TAVUS_MINUTES_LIMIT = 60;
+// AI Video Interview is a Premium Pro exclusive feature.
+// Server-side monthly minute limit is resolved from workzoPlanLimits.ts.
+// The founder dev email gets unlimited testing access.
 
 type RecruiterKey =
   | "sarah"
@@ -209,11 +211,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (resolved.plan !== "premium_pro") {
+  const founderDev = isWorkZoFounderDevEmail(resolved.email);
+  const videoLimit = founderDev ? 999999 : getWorkZoPlanLimits(resolved.plan).videoMinutesPerMonth;
+
+  if (!founderDev && resolved.plan !== "premium_pro") {
     return NextResponse.json(
       {
         error: "premium_pro_required",
-        message: "Live AI Recruiter requires Premium Pro.",
+        message: "AI Video Interviews require Premium Pro.",
         requiredPlan: "premium_pro",
       },
       { status: 403 },
@@ -228,13 +233,13 @@ export async function POST(request: Request) {
     console.warn("[tavus] Could not read minutes used from DB, proceeding:", err);
   }
 
-  if (minutesUsed >= TAVUS_MINUTES_LIMIT) {
+  if (!founderDev && minutesUsed >= videoLimit) {
     return NextResponse.json(
       {
         error: "tavus_minutes_exhausted",
         minutesUsed,
-        minutesLimit: TAVUS_MINUTES_LIMIT,
-        message: `You have used all ${TAVUS_MINUTES_LIMIT} Live AI Recruiter minutes for this billing cycle. Continuing in Vapi voice mode.`,
+        minutesLimit: videoLimit,
+        message: `You have used all ${videoLimit} AI video minutes for this billing cycle. Continuing in AI voice mode.`,
         fallbackToVapi: true,
       },
       { status: 403 },
@@ -314,8 +319,8 @@ export async function POST(request: Request) {
       personaId,
       replicaGender: RECRUITER_GENDER[recruiterKey],
       minutesUsed,
-      minutesRemaining: TAVUS_MINUTES_LIMIT - minutesUsed,
-      minutesLimit: TAVUS_MINUTES_LIMIT,
+      minutesRemaining: Math.max(0, videoLimit - minutesUsed),
+      minutesLimit: videoLimit,
       raw: data,
     });
   } catch (error) {

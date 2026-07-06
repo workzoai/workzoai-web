@@ -1,10 +1,10 @@
 /**
  * lib/interviewEngineV3.ts
  *
- * v3 ARCHITECTURE — COMPOSITION LAYER
+ * v3 ARCHITECTURE, COMPOSITION LAYER
  *
  * The single entry point BOTH /api/interview and /api/interview/reply call.
- * One code path for blueprint, ledger, closing state, and persona loading —
+ * One code path for blueprint, ledger, closing state, and persona loading -
  * no split-brain between routes.
  *
  * Pipeline per turn:
@@ -16,7 +16,7 @@
  *   6. Load the ONE persona file for this interview (Steps 2, 11, 13)
  *   7. Render everything into one brainContext string for the LLM
  *
- * The LLM call itself stays where it is (decideUnifiedRecruiterResponse) —
+ * The LLM call itself stays where it is (decideUnifiedRecruiterResponse) -
  * this module owns everything BEFORE the persona style layer, which is
  * identical for every recruiter by construction.
  */
@@ -91,18 +91,18 @@ export type EngineV3Input = {
 };
 
 export type EngineV3Result = {
-  /** Everything before the persona layer — inject as recruiterBrainContext. */
+  /** Everything before the persona layer, inject as recruiterBrainContext. */
   brainContext: string;
-  /** The persona style block — inject as setup.recruiterPersonality. */
+  /** The persona style block, inject as setup.recruiterPersonality. */
   persona: LoadedPersona;
-  /** Updated state — attach to outgoing memory via attachV3State. */
+  /** Updated state, attach to outgoing memory via attachV3State. */
   state: EngineV3State;
   /** When true, the API response must signal results generation to the client. */
   interviewComplete: boolean;
 };
 
 export async function runInterviewEngineV3(input: EngineV3Input): Promise<EngineV3Result> {
-  // 1–2. Restore or initialise state; blueprint is generated exactly once.
+  // 1-2. Restore or initialise state; blueprint is generated exactly once.
   const prev: EngineV3State =
     input.previousState ?? {
       blueprint: generateInterviewBlueprint({
@@ -145,7 +145,7 @@ export async function runInterviewEngineV3(input: EngineV3Input): Promise<Engine
   // 6. Load the single persona for this interview (Steps 2, 11, 13).
   const persona = await loadPersona(input.recruiterPersonality, input.recruiterName);
 
-  // 7. Compose the shared brain context — identical for every persona.
+  // 7. Compose the shared brain context, identical for every persona.
   const blocks = [
     renderBlueprintForPrompt(blueprint),
     renderLedgerForPrompt(ledger),
@@ -172,6 +172,110 @@ export async function runInterviewEngineV3(input: EngineV3Input): Promise<Engine
  */
 export function recordReply(state: EngineV3State, finalReply: string): EngineV3State {
   return { ...state, lastRecruiterReply: finalReply };
+}
+
+// ── Stateless transcript replay (Vapi custom-LLM path) ──────────────────────
+//
+// The Vapi custom-LLM endpoint has no client round-trip to persist state, but
+// Vapi sends the FULL message history every turn. Because the engine is
+// deterministic (blueprint is a pure function of JD+CV; ledger/closing are a
+// fold over candidate turns), we rebuild the entire v3 state from the
+// transcript on each request instead of storing it. This is the single-brain
+// guarantee: the SAME engine that runs the text path runs here, with no
+// separate state store to drift out of sync.
+
+export type TranscriptTurn = { role: "recruiter" | "candidate"; text: string };
+
+export async function runInterviewEngineV3FromTranscript(input: {
+  transcript: TranscriptTurn[];
+  jobDescription: string;
+  cvText: string;
+  targetRole: string;
+  recruiterPersonality?: string | null;
+  recruiterName?: string | null;
+  /** Server-side wrap-up trigger (e.g. question budget reached / max turns). */
+  wrapUpRequested?: boolean;
+}): Promise<EngineV3Result> {
+  // 1. Blueprint, deterministic, regenerated identically every turn.
+  let state: EngineV3State = {
+    blueprint: generateInterviewBlueprint({
+      jobDescription: input.jobDescription,
+      cvText: input.cvText,
+      targetRole: input.targetRole,
+    }),
+    ledger: emptyLedger(),
+    closing: emptyClosingState(),
+    lastRecruiterReply: "",
+    lastCompetencyId: null,
+  };
+
+  // 2. Fold the engine over the transcript. In the custom-LLM turn model Vapi
+  //    only calls us when it's the assistant's turn, i.e. the candidate has
+  //    just finished, so candidateStillSpeaking is always false here, which
+  //    is exactly why a mid-answer cutoff cannot occur on this path.
+  // Wrap-up begins one question before the hard budget so each closing phase
+  // (wrap_up → candidate_questions → closing) gets its own turn.
+  const WRAP_UP_AT = 11;
+
+  let candidateSeen = 0;
+  let recruiterSeen = 0;
+  for (let i = 0; i < input.transcript.length; i++) {
+    const turn = input.transcript[i];
+    if (turn.role === "recruiter") {
+      recruiterSeen++;
+      continue;
+    }
+    // candidate turn
+    candidateSeen++;
+    const precedingRecruiter =
+      [...input.transcript.slice(0, i)].reverse().find((t) => t.role === "recruiter")?.text || "";
+    const exchangeText = `${precedingRecruiter}\n${turn.text}`;
+    const competencyId = classifyCompetency(state.blueprint, exchangeText);
+    const wasFollowup = !!competencyId && competencyId === state.lastCompetencyId;
+    const blueprint = competencyId
+      ? spendCompetencyQuestion(state.blueprint, competencyId)
+      : state.blueprint;
+    const ledger = updateLedger(state.ledger, {
+      candidateAnswer: turn.text,
+      lastRecruiterReply: state.lastRecruiterReply,
+      currentTopicId: competencyId,
+      wasFollowup,
+    });
+    // Advance the closing machine ONE step per candidate turn (matching how the
+    // text engine drives it), so phases progress naturally instead of via a
+    // pre-computed step count.
+    const wrapNow =
+      !!input.wrapUpRequested || recruiterSeen >= WRAP_UP_AT || blueprintExhausted(blueprint);
+    const closingState = advanceClosingState(state.closing, {
+      turn: candidateSeen,
+      wrapUpRequested: wrapNow,
+      blueprintDone: blueprintExhausted(blueprint),
+      candidateStillSpeaking: false, // Vapi calls us only when it's our turn
+    });
+    state = {
+      ...state,
+      blueprint,
+      ledger,
+      closing: closingState,
+      lastRecruiterReply: precedingRecruiter,
+      lastCompetencyId: competencyId ?? state.lastCompetencyId,
+    };
+  }
+
+  const persona = await loadPersona(input.recruiterPersonality, input.recruiterName);
+
+  const blocks = [
+    renderBlueprintForPrompt(state.blueprint),
+    renderLedgerForPrompt(state.ledger),
+    renderClosingDirective(state.closing),
+  ].filter(Boolean);
+
+  return {
+    brainContext: blocks.join("\n\n"),
+    persona,
+    state,
+    interviewComplete: isInterviewComplete(state.closing),
+  };
 }
 
 /** Convenience for logging/analytics (Step 18). */

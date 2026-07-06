@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Usage events are fire-and-forget — we always return 200 so the client
+// Usage events are fire-and-forget, we always return 200 so the client
 // never blocks on this. Errors are logged but never surfaced to the user.
 //
 // TABLE REQUIRED (run once in Supabase SQL editor):
@@ -67,14 +67,14 @@ function sanitizeMetadata(value: unknown): Record<string, unknown> {
 }
 
 export async function POST(request: Request) {
-  // Always return 200 — this route must never block the caller
+  // Always return 200, this route must never block the caller
   try {
     const body = await request.json().catch(() => ({}));
 
     const eventName = sanitizeEventName(body.eventName || body.event);
     const metadata = sanitizeMetadata(body.metadata || {});
 
-    // Resolve the real server plan — fall back gracefully if unavailable
+    // Resolve the real server plan, fall back gracefully if unavailable
     let userId: string | null = null;
     let plan = "free";
     try {
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
       userId = resolved.userId ?? null;
       plan = resolved.plan;
     } catch {
-      // Non-blocking — proceed without user context
+      // Non-blocking, proceed without user context
     }
 
     // Attach client-reported plan as a cross-check (stored in metadata, not trusted for gating)
@@ -125,7 +125,7 @@ export async function POST(request: Request) {
       });
 
       if (error) {
-        // Log but don't surface — table may not exist yet in dev
+        // Log but don't surface, table may not exist yet in dev
         console.error("workzo_usage_event_insert_error", {
           eventName,
           error: error.message,
@@ -138,7 +138,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch {
-    // Outer catch — always return ok so the client never retries
+    // Outer catch, always return ok so the client never retries
     return NextResponse.json({ ok: true });
   }
 }

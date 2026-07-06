@@ -26,7 +26,7 @@ type AppMessageUtterance = EventOrdering & {
 	};
 };
 
-// Streaming utterance event — emitted as either side speaks. Reflects what was
+// Streaming utterance event, emitted as either side speaks. Reflects what was
 // actually spoken/transcribed (vs. `conversation.utterance` role=replica which
 // contains the full intended LLM response, even if interrupted).
 type AppMessageUtteranceStreaming = EventOrdering & {

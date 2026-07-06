@@ -136,8 +136,8 @@ function estimateTotalExperienceYears(cvText: string) {
   const ranges: Array<[number, number]> = [];
 
   const patterns = [
-    /\b(?:\d{1,2}\/)?((?:19|20)\d{2})\s*(?:-|–|—|to)\s*(?:present|current|heute|now|((?:19|20)\d{2}))/gi,
-    /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+((?:19|20)\d{2})\s*(?:-|–|—|to)\s*(?:present|current|heute|now|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+((?:19|20)\d{2}))/gi,
+    /\b(?:\d{1,2}\/)?((?:19|20)\d{2})\s*(?:-|-|-|to)\s*(?:present|current|heute|now|((?:19|20)\d{2}))/gi,
+    /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+((?:19|20)\d{2})\s*(?:-|-|-|to)\s*(?:present|current|heute|now|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+((?:19|20)\d{2}))/gi,
   ];
 
   for (const pattern of patterns) {
@@ -446,7 +446,7 @@ export function detectCandidateContradictions({
         candidateClaim: claimed,
         resumeEvidence: `CV appears to show: ${facts.likelyNames.join(", ")}`,
         severity: "high",
-        clarificationQuestion: `Let me stop you there — you said your name is ${claimed}, but the CV appears to show ${facts.likelyNames[0]}. Which name should I use?`,
+        clarificationQuestion: `Let me stop you there, you said your name is ${claimed}, but the CV appears to show ${facts.likelyNames[0]}. Which name should I use?`,
       });
     }
   }
@@ -522,7 +522,7 @@ export function detectCandidateContradictions({
         candidateClaim: match,
         resumeEvidence: `CV does not clearly support this ${claim.label} claim.`,
         severity: "high",
-        clarificationQuestion: `Let me stop you there — you said "${match}", but I do not see that level of ${claim.label} in your CV. What exactly did you personally own?`,
+        clarificationQuestion: `Let me stop you there, you said "${match}", but I do not see that level of ${claim.label} in your CV. What exactly did you personally own?`,
       });
     }
   }

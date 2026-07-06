@@ -263,7 +263,7 @@ function bridgeFor(signal: WeakSignal, persona: RecruiterPersona, input: LiveRec
 
   if (repeated) return repeated;
 
-  if (signal === "cv_truth_check") return "Wait — I need to clarify something before we move on.";
+  if (signal === "cv_truth_check") return "Wait, I need to clarify something before we move on.";
   if (signal === "rambling") return "Let me stop you there for a second.";
   if (signal === "missing_metrics") return `${style.bridgePrefix} this is where I need measurable proof.`;
   if (signal === "unclear_ownership") return "I hear what the team did, but I am interviewing you.";
@@ -279,10 +279,10 @@ function bridgeFor(signal: WeakSignal, persona: RecruiterPersona, input: LiveRec
   }
 
   if (hasMetric(input.answer) && hasPersonalOwnership(input.answer)) {
-    if (persona === "daniel") return "Good — that gives me evidence I can evaluate.";
+    if (persona === "daniel") return "Good, that gives me evidence I can evaluate.";
     if (persona === "priya") return "Good, now we are getting to impact.";
     if (persona === "markus") return "Good, that answer is more structured and concrete.";
-    return "Good — that gives me something concrete to evaluate.";
+    return "Good, that gives me something concrete to evaluate.";
   }
 
   return "Okay. I want to go one level deeper.";
@@ -371,7 +371,7 @@ export function createLiveRecruiterIntelligence(
   const mismatchRisk = detectCvMismatchRisk(answer, input.setup);
 
   const privateInstruction = [
-    "LIVE RECRUITER MEMORY UPDATE — FOLLOW THIS FOR THE NEXT SPOKEN TURN:",
+    "LIVE RECRUITER MEMORY UPDATE, FOLLOW THIS FOR THE NEXT SPOKEN TURN:",
     `Recruiter persona: ${input.recruiterName}, ${style.tone}.`,
     `Current recruiter state: ${input.recruiterState}.`,
     `Trust moved from ${input.previousTrust}/100 to ${input.recruiterTrust}/100. ${hiringTension(input)}`,

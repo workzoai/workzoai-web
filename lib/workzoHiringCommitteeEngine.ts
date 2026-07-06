@@ -70,7 +70,7 @@ function clean(value: unknown, fallback = "") {
 }
 
 // BUG FIX: a flat character-count slice (e.g. `.slice(0, 180)`) chops quoted
-// candidate evidence mid-sentence, mid-word, or mid-thought — confirmed from
+// candidate evidence mid-sentence, mid-word, or mid-thought, confirmed from
 // a live report quoting "...to tell me the time where..." as the "strongest
 // evidence" because the cut landed exactly at char 180. This truncates at
 // the last full sentence (or clause, falling back to the last space) that
@@ -91,7 +91,7 @@ function truncateAtSentence(text: string, maxLength: number): string {
     return `${slice.slice(0, lastSentenceEnd + 1).trim()}`;
   }
   // No good sentence break found: fall back to the last clause break (comma)
-  // or, failing that, the last whole word — never cut mid-word.
+  // or, failing that, the last whole word, never cut mid-word.
   const lastComma = slice.lastIndexOf(", ");
   if (lastComma > maxLength * 0.5) {
     return `${slice.slice(0, lastComma).trim()}…`;

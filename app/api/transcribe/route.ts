@@ -10,7 +10,7 @@ const client = new OpenAI({
 
 function normalizeLanguage(value: FormDataEntryValue | null): string {
   const raw = typeof value === "string" ? value.toLowerCase().trim() : "";
-  // Always return a valid ISO 639-1 code — never return undefined (which causes Whisper auto-detect)
+  // Always return a valid ISO 639-1 code, never return undefined (which causes Whisper auto-detect)
   if (raw.includes("german")     || raw.includes("deutsch")    || raw === "de" || raw === "de-de") return "de";
   if (raw.includes("dutch")      || raw.includes("nederlands") || raw === "nl" || raw === "nl-nl") return "nl";
   if (raw.includes("french")     || raw.includes("français")   || raw.includes("francais") || raw === "fr" || raw === "fr-fr") return "fr";
@@ -26,7 +26,7 @@ function normalizeLanguage(value: FormDataEntryValue | null): string {
   if (raw.includes("polish")     || raw.includes("polski")     || raw === "pl" || raw === "pl-pl") return "pl";
   if (raw.includes("russian")    || raw.includes("русский")    || raw === "ru" || raw === "ru-ru") return "ru";
   if (raw.includes("turkish")    || raw.includes("türkçe")     || raw === "tr" || raw === "tr-tr") return "tr";
-  // Default to English — never leave undefined (which triggers Whisper auto-detect)
+  // Default to English, never leave undefined (which triggers Whisper auto-detect)
   return "en";
 }
 
@@ -50,12 +50,12 @@ function transcriptionPrompt(language: string): string {
     `This is a candidate answer in a job interview conducted in ${languageName}.` +
     ` Transcribe exactly what the candidate said in ${languageName}.` +
     ` Do not translate to English under any circumstances.` +
-    ` Do not guess missing words — if a word is unclear, omit it.` +
+    ` Do not guess missing words, if a word is unclear, omit it.` +
     ` Do not hallucinate words that were not spoken.` +
     ` Preserve proper nouns, company names, and technical terms exactly as spoken.` +
     ` If the candidate code-switched briefly to another language, transcribe those words as-is.` +
     scriptNote + rtlNote +
-    ` Return only the spoken answer as plain text — no labels, no timestamps, no explanations.`
+    ` Return only the spoken answer as plain text, no labels, no timestamps, no explanations.`
   );
 }
 
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
 
     // CRITICAL: always pass the declared interview language to Whisper.
     // Never auto-detect. Auto-detection is the primary cause of cross-language
-    // STT corruption — Whisper picks the "most likely" language from the audio
+    // STT corruption, Whisper picks the "most likely" language from the audio
     // which may be wrong if the candidate has an accent or speaks briefly.
     // If no language is provided, default to English (not auto).
     const finalLanguage = language || "en";
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
     const transcription = await client.audio.transcriptions.create({
       file: audio,
       model: process.env.OPENAI_TRANSCRIBE_MODEL || "gpt-4o-mini-transcribe",
-      language: finalLanguage, // Always locked — never auto-detect
+      language: finalLanguage, // Always locked, never auto-detect
       prompt: transcriptionPrompt(finalLanguage),
     });
 

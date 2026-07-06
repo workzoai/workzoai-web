@@ -2,7 +2,7 @@
 
 // Interview mode and Tavus usage tracking.
 //
-// IMPORTANT — two-layer tracking:
+// IMPORTANT, two-layer tracking:
 //
 //   SERVER (source of truth): The `tavus_minutes_used` column in
 //   `workzo_subscriptions` is checked by /api/tavus/conversation before
@@ -64,7 +64,7 @@ export function getTavusLimitMinutes() {
   const raw = process.env.NEXT_PUBLIC_TAVUS_DEMO_MINUTES;
   const parsed = Number(raw);
   if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  return TAVUS_MINUTES_LIMIT_SPEC; // was incorrectly 10 — now correctly 60
+  return TAVUS_MINUTES_LIMIT_SPEC; // was incorrectly 10, now correctly 60
 }
 
 export function getTavusRemainingMinutes() {
@@ -73,7 +73,7 @@ export function getTavusRemainingMinutes() {
 
 /**
  * Client-side availability check for UI gating.
- * The server will re-enforce the real limit — this is for showing/hiding
+ * The server will re-enforce the real limit, this is for showing/hiding
  * the Tavus option in the UI before the user tries to start.
  */
 export function isTavusAvailable() {

@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 // answer: a note that quotes the candidate's actual words, and a reaction
 // line that references specifics instead of keyword patterns.
 //
-// Paid plans only — free tier keeps the heuristic path so this adds no LLM
+// Paid plans only, free tier keeps the heuristic path so this adds no LLM
 // cost for unpaid traffic. Failures always return { upgraded: false } with
 // HTTP 200 so the client silently keeps the heuristic reaction.
 
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     const answer = trimTo((body as { answer?: unknown }).answer, 4000);
     const targetRole = trimTo((body as { targetRole?: unknown }).targetRole, 120);
 
-    // Too short to grade meaningfully — heuristic reaction is already right.
+    // Too short to grade meaningfully, heuristic reaction is already right.
     if (answer.split(" ").filter(Boolean).length < 6) {
       return NextResponse.json({ upgraded: false, reason: "too_short" });
     }
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
       'intensity is one of: "soft", "medium", "strong".',
       "RULES:",
       "- text is the recruiter's live reaction, max 18 words, and must reference something SPECIFIC in the answer (a claim, a number, a gap), never generic praise.",
-      '- If the answer contains a strong specific claim or metric, use visualState "typing_notes" and set noteText to a short note that QUOTES a verbatim fragment (max 8 words) from the answer in single quotes, e.g. Noting: \'reduced churn by 14%\' — verify scope.',
+      '- If the answer contains a strong specific claim or metric, use visualState "typing_notes" and set noteText to a short note that QUOTES a verbatim fragment (max 8 words) from the answer in single quotes, e.g. Noting: \'reduced churn by 14%\', verify scope.',
       '- If the answer is vague, ownership is unclear, or a claim sounds unverifiable, use "skeptical" and set noteText to a short note naming exactly what is missing, quoting the vague phrase verbatim where possible.',
       '- Otherwise use "interested" or "thinking" and leave noteText as an empty string.',
       "- Never invent facts the candidate did not say. Quotes must appear verbatim in the answer.",

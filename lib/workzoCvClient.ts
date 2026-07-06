@@ -26,7 +26,7 @@ export async function buildRecruiterMemoryFromCv(input: {
    * Architecture fix: this function NO LONGER calls /api/cv.
    *
    * recruiterMemoryProfile is a structured view of data already present in
-   * resumeProfile — it never needed a separate parser round-trip.
+   * resumeProfile, it never needed a separate parser round-trip.
    *
    * /api/cv is called EXACTLY ONCE: when the user uploads a file.
    * This function reads from the resumeProfile that first call returned.
@@ -65,7 +65,7 @@ export async function buildRecruiterMemoryFromCv(input: {
     return { recruiterMemoryProfile, jobMemoryProfile, confidence: "high" };
   }
 
-  // No structured profile — return minimal memory from raw text inputs.
+  // No structured profile, return minimal memory from raw text inputs.
   // Handles text-paste flow where no resumeProfile exists yet.
   const fallbackMemory = input.candidateName
     ? {
@@ -110,7 +110,7 @@ export async function buildAndSaveInterviewSetup(input: {
 
   // GLOBAL FIX: resumeProfile MUST be carried through to the saved payload.
   // Previously this object spread baseSetup (which has resumeProfile) but then
-  // never re-declared resumeProfile, so any field in baseSetup would survive —
+  // never re-declared resumeProfile, so any field in baseSetup would survive -
   // BUT saveLatestInterviewSetup → sanitizeInterviewSetup was reading
   // rawCvText from setup fields first, and the spread order meant a stale
   // rawCvText from baseSetup could shadow the fresh cvText. More critically,
@@ -163,7 +163,7 @@ export async function structureResumeProfileFromCv(input: {
   targetRole?: string;
   targetMarket?: string;
   fileName?: string;
-  // Previously resolved candidate name — passed so the structure route
+  // Previously resolved candidate name, passed so the structure route
   // doesn't re-derive a wrong name from pasted/layout text that lacks header signals.
   candidateName?: string;
 }) {

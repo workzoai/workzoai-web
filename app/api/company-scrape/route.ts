@@ -146,7 +146,7 @@ Rules:
 - requiredSkills: only explicit requirements, not nice-to-haves. Max 15.
 - niceToHaveSkills: "preferred", "plus", "bonus" items. Max 10.
 - companyValues: cultural keywords and stated values. Max 8.
-- interviewSignals: infer from company type, role, and culture — what do they really care about?`;
+- interviewSignals: infer from company type, role, and culture, what do they really care about?`;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4o",

@@ -10,7 +10,7 @@ export const metadata = {
 const sections = [
   {
     title: "What we store",
-    body: "WorkZo AI uses browser localStorage and sessionStorage — not traditional third-party tracking cookies — to keep you signed in, remember your interview setup and recruiter preferences, track your plan usage limits, store Career Brain session data, and improve product reliability.",
+    body: "WorkZo AI uses browser localStorage and sessionStorage, not traditional third-party tracking cookies, to keep you signed in, remember your interview setup and recruiter preferences, track your plan usage limits, store Career Brain session data, and improve product reliability.",
   },
   {
     title: "Authentication",

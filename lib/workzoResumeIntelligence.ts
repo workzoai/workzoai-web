@@ -1,7 +1,7 @@
 /**
  * lib/workzoResumeIntelligence.ts
  *
- * Resume Intelligence Layer — Rule 3 of WorkZo Resume Intelligence Architecture.
+ * Resume Intelligence Layer, Rule 3 of WorkZo Resume Intelligence Architecture.
  *
  * After /api/cv parses a CV into a ResumeProfile, this module generates
  * a ResumeIntelligence object that every downstream feature consumes:
@@ -35,7 +35,7 @@ export type CareerLevel =
   | "Unknown";
 
 export type ResumeIntelligence = {
-  // Identity — from ResumeProfile, never re-parsed
+  // Identity, from ResumeProfile, never re-parsed
   candidateName: string;
   candidateEmail: string;
   candidatePhone: string;
@@ -406,7 +406,7 @@ export function buildResumeIntelligenceContext(
   if (intel.educationSummaries.length) {
     lines.push("\nEducation:");
     for (const edu of intel.educationSummaries) {
-      lines.push(`  ${edu.degree} — ${edu.institution} (${edu.dates})`);
+      lines.push(`  ${edu.degree}, ${edu.institution} (${edu.dates})`);
     }
   }
 

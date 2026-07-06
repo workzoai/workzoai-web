@@ -8,6 +8,7 @@ import {
 import {
   setWorkZoCurrentPlan,
   getWorkZoDevPlanOverride,
+  enableWorkZoFounderTestMode,
 } from "@/lib/workzoUsageTracker";
 
 export type WorkZoClientPlanState = {
@@ -26,6 +27,13 @@ export type WorkZoClientPlanState = {
     interviewsRemaining: number;
     interviewLimit: number;
     canStartInterview: boolean;
+    voiceMinutesUsed?: number;
+    voiceMinutesRemaining?: number;
+    voiceMinutesLimit?: number;
+    videoMinutesUsed?: number;
+    videoMinutesRemaining?: number;
+    videoMinutesLimit?: number;
+    devUnlimited?: boolean;
   };
 };
 
@@ -95,6 +103,9 @@ export async function fetchWorkZoAuthoritativePlan(options?: {
     }
 
     const data = await response.json();
+    if (data?.usage?.devUnlimited) {
+      try { enableWorkZoFounderTestMode(); } catch {}
+    }
     const dbPlan = normalizeWorkZoPlan(data?.plan || "free");
 
     // Respect active dev/test override so local testing does not get overwritten by DB free plan.
@@ -127,12 +138,12 @@ export function useWorkZoAuthoritativePlan() {
   // Always start from the SSR-safe baseline ("free", not authenticated) so
   // the server-rendered HTML and the client's first paint match exactly.
   // Reading localStorage inside the useState initializer used to branch on
-  // `typeof window` — that's the textbook hydration-mismatch pattern: the
+  // `typeof window`, that's the textbook hydration-mismatch pattern: the
   // server renders "free" but the client's very first render (before
   // hydration finishes reconciling) already had the cached plan from
   // localStorage, so React saw two different trees for the same render.
   // The cached plan is now applied inside the effect below instead, which
-  // only runs after hydration is done — so the UI still updates fast (one
+  // only runs after hydration is done, so the UI still updates fast (one
   // extra, imperceptible re-render) without ever mismatching the server HTML.
   const [state, setState] = useState<WorkZoClientPlanState>({
     loading: true,

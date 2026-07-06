@@ -11,7 +11,7 @@ export default function BillingCancelPage() {
         </div>
         <h1 className="mt-7 text-center text-4xl font-black">No problem.</h1>
         <p className="mt-4 text-center text-base leading-7 text-muted">
-          Your checkout was cancelled. You can upgrade any time — your free plan stays active.
+          Your checkout was cancelled. You can upgrade any time, your free plan stays active.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link href="/pricing" className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-6 py-4 text-sm font-black text-on-brand hover:bg-brand">

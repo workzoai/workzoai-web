@@ -38,6 +38,7 @@ import PremiumUsageBadge from "@/components/premium/PremiumUsageBadge";
 import {
   recordWorkZoInterviewStarted,
   recordWorkZoTavusInterviewStarted,
+  recordWorkZoVoiceMinutes,
 } from "@/lib/workzoUsageTracker";
 import { getWorkZoPlanLimits } from "@/lib/workzoPlanLimits";
 import { buildWorkZoRecruiterReplyV2 } from "@/lib/workzoRecruiterIntelligenceV2";
@@ -72,6 +73,7 @@ import { fetchWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
 import {
   readLatestInterviewSetup,
   normalizeCandidateName as normalizeStoredCandidateName,
+  getCandidateDisplayName,
 } from "@/lib/workzoInterviewSetup";
 import type { ResumeProfile } from "@/lib/workzoResumeParser";
 import dynamic from "next/dynamic";
@@ -497,6 +499,61 @@ const navItems = [
   { label: "Results", href: "/results", icon: BarChart3 },
 ];
 
+
+
+type WorkZoCvExperienceLike = { title?: string; company?: string; dates?: string; bullets?: string[] };
+type WorkZoCvEducationLike = { degree?: string; institution?: string; dates?: string };
+
+function workzoCleanFactText(value: unknown): string {
+  return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function isWorkZoEducationLikeExperience(
+  item: WorkZoCvExperienceLike | null | undefined,
+  education: WorkZoCvEducationLike[] = [],
+): boolean {
+  if (!item) return false;
+  const title = workzoCleanFactText(item.title);
+  const company = workzoCleanFactText(item.company);
+  const dates = workzoCleanFactText(item.dates);
+  const bullets = Array.isArray(item.bullets) ? item.bullets.map(workzoCleanFactText).join(" ") : "";
+  const combined = [title, company, dates, bullets].filter(Boolean).join(" ");
+  if (!combined) return false;
+
+  const educationTerms = /(bootcamp|coding school|university|college|school|hochschule|academy|akademie|institute|bachelor|master|mba|msc|bsc|degree|diploma|certificate|certification|course|training|program)/i;
+  const professionalTitleTerms = /(engineer|administrator|admin|specialist|analyst|consultant|manager|lead|developer|support|technician|coordinator|associate|officer|assistant|intern|teacher|trainer|instructor)/i;
+  const employmentActionTerms = /(resolved|handled|managed|owned|supported|implemented|configured|installed|maintained|troubleshot|coordinated|delivered|improved|reduced|led|worked with customers|tickets?|sla|csat|stakeholders?)/i;
+
+  const overlapsEducation = education.some((edu) => {
+    const institution = workzoCleanFactText(edu.institution);
+    const degree = workzoCleanFactText(edu.degree);
+    if (institution && company && (company.includes(institution) || institution.includes(company))) return true;
+    if (degree && title && (title.includes(degree) || degree.includes(title))) return true;
+    return false;
+  });
+
+  // Parser mistakes often place education/certification rows inside experience.
+  // If an experience row overlaps the verified education section, do not let the
+  // interviewer call it a job, even when speech/CV parsing attached a job-like title.
+  if (overlapsEducation && educationTerms.test(combined)) return true;
+
+  // A title that clearly describes a course or training program is education, not employment.
+  if (educationTerms.test(title) && !professionalTitleTerms.test(title)) return true;
+
+  // A company/institution that is clearly a bootcamp/course with no employment
+  // evidence should not become "your most recent role at...".
+  if (educationTerms.test(company) && !employmentActionTerms.test(bullets)) return true;
+
+  return false;
+}
+
+function getVerifiedWorkExperience(profile: { experience?: WorkZoCvExperienceLike[]; education?: WorkZoCvEducationLike[] } | null | undefined): WorkZoCvExperienceLike[] {
+  const education = Array.isArray(profile?.education) ? profile!.education! : [];
+  return (Array.isArray(profile?.experience) ? profile!.experience! : []).filter(
+    (item) => !isWorkZoEducationLikeExperience(item, education),
+  );
+}
+
 // ── CV-aware fallback questions ─────────────────────────────────────────────
 // These are used by the rule-engine fallback (when the LLM times out or the
 // Vapi path is unavailable). They are built dynamically from the candidate's
@@ -505,12 +562,13 @@ const navItems = [
 function buildCvAwareQuestions(setup: InterviewSetup): string[] {
   const role = setup.targetRole || "this role";
   const profile = setup.resumeProfile as
-    | { experience?: Array<{ title?: string; company?: string; dates?: string; bullets?: string[] }>; skills?: string[]; education?: Array<{ degree?: string; institution?: string }> }
+    | { experience?: WorkZoCvExperienceLike[]; skills?: string[]; education?: WorkZoCvEducationLike[] }
     | null
     | undefined;
 
-  const mostRecentJob = profile?.experience?.[0];
-  const secondJob = profile?.experience?.[1];
+  const verifiedWorkExperience = getVerifiedWorkExperience(profile);
+  const mostRecentJob = verifiedWorkExperience[0];
+  const secondJob = verifiedWorkExperience[1];
   const topSkills = profile?.skills?.slice(0, 3).join(", ");
   const recentTitle = mostRecentJob?.title || "your most recent role";
   const recentCompany = mostRecentJob?.company;
@@ -578,7 +636,7 @@ function formatTranscriptTime(date: Date) {
 const initialTranscript: TranscriptItem[] = [
   {
     id: "initial-ready",
-    time: "--:--:--",
+    time: "00:00:00",
     role: "system",
     speaker: "System",
     text: "Ready to start your interview.",
@@ -973,7 +1031,7 @@ function normalizeCandidateName(name: string) {
 
   if (!cleaned || cleaned.length < 2) return "";
   if (
-    /\b(resume|cv|curriculum|profile|summary|experience|education|skills|project|projects|sales|manager|executive|engineer|analyst|bootcamp|school|college|university|institute|academy|data|science|technology|technologies|software|solutions|services|support|specialist|consultant|developer|coordinator|administrator|director|assistant|associate|officer|partner|talent|recruiter|hiring|technical|business|customer|senior|junior|lead|head|chief|principal|intern|graduate|bachelor|master|degree|certificate|certification|diploma|training|course|program|bootcamp|coding|marketing|finance|accounting|operations|design|research|development|product|strategy|communications|program|management|digital|growth|success)\b/i.test(
+    /\b(resume|cv|curriculum|profile|summary|experience|education|skills|project|projects|achievement|achievements|accomplishment|accomplishments|award|awards|honour|honours|honor|honors|certifications|certification|sales|manager|executive|engineer|analyst|bootcamp|school|college|university|institute|academy|data|science|technology|technologies|software|solutions|services|support|specialist|consultant|developer|coordinator|administrator|director|assistant|associate|officer|partner|talent|recruiter|hiring|technical|business|customer|senior|junior|lead|head|chief|principal|intern|graduate|bachelor|master|degree|certificate|certification|diploma|training|course|program|bootcamp|coding|marketing|finance|accounting|operations|design|research|development|product|strategy|communications|program|management|digital|growth|success)\b/i.test(
       cleaned,
     )
   ) {
@@ -1085,8 +1143,41 @@ function buildSetupFromStorage(): InterviewSetup {
     ]),
   );
   const cvCandidateName = normalizeCandidateName(extractNameFromCvText(cvText));
+
+  // Canonical name straight from the CV parser (resumeProfile.basics.name) and
+  // the already-sanitized setup.candidateName. This uses the shared, less
+  // aggressive validator so a real name that happens to contain a common word
+  // (e.g. a surname like "Lee" or "Head") is not wrongly discarded by the
+  // stricter local blocklist below. It is the primary source; the local
+  // extractors remain as fallbacks for legacy/nested storage shapes.
+  const canonicalCandidateName =
+    getCandidateDisplayName(state as Record<string, unknown>) ||
+    normalizeStoredCandidateName(
+      getNestedValue(state, [
+        "resumeProfile.basics.name",
+        "profile.resumeProfile.basics.name",
+        "candidate.resumeProfile.basics.name",
+        "setup.resumeProfile.basics.name",
+      ]),
+    ) ||
+    normalizeStoredCandidateName(
+      getNestedValue(state, [
+        "candidateName",
+        "name",
+        "userName",
+        "candidate.name",
+        "profile.name",
+        "setup.candidateName",
+        "setup.name",
+      ]),
+    );
+
   const candidateName =
-    profileCandidateName || storedCandidateName || cvCandidateName || "";
+    canonicalCandidateName ||
+    profileCandidateName ||
+    storedCandidateName ||
+    cvCandidateName ||
+    "";
 
   const targetRole =
     getNestedValue(state, [
@@ -1782,14 +1873,14 @@ function preferredVoiceForRecruiter(
 }
 
 // Scans CV text for date ranges like "2018 - 2020", "06/2016 to 2018",
-// "Jan 2019 – Present", and sums their durations in years. Used as a
+// "Jan 2019 - Present", and sums their durations in years. Used as a
 // fallback when a candidate's claimed years of experience isn't stated as
 // a literal phrase in the CV: most CVs only show per-job date ranges, not
 // a precomputed total, so without this the verification check would flag
 // almost every honest candidate as "unverified" purely due to CV format.
 function estimateTotalYearsFromDateRanges(cvText: string): number | null {
   const currentYear = new Date().getFullYear();
-  // Matches "2018 - 2020", "2018-2020", "2018 to 2020", "2018 – present",
+  // Matches "2018 - 2020", "2018-2020", "2018 to 2020", "2018 - present",
   // "06/2016 - 12/2018", etc. Captures the two 4-digit years (or "present"/
   // "current"/"now"/"heute"/"présent"/"aktuell" for the open-ended case).
   const rangePattern =
@@ -2086,8 +2177,14 @@ function verifiedResumeFactBlock(setup: InterviewSetup) {
     | Record<string, unknown>
     | null
     | undefined;
-  const experience = Array.isArray(profile?.experience)
+  const rawExperience = Array.isArray(profile?.experience)
     ? (profile.experience as Array<Record<string, unknown>>)
+    : [];
+  const rawEducation = Array.isArray(profile?.education)
+    ? (profile.education as Array<WorkZoCvEducationLike>)
+    : [];
+  const experience = rawExperience
+        .filter((job) => !isWorkZoEducationLikeExperience(job as WorkZoCvExperienceLike, rawEducation))
         .map((job) => {
           const title = safeText(job.title);
           const company = safeText(job.company);
@@ -2095,8 +2192,7 @@ function verifiedResumeFactBlock(setup: InterviewSetup) {
           return [title, company, dates].filter(Boolean).join(" • ");
         })
         .filter(Boolean)
-        .slice(0, 8)
-    : [];
+        .slice(0, 8);
 
   return [
     "VERIFIED RESUME FACTS: AUTHORITATIVE:",
@@ -2406,12 +2502,12 @@ function isConfusedOrNeedsRepeat(answer: string) {
 // credit spend) with a structured 6-phase flow. Designed for local testing.
 //
 // Phases:
-//   0: Opening         — recruiter intro + "how are you doing?"
-//   1: Introduction    — tell me about yourself / self-intro
-//   2: Experience      — specific CV role deep-dive with bullet references
-//   3: Why This Company— motivation + career transition (if applicable)
-//   4: CV Gap Check    — JD requirements not found in CV, asked non-accusatorially
-//   5: Closing         — any questions? then wrap up
+//   0: Opening       , recruiter intro + "how are you doing?"
+//   1: Introduction  , tell me about yourself / self-intro
+//   2: Experience    , specific CV role deep-dive with bullet references
+//   3: Why This Company- motivation + career transition (if applicable)
+//   4: CV Gap Check  , JD requirements not found in CV, asked non-accusatorially
+//   5: Closing       , any questions? then wrap up
 
 type DevPhase = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -2430,7 +2526,7 @@ function analyzeClaimAgainstCv(claim: string, cvText: string): boolean {
   //
   // GLOBAL APPROACH: we extract verifiable tokens from the CV itself rather
   // than matching against any hardcoded list of companies, tools, or role
-  // names. Whatever is in THIS candidate's CV is what's verifiable — not a
+  // names. Whatever is in THIS candidate's CV is what's verifiable, not a
   // preset list that would only cover certain sample CVs.
   if (!cvText || !claim) return true; // can't verify → don't penalise
 
@@ -2449,7 +2545,7 @@ function analyzeClaimAgainstCv(claim: string, cvText: string): boolean {
 
   // 2. PROPER NOUNS FROM THE CV: extract capitalised multi-character tokens
   //    from the candidate's own CV (companies, tools, products, institutions)
-  //    and check if the claim mentions any of them. This is fully dynamic —
+  //    and check if the claim mentions any of them. This is fully dynamic -
   //    it works for any company or tool name without hardcoding.
   const cvProperNouns = (cvText.match(/\b[A-Z][A-Za-z0-9][\w&.-]{1,30}\b/g) || [])
     .map(t => t.toLowerCase())
@@ -2522,7 +2618,7 @@ function buildDevPhaseQuestion(
     if (alexChenMode) {
       return `Thanks. I've been through your background. Give me the quick version: what you've been building or working on technically, and what specifically brought you to this ${role} opportunity at ${company}?`;
     }
-    return `Thanks for that. I've had a chance to review your background. To get us started, could you give me a brief introduction — who you are, what you've been doing, and what specifically attracted you to the ${role} opportunity at ${company}?`;
+    return `Thanks for that. I've had a chance to review your background. To get us started, could you give me a brief introduction, who you are, what you've been doing, and what specifically attracted you to the ${role} opportunity at ${company}?`;
   }
 
   if (phase === 2) {
@@ -2533,7 +2629,7 @@ function buildDevPhaseQuestion(
             ? `Walk me through the most technically complex project or system you worked on at ${firstEmployer}. What was the architecture, what was your specific role, and what trade-offs did you make?`
             : `Tell me about the most technically complex thing you've built or owned. What was the stack, what was your contribution, and what was the hardest part?`,
           cvMetric
-            ? `You have ${cvMetric} listed — break that down for me. What specifically did you change, how did you measure it, and what would have happened if you hadn't done it?`
+            ? `You have ${cvMetric} listed, break that down for me. What specifically did you change, how did you measure it, and what would have happened if you hadn't done it?`
             : `Give me a specific example of a performance or quality problem you diagnosed and fixed. How did you find the root cause and what was the outcome?`,
           `Tell me about a time a production system failed or something went seriously wrong. What was your role in the incident and how did you approach the fix?`,
           `Walk me through how you'd design a system to handle high load or reliability requirements for this kind of role. What are the key decisions you'd make and why?`,
@@ -2542,9 +2638,9 @@ function buildDevPhaseQuestion(
       : [
           firstEmployer
             ? `I noticed you worked at ${firstEmployer}. Can you walk me through what you specifically owned there, and what your biggest achievement was?`
-            : `Walk me through your most recent role. What did you personally own, and what's the impact you're most proud of?`,
+            : `Walk me through your most recent professional role. What did you personally own, and what's the impact you're most proud of?`,
           cvMetric
-            ? `You mentioned ${cvMetric} — can you unpack that for me? What specifically did you do, and how was that measured?`
+            ? `You mentioned ${cvMetric}, can you unpack that for me? What specifically did you do, and how was that measured?`
             : `Give me a specific example of a challenge you handled end-to-end. What was the situation, what did you personally do, and what was the outcome?`,
           `How did you handle a situation where things didn't go to plan? What did you learn from it?`,
           `Tell me about a time you had to work closely with stakeholders who had conflicting priorities. How did you navigate that?`,
@@ -2558,7 +2654,7 @@ function buildDevPhaseQuestion(
     const careerTransitionWords = /transition|career change|moving into|moving to|switching/i.test(cvText);
     if (alexChenMode) {
       if (careerTransitionWords) {
-        return `Your background shows a transition. From a technical perspective, what's driving that move — and how does your existing technical stack carry over into what you'd be doing at ${company}?`;
+        return `Your background shows a transition. From a technical perspective, what's driving that move, and how does your existing technical stack carry over into what you'd be doing at ${company}?`;
       }
       return `What specifically drew you to ${company} technically? What have you read or heard about the engineering culture, the stack, or the problems they're working on?`;
     }
@@ -2573,19 +2669,19 @@ function buildDevPhaseQuestion(
       if (alexChenMode) {
         return `${gap} comes up as a requirement in this role and I didn't find a direct example in your CV. Have you worked with that, even in a side project, a bootcamp context, or informally?`;
       }
-      return `Looking at the job description, ${gap} comes up as a key requirement. I couldn't find a direct example of that in your CV — have you had experience with that, even informally or in a context that isn't obviously listed?`;
+      return `Looking at the job description, ${gap} comes up as a key requirement. I couldn't find a direct example of that in your CV, have you had experience with that, even informally or in a context that isn't obviously listed?`;
     }
     if (alexChenMode) {
-      return `Is there any technical work you've done — open source contributions, side projects, experiments — that isn't listed in your CV but is relevant to what you'd be doing here?`;
+      return `Is there any technical work you've done, open source contributions, side projects, experiments, that isn't listed in your CV but is relevant to what you'd be doing here?`;
     }
-    return `Is there anything relevant to this role that isn't obviously captured in your CV — projects, experience, or skills you'd want me to know about?`;
+    return `Is there anything relevant to this role that isn't obviously captured in your CV, projects, experience, or skills you'd want me to know about?`;
   }
 
   // Phase 5: Closing
   if (alexChenMode) {
-    return `That covers the main areas I wanted to explore technically. Do you have any questions for me — about the technical environment, the team's ways of working, or what the first few months would actually involve?`;
+    return `That covers the main areas I wanted to explore technically. Do you have any questions for me, about the technical environment, the team's ways of working, or what the first few months would actually involve?`;
   }
-  return `That brings me to the end of my questions, ${candidate}. Before we wrap up — do you have any questions for me about the role, the team, or what the first few months would look like?`;
+  return `That brings me to the end of my questions, ${candidate}. Before we wrap up, do you have any questions for me about the role, the team, or what the first few months would look like?`;
 }
 
 function earlyInterviewReply(
@@ -2689,7 +2785,7 @@ function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
     if (/^Yes, I can hear you/i.test(text))
       return "好的，我能听到你。让我们正式开始。请简要介绍一下你的背景，以及为什么这个职位对你来说是合适的。";
     if (/I'm following you, but I need more detail/i.test(text))
-      return "我在听，但在评估匹配度之前，我需要更多细节。请给我一个具体的情境——你个人做了什么，以及之后发生了什么变化。";
+      return "我在听，但在评估匹配度之前，我需要更多细节。请给我一个具体的情境--你个人做了什么，以及之后发生了什么变化。";
     if (/The answer still sounds team-level/i.test(text))
       return "这个回答听起来还是停留在团队层面。你个人具体决定、构建、解决或交付了什么？";
     if (/measurable impact|Now add measurable/i.test(text))
@@ -2826,7 +2922,7 @@ function enforceRuntimeLanguageForReply(setup: InterviewSetup, reply: string) {
     if (/I need to pause there/i.test(text))
       return "我需要在这里确认一下。我无法从您的简历中清楚地核实这一点。请说明这是正式工作经历、自由职业、志愿者经验、可迁移经验，还是仅仅是一个示例场景？";
     if (/Give me one concrete metric/i.test(text))
-      return "故事很清晰。现在请加上可量化的影响——节省的时间、减少的错误、客户满意度、成本或业务成果。";
+      return "故事很清晰。现在请加上可量化的影响--节省的时间、减少的错误、客户满意度、成本或业务成果。";
   }
 
   if (language.code === "ar-SA") {
@@ -3066,7 +3162,7 @@ function updateRecruiterSignalState(
   // TRUST SCORE FIX: only apply the "unsupported claim" penalty (-20 trust,
   // -12 interest) when the claim is genuinely absent from the CV text.
   // Previously this fired on any answer flagged as "unsupported" by the
-  // signal analyser — but many real answers reference real CV experience that
+  // signal analyser, but many real answers reference real CV experience that
   // the signal analyser couldn't verify because it doesn't read the CV.
   // The result: trust dropped every time, even for perfectly legitimate
   // answers about actual experience. Now we check the raw CV text first;
@@ -3659,7 +3755,7 @@ type DateRange = { start: number; end: number; label: string };
 
 /**
  * parseDateRange: turns a free-text "dates" field (e.g. "Jan 2020 - Present",
- * "2018-2020", "Mar 2018 – Jul 2022", "10/2015 - 06/2018") into a numeric
+ * "2018-2020", "Mar 2018 - Jul 2022", "10/2015 - 06/2018") into a numeric
  * [start, end] range in "months since year 0" for easy overlap comparison.
  * Returns null if no recognizable year is found.
  */
@@ -3754,8 +3850,11 @@ function extractCvCredibilityFlags(setup: InterviewSetup): CvCredibilityFlag[] {
   if (!profile || typeof profile !== "object") return flags;
 
   // ── Overlapping experience entries ────────────────────────────────────────
+  const educationEntriesForExperienceFilter = Array.isArray((profile as Record<string, unknown>).education)
+    ? ((profile as Record<string, unknown>).education as Array<WorkZoCvEducationLike>)
+    : [];
   const experience = Array.isArray(profile.experience)
-    ? profile.experience
+    ? profile.experience.filter((job) => !isWorkZoEducationLikeExperience(job as WorkZoCvExperienceLike, educationEntriesForExperienceFilter))
     : [];
   const expRanges = experience
     .map((job) => ({
@@ -3877,12 +3976,17 @@ function extractCvFactMemory(setup: InterviewSetup) {
     | Record<string, unknown>
     | null
     | undefined;
+  const profileEducation = Array.isArray(
+    (profile as Record<string, unknown> | null)?.education,
+  )
+    ? ((profile as Record<string, unknown>).education as Array<WorkZoCvEducationLike>)
+    : [];
   const profileExperience = Array.isArray(
     (profile as Record<string, unknown> | null)?.experience,
   )
     ? ((profile as Record<string, unknown>).experience as Array<
         Record<string, unknown>
-      >)
+      >).filter((exp) => !isWorkZoEducationLikeExperience(exp as WorkZoCvExperienceLike, profileEducation))
     : [];
 
   const profileCompanies = profileExperience
@@ -4770,7 +4874,7 @@ function safeGreetingName(name: string) {
   // Global guard: never greet with auth visibility labels, CV section headers,
   // job titles, technologies, skills, or extracted project/company words.
   if (
-    /^(public|private|candidate|user|there|unknown|anonymous|guest|resume|cv|profile|summary|contact|skills?|experience|education|projects?|languages?|surrender|data|science|technical|business|customer|senior|junior|lead|head|chief|intern|graduate|bootcamp|school|university|college|institute|marketing|finance|product|digital|growth|success|manager|engineer|analyst|specialist|consultant|developer|coordinator|director|assistant|associate|officer|partner|talent|recruiter|hiring|support|tools?|programming|python|sql|javascript|typescript|java|cloud|gcp|aws|azure|machine|learning|tableau|matplotlib|seaborn|tensorflow|sklearn|langchain|api|nlp|rag|system|integration)$/i.test(
+    /^(public|private|candidate|user|there|unknown|anonymous|guest|resume|cv|profile|summary|contact|skills?|experience|education|projects?|languages?|achievements?|accomplishments?|awards?|honou?rs?|certifications?|surrender|data|science|technical|business|customer|senior|junior|lead|head|chief|intern|graduate|bootcamp|school|university|college|institute|marketing|finance|product|digital|growth|success|manager|engineer|analyst|specialist|consultant|developer|coordinator|director|assistant|associate|officer|partner|talent|recruiter|hiring|support|tools?|programming|python|sql|javascript|typescript|java|cloud|gcp|aws|azure|machine|learning|tableau|matplotlib|seaborn|tensorflow|sklearn|langchain|api|nlp|rag|system|integration)$/i.test(
       firstName,
     )
   )
@@ -4782,6 +4886,49 @@ function safeGreetingName(name: string) {
 function safePromptCandidateName(name: string) {
   const greeting = safeGreetingName(name);
   return greeting === "there" ? "there" : greeting;
+}
+
+// Returns true when the final transcript turn means the candidate was cut off:
+// either the recruiter just asked a question the candidate never answered, or
+// the candidate's own last turn looks unfinished. Used to BLOCK the forced
+// graceful-close fallback from gluing a "Take care" closing onto an
+// unanswered question when Vapi drops or times out mid-exchange.
+function lastTurnLeavesCandidateCutOff(
+  transcript: Array<{ role: string; text: string }>,
+): boolean {
+  if (!transcript.length) return false;
+  const last = transcript[transcript.length - 1];
+  if (last.role === "recruiter") {
+    const t = last.text.trim();
+    // A recruiter turn ending in a question, or containing question-like
+    // phrasing, that has no candidate answer after it = candidate cut off.
+    const endsWithQuestion = /\?\s*$/.test(t);
+    const asksSomething =
+      /\b(can you|could you|what|how|why|when|where|which|tell me|walk me|describe|give me an example|do you have any questions)\b/i.test(
+        t,
+      );
+    return endsWithQuestion || asksSomething;
+  }
+  // Candidate spoke last but very briefly / mid-thought (likely a fragment
+  // captured right as the call dropped).
+  const raw = last.text.trim();
+  const words = raw.split(/\s+/).filter(Boolean).length;
+  if (words > 0 && words < 6) return true;
+
+  // Real live-session regression: Vapi closed while the candidate was still
+  // answering a teamwork question. The last candidate turn had many words, but
+  // ended with an unfinished clause: "when the customer, uh,". Short word-count
+  // checks missed it, so the app treated the assistant's premature goodbye as a
+  // valid ending and sent the user to results. Detect unfinished endings by
+  // shape, not by sample names or sample CVs.
+  const endsWithCommaOrDash = /[,–—-]\s*$/.test(raw);
+  const endsWithFiller = /\b(um+|uh+|erm+|hmm+|like|you know|i mean)\s*[.,!?-]*$/i.test(raw);
+  const endsWithConnector = /\b(and|but|because|so|when|while|if|then|that|where|which|who|with|for|to|as|or)\s*[.,!?-]*$/i.test(raw);
+  const unfinishedPhrase = /\b(what i did was|what happened was|the reason is|because of that|based on that|in that case|when the customer|when the client|so i|then i|and i)\s*[.,!?-]*$/i.test(raw);
+  const noSentenceEnding = !/[.!?]["')\]]?\s*$/.test(raw);
+  const longButClearlyHanging = words >= 12 && noSentenceEnding && (endsWithCommaOrDash || endsWithFiller || endsWithConnector || unfinishedPhrase);
+
+  return longButClearlyHanging;
 }
 
 function isProgressWorthyRecruiterTurn(text: string) {
@@ -5049,7 +5196,7 @@ function InterviewPageInner() {
   const [status, setStatus] = useState<InterviewStatus>("idle");
 
   // Dev-mode: ?engine=browser forces browser engine (no Vapi credits spent).
-  // Only active in development — production ignores this param entirely.
+  // Only active in development, production ignores this param entirely.
   const searchParams = useSearchParams();
   const devBrowserEngine =
     process.env.NODE_ENV === "development" &&
@@ -5219,7 +5366,7 @@ function InterviewPageInner() {
   const [premiumUnlocked, setPremiumUnlocked] = useState(false);
   // Live reaction text shown in copilot panel
   const [liveReactionText, setLiveReactionText] = useState("");
-  // What the recruiter is "writing down" during a typing_notes moment —
+  // What the recruiter is "writing down" during a typing_notes moment -
   // shown next to the note-taking badge so it feels tied to a real answer.
   const [recruiterNoteText, setRecruiterNoteText] = useState("");
   // Filler word running count for current answer
@@ -5325,6 +5472,9 @@ function InterviewPageInner() {
   const recruiterSignalRef = useRef(defaultRecruiterSignal);
   const scoreReadyRef = useRef(false);
   const elapsedRef = useRef(0);
+  // One-shot guard: ensures a session's minutes are deducted from the
+  // monthly voice pool only once, even if the completion persist fires twice.
+  const voiceMinutesRecordedRef = useRef(false);
   const recoverySnapshotRef = useRef<WorkZoInterviewSnapshot | null>(null);
   const recoveredSessionRef = useRef<WorkZoInterviewSnapshot | null>(null);
   const premiumVoiceEnabledRef = useRef(premiumVoiceEnabled);
@@ -5352,7 +5502,7 @@ function InterviewPageInner() {
   const lastAssistantTranscriptRef = useRef("");
   // Tracks when the last RECRUITER transcript entry was added (raw ms, not
   // the formatted display string). Used to merge same-speaker fragments
-  // that arrive in quick succession with no candidate turn between them —
+  // that arrive in quick succession with no candidate turn between them -
   // a real, observed pattern from live Vapi voice testing where one logical
   // reply gets split into several separate transcript events by Vapi's
   // streaming (e.g. "Could you clarify... One... Two... Three...", six
@@ -5384,7 +5534,7 @@ function InterviewPageInner() {
       item.role === "recruiter" &&
       /that brings us to the end|end of our session|we'll be in touch|next steps|thank you.*time today/i.test(item.text),
   );
-  // Phase-based progress per Interview Engine v2.0 spec — represents interview
+  // Phase-based progress per Interview Engine v2.0 spec, represents interview
   // PHASES, not raw question count. Mirrors the sidebar "Interview flow" stepper:
   // Introduction(1) -> Background(3) -> Experience(6) -> Skills(9) -> Strengths(12) -> Closing
   const interviewPhaseProgress = (() => {
@@ -5413,7 +5563,7 @@ function InterviewPageInner() {
     ? false  // Vapi sessions: NEVER auto-end from memory state: only from transcript closing detection
     : recruiterMemory.readyForResults;
   const headerTitle = setup.targetCompany
-    ? `${setup.targetRole} – ${setup.targetCompany}`
+    ? `${setup.targetRole} - ${setup.targetCompany}`
     : setup.targetRole;
   const recruiterImagePosition = recruiterObjectPosition(
     setup.recruiterId,
@@ -5636,6 +5786,20 @@ function InterviewPageInner() {
   const persistInterviewSessionToDb = useCallback(
     async (statusValue: "active" | "completed" | "paused" = "active") => {
       const sessionId = interviewSessionIdRef.current;
+
+      // Deduct the session's duration from the monthly voice-minute pool
+      // exactly once, on the first "completed" persist. Guarded by a ref
+      // because completion persists can fire more than once (end handler +
+      // unmount cleanup) and double-counting would burn the user's pool.
+      if (
+        statusValue === "completed" &&
+        !voiceMinutesRecordedRef.current &&
+        elapsedRef.current > 0
+      ) {
+        voiceMinutesRecordedRef.current = true;
+        recordWorkZoVoiceMinutes(elapsedRef.current / 60);
+      }
+
       try {
         const response = await fetch("/api/db/interview-session", {
           method: "POST",
@@ -5654,6 +5818,20 @@ function InterviewPageInner() {
             recoverySnapshot: recoverySnapshotRef.current || {},
             completedAt:
               statusValue === "completed" ? new Date().toISOString() : null,
+            // Fields the /api/db/interview-session endpoint reads at the TOP
+            // level (it does NOT unwrap `setup`). Without these it stored an
+            // empty transcript, duration 0, and generic "AI Recruiter" /
+            // "Interview Practice" labels, the cause of History showing no
+            // transcript, "-" duration, and wrong titles.
+            durationSeconds: elapsedRef.current,
+            transcript: transcriptRef.current,
+            candidateName: setupRef.current.candidateName,
+            targetRole: setupRef.current.targetRole,
+            targetCompany:
+              setupRef.current.targetCompany || setupRef.current.companyName,
+            recruiterName: setupRef.current.recruiterName,
+            recruiterTitle: setupRef.current.recruiterTitle,
+            overallScore: recruiterSignalRef.current.overall,
           }),
         });
         if (response.status === 403) {
@@ -5701,7 +5879,7 @@ function InterviewPageInner() {
   const persistInterviewResultToDb = useCallback(
     (session: Record<string, any>): Promise<unknown> => {
       // session.score is the recruiterSignal object: { trust, confidence, clarity, relevance, mood, ... }
-      // There is no session.score.overall — compute it from the signal components.
+      // There is no session.score.overall, compute it from the signal components.
       const sig = session.score || {};
       const computedOverall = (sig.trust != null && sig.confidence != null && sig.clarity != null && sig.relevance != null)
         ? Math.round((sig.trust * 0.35) + (sig.confidence * 0.25) + (sig.clarity * 0.20) + (sig.relevance * 0.20))
@@ -5709,7 +5887,7 @@ function InterviewPageInner() {
       const overallScore = computedOverall ?? session.overallScore ?? session.summary?.trust ?? null;
 
       // Return the promise so callers (e.g. endInterview) can await the
-      // actual DB write completing before navigating to /results — fixing
+      // actual DB write completing before navigating to /results, fixing
       // the race where navigation happened on a fixed timer regardless of
       // whether the save had actually finished.
       return fetch("/api/db/interview-result", {
@@ -5803,7 +5981,7 @@ function InterviewPageInner() {
               : entry,
           );
         } else {
-          // New distinct turn — persist to DB now
+          // New distinct turn, persist to DB now
           persistInterviewMessageToDb(cleanedItem, current.length);
           next = [
             ...current,
@@ -5820,7 +5998,7 @@ function InterviewPageInner() {
         // saveInterviewResult() immediately after addTranscript() (e.g. a
         // closing message followed instantly by endInterview) must see the
         // latest transcript, not a render-cycle-old snapshot. This was the
-        // root cause of "transcript and report out of sync" — the final
+        // root cause of "transcript and report out of sync", the final
         // turn could be missing from transcriptRef.current at save time.
         transcriptRef.current = next;
 
@@ -5920,7 +6098,7 @@ function InterviewPageInner() {
         const nextIndex = questionIndexRef.current + 1;
         // BUG FIX: the dev path was reading questionIndexRef.current + 1 to
         // pick the next phase question, but never actually advancing the
-        // index — so the same phase question fired repeatedly on every answer.
+        // index, so the same phase question fired repeatedly on every answer.
         // Increment both the ref (immediate, so the next call sees the new
         // value) and the state (so React re-renders with the updated progress bar).
         questionIndexRef.current = nextIndex;
@@ -6012,16 +6190,6 @@ function InterviewPageInner() {
               interest: recruiterSignalRef.current?.interest,
             },
             recruiterMemoryV2: recruiterMemoryV2Ref.current || undefined,
-            // Interview Engine v3 — browser/text engine only. Tell the server
-            // to enter its closing state machine once the UI has reached the
-            // wrap-up phase. This is NOT a raw timer: it reuses the same
-            // phase signals the sidebar stepper already uses, so there is one
-            // notion of "we're wrapping up", not a competing timer.
-            // Live Vapi voice sessions never reach this fetch, so their
-            // transcript-based closing is untouched.
-            wrapUpRequested:
-              closingInvitationSeenRef.current ||
-              questionIndexRef.current >= 12,
           }),
         });
 
@@ -6036,16 +6204,6 @@ function InterviewPageInner() {
         ) {
           if (data.recruiterMemoryV2) {
             recruiterMemoryV2Ref.current = data.recruiterMemoryV2;
-          }
-          // v3: record the server's closing verdict so the EXISTING closing
-          // effect can act on it. We do not end the interview here — that
-          // stays the single responsibility of the closing useEffect /
-          // endInterview flow, preventing a split-brain ending.
-          if (typeof data.interviewComplete === "boolean") {
-            serverInterviewCompleteRef.current = data.interviewComplete;
-          }
-          if (typeof data.closingPhase === "string") {
-            serverClosingPhaseRef.current = data.closingPhase;
           }
           if (
             data.provider &&
@@ -6105,7 +6263,7 @@ function InterviewPageInner() {
     // active. Vapi manages the microphone directly through its own Daily
     // session. If Web Speech Recognition also starts, it picks up Vapi's
     // TTS audio from the speakers and feeds it back as candidate speech,
-    // causing Vapi to respond to its own voice — confirmed from a live
+    // causing Vapi to respond to its own voice, confirmed from a live
     // session where the browser engine interrupted mid-Vapi-interview.
     if (vapiConnectedRef.current || vapiStartingRef.current || premiumVoiceStatus === "connected") {
       return;
@@ -6204,7 +6362,7 @@ function InterviewPageInner() {
         recorder.start();
 
         // Real silence detection instead of a fixed cutoff. The old code
-        // hard-stopped recording at exactly 9 seconds regardless of content —
+        // hard-stopped recording at exactly 9 seconds regardless of content -
         // any answer longer than that (most real interview answers are
         // 20-60s+) was silently truncated and submitted as if it were
         // complete, then the interview advanced anyway. This watches actual
@@ -6216,7 +6374,7 @@ function InterviewPageInner() {
         const SILENCE_STOP_MS = 3500; // 3.5s: thinking pauses and "uh," filler pauses are common
         const MIN_RECORDING_MS = 800; // ignore the initial silence while the mic warms up
         const HARD_CAP_MS = 90000; // backstop only: should essentially never be hit
-        // Same "paused right after starting" problem as the primary path —
+        // Same "paused right after starting" problem as the primary path -
         // this path has no live transcript to count words from, so total
         // detected speech time is used as the proxy instead. One grace
         // extension only.
@@ -6377,7 +6535,7 @@ function InterviewPageInner() {
     };
 
     recognition.onresult = (event) => {
-      // Discard any Web Speech results while Vapi is active — Vapi manages
+      // Discard any Web Speech results while Vapi is active, Vapi manages
       // its own transcript. Browser recognition picking up Vapi's TTS audio
       // from the speakers was causing Vapi to respond to its own voice.
       if (vapiConnectedRef.current || vapiStartingRef.current) return;
@@ -6434,7 +6592,7 @@ function InterviewPageInner() {
     recognition.onend = async () => {
       listeningRef.current = false;
       if (silenceTimer) clearTimeout(silenceTimer);
-      // De-duplicate here, once, before this text is used for ANYTHING —
+      // De-duplicate here, once, before this text is used for ANYTHING -
       // word counts, the interrupt check, and the LLM call all read this same
       // variable. Previously only the *displayed* transcript text was
       // deduplicated (inside addTranscript), while the interrupt check and
@@ -6464,7 +6622,7 @@ function InterviewPageInner() {
       const wordCount = answer.split(/\s+/).filter(Boolean).length;
       // BUG FIXED: this used to apply at ANY question index, which meant
       // "okay okay", "hey", "yes" etc. mid-interview were treated as
-      // complete, real answers instead of being rejected as too short —
+      // complete, real answers instead of being rejected as too short -
       // confirmed from live testing where "okay okay" was submitted as the
       // answer to "tell me about your background." An audio-check phrase is
       // only a legitimate non-answer during the opening handshake.
@@ -6476,7 +6634,7 @@ function InterviewPageInner() {
       const isOpeningSmallTalk =
         questionIndexRef.current <= 1 &&
         isValidOpeningOrSmallTalkAnswer(answer);
-      // Catches things like "hey can you" or "to you can you hear me" —
+      // Catches things like "hey can you" or "to you can you hear me" -
       // technically 3+ words so the raw word-count check alone misses them,
       // but they carry no real content at any point past the opening turn.
       const isLowContentFragment =
@@ -6488,7 +6646,7 @@ function InterviewPageInner() {
       ) {
         setStatus("listening");
         if (isLowContentFragment) {
-          // Speak the acknowledgment instead of silently re-listening —
+          // Speak the acknowledgment instead of silently re-listening -
           // silent re-prompting is exactly what reads as "it's not
           // listening to me." A quick spoken nudge confirms it heard
           // something, just not enough to go on.
@@ -6963,8 +7121,8 @@ function InterviewPageInner() {
       // CRITICAL BUG FIX: confirmed from a live session where Vapi dropped
       // mid-interview (after ~20 minutes and 12+ real questions) due to a
       // transient connection error. The fallback engine silently took over,
-      // reset questionIndex to 1, and asked a brand-new opening question —
-      // interrupting the candidate mid-sentence — then almost immediately
+      // reset questionIndex to 1, and asked a brand-new opening question -
+      // interrupting the candidate mid-sentence, then almost immediately
       // fired its own closing logic because the conversation LOOKED long
       // enough to wrap up, even though it had only just "started" from the
       // fallback engine's point of view. The result: a garbled, abrupt
@@ -6999,10 +7157,11 @@ function InterviewPageInner() {
         // felt like a broken product and erased the psychological closure of the
         // interview. Once we already have substantive answers, close the
         // interview warmly, save the transcript, and send the user to results.
-        const candidateFirst = safeFirstName(activeSetup.candidateName);
+        const rawFirst = safeGreetingName(activeSetup.candidateName);
+        const candidateFirst = rawFirst === "there" ? "" : rawFirst;
         const gracefulCloseLine = candidateFirst
-          ? `Thanks, ${candidateFirst}. I have everything I need from today's interview. That brings us to the end of our session. Thank you for taking the time to speak with me — you'll now receive your feedback and results. Take care.`
-          : "Thanks. I have everything I need from today's interview. That brings us to the end of our session. Thank you for taking the time to speak with me — you'll now receive your feedback and results. Take care.";
+          ? `Thanks, ${candidateFirst}. I have everything I need from today's interview. That brings us to the end of our session. Thank you for taking the time to speak with me, you'll now receive your feedback and results. Take care.`
+          : "Thanks. I have everything I need from today's interview. That brings us to the end of our session. Thank you for taking the time to speak with me, you'll now receive your feedback and results. Take care.";
 
         addTranscript({
           role: "recruiter",
@@ -7012,7 +7171,7 @@ function InterviewPageInner() {
 
         stopRequestedRef.current = true;
         setStatus("ended");
-        window.setTimeout(() => { endInterview(); }, 4500);
+        window.setTimeout(() => { endInterview(); }, AUDIBLE_CLOSING_WAIT_MS);
         return;
       }
 
@@ -7214,16 +7373,27 @@ function InterviewPageInner() {
               item.role === "recruiter" &&
               /that brings us to the end|end of our session|thank you for (your time|joining|today)|we'?ll be in touch|next steps|take care|best of luck/i.test(item.text),
           );
+          const closingInvitationAlreadyAsked = savedTranscript.some(
+            (item) =>
+              item.role === "recruiter" &&
+              /do you have any questions|any questions for me|questions about the role|next steps/i.test(item.text),
+          );
+          const candidateWasCutOff = lastTurnLeavesCandidateCutOff(savedTranscript);
+          const validFinalClosing =
+            hasFinalClosing &&
+            !candidateWasCutOff &&
+            (closingInvitationAlreadyAsked || vapiNaturalClosingSeenRef.current);
 
-          // If Vapi ended naturally after a proper closing, save the complete
-          // transcript and then move to results. Otherwise return to idle so the
-          // user is not forced into results from a connection hiccup or an early
-          // assistant phrase that looked like a wrap-up.
-          if ((vapiNaturalClosingSeenRef.current || hasFinalClosing) && candidateAnswers >= 2) {
+          // If Vapi ended naturally after a PROPER closing, save the complete
+          // transcript and then move to results. A recruiter saying "I have
+          // everything I need" immediately after an unfinished candidate answer
+          // is NOT a valid closing; it is a premature assistant stop and must be
+          // handled by the cut-off recovery branch below.
+          if (validFinalClosing && candidateAnswers >= 2) {
             vapiNaturalClosingSeenRef.current = false;
             stopRequestedRef.current = true;
             setStatus("ended");
-            window.setTimeout(() => { endInterview(); }, 700);
+            window.setTimeout(() => { endInterview(); }, AUDIBLE_CLOSING_WAIT_MS);
             return;
           }
 
@@ -7233,16 +7403,16 @@ function InterviewPageInner() {
           // This fixes sessions where the recruiter asks "Do you have any
           // questions?", starts answering, then Vapi/Daily drops before the
           // final goodbye.
-          const closingInvitationAlreadyAsked = savedTranscript.some(
-            (item) =>
-              item.role === "recruiter" &&
-              /do you have any questions|any questions for me|questions about the role|next steps/i.test(item.text),
-          );
-          if (candidateAnswers >= 4 && (closingInvitationAlreadyAsked || questionIndexRef.current >= 10)) {
-            const candidateFirst = safeFirstName(activeSetup.candidateName);
+          if (
+            candidateAnswers >= 4 &&
+            (closingInvitationAlreadyAsked || questionIndexRef.current >= 10) &&
+            !candidateWasCutOff
+          ) {
+            const rawFirst = safeGreetingName(activeSetup.candidateName);
+            const candidateFirst = rawFirst === "there" ? "" : rawFirst;
             const gracefulCloseLine = candidateFirst
-              ? `Thanks, ${candidateFirst}. I have everything I need from today's interview. That brings us to the end of our session. Thank you for taking the time to speak with me — you'll now receive your feedback and results. Take care.`
-              : "Thanks. I have everything I need from today's interview. That brings us to the end of our session. Thank you for taking the time to speak with me — you'll now receive your feedback and results. Take care.";
+              ? `Thanks, ${candidateFirst}. I have everything I need from today's interview. That brings us to the end of our session. Thank you for taking the time to speak with me, you'll now receive your feedback and results. Take care.`
+              : "Thanks. I have everything I need from today's interview. That brings us to the end of our session. Thank you for taking the time to speak with me, you'll now receive your feedback and results. Take care.";
 
             addTranscript({
               role: "recruiter",
@@ -7251,7 +7421,33 @@ function InterviewPageInner() {
             });
             stopRequestedRef.current = true;
             setStatus("ended");
-            window.setTimeout(() => { endInterview(); }, 2500);
+            window.setTimeout(() => { endInterview(); }, AUDIBLE_CLOSING_WAIT_MS);
+            return;
+          }
+
+          // Cut-off recovery: the call ended (e.g. Vapi max-duration) while the
+          // candidate was mid-answer or right after an unanswered question, so
+          // the branch above was intentionally skipped to avoid gluing a closing
+          // onto a question. If there is still a real interview's worth of
+          // answers, don't strand the user: deliver a proper STANDALONE closing
+          // that acknowledges the abrupt end, then save and go to results.
+          if (
+            candidateAnswers >= 4 &&
+            (candidateWasCutOff || (hasFinalClosing && !validFinalClosing))
+          ) {
+            const rawFirst = safeGreetingName(activeSetup.candidateName);
+            const candidateFirst = rawFirst === "there" ? "" : rawFirst;
+            const cutoffCloseLine = candidateFirst
+              ? `Sorry ${candidateFirst}, it looks like we ran out of time right as you were answering. I have more than enough from our conversation today, thank you for your time. You'll now receive your feedback and results. Take care.`
+              : "It looks like we ran out of time right as you were answering. I have more than enough from our conversation today, thank you for your time. You'll now receive your feedback and results. Take care.";
+            addTranscript({
+              role: "recruiter",
+              speaker: `${activeSetup.recruiterName} · ${activeSetup.recruiterTitle}`,
+              text: cutoffCloseLine,
+            });
+            stopRequestedRef.current = true;
+            setStatus("ended");
+            window.setTimeout(() => { endInterview(); }, AUDIBLE_CLOSING_WAIT_MS);
             return;
           }
 
@@ -7349,7 +7545,7 @@ function InterviewPageInner() {
 
             // BUG FIX: a closing was already delivered in this call
             // (vapiNaturalClosingSeenRef), but the assistant sent another
-            // message that looks like a fresh opening greeting — this is
+            // message that looks like a fresh opening greeting, this is
             // Vapi looping/restarting the conversation instead of actually
             // ending the call. Confirmed from a live session where the
             // closing line and a brand new "Hi there, I'm Daniel Reed..."
@@ -7361,7 +7557,7 @@ function InterviewPageInner() {
             if (vapiNaturalClosingSeenRef.current && looksLikeFreshGreeting) {
               stopRequestedRef.current = true;
               setStatus("ended");
-              window.setTimeout(() => { endInterview(); }, 300);
+              window.setTimeout(() => { endInterview(); }, 8000);
               return;
             }
 
@@ -7733,7 +7929,7 @@ function InterviewPageInner() {
         text:
           blockedPlan === "premium"
             ? `You've used all ${sessionPersistResult.limit} interviews this month. Upgrade to Premium Pro for unlimited voice interviews.`
-            : `You've used all ${sessionPersistResult.limit} free interviews this month. Upgrade to Premium for 50 interviews per month.`,
+            : `You've used all ${sessionPersistResult.limit} free interviews this month. Upgrade to Premium for 300 voice minutes per month.`,
       });
       setStatus("idle");
       return;
@@ -8075,7 +8271,7 @@ function InterviewPageInner() {
     setInterimText("");
     setStatus("ended");
 
-    // Save FIRST, then navigate — and actually WAIT for the DB write to
+    // Save FIRST, then navigate, and actually WAIT for the DB write to
     // finish (or time out) rather than navigating on a fixed timer. The
     // previous fixed 650ms delay assumed the POST to /api/db/interview-result
     // always completed in time; on a slow connection it didn't, so the
@@ -8093,7 +8289,7 @@ function InterviewPageInner() {
   // ── Graceful, engine-agnostic interview completion ──────────────────────
   // BUG FIXED: there was no automatic completion logic anywhere. The
   // question counter visually caps at "12 of 12" (Math.min(value + 1, 12)),
-  // but nothing was ever wired to actually END the interview when reached —
+  // but nothing was ever wired to actually END the interview when reached -
   // confirmed from live testing where the interview kept running
   // indefinitely past 12/12 until the candidate manually clicked "Exit
   // Interview." This watches the transcript content itself rather than
@@ -8111,12 +8307,6 @@ function InterviewPageInner() {
   // in-progress answer is never cut off unfinished.
   const closingInvitationSeenRef = useRef(false);
   const closingHandledRef = useRef(false);
-  // v3 server closing signals (browser/text engine path). The server's
-  // closing state machine sets interviewComplete once it has delivered the
-  // closing beats; the closing effect below treats that as one more valid
-  // trigger, alongside the existing transcript detection.
-  const serverInterviewCompleteRef = useRef(false);
-  const serverClosingPhaseRef = useRef<string>("active");
   // Vapi must not be stopped just because the UI progress is high or because
   // a closing-looking phrase appears while the candidate is still speaking.
   // We mark that a real closing was heard, then wait for Vapi/Daily to emit
@@ -8133,6 +8323,11 @@ function InterviewPageInner() {
   const turnsPastCapRef = useRef(0);
   const interviewStartTimeRef = useRef<number | null>(null);
   const TURNS_PAST_CAP_BEFORE_FORCED_CLOSE = 10;
+  // Global audible-closing rule: never redirect instantly after a final recruiter
+  // closing, but also never wait indefinitely. Any automatic close waits within
+  // this small window so the user hears the goodbye before results load.
+  const AUDIBLE_CLOSING_WAIT_MS = 10000;
+  const QUICK_CLOSING_WAIT_MS = 6000;
 
   useEffect(() => {
     if (closingHandledRef.current) return;
@@ -8177,7 +8372,13 @@ function InterviewPageInner() {
         // Let Vapi/Daily finish the call, then the call-end handler saves and
         // navigates only if the full transcript really contains a closing.
         if (vapiConnectedRef.current || premiumVoiceStatus === "connected") {
-          vapiNaturalClosingSeenRef.current = true;
+          const previous = transcript.length >= 2 ? transcript[transcript.length - 2] : null;
+          const previousCandidateWasUnfinished = previous?.role === "candidate"
+            ? lastTurnLeavesCandidateCutOff([{ role: "candidate", text: previous.text }])
+            : false;
+          if (!previousCandidateWasUnfinished) {
+            vapiNaturalClosingSeenRef.current = true;
+          }
           closingInvitationSeenRef.current = false;
           return;
         }
@@ -8188,7 +8389,7 @@ function InterviewPageInner() {
         stopListening();
         stopPremiumVoice();
         setStatus("ended");
-        window.setTimeout(() => { endInterview(); }, 1200);
+        window.setTimeout(() => { endInterview(); }, AUDIBLE_CLOSING_WAIT_MS);
         return;
       }
 
@@ -8209,36 +8410,10 @@ function InterviewPageInner() {
       stopRequestedRef.current = true;
       closingHandledRef.current = true;
       if (vapiConnectedRef.current || premiumVoiceStatus === "connected") {
-        window.setTimeout(() => { stopPremiumVoice(); endInterview(); }, 600);
+        window.setTimeout(() => { stopPremiumVoice(); endInterview(); }, AUDIBLE_CLOSING_WAIT_MS);
       } else {
-        window.setTimeout(() => { endInterview(); }, 400);
+        window.setTimeout(() => { endInterview(); }, QUICK_CLOSING_WAIT_MS);
       }
-      return;
-    }
-
-    // ── v3 server-driven close (browser/text engine only) ──────────────
-    // When the server's closing state machine reports the interview is
-    // complete, honor it through the SAME endInterview path used below.
-    // Guarded so it can never fire for a live Vapi session (those never
-    // hit /api/interview/reply and manage their own closing) and never
-    // double-fires with the transcript triggers via closingHandledRef.
-    const isLiveVapiForV3 = vapiConnectedRef.current || premiumVoiceStatus === "connected";
-    if (
-      !isLiveVapiForV3 &&
-      serverInterviewCompleteRef.current &&
-      !closingHandledRef.current &&
-      last.role === "recruiter"
-    ) {
-      // The server already generated and returned the closing speech as
-      // this turn's reply (closing_delivered phase), so it has just been
-      // spoken. We only need to finalise: stop the loop and navigate.
-      closingHandledRef.current = true;
-      closingInvitationSeenRef.current = false;
-      stopRequestedRef.current = true;
-      stopListening();
-      setStatus("ended");
-      // Give the just-spoken closing line time to finish before navigating.
-      window.setTimeout(() => { endInterview(); }, 4000);
       return;
     }
 
@@ -8270,7 +8445,7 @@ function InterviewPageInner() {
       closingHandledRef.current = true;
       closingInvitationSeenRef.current = false;
 
-      // Stop the normal listen/reply loop before speaking the closing line —
+      // Stop the normal listen/reply loop before speaking the closing line -
       // speakRecruiter's TTS completion callbacks check this flag before
       // re-arming the mic, so this must come first.
       stopRequestedRef.current = true;
@@ -8293,10 +8468,10 @@ function InterviewPageInner() {
       if (audioEnabledRef.current && status !== "recruiter-speaking") {
         speakRecruiter(closingLine);
         // Wait for TTS to finish before navigating: closing line is ~15 words,
-        // roughly 6–8 seconds at normal speech pace.
-        window.setTimeout(() => { endInterview(); }, 9000);
+        // roughly 6-8 seconds at normal speech pace.
+        window.setTimeout(() => { endInterview(); }, AUDIBLE_CLOSING_WAIT_MS);
       } else {
-        window.setTimeout(() => { endInterview(); }, 4000);
+        window.setTimeout(() => { endInterview(); }, QUICK_CLOSING_WAIT_MS);
       }
     }
   }, [
@@ -8306,7 +8481,6 @@ function InterviewPageInner() {
     addTranscript,
     endInterview,
     stopListening,
-    premiumVoiceStatus,
   ]);
 
   const toggleMic = useCallback(() => {
@@ -8884,13 +9058,13 @@ function InterviewPageInner() {
                           <p>
                             Trust{" "}
                             <span className="font-bold text-fg">
-                              {scoreReady ? recruiterSignal.trust : "—"}
+                              {scoreReady ? recruiterSignal.trust : "-"}
                             </span>
                           </p>
                           <p>
                             Interest{" "}
                             <span className="font-bold text-fg">
-                              {scoreReady ? recruiterSignal.interest : "—"}
+                              {scoreReady ? recruiterSignal.interest : "-"}
                             </span>
                           </p>
                         </div>
@@ -9117,7 +9291,7 @@ function InterviewPageInner() {
         {/* First-time user hint: floating toast, never affects layout */}
         {devBrowserEngine && (
           <div className="fixed top-0 left-0 right-0 z-[9999] bg-warning/90 px-4 py-1.5 text-center text-[11px] font-black uppercase tracking-wider text-canvas backdrop-blur-sm">
-            🛠 DEV MODE — Browser Engine (No Vapi) — Phase: {["Opening","Introduction","Experience","Why Company","CV Gap Check","Closing"][getDevPhase(questionIndex)] || "Closing"} — Q{questionIndex}
+            🛠 DEV MODE, Browser Engine (No Vapi), Phase: {["Opening","Introduction","Experience","Why Company","CV Gap Check","Closing"][getDevPhase(questionIndex)] || "Closing"}, Q{questionIndex}
           </div>
         )}
 
@@ -9302,7 +9476,7 @@ function InterviewPageInner() {
                   </div>
                 )}
 
-              {/* What the recruiter is actually writing down — only shown
+              {/* What the recruiter is actually writing down, only shown
                   during a typing_notes moment, tied to the specific evidence
                   in the candidate's answer rather than a generic animation. */}
               {recruiterVisualState === "typing_notes" &&
@@ -9587,11 +9761,11 @@ function InterviewPageInner() {
                 <div className="min-w-0 flex-1 text-xs text-muted">
                   <div className="flex items-center justify-between gap-2">
                     <span>Trust</span>
-                    <span className="font-bold text-fg">{scoreReady ? recruiterSignal.trust : "—"}</span>
+                    <span className="font-bold text-fg">{scoreReady ? recruiterSignal.trust : "-"}</span>
                   </div>
                   <div className="mt-1 flex items-center justify-between gap-2">
                     <span>Interest</span>
-                    <span className="font-bold text-fg">{scoreReady ? recruiterSignal.interest : "—"}</span>
+                    <span className="font-bold text-fg">{scoreReady ? recruiterSignal.interest : "-"}</span>
                   </div>
                   {scoreFlash ? (
                     <div className={`mt-1 text-[10px] font-black uppercase ${scoreFlash === "up" ? "text-success" : "text-warning"}`}>
@@ -9696,13 +9870,13 @@ function InterviewPageInner() {
                 <p>
                   Trust{" "}
                   <span className="font-black text-fg">
-                    {scoreReady ? recruiterSignal.trust : "—"}
+                    {scoreReady ? recruiterSignal.trust : "-"}
                   </span>
                 </p>
                 <p>
                   Interest{" "}
                   <span className="font-black text-fg">
-                    {scoreReady ? recruiterSignal.interest : "—"}
+                    {scoreReady ? recruiterSignal.interest : "-"}
                   </span>
                 </p>
               </div>

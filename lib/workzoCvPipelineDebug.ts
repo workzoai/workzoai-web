@@ -3,6 +3,9 @@ type CvProfileLike = {
     name?: string;
     headline?: string;
     email?: string;
+    phone?: string;
+    location?: string;
+    linkedin?: string;
   };
   summary?: string;
   experience?: unknown[];
@@ -16,7 +19,15 @@ const ENABLE_CV_DEBUG =
   process.env.NODE_ENV !== "production" ||
   process.env.NEXT_PUBLIC_WORKZO_CV_DEBUG === "true";
 
-function safePreview(value: unknown, max = 1200) {
+function redactSensitiveText(value: string) {
+  return value
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]")
+    .replace(/(?:\+?\d[\d\s().-]{7,}\d)/g, "[redacted-phone]")
+    .replace(/\b(?:https?:\/\/)?(?:www\.)?linkedin\.com\/[^\s]+/gi, "[redacted-linkedin]")
+    .replace(/\b\d{5}\b[^\n,]*(?:,\s*)?[^\n]*/g, "[redacted-address]");
+}
+
+function safePreview(value: unknown, max = 400) {
   try {
     const text =
       typeof value === "string"
@@ -24,10 +35,23 @@ function safePreview(value: unknown, max = 1200) {
         : JSON.stringify(value, null, 2);
 
     if (!text) return "";
-    return text.length > max ? `${text.slice(0, max)}...` : text;
+    const redacted = redactSensitiveText(text);
+    return redacted.length > max ? `${redacted.slice(0, max)}...` : redacted;
   } catch {
     return "[unserializable]";
   }
+}
+
+function safeBasics(profile?: CvProfileLike | null) {
+  const basics = profile?.basics || {};
+  return {
+    hasName: Boolean(basics.name),
+    headline: basics.headline || "",
+    hasEmail: Boolean(basics.email),
+    hasPhone: Boolean(basics.phone),
+    hasLocation: Boolean(basics.location),
+    hasLinkedIn: Boolean(basics.linkedin),
+  };
 }
 
 export function debugCvPipeline(label: string, data?: unknown) {
@@ -81,7 +105,7 @@ export function debugCvProfile(
 
   debugCvPipeline(label, {
     ...(extra || {}),
-    basics: safeProfile.basics || null,
+    basics: safeBasics(safeProfile),
     summaryPreview: safePreview(safeProfile.summary || "", 400),
     counts: {
       experience: Array.isArray(safeProfile.experience) ? safeProfile.experience.length : 0,
@@ -90,10 +114,12 @@ export function debugCvProfile(
       skills: Array.isArray(safeProfile.skills) ? safeProfile.skills.length : 0,
       languages: Array.isArray(safeProfile.languages) ? safeProfile.languages.length : 0,
     },
-    experience: safeProfile.experience || [],
-    education: safeProfile.education || [],
-    projects: safeProfile.projects || [],
-    skills: safeProfile.skills || [],
-    languages: safeProfile.languages || [],
+    sample: {
+      experience: Array.isArray(safeProfile.experience) ? safeProfile.experience.slice(0, 2) : [],
+      education: Array.isArray(safeProfile.education) ? safeProfile.education.slice(0, 2) : [],
+      projects: Array.isArray(safeProfile.projects) ? safeProfile.projects.slice(0, 2) : [],
+      skills: Array.isArray(safeProfile.skills) ? safeProfile.skills.slice(0, 12) : [],
+      languages: Array.isArray(safeProfile.languages) ? safeProfile.languages.slice(0, 6) : [],
+    },
   });
 }

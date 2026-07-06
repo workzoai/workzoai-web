@@ -469,10 +469,10 @@ function cleanSkillForDisplay(value = "") {
 }
 
 function cleanSkillsForDisplay(items: string[]) {
-  // Step 1: Basic clean — normalise whitespace, fix known spacing issues
+  // Step 1: Basic clean, normalise whitespace, fix known spacing issues
   const normalised = items.map(cleanSkillForDisplay).filter(Boolean);
 
-  // Step 2: Deduplicate — remove exact duplicates AND semantic duplicates
+  // Step 2: Deduplicate, remove exact duplicates AND semantic duplicates
   // (e.g. "Google Cloud" and "Google Cloud Platform" → keep longer/more specific)
   const seen = new Map<string, string>(); // normalised key → best display form
   for (const item of normalised) {
@@ -522,10 +522,10 @@ function cleanSkillsForDisplay(items: string[]) {
       .filter((item) => item.length <= 45)
       // Remove section headers that leaked into skills
       .filter((item) => !/^(education|languages|contact|profile|summary|work experience|professional experience|tools|experience|selected projects?|project management|references?)$/i.test(item))
-      // Remove job titles that leaked into skills — globally: any phrase that
+      // Remove job titles that leaked into skills, globally: any phrase that
       // reads as a role/title rather than a tool, technology, or named competency.
       // Pattern: "[Adjective/Qualifier] + [Role noun]" e.g. "Support Engineer",
-      // "Data Engineer", "Cloud Architect" — but NOT "Data Engineering" (the skill).
+      // "Data Engineer", "Cloud Architect", but NOT "Data Engineering" (the skill).
       .filter((item) => !/\b(engineer|developer|analyst|designer|architect|manager|specialist|consultant|coordinator|officer|administrator|technician|intern|associate|director|lead|head)\s*$/i.test(item))
       // Remove single generic words that are too vague to be actionable as skills
       .filter((item) => !/^(support|communication|management|planning|analysis|coordination|teamwork|leadership|creativity|flexibility|adaptability|initiative|learning|research|networking|motivation|integrity|professionalism|organisation|organization)$/i.test(item))
@@ -630,7 +630,7 @@ function rankSkillsForJd(skills: string[], jd: JdSignal) {
 
 function groupedSkillLines(skills: string[]) {
   // Skills are already cleaned and deduplicated by the caller (buildResumeJson).
-  // Do NOT call cleanSkillsForDisplay again here — that would re-run dedup
+  // Do NOT call cleanSkillsForDisplay again here, that would re-run dedup
   // with a fresh Map, losing the cross-call dedup state and reintroducing duplicates.
   const cleanSkills = skills; // already clean
   const assigned = new Set<string>();
@@ -680,8 +680,8 @@ function normalizeBullet(value = "") {
 
 function looksLikeProjectBulletInCv(value = "") {
   // Detects bullets that are structurally project-like rather than work-experience-like.
-  // Uses structural signals — research/analysis verbs, named tool stacks, data pipeline
-  // language — NOT content-specific keywords tied to any particular CV or project.
+  // Uses structural signals, research/analysis verbs, named tool stacks, data pipeline
+  // language, NOT content-specific keywords tied to any particular CV or project.
   return /\b(developed a|built a|conducted a|created a|designed a|implemented a|analyzed the|collected and|automated|visualized|showcased expertise in)\b/i.test(value) &&
     /\b(using|with|via|through)\s+[A-Z]/i.test(value) && // mentions a named tool/tech
     !/\b(customer|client|ticket|incident|sla|escalat|configur|troubleshoot|onboard|support request)\b/i.test(value); // not support work
@@ -762,12 +762,12 @@ function tailorExperience(profile: ResumeProfile, jd: JdSignal) {
 
 function cleanEducation(items: ResumeProfile["education"], candidateName = "") {
   // Only match the candidate name when it appears as a standalone token at the
-  // START of a degree/institution string — not anywhere in the text, which was
+  // START of a degree/institution string, not anywhere in the text, which was
   // eating into names like "Data Science Bootcamp" when the name regex was too broad.
   const escapedName = candidateName ? escapeRegExp(candidateName.split(" ")[0]) : "";
   const namePattern = escapedName
     ? new RegExp(`^${escapedName}\\s+`, "gi")
-    : /^XXXXXXXXXXXXXXXXX$/; // never matches — disable the broad fallback pattern
+    : /^XXXXXXXXXXXXXXXXX$/; // never matches, disable the broad fallback pattern
 
   const cleaned = items
     .map((item) => {
@@ -804,7 +804,7 @@ function cleanEducation(items: ResumeProfile["education"], candidateName = "") {
       }
 
       // REPAIR: if institution ends with "&" or is clearly truncated (ends mid-word),
-      // it was cut off during parsing — append a note but don't fabricate the rest.
+      // it was cut off during parsing, append a note but don't fabricate the rest.
       if (institution.endsWith("&") || institution.endsWith("-")) {
         institution = institution.replace(/[&-]\s*$/, "").trim();
       }
@@ -1422,7 +1422,7 @@ export function buildResumeJson(input: CvGenerationInput): ResumeJson {
   const groupedSkills = groupedSkillLines(skills);
   const summary = preserveSummary(profile, roleFit);
 
-  // Sanitise basics.location — reject values that look like company names rather than
+  // Sanitise basics.location, reject values that look like company names rather than
   // addresses. Common parse error: the first employer's name appears in the same
   // text zone as the candidate's address and gets extracted as the location.
   const rawLocation = profile.basics.location || "";
@@ -1432,7 +1432,7 @@ export function buildResumeJson(input: CvGenerationInput): ResumeJson {
     !/\d|str(a(sse|ße)|eet)|road|avenue|ave\b|blvd|lane|way\b|\bpl\b|\bst\b|city|town|village|germany|france|spain|uk|usa|india|netherlands|berlin|munich|london|paris|hamburg|frankfurt|cologne|düsseldorf|würzburg|zürich|wien|amsterdam/i.test(rawLocation) &&
     // Looks like a company name (contains Corp, GmbH, Ltd, Inc, or just a proper noun without numbers)
     (/\b(corp|gmbh|ltd|inc|llc|ag|bv|co\.|company|group|solutions|services|technologies|systems|consulting|consulting|partners)\b/i.test(rawLocation) ||
-      // All words are capitalised and no address pattern — likely a company name extracted by mistake
+      // All words are capitalised and no address pattern, likely a company name extracted by mistake
       (/^[A-Z][a-zA-Z\s&.-]+$/.test(rawLocation.trim()) && rawLocation.trim().split(/\s+/).length <= 4 && !/\d/.test(rawLocation)));
   const safeLocation = locationLooksLikeCompany ? "" : rawLocation;
 
@@ -1480,7 +1480,7 @@ export function buildAtsCv(input: CvGenerationInput) {
       if (job.bullets.length) {
         job.bullets.forEach((bullet) => out.push(`- ${bullet}`));
       } else {
-        // Explicit placeholder — without this, the AI rewrite silently drops
+        // Explicit placeholder, without this, the AI rewrite silently drops
         // employers with no bullets, violating the "same number of jobs" rule.
         // The AI will replace this with real content from the JD.
         out.push("- [Role responsibilities to be completed based on job description]");
@@ -1560,7 +1560,7 @@ export function buildCoverLetter(input: CvGenerationInput) {
     ? extractJobTitle(data.profile.basics.headline, data.profile.summary || "", firstJobTitle)
     : firstJobTitle || "engineering and technology";
 
-  // Detect domain mismatch FIRST — must happen before bullet selection so the
+  // Detect domain mismatch FIRST, must happen before bullet selection so the
   // correct branch (synthesis vs raw evidence) is chosen.
   // The it_systems_integration family's signals (documentation, cross-functional,
   // process) fire on any engineering CV, so matchLevel alone can't detect a switch.
@@ -1574,8 +1574,8 @@ export function buildCoverLetter(input: CvGenerationInput) {
     ["documentation", "Creating and maintaining detailed technical documentation and process records"],
     ["process", "Supporting process improvement and structured change management workflows"],
     ["microsoft", "Microsoft Office Suite proficiency (used regularly across engineering roles)"],
-    ["german", "German B2 and English C1 — strong bilingual communication in a German-speaking workplace"],
-    ["english", "German B2 and English C1 — strong bilingual communication in a German-speaking workplace"],
+    ["german", "German B2 and English C1, strong bilingual communication in a German-speaking workplace"],
+    ["english", "German B2 and English C1, strong bilingual communication in a German-speaking workplace"],
     ["support", "Hands-on technical support and troubleshooting in a structured engineering environment"],
     ["install", "Installation and setup of technical equipment and tools"],
     ["integration", "Supporting system integration and coordinating cross-team technical changes"],
@@ -1719,9 +1719,9 @@ function renderExperience(items: ResumeExperience[], compact = false) {
 }
 
 // ─── CV Template: ATS Executive ──────────────────────────────────────────────
-// Clean single-column, ATS-safe. Typographically refined — uses tight tracking
+// Clean single-column, ATS-safe. Typographically refined, uses tight tracking
 // on name, a ruled section system, and a subtle left-border accent on the
-// summary. No colour in experience section — passes all ATS parsers.
+// summary. No colour in experience section, passes all ATS parsers.
 function renderAts(data: ResumeJson) {
   const contact = [
     data.profile.basics.email,
@@ -1862,7 +1862,7 @@ function renderAts(data: ResumeJson) {
 
 // ─── CV Template: Modern Two-Column ──────────────────────────────────────────
 // Dark left sidebar with name/contact/skills. Right column: summary + experience.
-// Signature element: the sidebar uses a deep navy-to-indigo gradient — premium
+// Signature element: the sidebar uses a deep navy-to-indigo gradient, premium
 // without being gaudy. Google Fonts for Inter + a tabular figures feel.
 function renderModern(data: ResumeJson) {
   const contactItems = [
@@ -2003,7 +2003,7 @@ function renderModern(data: ResumeJson) {
 
 // ─── CV Template: Career Switcher ─────────────────────────────────────────────
 // Warm off-white + forest green accent. Leads with a prominent PROFILE section
-// and a "Why I fit this role" strengths block before experience — ideal for
+// and a "Why I fit this role" strengths block before experience, ideal for
 // candidates repositioning. Uses a top header bar with name + title overlaid
 // on a subtle textured stripe.
 function renderCareerSwitcher(data: ResumeJson) {

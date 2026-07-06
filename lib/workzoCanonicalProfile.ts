@@ -9,12 +9,12 @@
  *   After /api/cv parses the uploaded file, the result is stored here once.
  *   Every downstream page (Improve CV, Cover Letter, Interview, Job Match) reads
  *   from these keys instead of rebuilding from raw text. The raw CV text is stored
- *   separately so it is always available as fallback — but it is never re-parsed.
+ *   separately so it is always available as fallback, but it is never re-parsed.
  *
  * STORAGE KEYS (sessionStorage):
- *   workzo_resume_profile   — JSON stringified ResumeProfile
- *   workzo_resume_text      — raw extracted CV text (never derived summary)
- *   workzo_resume_file_name — original upload file name
+ *   workzo_resume_profile , JSON stringified ResumeProfile
+ *   workzo_resume_text    , raw extracted CV text (never derived summary)
+ *   workzo_resume_file_name, original upload file name
  *
  * RULES:
  *   1. Store once after successful /api/cv upload. Never overwrite with re-parsed data.
@@ -53,7 +53,7 @@ export function isCanonicalProfileValid(profile: unknown): profile is ResumeProf
   const name = (p.basics.name || "").trim();
   if (!name) return false;
   if (INVALID_NAME_PATTERNS.test(name)) return false;
-  // Name must look like a human name: 2–4 words, no digits
+  // Name must look like a human name: 2-4 words, no digits
   const nameWords = name.split(/\s+/).filter(Boolean);
   if (nameWords.length < 1 || nameWords.length > 6) return false;
   if (/\d/.test(name)) return false;
@@ -65,7 +65,7 @@ export function isCanonicalProfileValid(profile: unknown): profile is ResumeProf
 
   // Phone must not be a date range
   if (p.basics.phone && DATE_RANGE_PATTERN.test(p.basics.phone.trim())) {
-    // Don't reject the whole profile — just flag phone as invalid
+    // Don't reject the whole profile, just flag phone as invalid
     // (the caller can strip it)
   }
 
@@ -144,7 +144,7 @@ export function saveCanonicalProfile(
 
 /**
  * Load and validate the stored canonical profile.
- * Returns null if missing, invalid, or corrupt — never throws.
+ * Returns null if missing, invalid, or corrupt, never throws.
  */
 export function loadCanonicalProfile(): {
   profile: ResumeProfile;

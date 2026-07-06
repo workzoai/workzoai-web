@@ -1,46 +1,74 @@
-import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Clock, ShieldCheck } from "lucide-react";
+import type { Metadata } from "next";
+import { Activity, CheckCircle2 } from "lucide-react";
+import { MarketingShell, Reveal, BackLink } from "@/components/marketing/kit";
 
-export const metadata = {
-  title: "System Status | WorkZo AI",
-  description: "Current WorkZo AI system status and service notes.",
+export const metadata: Metadata = {
+  title: "System Status — WorkZo AI",
+  description: "Current WorkZo AI service status and uptime overview.",
 };
 
-const systems = [
-  ["Landing page", "Operational"],
-  ["Onboarding", "Operational"],
-  ["Interview practice", "Operational"],
-  ["Results reports", "Operational"],
-  ["History", "Operational"],
-  ["Payments", "Operational"],
+const systems: { name: string; status: "Operational" | "Degraded" | "Down" }[] = [
+  { name: "Landing & marketing", status: "Operational" },
+  { name: "Onboarding & CV parsing", status: "Operational" },
+  { name: "Interview practice (voice)", status: "Operational" },
+  { name: "Interview practice (text)", status: "Operational" },
+  { name: "Results & reports", status: "Operational" },
+  { name: "History & dashboard", status: "Operational" },
+  { name: "Payments & billing", status: "Operational" },
 ];
 
+const dot = (s: string) => (s === "Operational" ? "bg-success" : s === "Degraded" ? "bg-warning" : "bg-danger");
+const txt = (s: string) => (s === "Operational" ? "text-success" : s === "Degraded" ? "text-warning" : "text-danger");
+
 export default function StatusPage() {
+  const allUp = systems.every((s) => s.status === "Operational");
   return (
-    <main className="min-h-screen bg-canvas px-5 py-8 text-fg">
-      <div className="mx-auto max-w-4xl">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-black text-muted hover:text-fg">
-          <ArrowLeft className="h-4 w-4" /> Back home
-        </Link>
-        <section className="mt-10 rounded-lg border border-line bg-fg/[0.04] p-8">
-          <div className="inline-flex items-center gap-2 rounded-full border border-success/20 bg-success/10 px-4 py-2 text-sm font-black text-success">
-            <CheckCircle2 className="h-4 w-4" /> All core systems operational
+    <MarketingShell>
+      <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-6 lg:px-8">
+        <BackLink href="/">Back home</BackLink>
+      </div>
+
+      <section className="mx-auto max-w-4xl px-4 pb-20 pt-8 sm:px-6 lg:px-8">
+        <Reveal>
+          <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-brand">
+            <Activity className="h-4 w-4" /> System Status
+          </span>
+          <div className={`mt-5 flex items-center gap-3 rounded-2xl border p-5 ${allUp ? "border-success/25 bg-success/[0.08]" : "border-warning/25 bg-warning/[0.08]"}`}>
+            <span className="relative flex h-3 w-3">
+              <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${allUp ? "bg-success" : "bg-warning"} opacity-60`} />
+              <span className={`relative inline-flex h-3 w-3 rounded-full ${allUp ? "bg-success" : "bg-warning"}`} />
+            </span>
+            <div>
+              <p className={`text-lg font-black ${allUp ? "text-success" : "text-warning"}`}>
+                {allUp ? "All systems operational" : "Some systems degraded"}
+              </p>
+              <p className="text-sm text-muted">Live overview of WorkZo AI services.</p>
+            </div>
+            <CheckCircle2 className={`ml-auto hidden h-6 w-6 sm:block ${allUp ? "text-success" : "text-warning"}`} />
           </div>
-          <h1 className="mt-6 text-4xl font-black tracking-[-0.04em] sm:text-3xl">WorkZo AI status</h1>
-          <p className="mt-4 text-base leading-8 text-muted">This page gives a live status overview of WorkZo AI services.</p>
-          <div className="mt-8 divide-y divide-line rounded-xl border border-line bg-canvas-soft">
-            {systems.map(([name, status]) => (
-              <div key={name} className="flex items-center justify-between gap-4 p-4">
+        </Reveal>
+
+        <Reveal delay={80} className="mt-6">
+          <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface/60">
+            {systems.map((s) => (
+              <div key={s.name} className="flex items-center justify-between gap-4 px-5 py-4">
                 <div className="flex items-center gap-3">
-                  {status === "Operational" ? <ShieldCheck className="h-5 w-5 text-success" /> : <Clock className="h-5 w-5 text-warning" />}
-                  <p className="font-black">{name}</p>
+                  <span className={`h-2.5 w-2.5 rounded-full ${dot(s.status)}`} />
+                  <p className="font-bold text-fg">{s.name}</p>
                 </div>
-                <p className={status === "Operational" ? "text-sm font-black text-success" : "text-sm font-black text-warning"}>{status}</p>
+                <p className={`text-sm font-black ${txt(s.status)}`}>{s.status}</p>
               </div>
             ))}
           </div>
-        </section>
-      </div>
-    </main>
+        </Reveal>
+
+        <Reveal delay={120}>
+          <p className="mt-6 text-center text-sm text-muted">
+            Seeing a problem that isn't reflected here? Email{" "}
+            <a href="mailto:support@workzoai.com" className="font-black text-brand hover:underline">support@workzoai.com</a>.
+          </p>
+        </Reveal>
+      </section>
+    </MarketingShell>
   );
 }

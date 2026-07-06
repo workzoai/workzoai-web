@@ -469,7 +469,7 @@ function buildModePerformance(events: DbAnalyticsEvent[]) {
   }, {});
 }
 
-// Per-plan breakdown — lets the founder see how Free vs Premium vs Premium Pro
+// Per-plan breakdown, lets the founder see how Free vs Premium vs Premium Pro
 // sessions behave differently (completion rate, voice reliability, etc).
 // "plan" is read from event.metadata.plan, which trackWorkZoEvent() now
 // attaches client-side based on the active plan / dev-tools override.
@@ -727,7 +727,7 @@ function buildAnalyticsResponse(
   const isInternal = (item: DbAnalyticsEvent) => {
     if (includeLocal) {
       // When founder opts in, only filter true internal signals (qa_test, template CVs etc)
-      // but NOT localhost — the founder IS on localhost.
+      // but NOT localhost, the founder IS on localhost.
       const metadata = item.metadata || {};
       return Boolean(
         metadataHasTemplateOrInternalSignals(metadata) ||
@@ -765,7 +765,7 @@ function buildAnalyticsResponse(
   );
 
   // Merge usage_events counts into funnel metrics.
-  // workzo_usage_events receives events from recordWorkZoInterviewStarted() etc —
+  // workzo_usage_events receives events from recordWorkZoInterviewStarted() etc -
   // these are sent from the client regardless of localhost/dev host.
   // workzo_analytics_events cv_uploaded is blocked on localhost by shouldSkipProductionAnalytics().
   // Using Math.max means we always surface the real count from whichever table has it.
@@ -1051,7 +1051,7 @@ export async function GET(request: Request) {
         code: error.code,
       });
     }
-    // ?all=1 — include localhost/dev sessions in the founder view.
+    // ?all=1, include localhost/dev sessions in the founder view.
     // Useful when the founder is testing locally and wants to see their own sessions.
     // Only available to authenticated founders (already gated above).
     const url2 = new URL(request.url);

@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     // Try to insert the message. The interview_messages table may use different
     // column names than what was assumed. We gracefully try two common schemas:
     // 1. Standard schema with role/text/session_id
-    // 2. Alternative schema if table doesn't exist — silent pass to avoid
+    // 2. Alternative schema if table doesn't exist, silent pass to avoid
     //    crashing the interview over a non-critical logging write.
     try {
       const { data, error } = await supabase
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
       }
       return NextResponse.json({ ok: true, message: data });
     } catch (insertError) {
-      // Table may not exist yet — non-fatal.
+      // Table may not exist yet, non-fatal.
       console.warn("POST interview-message table unavailable:", insertError instanceof Error ? insertError.message : insertError);
       return NextResponse.json({ ok: true, message: null });
     }

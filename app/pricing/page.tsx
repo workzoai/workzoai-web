@@ -6,33 +6,23 @@ import {
   ArrowLeft,
   ArrowRight,
   BrainCircuit,
+  Building2,
   CheckCircle2,
   Crown,
-  FileText,
-  Gift,
+  GraduationCap,
   History,
   Loader2,
-  MessageSquare,
   Mic,
   Rocket,
   ShieldCheck,
   Sparkles,
   Star,
   Tag,
-  TrendingUp,
   Video,
-  XCircle,
-  Zap,
 } from "lucide-react";
 import AuthNavButton from "@/components/auth/AuthNavButton";
-import {
-  WORKZO_PLAN_LIMITS,
-  WORKZO_PLAN_ORDER,
-  normalizeWorkZoBillingCycle,
-  type WorkZoBillingCycle,
-  type WorkZoPlanType,
-} from "@/lib/workzoPlanLimits";
-import { getWorkZoDisplayPrices } from "@/lib/workzoLocalizedPricing";
+import { type WorkZoBillingCycle, type WorkZoPlanType } from "@/lib/workzoPlanLimits";
+import { getWorkZoDisplayPrices, getWorkZoRegionalPriceSet } from "@/lib/workzoLocalizedPricing";
 import {
   disableWorkZoFounderTestMode,
   recordWorkZoUpgradeClick,
@@ -47,11 +37,19 @@ type PromoState = {
   discountLabel: string;
 };
 
-type PlanCard = {
-  id: WorkZoPlanType;
+type PricingCard = {
+  id: WorkZoPlanType | "enterprise";
+  label: string;
+  title: string;
+  subtitle: string;
+  badge?: string;
   icon: ReactNode;
-  accent: string;
-  buttonClass: string;
+  priceNote?: string;
+  features: string[];
+  muted?: string[];
+  cta: string;
+  popular?: boolean;
+  enterprise?: boolean;
 };
 
 const VALID_PROMOS: Record<string, { message: string; discountLabel: string }> = {
@@ -69,49 +67,104 @@ const VALID_PROMOS: Record<string, { message: string; discountLabel: string }> =
   },
 };
 
-const PLAN_CARDS: PlanCard[] = [
+const PRICING_CARDS: PricingCard[] = [
   {
     id: "free",
+    label: "Free",
+    title: "Try WorkZo",
+    subtitle: "Perfect for testing one realistic AI interview before upgrading.",
+    badge: "Free Forever",
     icon: <Rocket className="h-5 w-5" />,
-    accent: "emerald",
-    buttonClass: "bg-fg text-canvas hover:bg-brand hover:text-on-brand",
+    features: [
+      "1 complete AI voice interview",
+      "CV-aware recruiter questions",
+      "Basic STAR scorecard",
+      "Standard interview report",
+      "Score, pace, and filler-word analysis",
+      "Standard recruiter personas",
+    ],
+    muted: ["No video interview", "No interview history", "No advanced performance analysis"],
+    cta: "Get Started",
   },
   {
     id: "premium",
+    label: "Premium",
+    title: "Practice Daily",
+    subtitle: "For active job seekers preparing seriously with AI voice practice and career tools.",
+    badge: "Most Popular",
     icon: <Crown className="h-5 w-5" />,
-    accent: "blue",
-    buttonClass: "bg-brand text-on-brand hover:bg-brand shadow-lg shadow-brand/20",
+    popular: true,
+    priceNote: "24-hour free trial · cancel anytime",
+    features: [
+      "300 AI voice minutes / month",
+      "Unlimited sessions within your minutes",
+      "Unlimited resume optimization",
+      "Unlimited ATS analysis",
+      "Unlimited cover letters",
+      "Job description analysis",
+      "Basic progress tracking",
+      "All core recruiter personas",
+      "Multi-language interview practice",
+    ],
+    muted: ["No AI video interview", "No premium recruiter personas", "No advanced performance analysis"],
+    cta: "Upgrade Now",
   },
   {
     id: "premium_pro",
+    label: "Premium Pro",
+    title: "Master Interviews",
+    subtitle: "Your personal AI interview coach for high-stakes interviews and face-to-face delivery.",
+    badge: "Full System",
     icon: <Star className="h-5 w-5" />,
-    accent: "violet",
-    buttonClass: "bg-brand text-on-brand hover:bg-brand shadow-lg shadow-brand/20",
+    priceNote: "Includes AI video practice (early access)",
+    features: [
+      "Everything in Premium",
+      "600 AI voice minutes / month",
+      "60 AI video minutes / month (early access)",
+      "Detailed interview feedback",
+      "Advanced performance analysis",
+      "Multi-session interview history",
+      "AI improvement suggestions",
+      "Premium recruiter personas",
+      "Priority AI processing",
+    ],
+    cta: "Go Pro",
+  },
+  {
+    id: "enterprise",
+    label: "Enterprise & Education",
+    title: "Train Cohorts",
+    subtitle: "For universities, bootcamps, and hiring teams scaling interview readiness across groups.",
+    badge: "Institutional",
+    icon: <Building2 className="h-5 w-5" />,
+    enterprise: true,
+    priceNote: "Annual contract · volume pricing",
+    features: [
+      "Shared AI voice & video minute pools",
+      "Custom JD and recruiter persona mapping",
+      "Team management",
+      "Priority support",
+      "Dedicated onboarding",
+      "Volume pricing",
+    ],
+    cta: "Request Demo",
   },
 ];
 
 const comparisonRows = [
-  { label: "Voice AI Interviews", free: "2 / mo", premium: "50 / mo", premiumPro: "Unlimited", section: "interview" },
-  { label: "Recruiter Intelligence", free: "Full (2 sessions)", premium: "Advanced", premiumPro: "Advanced", section: "interview" },
-  { label: "Follow-up Questions", free: "Full (2 sessions)", premium: "Realistic", premiumPro: "Deep + pressure", section: "interview" },
-  { label: "Interview Reports", free: "Basic", premium: "Advanced", premiumPro: "Advanced + Replay", section: "interview" },
-  { label: "Interview History", free: "Limited", premium: "Unlimited", premiumPro: "Unlimited", section: "interview" },
-  { label: "Improve CV", free: "—", premium: "Included", premiumPro: "Included", section: "application" },
-  { label: "ATS Optimization", free: "—", premium: "Included", premiumPro: "Included", section: "application" },
-  { label: "Cover Letter Generator", free: "—", premium: "Included", premiumPro: "Included", section: "application" },
-  { label: "Job Assist", free: "—", premium: "Included", premiumPro: "Included", section: "application" },
-  { label: "Career Brain", free: "—", premium: "Included", premiumPro: "Enhanced", section: "application" },
-  { label: "Performance Tracking", free: "—", premium: "Included", premiumPro: "Advanced", section: "tracking" },
-  { label: "Hiring Readiness", free: "—", premium: "Included", premiumPro: "Included", section: "tracking" },
-  { label: "Tavus Live AI Recruiter", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
-  { label: "Live AI Recruiter Minutes", free: "—", premium: "—", premiumPro: "60 / mo", section: "pro" },
-  { label: "Premium Recruiter Personas", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
-  { label: "AI Career Coach", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
-  { label: "Career Roadmaps", free: "—", premium: "—", premiumPro: "30 / 60 / 90 day", section: "pro" },
-  { label: "Replay Intelligence", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
-  { label: "Personalized Coaching Memory", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
-  { label: "Interview Probability Forecasting", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
-  { label: "Priority AI Models", free: "—", premium: "—", premiumPro: "Included", section: "pro" },
+  { label: "AI Voice Interviews", free: "1 interview", premium: "300 mins / mo", pro: "600 mins / mo", enterprise: "Shared pool" },
+  { label: "AI Video Interviews (early access)", free: "—", premium: "—", pro: "60 mins / mo", enterprise: "Shared pool" },
+  { label: "Resume Optimization", free: "Basic", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },
+  { label: "ATS Analysis", free: "Basic", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },
+  { label: "Cover Letters", free: "—", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },
+  { label: "Job Description Analysis", free: "—", premium: "Included", pro: "Included", enterprise: "Included" },
+  { label: "Recruiter Personas", free: "Standard", premium: "Core", pro: "Premium", enterprise: "Custom" },
+  { label: "Progress Tracking", free: "—", premium: "Basic", pro: "Advanced", enterprise: "Cohort analytics" },
+  { label: "Interview History", free: "—", premium: "Included", pro: "Multi-session", enterprise: "Included" },
+  { label: "Performance Analysis", free: "Basic", premium: "Standard", pro: "Advanced", enterprise: "Advanced" },
+  { label: "AI Improvement Suggestions", free: "—", premium: "—", pro: "Included", enterprise: "Included" },
+  { label: "Team Management", free: "—", premium: "—", pro: "—", enterprise: "Included" },
+  { label: "Onboarding & Support", free: "Standard", premium: "Standard", pro: "Priority", enterprise: "Dedicated" },
 ];
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -158,7 +211,17 @@ function savePendingCheckout(plan: WorkZoPlanType, billingCycle: WorkZoBillingCy
   } catch {}
 }
 
-function PriceLine({ plan, billingCycle }: { plan: WorkZoPlanType; billingCycle: WorkZoBillingCycle }) {
+function PriceLine({ plan, billingCycle }: { plan: WorkZoPlanType | "enterprise"; billingCycle: WorkZoBillingCycle }) {
+  if (plan === "enterprise") {
+    return (
+      <div className="mt-5">
+        <p className="text-4xl font-black tracking-[-0.04em] text-fg sm:text-3xl">
+          Custom<span className="text-base font-bold text-subtle"> / annual</span>
+        </p>
+      </div>
+    );
+  }
+
   const prices = getWorkZoDisplayPrices(billingCycle);
   const price = plan === "premium_pro" ? prices.premiumPro : prices[plan];
   const suffix = plan === "free" ? "" : billingCycle === "yearly" ? "/year" : "/month";
@@ -189,6 +252,7 @@ export default function PricingPage() {
   const [promo, setPromo] = useState<PromoState>({ code: "", valid: false, message: "", discountLabel: "" });
   const [checkoutLoading, setCheckoutLoading] = useState<WorkZoPlanType | "">("");
   const [checkoutError, setCheckoutError] = useState("");
+  const regionalPrices = getWorkZoRegionalPriceSet();
 
   const normalizedPromo = useMemo(() => promoInput.trim().toUpperCase().replace(/\s+/g, ""), [promoInput]);
 
@@ -197,14 +261,19 @@ export default function PricingPage() {
       setPromo({ code: "", valid: false, message: "Enter a promo code.", discountLabel: "" });
       return;
     }
+
     const match = VALID_PROMOS[normalizedPromo];
     if (!match) {
       setPromo({ code: normalizedPromo, valid: false, message: "This promo code is not valid.", discountLabel: "" });
       return;
     }
+
     setPromo({ code: normalizedPromo, valid: true, message: match.message, discountLabel: match.discountLabel });
     if (typeof window !== "undefined") {
-      window.localStorage.setItem("workzo_promo_code", JSON.stringify({ code: normalizedPromo, discountLabel: match.discountLabel, createdAt: new Date().toISOString() }));
+      window.localStorage.setItem(
+        "workzo_promo_code",
+        JSON.stringify({ code: normalizedPromo, discountLabel: match.discountLabel, createdAt: new Date().toISOString() }),
+      );
     }
   }
 
@@ -213,7 +282,10 @@ export default function PricingPage() {
     setWorkZoCurrentPlan("free");
     resetWorkZoTestingUsage();
     if (typeof window !== "undefined") {
-      window.localStorage.setItem("workzo_selected_plan_intent", JSON.stringify({ plan: "free", source: "pricing", next: "/onboarding", createdAt: new Date().toISOString() }));
+      window.localStorage.setItem(
+        "workzo_selected_plan_intent",
+        JSON.stringify({ plan: "free", source: "pricing", next: "/onboarding", createdAt: new Date().toISOString() }),
+      );
       document.cookie = `workzo_after_login=${encodeURIComponent("/onboarding")}; Max-Age=900; Path=/; SameSite=Lax`;
       window.location.href = "/onboarding";
     }
@@ -236,7 +308,7 @@ export default function PricingPage() {
       const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, billingCycle, source: "pricing", promoCode }),
+        body: JSON.stringify({ plan, billingCycle, source: "pricing", promoCode, currency: regionalPrices.currency, countryHint: regionalPrices.countryHint }),
       });
 
       if (response.status === 401 || response.status === 403) {
@@ -245,7 +317,7 @@ export default function PricingPage() {
         return;
       }
 
-      const data = await response.json().catch(() => ({})) as { url?: string; checkoutUrl?: string; sessionUrl?: string; error?: string };
+      const data = (await response.json().catch(() => ({}))) as { url?: string; checkoutUrl?: string; sessionUrl?: string; error?: string };
       if (!response.ok) throw new Error(data.error || "Could not create checkout session.");
       const checkoutUrl = data.url || data.checkoutUrl || data.sessionUrl;
       if (!checkoutUrl) throw new Error("Stripe checkout URL was not returned.");
@@ -256,15 +328,25 @@ export default function PricingPage() {
     }
   }
 
+  function requestDemo() {
+    const subject = encodeURIComponent("WorkZo AI Enterprise / Education Demo Request");
+    const body = encodeURIComponent(
+      "Hi WorkZo AI team,\n\nI would like to request a demo for Enterprise / Education pricing.\n\nOrganization name:\nCohort size:\nUse case:\nPreferred demo time:\n\nThank you.",
+    );
+    window.location.href = `mailto:support@workzoai.com?subject=${subject}&body=${body}`;
+  }
+
   return (
     <main className="min-h-screen bg-canvas px-4 py-8 text-fg sm:px-6 lg:px-8">
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.24),transparent_70%),radial-gradient(ellipse_60%_40%_at_90%_100%,rgba(37, 99, 235,0.10),transparent_70%)]" />
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.24),transparent_70%),radial-gradient(ellipse_60%_40%_at_90%_100%,rgba(37,99,235,0.10),transparent_70%)]" />
 
       <div className="mx-auto max-w-7xl">
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-3">
             <img src="/workzo_icon.png" alt="WorkZo AI" width={36} height={36} className="rounded-xl" />
-            <span className="hidden text-xl font-black sm:block">WorkZo <span className="text-brand">AI</span></span>
+            <span className="hidden text-xl font-black sm:block">
+              WorkZo <span className="text-brand">AI</span>
+            </span>
           </Link>
           <div className="flex items-center gap-3">
             <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-black text-muted transition hover:text-fg">
@@ -277,13 +359,16 @@ export default function PricingPage() {
         <section className="mx-auto mt-10 max-w-4xl text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/8 px-3 py-1.5 text-xs font-black uppercase tracking-[0.20em] text-muted">
             <Sparkles className="h-3.5 w-3.5" />
-            Monthly and yearly plans
+            Monthly, yearly, and cohort plans
           </div>
-          <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-tight sm:text-4xl">
-            Know what the offer costs. Then close the gap.
+          <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-tight sm:text-5xl">
+            Choose the interview preparation plan that fits your career journey.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-muted">
-            Free shows where the gap is. Premium closes it. Premium Pro builds on every session until the offer lands.
+            Try one AI interview, practice daily with voice, master face-to-face delivery with video, or train an entire cohort with WorkZo AI.
+          </p>
+          <p className="mx-auto mt-4 max-w-2xl text-sm font-bold text-fg/80">
+            On every plan, interview questions are generated from your CV and the actual job description, never generic question banks.
           </p>
 
           <div className="mx-auto mt-8 inline-flex rounded-lg border border-line bg-canvas-soft p-1">
@@ -328,99 +413,92 @@ export default function PricingPage() {
           </div>
         </section>
 
-        <section className="mt-12 grid items-stretch gap-4 lg:grid-cols-3">
-          {PLAN_CARDS.map((card) => {
-            const plan = WORKZO_PLAN_LIMITS[card.id];
-            const isPremium = card.id === "premium";
-            const isPro = card.id === "premium_pro";
+        <section className="mt-12 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {PRICING_CARDS.map((card) => {
             const isFree = card.id === "free";
+            const isPaidPlan = card.id === "premium" || card.id === "premium_pro";
+            const isLoading = isPaidPlan && checkoutLoading === card.id;
+
             return (
               <div
                 key={card.id}
                 className={cn(
-                  "flex flex-col rounded-xl border p-6",
-                  isPremium ? "border-brand/50 bg-canvas" : "border-line bg-fg/[0.03]",
+                  "relative flex flex-col rounded-2xl border p-6 transition",
+                  card.popular ? "border-brand/70 bg-canvas shadow-xl shadow-brand/10" : "border-line bg-fg/[0.03]",
+                  card.enterprise && "border-fg/25 bg-fg/[0.05]",
                 )}
               >
-                {/* Badge: always takes same height so cards align */}
-                <div className="mb-5 h-6">
-                  {plan.badge && (
-                    <span className={cn(
-                      "inline-flex items-center rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em]",
-                      isFree
-                        ? "border border-line bg-fg/5 text-subtle"
-                        : isPremium
-                          ? "bg-brand/20 text-muted"
-                          : "bg-brand/15 text-muted",
-                    )}>
-                      {plan.badge}
+                {card.popular ? (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand px-4 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-on-brand shadow-lg shadow-brand/20">
+                    Most Popular
+                  </div>
+                ) : null}
+
+                <div className="mb-5 flex h-7 items-center justify-between gap-3">
+                  {card.badge ? (
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em]",
+                        card.enterprise ? "border border-fg/20 bg-fg/10 text-fg" : card.popular ? "bg-brand/15 text-brand" : "border border-line bg-fg/5 text-subtle",
+                      )}
+                    >
+                      {card.badge}
                     </span>
-                  )}
+                  ) : null}
+                  <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", card.enterprise ? "bg-fg/10 text-fg" : "bg-brand/10 text-brand")}>{card.icon}</div>
                 </div>
 
-                {/* Plan identity */}
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-subtle">{plan.label}</p>
-                <h2 className="mt-1.5 text-lg font-black leading-snug text-fg">{plan.shortLabel}</h2>
-
-                {/* Price */}
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-subtle">{card.label}</p>
+                <h2 className="mt-1.5 text-xl font-black leading-snug text-fg">{card.title}</h2>
                 <PriceLine plan={card.id} billingCycle={billingCycle} />
+                <p className="mt-3 text-sm leading-6 text-muted">{card.subtitle}</p>
+                {card.priceNote ? <p className="mt-2 text-xs font-black text-success">{card.priceNote}</p> : null}
 
-                {/* Description */}
-                <p className="mt-3 text-sm leading-6 text-muted">{plan.description}</p>
-
-                {/* Trial note */}
-                {isPremium && (
-                  <p className="mt-2 text-xs font-black text-success">
-                    24-hour free trial · cancel anytime before charged
-                  </p>
-                )}
-                {isPro && (
-                  <p className="mt-2 text-xs font-black text-muted">
-                    2 free live recruiter minutes included
-                  </p>
-                )}
-
-                {/* Divider */}
                 <div className="my-5 h-px bg-fg/[0.07]" />
 
-                {/* Included features */}
                 <div className="flex-1 space-y-2.5">
-                  {plan.included.map((item) => (
+                  {card.features.map((item) => (
                     <div key={item} className="flex items-start gap-2.5">
-                      <CheckCircle2 className={cn(
-                        "mt-0.5 h-[15px] w-[15px] shrink-0",
-                        isPro ? "text-brand" : isPremium ? "text-brand" : "text-success",
-                      )} />
+                      <CheckCircle2 className={cn("mt-0.5 h-[15px] w-[15px] shrink-0", card.enterprise ? "text-fg/60" : "text-brand")} />
                       <span className="text-sm leading-[1.45] text-fg">{item}</span>
                     </div>
                   ))}
 
-                  {/* Not-included: muted, no XCircle */}
-                  {plan.notIncluded.length > 0 && (
+                  {card.muted?.length ? (
                     <div className="mt-4 space-y-2.5 border-t border-line pt-4">
-                      {plan.notIncluded.map((item) => (
+                      {card.muted.map((item) => (
                         <div key={item} className="flex items-start gap-2.5">
-                          <div className="mt-[5px] h-[6px] w-[6px] shrink-0 rounded-full bg-fg/15" />
+                          <div className="mt-[7px] h-[6px] w-[6px] shrink-0 rounded-full bg-fg/15" />
                           <span className="text-sm leading-[1.45] text-subtle">{item}</span>
                         </div>
                       ))}
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
-                {/* CTA: always at bottom */}
-                <button
-                  type="button"
-                  onClick={() => choosePlan(card.id)}
-                  disabled={Boolean(checkoutLoading)}
-                  className={cn(
-                    "mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60",
-                    card.buttonClass,
-                  )}
-                >
-                  {checkoutLoading === card.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                  {isFree ? "Start Free" : checkoutLoading === card.id ? "Connecting…" : `Choose ${plan.label}`}
-                </button>
+                {card.enterprise ? (
+                  <button
+                    type="button"
+                    onClick={requestDemo}
+                    className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg border-2 border-fg/30 bg-transparent py-3 text-sm font-black text-fg transition hover:border-fg hover:bg-fg/5"
+                  >
+                    <Building2 className="h-4 w-4" />
+                    {card.cta}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => choosePlan(card.id as WorkZoPlanType)}
+                    disabled={Boolean(checkoutLoading)}
+                    className={cn(
+                      "mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60",
+                      isFree ? "bg-fg text-canvas hover:bg-brand hover:text-on-brand" : "bg-brand text-on-brand shadow-lg shadow-brand/20 hover:bg-brand-strong",
+                    )}
+                  >
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                    {isLoading ? "Connecting…" : card.cta}
+                  </button>
+                )}
               </div>
             );
           })}
@@ -432,88 +510,78 @@ export default function PricingPage() {
           </p>
         ) : null}
 
-        <section className="mx-auto mt-8 flex max-w-3xl flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs font-bold text-muted">
+        <section className="mx-auto mt-8 flex max-w-4xl flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs font-bold text-muted">
           <span className="inline-flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-success" />
-            Secure payment via Stripe
+            <ShieldCheck className="h-4 w-4 text-success" /> Secure payments
           </span>
           <span className="inline-flex items-center gap-2">
-            <History className="h-4 w-4 text-success" />
-            Cancel anytime, no questions asked
+            <History className="h-4 w-4 text-success" /> Cancel anytime
           </span>
           <span className="inline-flex items-center gap-2">
-            <Tag className="h-4 w-4 text-success" />
-            No hidden fees
+            <Tag className="h-4 w-4 text-success" /> No hidden fees
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-success" /> GDPR-conscious product design
           </span>
         </section>
 
         <section className="mt-14 overflow-hidden rounded-lg border border-line bg-fg/[0.03]">
           <div className="border-b border-line p-6">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-muted">Plan breakdown</p>
-            <h2 className="mt-2 text-2xl font-black sm:text-3xl">What each plan actually includes</h2>
+            <h2 className="mt-2 text-2xl font-black sm:text-3xl">Compare WorkZo AI plans</h2>
           </div>
           <div className="overflow-x-auto">
-            <div className="min-w-[760px]">
-              <div className="grid grid-cols-[1.35fr_0.75fr_0.85fr_0.95fr] border-b border-line bg-fg/[0.04] px-5 py-4 text-xs font-black uppercase tracking-[0.16em] text-muted">
+            <div className="min-w-[960px]">
+              <div className="grid grid-cols-[1.25fr_0.7fr_0.8fr_0.85fr_1fr] border-b border-line bg-fg/[0.04] px-5 py-4 text-xs font-black uppercase tracking-[0.16em] text-muted">
                 <p>Feature</p>
                 <p>Free</p>
                 <p>Premium</p>
                 <p>Premium Pro</p>
+                <p>Enterprise</p>
               </div>
               {comparisonRows.map((row, index) => (
-                <div key={row.label} className={cn("grid grid-cols-[1.35fr_0.75fr_0.85fr_0.95fr] px-5 py-4 text-sm", index % 2 === 0 ? "bg-fg/[0.025]" : "bg-transparent")}>
+                <div key={row.label} className={cn("grid grid-cols-[1.25fr_0.7fr_0.8fr_0.85fr_1fr] px-5 py-4 text-sm", index % 2 === 0 ? "bg-fg/[0.025]" : "bg-transparent")}>
                   <p className="font-bold text-fg">{row.label}</p>
                   <p className="text-muted">{row.free}</p>
                   <p className="font-black text-muted">{row.premium}</p>
-                  <p className="font-black text-muted">{row.premiumPro}</p>
+                  <p className="font-black text-muted">{row.pro}</p>
+                  <p className="font-black text-muted">{row.enterprise}</p>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="mt-10 grid gap-4 md:grid-cols-3">
+        <section className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[
             {
               icon: <Mic className="h-5 w-5" />,
-              accent: "emerald",
-              title: "Free",
-              subtitle: "Try the experience",
-              text: "Try 2 voice interviews, see recruiter intelligence in action, and get a basic interview report before committing.",
+              title: "Try once",
+              subtitle: "Free",
+              text: "Run one realistic AI interview, see how the recruiter reacts, and get your first scorecard.",
             },
             {
               icon: <BrainCircuit className="h-5 w-5" />,
-              accent: "blue",
-              title: "Premium",
-              subtitle: "Interview preparation platform",
-              text: "Prepare fully for every interview. Improve your CV, generate cover letters, use Career Brain, and track your performance over time.",
+              title: "Practice every day",
+              subtitle: "Premium",
+              text: "Prepare with voice interviews, resume optimization, ATS checks, cover letters, and job analysis.",
             },
             {
-              icon: <Sparkles className="h-5 w-5" />,
-              accent: "violet",
-              title: "Premium Pro",
-              subtitle: "Personal AI career coach",
-              text: "Go beyond interview prep. Get a Live AI Recruiter, AI Career Coach, career roadmaps, replay intelligence, and a personalized coaching system that grows with you.",
+              icon: <Video className="h-5 w-5" />,
+              title: "Master delivery",
+              subtitle: "Premium Pro",
+              text: "Add video practice (early access), advanced performance analysis, multi-session history, and priority AI.",
+            },
+            {
+              icon: <GraduationCap className="h-5 w-5" />,
+              title: "Scale cohorts",
+              subtitle: "Enterprise & Education",
+              text: "Give every student mock interview access with shared minute pools, custom personas, and dedicated onboarding.",
             },
           ].map((item) => (
-            <div key={item.title} className={cn(
-              "rounded-xl border p-6",
-              item.accent === "blue" ? "border-brand/20 bg-brand/[0.05]" :
-              item.accent === "violet" ? "border-brand/20 bg-brand/[0.05]" :
-              "border-line bg-fg/[0.03]"
-            )}>
-              <div className={cn(
-                "grid h-11 w-11 place-items-center rounded-lg",
-                item.accent === "blue" ? "bg-brand/15 text-brand" :
-                item.accent === "violet" ? "bg-brand/15 text-brand" :
-                "bg-success/15 text-success"
-              )}>{item.icon}</div>
-              <p className={cn(
-                "mt-4 text-[10px] font-black uppercase tracking-[0.18em]",
-                item.accent === "blue" ? "text-muted" :
-                item.accent === "violet" ? "text-muted" :
-                "text-success"
-              )}>{item.subtitle}</p>
+            <div key={item.title} className="rounded-xl border border-line bg-fg/[0.03] p-6">
+              <div className="grid h-11 w-11 place-items-center rounded-lg bg-brand/10 text-brand">{item.icon}</div>
+              <p className="mt-4 text-[10px] font-black uppercase tracking-[0.18em] text-muted">{item.subtitle}</p>
               <h3 className="mt-1 text-lg font-black">{item.title}</h3>
               <p className="mt-2 text-sm leading-6 text-muted">{item.text}</p>
             </div>

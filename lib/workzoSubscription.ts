@@ -99,7 +99,7 @@ export async function getWorkZoUserIdByStripeCustomer(stripeCustomerId: string) 
 
 /**
  * Marks the purchase-confirmation email as sent for this user, but only if
- * it hasn't been marked already — the update is conditioned on
+ * it hasn't been marked already, the update is conditioned on
  * purchase_email_sent_at still being null, so if two callers race (e.g. the
  * webhook and the /billing/success fallback firing close together), only
  * the first one's update actually matches a row and returns true. The
@@ -107,7 +107,7 @@ export async function getWorkZoUserIdByStripeCustomer(stripeCustomerId: string) 
  *
  * Use this from callers that don't know whether a NEW purchase just
  * happened (e.g. /billing/success, which could be a fresh checkout or just
- * someone revisiting the page later) — it only sends if nobody has yet.
+ * someone revisiting the page later), it only sends if nobody has yet.
  *
  * Returns true if this call "won" and should proceed to send the email,
  * false if someone else already has (or already will).
@@ -135,12 +135,12 @@ export async function claimWorkZoPurchaseEmailSend(userId: string): Promise<bool
  * Same as claimWorkZoPurchaseEmailSend, but for the Stripe webhook
  * specifically: checkout.session.completed means a purchase (first-time or
  * an upgrade) definitely just happened, so the flag must be re-armed first
- * — otherwise a user upgrading plans would never get a second confirmation
+ *, otherwise a user upgrading plans would never get a second confirmation
  * email, since the flag from their first purchase would still be set.
  *
  * The reset-then-claim isn't a single atomic statement, so there's a
  * theoretical sliver where /billing/success's plain claim could land
- * between the reset and this claim and "win" instead. That's fine — either
+ * between the reset and this claim and "win" instead. That's fine, either
  * way exactly one confirmation email goes out for this purchase, which is
  * the actual goal; which of the two code paths sends it doesn't matter.
  */

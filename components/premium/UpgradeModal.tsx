@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowRight, CheckCircle2, Crown, Loader2, Sparkles, Star, X, XCircle } from "lucide-react";
 import { recordWorkZoUpgradeClick } from "@/lib/workzoUsageTracker";
 import { getWorkZoPlanUpgradeCopy } from "@/lib/workzoPlanLimits";
+import { getWorkZoDisplayPrices } from "@/lib/workzoLocalizedPricing";
 
 type UpgradeModalProps = {
   open: boolean;
@@ -22,6 +23,11 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
 
   const copy = getWorkZoPlanUpgradeCopy(feature);
   const isPro = copy.plan === "premium_pro";
+  const displayPrices = getWorkZoDisplayPrices("monthly");
+  const premiumPrice = displayPrices.premium.amount;
+  const premiumProPrice = displayPrices.premiumPro.amount;
+  const selectedCurrency = isPro ? displayPrices.premiumPro.currency : displayPrices.premium.currency;
+  const selectedCountryHint = isPro ? displayPrices.premiumPro.countryHint : displayPrices.premium.countryHint;
 
   async function handleUpgrade() {
     if (checkoutLoading) return;
@@ -38,7 +44,7 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
       const response = await fetch(CHECKOUT_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: copy.plan, billing: "monthly", source: "upgrade_modal", feature }),
+        body: JSON.stringify({ plan: copy.plan, billing: "monthly", billingCycle: "monthly", source: "upgrade_modal", feature, currency: selectedCurrency, countryHint: selectedCountryHint }),
       });
 
       if (response.status === 401 || response.status === 403) {
@@ -85,8 +91,8 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
               <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-brand">What Premium Pro unlocks</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {[
-                  "Unlimited voice interviews",
-                  "60 Live AI Recruiter minutes/month",
+                  "600 AI voice minutes/month",
+                  "60 AI Video Interviews minutes/month",
                   "7 premium recruiter personas",
                   "AI Career Coach",
                   "30/60/90 day career roadmaps",
@@ -103,14 +109,14 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
               <div className="mt-4 flex items-center gap-3 rounded-lg border border-line bg-fg/[0.03] px-4 py-3">
                 <div className="text-center">
                   <p className="text-xs text-subtle">Premium</p>
-                  <p className="text-base font-black text-muted">€19.99<span className="text-xs">/mo</span></p>
+                  <p className="text-base font-black text-muted">{premiumPrice}<span className="text-xs">/mo</span></p>
                 </div>
                 <ArrowRight className="h-4 w-4 shrink-0 text-subtle" />
                 <div className="text-center">
                   <p className="text-xs text-brand font-black">Premium Pro</p>
-                  <p className="text-base font-black text-fg">€39.99<span className="text-xs">/mo</span></p>
+                  <p className="text-base font-black text-fg">{premiumProPrice}<span className="text-xs">/mo</span></p>
                 </div>
-                <p className="ml-auto text-xs leading-5 text-muted">2x more features</p>
+                <p className="ml-auto text-xs leading-5 text-muted">Video + coaching</p>
               </div>
             </>
           ) : (
@@ -118,7 +124,7 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
               <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-brand">What Premium unlocks</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {[
-                  "50 voice interviews/month",
+                  "300 AI voice minutes/month",
                   "Full advanced reports",
                   "Improve CV + ATS analysis",
                   "Cover Letter generator",
@@ -141,7 +147,7 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
                 <ArrowRight className="h-4 w-4 shrink-0 text-subtle" />
                 <div className="text-center">
                   <p className="text-xs text-brand font-black">Premium</p>
-                  <p className="text-base font-black text-fg">€19.99<span className="text-xs">/mo</span></p>
+                  <p className="text-base font-black text-fg">{premiumPrice}<span className="text-xs">/mo</span></p>
                 </div>
                 <p className="ml-auto text-xs leading-5 text-muted">Full prep system</p>
               </div>

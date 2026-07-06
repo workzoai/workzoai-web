@@ -44,10 +44,10 @@ type BasicProfile = {
 // ─── Name reject lists ────────────────────────────────────────────────────────
 
 // Word-level: any word in the name matching this → reject
-const NAME_REJECT_WORD_RE = /^(profile|profilesummary|summary|executive|professional|career|experience|workexperience|education|skills?|projects?|certifications?|references?|languages?|contact|contacts|overview|objective|competencies|competency|expertise|core|key|selected|academic|bootcamp|portfolio|berufserfahrung|bildungsweg|bildung|ausbildung|sprachen|kenntnisse|fähigkeiten|fahigkeiten|kontakt|lebenslauf|english|german|deutsch|dutch|french|spanish|italian|portuguese|arabic|mandarin|chinese|japanese|korean|russian|turkish|polish|hindi|tamil|englisch|französisch|franzosisch|spanisch|italienisch|portugiesisch|arabisch|japanisch|chinesisch|russisch|türkisch|turkisch|polnisch|fluent|native|conversational|fließend|fliesend|muttersprache|verhandlungssicher|fortgeschritten|grundkenntnisse|anfänger|anfanger|c1|c2|b1|b2|a1|a2|manager|engineer|developer|designer|analyst|specialist|consultant|coordinator|administrator|assistant|director|lead|head|chief|officer|executive|intern|trainee|teacher|recruiter|architect|scientist|researcher|technician|marketing|sales|customer|success|support|technical|data|software|product|project|program|cloud|devops|magna|cum|laude|honours|honors|distinction|excellence|achievement|achievements|accomplishments|proficiencies|proficiency|tools|tooling|invoicing|taxation|budgeting|financial|strategic|operational|creativity|innovation|negotiation|adaptability|leadership|teamwork|communication|thinking|management|planning|analysis|itsd|hts|ats|sop|kpi|okr|roi|ict|erp|crm|saas|sla|python|sql|tableau|tensorflow|sklearn|java|javascript|react|aws|gcp|azure)$/i;
+const NAME_REJECT_WORD_RE = /^(profile|profilesummary|summary|executive|professional|career|experience|workexperience|education|skills?|projects?|certifications?|references?|languages?|contact|contacts|overview|objective|competencies|competency|expertise|core|key|selected|academic|bootcamp|portfolio|kontaktübersicht|kontaktubersicht|kontaktdaten|berufliches|beruflicher|werdegang|berufspraxis|berufserfahrung|bildungsweg|bildung|ausbildung|sprachen|kenntnisse|fähigkeiten|fahigkeiten|kontakt|lebenslauf|english|german|deutsch|dutch|french|spanish|italian|portuguese|arabic|mandarin|chinese|japanese|korean|russian|turkish|polish|hindi|tamil|englisch|französisch|franzosisch|spanisch|italienisch|portugiesisch|arabisch|japanisch|chinesisch|russisch|türkisch|turkisch|polnisch|fluent|native|conversational|fließend|fliesend|muttersprache|verhandlungssicher|fortgeschritten|grundkenntnisse|anfänger|anfanger|c1|c2|b1|b2|a1|a2|manager|engineer|developer|designer|analyst|specialist|consultant|coordinator|administrator|assistant|director|lead|head|chief|officer|executive|intern|trainee|teacher|recruiter|architect|scientist|researcher|technician|marketing|sales|customer|success|support|technical|data|software|product|project|program|cloud|devops|magna|cum|laude|honours|honors|distinction|excellence|achievement|achievements|accomplishments|proficiencies|proficiency|tools|tooling|invoicing|taxation|budgeting|financial|strategic|operational|creativity|innovation|negotiation|adaptability|leadership|teamwork|communication|thinking|management|planning|analysis|itsd|hts|ats|sop|kpi|okr|roi|ict|erp|crm|saas|sla|python|sql|tableau|tensorflow|sklearn|java|javascript|react|aws|gcp|azure)$/i;
 
 // Phrase-level: full name matches this → reject
-const NAME_REJECT_PHRASE_RE = /^(core competencies|professional summary|executive summary|career summary|profile summary|work experience|professional experience|key projects|selected projects|academic projects|magna cum laude|cum laude|summa cum laude|customer success|customer success achievements|customersucces sachievements|it support|it support specialist|data tools|invoicing tools|taxation tools|creativity negotiation|leadership critical thinking|englisch fließend|english fluent|english c1|deutsch b1|deutsch b2|deutsch a2|deutsch a1|german b1|german conversational)$/i;
+const NAME_REJECT_PHRASE_RE = /^(core competencies|professional summary|executive summary|career summary|profile summary|work experience|professional experience|contact overview|kontaktübersicht|kontaktubersicht|berufliches profil|beruflicher werdegang|praktische erfahrung|berufspraxis|key projects|selected projects|academic projects|magna cum laude|cum laude|summa cum laude|customer success|customer success achievements|customersucces sachievements|it support|it support specialist|data tools|invoicing tools|taxation tools|creativity negotiation|leadership critical thinking|englisch fließend|english fluent|english c1|deutsch b1|deutsch b2|deutsch a2|deutsch a1|german b1|german conversational)$/i;
 
 // ─── Name validation ──────────────────────────────────────────────────────────
 
@@ -58,11 +58,13 @@ export function isValidHumanName(name: unknown): boolean {
   if (/[\d@+()]/.test(raw)) return false;
   if (NAME_REJECT_PHRASE_RE.test(raw)) return false;
   const words = raw.split(/\s+/).filter(Boolean);
-  if (words.length < 2 || words.length > 4) return false;
-  if (!words.every((w) => /^[\p{L}'\-.]{2,28}$/u.test(w))) return false;
-  if (new Set(words.map((w) => w.toLowerCase())).size === 1) return false;
-  if (words.some((w) => NAME_REJECT_WORD_RE.test(w))) return false;
-  if (!words.some((w) => /^[\p{Lu}]/u.test(w))) return false;
+  if (words.length < 2 || words.length > 5) return false;
+  const isInitial = (w: string) => /^\p{Lu}\.?$/u.test(w);
+  const isSuffix = (w: string) => /^(jr\.?|sr\.?|ii|iii|iv|v)$/i.test(w);
+  if (!words.every((w) => isInitial(w) || isSuffix(w) || /^[\p{L}'\-.]{2,28}$/u.test(w))) return false;
+  if (new Set(words.map((w) => w.toLowerCase().replace(/\.$/, ''))).size === 1) return false;
+  if (words.some((w) => !isInitial(w) && !isSuffix(w) && NAME_REJECT_WORD_RE.test(w))) return false;
+  if (!words.some((w) => /^[\p{Lu}]/u.test(w) || isInitial(w))) return false;
   return true;
 }
 
@@ -144,7 +146,7 @@ export function hashProfileIdentity(profile: BasicProfile): string {
  *
  * Must be called on the exact profile object being returned to the client.
  * Returns ok:true only if all hard checks pass.
- * On failure, caller must return 422 — never ok:true with a corrupted profile.
+ * On failure, caller must return 422, never ok:true with a corrupted profile.
  */
 export function validateResumeIntegrity(
   profile: BasicProfile,
@@ -175,7 +177,7 @@ export function validateResumeIntegrity(
   // ── Phone ───────────────────────────────────────────────────────────────────
   const phone = String(profile.basics?.phone || '').trim();
   if (phone && !isValidPhone(phone)) {
-    errors.push(`basics.phone "${phone}" looks like a date range — not a phone number`);
+    errors.push(`basics.phone "${phone}" looks like a date range, not a phone number`);
   } else {
     fieldScores.phone = phone ? 10 : 5;
   }

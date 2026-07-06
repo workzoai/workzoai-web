@@ -2,10 +2,10 @@
  * workzoVoiceHumanizer.ts
  *
  * Sprint fix: Sarah and Priya voice instructions upgraded for warmth and naturalness.
- * The WBS feedback said "robotic and difficult to understand" — this is the fix.
+ * The WBS feedback said "robotic and difficult to understand", this is the fix.
  *
  * Key changes:
- * - Sarah: genuinely warm, encouraging, conversational — like a supportive mentor
+ * - Sarah: genuinely warm, encouraging, conversational, like a supportive mentor
  * - Priya: energetic and direct but still human, not a speed-reader
  * - All personas: slower base rate, micro-pauses, pitch variation, clear enunciation
  * - TTS instructions now explicitly describe the emotional quality, not just style
@@ -70,7 +70,7 @@ export function getWorkZoVoiceStyle(
   const recovery = state.includes("recovering");
   const engaged = state.includes("engaged") || state.includes("interested");
 
-  // ── Sarah — warm, encouraging, professional HR recruiter ─────────────────
+  // ── Sarah, warm, encouraging, professional HR recruiter ─────────────────
   // Target sound: like a supportive career coach who genuinely wants you to succeed.
   // NOT: a neutral narrator. NOT: robotic question-machine.
   if (key === "sarah") {
@@ -96,14 +96,14 @@ export function getWorkZoVoiceStyle(
         : engaged
           ? ["That's helpful.", "Okay, that makes sense.", "Good."]
           : ["I see.", "Okay.", "That's helpful."],
-      rateBias: -0.06, // Noticeably slower than default — warmth needs space
+      rateBias: -0.06, // Noticeably slower than default, warmth needs space
       pitchBias: 0.05, // Slightly higher pitch = warmer, more human
       minPauseMs: pressure ? 620 : 480,
       maxPauseMs: pressure ? 1300 : 1050,
     };
   }
 
-  // ── Priya — energetic startup recruiter, still human ─────────────────────
+  // ── Priya, energetic startup recruiter, still human ─────────────────────
   // Target sound: fast-thinking, direct, but not robotic. Like a smart startup PM.
   if (key === "priya") {
     return {
@@ -129,7 +129,7 @@ export function getWorkZoVoiceStyle(
     };
   }
 
-  // ── Markus — structured corporate recruiter ───────────────────────────────
+  // ── Markus, structured corporate recruiter ───────────────────────────────
   if (key === "markus") {
     return {
       label: "corporate recruiter",
@@ -144,7 +144,7 @@ export function getWorkZoVoiceStyle(
     };
   }
 
-  // ── Daniel — analytical hiring manager ───────────────────────────────────
+  // ── Daniel, analytical hiring manager ───────────────────────────────────
   if (key === "daniel") {
     return {
       label: "analytical hiring manager",
@@ -164,7 +164,7 @@ export function getWorkZoVoiceStyle(
 }
 
 /**
- * getOpenAiTtsInstructions — the instructions sent to gpt-4o-mini-tts.
+ * getOpenAiTtsInstructions, the instructions sent to gpt-4o-mini-tts.
  *
  * These are the single most important lever for audio quality.
  * More specific = less robotic. Generic = robotic.
@@ -182,18 +182,18 @@ export function getOpenAiTtsInstructions(input: {
   // ── Sarah: specific instructions for warm human delivery ─────────────────
   if (key === "sarah") {
     const emotional = pressure
-      ? "You sound gently concerned — like a recruiter who cares but needs more clarity. Slightly firmer but still warm."
+      ? "You sound gently concerned, like a recruiter who cares but needs more clarity. Slightly firmer but still warm."
       : engaged
-        ? "You sound genuinely interested and encouraging — like someone who is leaning forward and wants the candidate to succeed."
-        : "You sound warm, professional, and genuinely caring — like a senior HR partner who has heard thousands of interviews and still treats each person as an individual.";
+        ? "You sound genuinely interested and encouraging, like someone who is leaning forward and wants the candidate to succeed."
+        : "You sound warm, professional, and genuinely caring, like a senior HR partner who has heard thousands of interviews and still treats each person as an individual.";
 
     return [
       "You are Sarah, a warm and professional HR recruiter on a video call interview.",
       emotional,
-      "Speak at about 80% of your normal pace — slow enough to be clear, natural enough to be human.",
+      "Speak at about 80% of your normal pace, slow enough to be clear, natural enough to be human.",
       "Use small, natural pauses after each sentence, especially after questions. Let the silence invite the candidate to think.",
-      "Vary your pitch naturally across sentences — start slightly higher, resolve lower at the end. Never monotone.",
-      "Pronounce every word clearly but not robotically — especially multi-syllable words like 'experience', 'opportunity', 'specifically'.",
+      "Vary your pitch naturally across sentences, start slightly higher, resolve lower at the end. Never monotone.",
+      "Pronounce every word clearly but not robotically, especially multi-syllable words like 'experience', 'opportunity', 'specifically'.",
       "Do not rush. Do not sound like a text-to-speech system. Sound like a real person on a video call.",
       "Do not add theatrical emotion or enthusiasm. Warm and professional is the target, not cheerful or salesy.",
     ].join(" ");
@@ -202,15 +202,15 @@ export function getOpenAiTtsInstructions(input: {
   // ── Priya: energetic but human ───────────────────────────────────────────
   if (key === "priya") {
     const emotional = pressure
-      ? "You sound direct and unconvinced — like a startup recruiter who needs more than what was just said."
-      : "You sound energetic and engaged — like a smart startup PM who is genuinely curious about this person.";
+      ? "You sound direct and unconvinced, like a startup recruiter who needs more than what was just said."
+      : "You sound energetic and engaged, like a smart startup PM who is genuinely curious about this person.";
 
     return [
       "You are Priya, an energetic startup recruiter on a video call interview.",
       emotional,
-      "Speak at a natural, lively pace — quicker than a formal interview but not rushed. Think: smart conversation between colleagues.",
+      "Speak at a natural, lively pace, quicker than a formal interview but not rushed. Think: smart conversation between colleagues.",
       "Use short natural pauses after questions. Let them breathe without dragging.",
-      "Vary your pitch to convey genuine interest — a slight rise when asking, a slight drop when making a point.",
+      "Vary your pitch to convey genuine interest, a slight rise when asking, a slight drop when making a point.",
       "Sound like a real person, not a transcript being read aloud. Concise and direct.",
       "Do not sound robotic. Do not rush. Keep pronunciation clear especially for non-native speakers.",
     ].join(" ");
@@ -220,10 +220,10 @@ export function getOpenAiTtsInstructions(input: {
   if (key === "markus") {
     return [
       "You are Markus, a structured corporate recruiter on a video call interview.",
-      pressure ? "You sound measured and precise — evaluating carefully." : "You sound professional and calm — steady and deliberate.",
-      "Speak at a measured, professional pace — about 85% of normal speed.",
+      pressure ? "You sound measured and precise, evaluating carefully." : "You sound professional and calm, steady and deliberate.",
+      "Speak at a measured, professional pace, about 85% of normal speed.",
       "Use clear, even pauses between sentences. No rushing. Deliberate pacing.",
-      "Pitch should be slightly lower than neutral — authoritative but not cold.",
+      "Pitch should be slightly lower than neutral, authoritative but not cold.",
       "Sound professional and precise. Clear enunciation on technical terms and dates.",
     ].join(" ");
   }
@@ -232,9 +232,9 @@ export function getOpenAiTtsInstructions(input: {
   if (key === "daniel") {
     return [
       "You are Daniel, an analytical hiring manager on a video call interview.",
-      pressure ? "You sound thoughtful and probing — waiting for the evidence you need." : "You sound calm and curious — analytically interested.",
-      "Speak at about 85% of normal pace — thoughtful pauses after questions, not rushed.",
-      "Pitch should be neutral to slightly lower — analytical, not cold.",
+      pressure ? "You sound thoughtful and probing, waiting for the evidence you need." : "You sound calm and curious, analytically interested.",
+      "Speak at about 85% of normal pace, thoughtful pauses after questions, not rushed.",
+      "Pitch should be neutral to slightly lower, analytical, not cold.",
       "Enunciate clearly. Pause naturally between thoughts.",
       "Sound like a real interviewer who is genuinely thinking about the answer.",
     ].join(" ");
@@ -243,8 +243,8 @@ export function getOpenAiTtsInstructions(input: {
   // Default
   return [
     "You are a professional recruiter on a video call interview.",
-    "Speak at 85% of normal pace — clear, warm, and human.",
-    "Use natural pauses after questions. Vary pitch slightly — never monotone.",
+    "Speak at 85% of normal pace, clear, warm, and human.",
+    "Use natural pauses after questions. Vary pitch slightly, never monotone.",
     "Sound like a real person, not a text-to-speech system. Keep pronunciation clear for non-native English speakers.",
   ].join(" ");
 }
@@ -255,7 +255,7 @@ export function getBrowserSpeechRate(input: {
   recruiterState?: WorkZoVoiceRecruiterState;
 }) {
   const style = getWorkZoVoiceStyle(input.recruiterId, input.recruiterState);
-  return clamp(input.baseRate + style.rateBias, 0.76, 0.98); // Cap max at 0.98 — never sound rushed
+  return clamp(input.baseRate + style.rateBias, 0.76, 0.98); // Cap max at 0.98, never sound rushed
 }
 
 export function getBrowserSpeechPitch(input: {

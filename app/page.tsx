@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
+  ArrowUp,
   BarChart3,
   CheckCircle2,
   ChevronDown,
@@ -914,6 +915,20 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
 export default function LandingPage() {
   const localizedPlans = useMemo(() => getWorkZoDisplayPrices("monthly"), []);
   const glowRef = useRef<HTMLDivElement>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 700);
+    };
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   useEffect(() => {
     let rafId = 0;
@@ -985,6 +1000,49 @@ export default function LandingPage() {
 
             <a href="#how" className="transition hover:text-fg">How it works</a>
             <Link href="/pricing" className="transition hover:text-fg">Pricing</Link>
+
+            <div className="group relative">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 transition hover:text-fg"
+              >
+                For Education
+                <ChevronDown className="h-4 w-4" />
+              </button>
+
+              {/* Invisible bridge prevents hover gap between button and menu */}
+              <div className="absolute left-1/2 top-full h-3 w-[760px] -translate-x-1/2" />
+              <div className="invisible absolute left-1/2 top-full z-50 mt-1 w-[760px] -translate-x-1/2 translate-y-1 rounded-2xl border border-line bg-canvas/95 p-6 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+                <div className="grid gap-3 md:grid-cols-2">
+                  {[
+                    ["Overview", "/for-education", "See how WorkZo AI improves interview readiness for groups and cohorts."],
+                    ["Coding Bootcamps", "/for-education/coding-bootcamps", "Prepare graduates for technical interviews, HR screens, and hiring days."],
+                    ["Universities & Career Services", "/for-education/universities-career-services", "Help students build interview confidence before internships and graduate roles."],
+                    ["Training Academies", "/for-education/training-academies", "Support learners across certification, reskilling, and career programs."],
+                    ["Enterprise Hiring", "/for-education/enterprise-hiring", "Standardize interview preparation for internal mobility and talent programs."],
+                    ["Recruitment Agencies", "/for-education/recruitment-agencies", "Help candidates practice before client interviews and final submissions."],
+                    ["Admin Dashboard", "/for-education/admin-dashboard", "Track engagement, usage, readiness trends, and progress across groups."],
+                    ["Security & Privacy", "/for-education/security-privacy", "Review GDPR-friendly data handling, privacy controls, and enterprise readiness."],
+                  ].map(([title, href, text]) => (
+                    <Link
+                      key={title}
+                      href={href}
+                      className="group/item grid grid-cols-[56px_1fr] gap-4 rounded-xl p-3 transition hover:bg-fg/10"
+                    >
+                      <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand/10 text-brand transition group-hover/item:bg-brand group-hover/item:text-on-brand">
+                        <UserRound className="h-5 w-5" />
+                      </span>
+                      <span>
+                        <span className="flex items-center gap-2 text-sm font-black text-fg">
+                          {title} <ArrowRight className="h-4 w-4 transition group-hover/item:translate-x-1" />
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-muted">{text}</span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
 
             <div className="group relative">
               <button
@@ -1393,154 +1451,133 @@ export default function LandingPage() {
       <TestimonialsSection />
 
       {/* ── Pricing ── */}
-      <section className="px-4 py-20 sm:px-6 lg:px-8">
+      <section className="px-4 py-20 sm:px-6 lg:px-8" id="pricing">
         <div className="mx-auto max-w-7xl">
           <div className="mx-auto max-w-3xl text-center">
             <SectionLabel>Pricing</SectionLabel>
             <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
-              Know what the offer costs. Then close the gap.
+              Choose the interview preparation plan that fits your career journey.
             </h2>
             <p className="mt-4 text-base leading-7 text-muted">
-              Free shows where the gap is. Premium closes it. Premium Pro builds on every session until the offer lands.
+              Free helps you try WorkZo. Premium is for daily audio practice. Pro adds video and coaching. Enterprise scales interview readiness for cohorts.
             </p>
           </div>
 
-          <div className="mt-10 grid items-stretch gap-4 lg:grid-cols-3">
-
-            {/* Free */}
-            <div className="flex flex-col rounded-xl border border-line bg-fg/[0.03] p-6">
-              <div className="mb-5 h-6">
-                <span className="inline-flex items-center rounded-full border border-line bg-fg/5 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
-                  Free forever
-                </span>
-              </div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-muted">Free</p>
-              <h3 className="mt-1.5 text-lg font-black leading-snug text-fg">Start here</h3>
-              <p className="mt-4 text-4xl font-black text-fg sm:text-3xl">{localizedPlans.free.amount}</p>
-              <p className="mt-3 text-sm leading-6 text-muted">
-                Two sessions. Enough to find the question that would have cost the offer.
-              </p>
-              <div className="my-5 h-px bg-fg/[0.07]" />
-              <div className="flex-1 space-y-2.5">
-                {[
-                  "2 voice interviews / month",
-                  "CV-aware recruiter questions",
-                  "Follow-ups based on what was said",
-                  "Post-session breakdown",
-                  "4 recruiter personas",
-                ].map((item) => (
-                  <div key={item} className="flex items-start gap-2.5">
-                    <CheckCircle2 className="mt-0.5 h-[15px] w-[15px] shrink-0 text-success" />
-                    <span className="text-sm leading-[1.45] text-fg">{item}</span>
-                  </div>
-                ))}
-                <div className="mt-4 space-y-2.5 border-t border-line pt-4">
-                  {["Session history", "CV diagnostics", "Live AI recruiter"].map((item) => (
+          <div className="mt-10 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                badge: "Free forever",
+                tier: "Free",
+                title: "Try WorkZo",
+                price: localizedPlans.free.amount,
+                suffix: "",
+                text: "Perfect for trying one realistic AI interview before committing.",
+                features: ["1 complete AI voice interview", "CV-aware recruiter questions", "Basic interview report", "Basic STAR scorecard", "Standard recruiter personas"],
+                cta: "Get Started",
+                href: "/onboarding",
+                featured: false,
+              },
+              {
+                badge: "Most popular",
+                tier: "Premium",
+                title: "Practice Daily",
+                price: localizedPlans.premium.amount,
+                regular: localizedPlans.premium.regular,
+                suffix: "/month",
+                text: "For active job seekers who want daily interview practice and full application tools.",
+                features: ["300 AI voice minutes / month", "Unlimited Resume / CV optimization", "Unlimited ATS analysis", "Unlimited cover letters", "Basic progress tracking", "All languages"],
+                cta: "Upgrade Now",
+                href: "/pricing?plan=premium",
+                featured: true,
+              },
+              {
+                badge: "Best for serious candidates",
+                tier: "Premium Pro",
+                title: "Master Interviews",
+                price: localizedPlans.premiumPro.amount,
+                regular: localizedPlans.premiumPro.regular,
+                suffix: "/month",
+                text: "For high-stakes interviews where face-to-face delivery and coaching matter.",
+                features: ["600 AI voice minutes / month", "60 AI video minutes / month (early access)", "Detailed interview feedback", "Advanced performance analysis", "Multi-session interview history", "AI improvement suggestions"],
+                cta: "Go Pro",
+                href: "/pricing?plan=premium_pro",
+                featured: false,
+              },
+              {
+                badge: "Institutional",
+                tier: "Enterprise & Education",
+                title: "Train Cohorts",
+                price: "Custom",
+                suffix: "/annual",
+                text: "For universities, bootcamps, and hiring teams managing interview readiness at scale.",
+                features: ["Shared voice & video minute pools", "Custom recruiter personas", "Team management", "Dedicated onboarding", "Priority support", "Volume pricing"],
+                cta: "Request Demo",
+                href: "mailto:support@workzoai.com?subject=WorkZo%20AI%20Enterprise%20%2F%20Education%20Demo%20Request",
+                featured: false,
+                enterprise: true,
+              },
+            ].map((plan) => (
+              <div
+                key={plan.tier}
+                id={plan.enterprise ? "enterprise" : undefined}
+                className={`flex flex-col rounded-xl border p-6 ${
+                  plan.featured
+                    ? "border-2 border-brand/50 bg-canvas shadow-xl shadow-brand/10"
+                    : plan.enterprise
+                      ? "border-fg/25 bg-fg/[0.05]"
+                      : "border-line bg-fg/[0.03]"
+                }`}
+              >
+                <div className="mb-5 h-6">
+                  <span className={`inline-flex items-center rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] ${
+                    plan.featured ? "bg-brand/20 text-brand" : "border border-line bg-fg/5 text-muted"
+                  }`}>
+                    {plan.badge}
+                  </span>
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-muted">{plan.tier}</p>
+                <h3 className="mt-1.5 text-lg font-black leading-snug text-fg">{plan.title}</h3>
+                <div className="mt-4 flex flex-wrap items-baseline gap-2">
+                  {plan.regular ? <span className="text-sm font-black text-subtle line-through decoration-2">{plan.regular}</span> : null}
+                  <span className="text-4xl font-black text-fg sm:text-3xl">{plan.price}</span>
+                  {plan.suffix ? <span className="text-base text-muted">{plan.suffix}</span> : null}
+                </div>
+                <p className="mt-3 text-sm leading-6 text-muted">{plan.text}</p>
+                {plan.featured ? <p className="mt-2 text-xs font-black text-success">24-hour free trial · cancel anytime before charged</p> : null}
+                <div className="my-5 h-px bg-fg/[0.07]" />
+                <div className="flex-1 space-y-2.5">
+                  {plan.features.map((item) => (
                     <div key={item} className="flex items-start gap-2.5">
-                      <div className="mt-[5px] h-[6px] w-[6px] shrink-0 rounded-full bg-fg/15" />
-                      <span className="text-sm leading-[1.45] text-muted">{item}</span>
+                      <CheckCircle2 className="mt-0.5 h-[15px] w-[15px] shrink-0 text-brand" />
+                      <span className="text-sm leading-[1.45] text-fg">{item}</span>
                     </div>
                   ))}
                 </div>
+                <Link
+                  href={plan.href}
+                  className={`mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-black transition ${
+                    plan.featured
+                      ? "bg-brand text-on-brand hover:bg-brand"
+                      : plan.enterprise
+                        ? "border-2 border-fg/30 bg-transparent text-fg hover:border-fg hover:bg-fg/5"
+                        : "border border-line bg-fg/10 text-fg hover:bg-fg/20"
+                  }`}
+                >
+                  {plan.cta} <ArrowRight className="h-4 w-4" />
+                </Link>
               </div>
-              <Link
-                href="/onboarding"
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-fg/10 px-6 py-3 text-sm font-black text-fg transition hover:bg-fg/20"
-              >
-                Start Free <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
+            ))}
+          </div>
 
-            {/* Premium */}
-            <div className="flex flex-col rounded-xl border-2 border-brand/50 bg-canvas p-6">
-              <div className="mb-5 h-6">
-                <span className="inline-flex items-center rounded-full bg-brand/20 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-brand">
-                  Most popular
-                </span>
-              </div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-muted">Premium</p>
-              <h3 className="mt-1.5 text-lg font-black leading-snug text-fg">Full readiness system</h3>
-              <div className="mt-4 flex flex-wrap items-baseline gap-2">
-                <span className="text-sm font-black text-subtle line-through decoration-2">{localizedPlans.premium.regular}</span>
-                <span className="text-4xl font-black text-fg sm:text-3xl">{localizedPlans.premium.amount}</span>
-                <span className="text-base text-muted">/month</span>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-muted">
-                Everything needed to close the gap: sessions, CV diagnostics, cover letters, and full history.
-              </p>
-              <p className="mt-2 text-xs font-black text-success">
-                24-hour free trial · cancel anytime before charged
-              </p>
-              <div className="my-5 h-px bg-fg/[0.07]" />
-              <div className="flex-1 space-y-2.5">
-                {[
-                  "50 voice interviews / month",
-                  "Trust score timeline per session",
-                  "Full session history",
-                  "CV diagnostics + ATS optimisation",
-                  "Cover letter builder",
-                  "Job analysis tool",
-                  "Career Brain + performance tracking",
-                ].map((item) => (
-                  <div key={item} className="flex items-start gap-2.5">
-                    <CheckCircle2 className="mt-0.5 h-[15px] w-[15px] shrink-0 text-brand" />
-                    <span className="text-sm leading-[1.45] text-fg">{item}</span>
-                  </div>
-                ))}
-              </div>
-              <Link
-                href="/pricing?plan=premium"
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-6 py-3 text-sm font-black text-on-brand transition hover:bg-brand"
-              >
-                Choose Premium <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
+          <p className="mx-auto mt-10 max-w-3xl text-center text-sm font-bold text-fg/80">
+            Every plan: interview questions are generated from <span className="text-fg">your CV and the actual job description</span>, never generic question banks.
+          </p>
 
-            {/* Premium Pro */}
-            <div className="flex flex-col rounded-xl border border-brand/30 bg-fg/[0.03] p-6">
-              <div className="mb-5 h-6">
-                <span className="inline-flex items-center rounded-full bg-brand/15 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-brand">
-                  Full system
-                </span>
-              </div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-muted">Premium Pro</p>
-              <h3 className="mt-1.5 text-lg font-black leading-snug text-fg">Long-term career system</h3>
-              <div className="mt-4 flex flex-wrap items-baseline gap-2">
-                <span className="text-sm font-black text-subtle line-through decoration-2">{localizedPlans.premiumPro.regular}</span>
-                <span className="text-4xl font-black text-fg sm:text-3xl">{localizedPlans.premiumPro.amount}</span>
-                <span className="text-base text-muted">/month</span>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-muted">
-                For candidates who want more than one-off prep. Builds session to session.
-              </p>
-              <p className="mt-2 text-xs font-black text-brand">
-                2 free live recruiter minutes included
-              </p>
-              <div className="my-5 h-px bg-fg/[0.07]" />
-              <div className="flex-1 space-y-2.5">
-                {[
-                  "Everything in Premium",
-                  "Unlimited voice interviews",
-                  "Live AI video recruiter",
-                  "60 live recruiter minutes / month",
-                  "Premium recruiter personas",
-                  "AI career coach",
-                  "30/60/90 day roadmaps",
-                ].map((item) => (
-                  <div key={item} className="flex items-start gap-2.5">
-                    <CheckCircle2 className="mt-0.5 h-[15px] w-[15px] shrink-0 text-brand" />
-                    <span className="text-sm leading-[1.45] text-fg">{item}</span>
-                  </div>
-                ))}
-              </div>
-              <Link
-                href="/pricing?plan=premium_pro"
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-6 py-3 text-sm font-black text-on-brand transition hover:bg-brand"
-              >
-                Choose Premium Pro <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-
+          <div className="mx-auto mt-6 flex max-w-4xl flex-wrap items-center justify-center gap-x-7 gap-y-3 text-xs font-bold text-muted">
+            <span>✓ Cancel anytime</span>
+            <span>✓ Secure payments</span>
+            <span>✓ GDPR-friendly</span>
+            <span>✓ No CV data sold</span>
           </div>
         </div>
       </section>
@@ -1561,7 +1598,7 @@ export default function LandingPage() {
               ["What does the trust score actually measure?", "Recruiter confidence, updated after each answer. A drop means something was vague, ownership was unclear, or a claim went unproven. The timeline shows exactly which answer caused it."],
               ["Does it read my actual CV?", "Yes. Upload or paste a CV and the recruiter asks about the specific roles, gaps, and claims in it. Generic prep tools cannot do that."],
               ["What does the report show?", "Trust score per question, the exact moment confidence dropped, the follow-up that would have come next, and a specific improvement plan, not general tips."],
-              ["Which languages work?", "English, German, Dutch, French, Spanish, Italian, and Portuguese. The recruiter speaks in the selected language, not just the interface."],
+              ["Which languages work?", "English, German, Dutch, French, Spanish, Italian, Portuguese, Chinese, Hindi, Arabic, Japanese, Korean, Polish, Russian, and Turkish. The recruiter speaks in the selected language, not just the interface."],
             ].map(([question, answer]) => (
               <FaqItem key={question} question={question} answer={answer} />
             ))}
@@ -1570,6 +1607,17 @@ export default function LandingPage() {
       </section>
 
       <WorkZoFooter />
+
+      <button
+        type="button"
+        aria-label="Back to top"
+        onClick={scrollToTop}
+        className={`fixed bottom-6 right-6 z-[60] grid h-12 w-12 place-items-center rounded-full border border-line bg-brand text-on-brand shadow-2xl shadow-black/25 transition hover:bg-brand-strong ${
+          showBackToTop ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"
+        }`}
+      >
+        <ArrowUp className="h-5 w-5" />
+      </button>
     </main>
   );
 }

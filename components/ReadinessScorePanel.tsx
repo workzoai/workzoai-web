@@ -61,7 +61,7 @@ function DimensionBar({
             </span>
           )}
           <span className="text-sm font-black text-fg w-16 text-right">
-            {dim.available ? `${dim.score}/100` : "—"}
+            {dim.available ? `${dim.score}/100` : "-"}
           </span>
         </div>
       </div>
@@ -263,7 +263,7 @@ export default function ReadinessScorePanel({
           <ReadinessRing score={readiness.overall} label={readiness.grade} />
         </div>
 
-        {/* Mini bars — just labels and scores */}
+        {/* Mini bars, just labels and scores */}
         <div className="space-y-2 mb-4">
           {([dims.cv, dims.interview, dims.technical, dims.communication, dims.jdFit] as ReadinessDimension[]).map((dim) => (
             <div key={dim.label} className="flex items-center gap-2">
@@ -280,7 +280,7 @@ export default function ReadinessScorePanel({
                 />
               </div>
               <span className="w-10 text-right text-xs font-black text-fg">
-                {dim.available ? `${dim.score}` : "—"}
+                {dim.available ? `${dim.score}` : "-"}
               </span>
             </div>
           ))}
@@ -388,7 +388,7 @@ export default function ReadinessScorePanel({
             <BarChart3 className="h-4 w-4 shrink-0 text-brand mt-0.5" />
             <div>
               <p className="text-xs font-black text-brand">Technical score not yet assessed</p>
-              <p className="mt-1 text-xs text-muted">Complete the technical assessment to unlock your full readiness profile. It takes {isPremium ? "10–12" : "5"} minutes.</p>
+              <p className="mt-1 text-xs text-muted">Complete the technical assessment to unlock your full readiness profile. It takes {isPremium ? "10-12" : "5"} minutes.</p>
             </div>
           </div>
           <Link
@@ -411,7 +411,7 @@ export default function ReadinessScorePanel({
           <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
             <div className="text-center">
               <Lock className="h-5 w-5 text-warning mx-auto mb-2" />
-              <p className="text-xs font-black text-fg">Trend tracking — Premium</p>
+              <p className="text-xs font-black text-fg">Trend tracking, Premium</p>
               <Link href="/pricing?intent=readiness-trend" className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-black text-on-brand hover:bg-brand">
                 <Crown className="h-3.5 w-3.5" /> Upgrade
               </Link>

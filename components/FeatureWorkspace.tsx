@@ -108,7 +108,7 @@ function buildCvPreview(cv: string, jd: string, role: string, template: Template
 
   if (template === "career-switcher") {
     return [
-      `${title.toUpperCase()} — CAREER SWITCHER CV`,
+      `${title.toUpperCase()}, CAREER SWITCHER CV`,
       "",
       "PROFILE SUMMARY",
       `Motivated professional targeting ${title}, combining customer-facing experience, structured problem-solving, and practical project work.`,
@@ -158,7 +158,7 @@ function buildCvPreview(cv: string, jd: string, role: string, template: Template
   }
 
   return [
-    `${title.toUpperCase()} CV — ATS CLEAN TEMPLATE`,
+    `${title.toUpperCase()} CV, ATS CLEAN TEMPLATE`,
     "",
     "SUMMARY",
     `Professional targeting ${title}. Strong focus on ownership, measurable impact, communication, and practical problem-solving.`,
@@ -212,7 +212,7 @@ function buildJobPlan(profile: string, target: string, setup: WorkZoInterviewSet
   const role = target.trim() || setupRole(setup);
   const market = setupMarket(setup);
   return [
-    `JOB SEARCH PLAN — ${role}`,
+    `JOB SEARCH PLAN, ${role}`,
     "",
     "TARGET ROLES TO SEARCH",
     `• ${role}`,
@@ -226,8 +226,8 @@ function buildJobPlan(profile: string, target: string, setup: WorkZoInterviewSet
     "",
     "WEEKLY PLAN",
     "1. Save 20 relevant roles.",
-    "2. Shortlist 8–10 strong-fit roles.",
-    "3. Tailor CV for 3–5 applications.",
+    "2. Shortlist 8-10 strong-fit roles.",
+    "3. Tailor CV for 3-5 applications.",
     "4. Generate role-specific cover letters.",
     "5. Practice one interview simulation for the strongest role.",
     "",

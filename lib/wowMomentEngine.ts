@@ -99,7 +99,7 @@ export function createWowMoment(input: WowMomentInput): WowMomentResult {
     return {
       shouldTrigger: true,
       type: "cv_mismatch",
-      line: `Wait — I need to stop here because this does not fully match what I have from your CV or earlier answer. ${latestContradiction}`,
+      line: `Wait, I need to stop here because this does not fully match what I have from your CV or earlier answer. ${latestContradiction}`,
       emotionalTag: "Recruiter detected a mismatch",
       intensity: "high",
     };

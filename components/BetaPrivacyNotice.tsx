@@ -20,7 +20,7 @@ export default function PrivacyNotice({
         <div>
           <p className="font-black">Privacy notice</p>
           <p className="mt-1 text-sm leading-6 text-brand/85">
-            WorkZo AI uses AI to generate interview feedback and scoring. Results are for practice only — always validate important feedback independently.
+            WorkZo AI uses AI to generate interview feedback and scoring. Results are for practice only, always validate important feedback independently.
             Please review outputs before using them for real applications.
           </p>
           {!compact && (

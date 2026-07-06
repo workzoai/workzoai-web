@@ -213,7 +213,7 @@ export default function LoginPage() {
         <p className="mt-6 text-center text-sm text-subtle">
           No account?{" "}
           <Link href="/onboarding" className="font-black text-muted hover:text-fg">
-            Start free — no signup needed
+            Start free, no signup needed
           </Link>
         </p>
       </div>

@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // ElevenLabs is used for premium voice quality.
-// Free users fall back to browser TTS — they never hit this route.
+// Free users fall back to browser TTS, they never hit this route.
 // Premium and Premium Pro both get ElevenLabs access.
 
 function getVoiceId(recruiterId: string) {
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // ElevenLabs is premium voice — free users use browser TTS instead.
+  // ElevenLabs is premium voice, free users use browser TTS instead.
   if (resolved.plan === "free") {
     return NextResponse.json(
       { error: "upgrade_required", requiredPlan: "premium", message: "Premium voice requires an upgrade." },

@@ -79,6 +79,7 @@ export default function SaveInterviewSessionCard({ result }: Props) {
       verdict: result.verdict || null,
       summary: result.summary || null,
       weakestMoment: result.weakestMoment || null,
+      orgCode: (() => { try { return window.localStorage.getItem("workzo_org_code") || null; } catch { return null; } })(),
       report: result,
     }),
     [result],

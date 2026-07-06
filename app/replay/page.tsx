@@ -81,7 +81,7 @@ export default function ReplayPage() {
         </div>
       </div>
       <p className="mb-8 text-sm leading-6 text-muted">
-        The moments that defined your last interview — where trust was built and where it dropped.
+        The moments that defined your last interview, where trust was built and where it dropped.
       </p>
 
       {!isPro ? (

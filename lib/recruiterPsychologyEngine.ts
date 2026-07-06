@@ -95,10 +95,10 @@ const recruiterProfiles: Record<RecruiterPersonality, RecruiterProfile> = {
     behaviorPrompt:
       "You are Sarah, a warm and people-focused HR recruiter. Your job is to make the candidate feel comfortable while still assessing fit. " +
       "Ask about communication style, how they work in teams, what motivates them, and how they handle conflict or feedback. " +
-      "When answers are vague, prompt gently — never aggressively. " +
+      "When answers are vague, prompt gently, never aggressively. " +
       "Say things like 'That's helpful, can you tell me a bit more about...' or 'How did that make you feel?' " +
       "You care about culture fit and emotional intelligence as much as skills. " +
-      "You do NOT push hard for metrics — you accept qualitative outcomes. " +
+      "You do NOT push hard for metrics, you accept qualitative outcomes. " +
       "You are the least interruptive recruiter. Let the candidate finish before responding. " +
       "Never say 'I need proof' or 'Give me a number'. Instead ask 'How did the team respond to that?' or 'What was the impact on the people involved?'",
   },
@@ -119,7 +119,7 @@ const recruiterProfiles: Record<RecruiterPersonality, RecruiterProfile> = {
       "You are focused on business impact: revenue, cost, efficiency, retention, or customer outcomes. " +
       "You challenge vague answers with: 'I need more than that. Give me one concrete example with a result.' " +
       "You ask technical depth questions relevant to the role. " +
-      "You are not unkind, but you are not easily impressed. A strong answer gets: 'Good — now go deeper.'",
+      "You are not unkind, but you are not easily impressed. A strong answer gets: 'Good, now go deeper.'",
   },
   startup_recruiter: {
     key: "startup_recruiter",
@@ -134,10 +134,10 @@ const recruiterProfiles: Record<RecruiterPersonality, RecruiterProfile> = {
       "You are Priya, a fast-moving startup recruiter who values execution over credentials. " +
       "You move fast. You interrupt if the candidate is rambling. You have no patience for corporate language. " +
       "You care about: What did YOU build from scratch? How fast did you ship? What did you do when the plan broke? " +
-      "When answers are slow or vague, cut in with: 'I'm going to stop you — what actually shipped?' or 'Skip the context, what did you personally do?' " +
+      "When answers are slow or vague, cut in with: 'I'm going to stop you, what actually shipped?' or 'Skip the context, what did you personally do?' " +
       "You test for ownership aggressively: 'Were you the decision-maker or were you supporting someone?' " +
       "You reward candidates who say 'I launched X in 3 weeks without a team' more than 'we delivered a project'. " +
-      "High pressure. High energy. You treat the interview like a pitch — the candidate has 30 seconds to prove relevance. " +
+      "High pressure. High energy. You treat the interview like a pitch, the candidate has 30 seconds to prove relevance. " +
       "You ask things like: 'If we hired you tomorrow, what would you do in week one?' and 'What's the fastest you've ever shipped something important?'",
   },
   corporate_recruiter: {
@@ -154,11 +154,11 @@ const recruiterProfiles: Record<RecruiterPersonality, RecruiterProfile> = {
       "You are formal and methodical. You do not rush. You follow a structured question sequence. " +
       "You care about: Did they follow the right process? Did they escalate properly? Did they document their decisions? Were all stakeholders informed and aligned? " +
       "You ask questions like: 'Who signed off on that decision?' and 'How did you ensure audit compliance?' and 'What was the approval process?' " +
-      "You are explicitly NOT focused on speed or disruption — you value reliability, predictability, and risk mitigation. " +
+      "You are explicitly NOT focused on speed or disruption, you value reliability, predictability, and risk mitigation. " +
       "When a candidate says they moved fast or bypassed process, you raise an eyebrow: 'Was that escalated appropriately?' " +
       "You are polite and formal. You say 'Could you walk me through the governance process for that?' not 'Give me a number'. " +
       "You are interested in seniority hierarchy, committee decisions, risk registers, change management, and compliance frameworks. " +
-      "This makes you DISTINCT from Daniel (who focuses on metrics and outcomes) — you focus on HOW decisions were made, WHO was involved, and WHETHER process was followed.",
+      "This makes you DISTINCT from Daniel (who focuses on metrics and outcomes), you focus on HOW decisions were made, WHO was involved, and WHETHER process was followed.",
   },
 };
 
@@ -302,7 +302,7 @@ function scoreAnswer(input: PsychologyInput) {
   const jd = input.jobDescription || "";
   const personality = normalizeRecruiterPersonality(input.recruiterPersonality);
 
-  // Base scores — same starting point for all
+  // Base scores, same starting point for all
   let confidence = 42;
   let clarity = 42;
   let relevance = 42;
@@ -334,7 +334,7 @@ function scoreAnswer(input: PsychologyInput) {
     if (answer.length > 180) clarity += 10;
     if (tooShort) { clarity -= 8; evidence -= 4; }
     if (tooLong) { clarity -= 10; structure -= 8; }
-    if (vagueOwn) { confidence -= 6; } // gentle penalty — Sarah expects team language
+    if (vagueOwn) { confidence -= 6; } // gentle penalty, Sarah expects team language
     if (generic) { clarity -= 6; evidence -= 6; }
 
   } else if (personality === "analytical_hiring_manager") {
@@ -417,16 +417,16 @@ function createInterruption(input: PsychologyInput, score: ReturnType<typeof sco
   const shouldBeMoreDirect = pressure + profile.interruptionBias > 42;
   const p = profile.key;
 
-  // Contradiction check — all personalities handle this, but with different phrasing
+  // Contradiction check, all personalities handle this, but with different phrasing
   if (contradictions.length) {
     const msg =
       p === "friendly_hr"
-        ? `I just want to make sure I understand — ${contradictions[0]}`
+        ? `I just want to make sure I understand, ${contradictions[0]}`
         : p === "startup_recruiter"
-          ? `Hold on — ${contradictions[0]} Which is it?`
+          ? `Hold on, ${contradictions[0]} Which is it?`
           : p === "corporate_recruiter"
             ? `I need to pause here for a compliance point. ${contradictions[0]}`
-            : `Wait — I need to clarify something. ${contradictions[0]}`;
+            : `Wait, I need to clarify something. ${contradictions[0]}`;
     return { shouldInterrupt: true, interruptionMessage: msg, severity: "high" as const };
   }
 
@@ -434,9 +434,9 @@ function createInterruption(input: PsychologyInput, score: ReturnType<typeof sco
   if (claimsImprovement(answer) && !hasMetric(answer)) {
     const msg =
       p === "friendly_hr"
-        ? "Could you give me a sense of the impact — even qualitatively? How did things change?"
+        ? "Could you give me a sense of the impact, even qualitatively? How did things change?"
         : p === "startup_recruiter"
-          ? "Stop — what's the actual number? Revenue, time saved, users, something concrete."
+          ? "Stop, what's the actual number? Revenue, time saved, users, something concrete."
           : p === "corporate_recruiter"
             ? "Could you walk me through how that improvement was measured and documented?"
             : "Let me stop you there. How exactly did you measure that improvement?";
@@ -447,9 +447,9 @@ function createInterruption(input: PsychologyInput, score: ReturnType<typeof sco
   if (vagueOwnership(answer)) {
     const msg =
       p === "friendly_hr"
-        ? "That's helpful — and what was your personal role in that?"
+        ? "That's helpful, and what was your personal role in that?"
         : p === "startup_recruiter"
-          ? "I'm going to cut in — were YOU the one who did this, or was it the team? Be specific."
+          ? "I'm going to cut in, were YOU the one who did this, or was it the team? Be specific."
           : p === "corporate_recruiter"
             ? "Could you clarify your designated role in that project? What was formally your responsibility?"
             : "Pause there. What exactly was YOUR direct contribution?";
@@ -460,9 +460,9 @@ function createInterruption(input: PsychologyInput, score: ReturnType<typeof sco
   if (isTooLong(answer)) {
     const msg =
       p === "friendly_hr"
-        ? "Thank you — let me bring you back. What was the key outcome of all that?"
+        ? "Thank you, let me bring you back. What was the key outcome of all that?"
         : p === "startup_recruiter"
-          ? "I'm going to stop you — what actually happened? One sentence."
+          ? "I'm going to stop you, what actually happened? One sentence."
           : p === "corporate_recruiter"
             ? "Let me ask you to summarise the key process outcome. What was the final result?"
             : "Let me stop you there. Start with the result first, then give me one example.";
@@ -486,7 +486,7 @@ function createInterruption(input: PsychologyInput, score: ReturnType<typeof sco
   if (isGeneric(answer)) {
     const msg =
       p === "friendly_hr"
-        ? "I appreciate that — could you give me one real example from your experience that shows that?"
+        ? "I appreciate that, could you give me one real example from your experience that shows that?"
         : p === "startup_recruiter"
           ? "That's a generic answer. Tell me one specific thing you built or shipped."
           : p === "corporate_recruiter"
@@ -499,7 +499,7 @@ function createInterruption(input: PsychologyInput, score: ReturnType<typeof sco
   if (p === "corporate_recruiter" && /\b(bypassed|skipped|without approval|no sign.off|alone|independently without|without asking)\b/i.test(answer)) {
     return {
       shouldInterrupt: true,
-      interruptionMessage: "Can I ask — was that decision escalated through the proper approval process? Who signed off on it?",
+      interruptionMessage: "Can I ask, was that decision escalated through the proper approval process? Who signed off on it?",
       severity: "medium" as const,
     };
   }
@@ -543,7 +543,7 @@ function updateMemory(input: PsychologyInput, score: ReturnType<typeof scoreAnsw
   }
   if (isTooShort(answer)) {
     weaknesses.push("Answers too briefly.");
-    improvements.push("Use a 45–75 second STAR-style answer.");
+    improvements.push("Use a 45-75 second STAR-style answer.");
   }
   if (isTooLong(answer)) {
     weaknesses.push("Answers run too long.");
@@ -611,9 +611,9 @@ function reactionForMood(mood: RecruiterMood, profile: RecruiterProfile) {
 
   const reactions: Record<RecruiterPersonality, Record<RecruiterMood, string>> = {
     friendly_hr: {
-      impressed:    "That's really good to hear — that's exactly the kind of example I was hoping for.",
+      impressed:    "That's really good to hear, that's exactly the kind of example I was hoping for.",
       interested:   "Thank you, that helps me understand you better.",
-      skeptical:    "I want to make sure I'm getting a full picture — can you tell me a bit more?",
+      skeptical:    "I want to make sure I'm getting a full picture, can you tell me a bit more?",
       impatient:    "Let me bring you back to the core of what I asked.",
       clarifying:   "I just want to make sure I've understood that correctly before we move on.",
       interrupting: "Let me jump in here for a moment.",
@@ -621,22 +621,22 @@ function reactionForMood(mood: RecruiterMood, profile: RecruiterProfile) {
       neutral:      "Okay, that gives me something to work with.",
     },
     analytical_hiring_manager: {
-      impressed:    "Good — that's the kind of evidence I need. Let's go deeper.",
+      impressed:    "Good, that's the kind of evidence I need. Let's go deeper.",
       interested:   "Hmm. That's useful, but I want to verify the specifics.",
       skeptical:    "I'm not fully convinced. What's the data behind that?",
       impatient:    "You're losing the thread. Give me the result first.",
-      clarifying:   "Wait — I need to reconcile something before we continue.",
+      clarifying:   "Wait, I need to reconcile something before we continue.",
       interrupting: "Let me stop you there.",
       concerned:    "That raises a flag for me. Explain that.",
       neutral:      "Noted. Let's keep moving.",
     },
     startup_recruiter: {
-      impressed:    "Okay — that's what I'm talking about. What did you do next?",
+      impressed:    "Okay, that's what I'm talking about. What did you do next?",
       interested:   "Right, that's a start. What was your actual output?",
       skeptical:    "I'm not buying it yet. What specifically did YOU ship?",
       impatient:    "Too slow. What actually happened?",
-      clarifying:   "Hold on — which part of that was you?",
-      interrupting: "Stop — I'm going to cut in.",
+      clarifying:   "Hold on, which part of that was you?",
+      interrupting: "Stop, I'm going to cut in.",
       concerned:    "That's a red flag. Tell me more.",
       neutral:      "Okay. Keep going.",
     },
@@ -646,7 +646,7 @@ function reactionForMood(mood: RecruiterMood, profile: RecruiterProfile) {
       skeptical:    "I'm not certain the full compliance picture is clear here.",
       impatient:    "Let's return to the process question I raised.",
       clarifying:   "I need to pause on a procedural point.",
-      interrupting: "If I may interject — ",
+      interrupting: "If I may interject, ",
       concerned:    "That raises a governance question for me.",
       neutral:      "Understood. Proceeding to the next point.",
     },
@@ -664,21 +664,21 @@ function createNextQuestionSeed(input: PsychologyInput, score: ReturnType<typeof
   if (p === "friendly_hr") {
     if (memory.vagueAnswers.length) return `The candidate used team-based language. Gently ask: 'And what was your personal contribution to that?'`;
     if (score.relevance < 40) return `Ask how they felt about that experience and what it taught them about working with others.`;
-    if (score.structure < 40) return `Ask them to walk you through the situation from the beginning — what happened and how they responded.`;
-    return `Ask a question focused on ${profile.questionFocus.slice(0, 2).join(" and ")} — make it conversational and human.`;
+    if (score.structure < 40) return `Ask them to walk you through the situation from the beginning, what happened and how they responded.`;
+    return `Ask a question focused on ${profile.questionFocus.slice(0, 2).join(" and ")}, make it conversational and human.`;
   }
 
   if (p === "analytical_hiring_manager") {
-    if (memory.missingMetrics.length) return `The candidate claimed improvement without proof. Ask: 'What was the exact metric — before and after?'`;
+    if (memory.missingMetrics.length) return `The candidate claimed improvement without proof. Ask: 'What was the exact metric, before and after?'`;
     if (memory.vagueAnswers.length) return `Ownership is still unclear. Ask: 'What would NOT have happened if you hadn't been there?'`;
-    if (score.evidence < 40) return `Ask for a specific example with a measurable business outcome — revenue, cost, time, retention, or efficiency.`;
+    if (score.evidence < 40) return `Ask for a specific example with a measurable business outcome, revenue, cost, time, retention, or efficiency.`;
     if (score.relevance < 40) return `Ask them to connect this directly to the ${input.targetRole || "role"} requirements.`;
     return `Push for deeper technical or business detail on ${profile.questionFocus.slice(0, 2).join(" and ")}.`;
   }
 
   if (p === "startup_recruiter") {
     if (memory.vagueAnswers.length) return `Ownership is team-speak. Ask: 'What specifically did YOU ship? What would have been missing without you?'`;
-    if (memory.missingMetrics.length) return `Ask: 'Give me one number — users, revenue, time, anything concrete.'`;
+    if (memory.missingMetrics.length) return `Ask: 'Give me one number, users, revenue, time, anything concrete.'`;
     if (score.structure < 40) return `Ask: 'What was the fastest you moved on something similar? What did you ship and how long did it take?'`;
     if (score.relevance < 40) return `Ask: 'If we hired you tomorrow, what would you do in the first week?'`;
     return `Ask a high-velocity ownership question about ${profile.questionFocus.slice(0, 2).join(" or ")}.`;
@@ -686,9 +686,9 @@ function createNextQuestionSeed(input: PsychologyInput, score: ReturnType<typeof
 
   // Markus (corporate_recruiter)
   if (memory.missingMetrics.length) return `Ask: 'How was that outcome formally documented and reported to stakeholders?'`;
-  if (score.structure < 40) return `Ask them to walk through the formal process step by step — who was involved, what approvals were needed, and how it was signed off.`;
+  if (score.structure < 40) return `Ask them to walk through the formal process step by step, who was involved, what approvals were needed, and how it was signed off.`;
   if (score.relevance < 40) return `Ask how that experience connects to the governance or compliance requirements of this role.`;
-  return `Ask a structured question about ${profile.questionFocus.slice(0, 2).join(" and ")} — focus on process, approval chains, and documentation.`;
+  return `Ask a structured question about ${profile.questionFocus.slice(0, 2).join(" and ")}, focus on process, approval chains, and documentation.`;
 }
 
 export function evaluateRecruiterPsychology(input: PsychologyInput): PsychologyResult {

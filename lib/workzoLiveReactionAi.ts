@@ -6,7 +6,7 @@
 // getWorkZoLiveReaction() is applied INSTANTLY, then this fetch upgrades it
 // a moment later if (and only if) the server returns a graded reaction.
 // Returns null on any failure or timeout so the caller never has to handle
-// errors — the heuristic reaction simply stays on screen.
+// errors, the heuristic reaction simply stays on screen.
 
 import type { WorkZoLiveReaction, WorkZoRecruiterVisualState } from "@/lib/workzoPremiumExperienceEngine";
 

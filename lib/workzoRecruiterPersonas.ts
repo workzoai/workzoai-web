@@ -6,7 +6,7 @@
  * Previously this list (and the string-matching normalize logic) was
  * duplicated separately in app/onboarding/page.tsx, api/tavus/route.ts, and
  * api/tavus/conversation/route.ts, with no shared source of truth and no
- * copy of it in the voice interview routes at all — meaning the voice
+ * copy of it in the voice interview routes at all, meaning the voice
  * interview API accepted any recruiterPersonality string from the client
  * with no server-side check against the caller's plan. The onboarding UI
  * correctly locks Premium Pro personas, but nothing stopped a direct API
@@ -37,7 +37,7 @@ export const STANDARD_RECRUITER_KEYS: RecruiterKey[] = [
   "faang_hiring_manager",
 ];
 
-/** Require Premium Pro — matches onboarding's proRecruiters list. */
+/** Require Premium Pro, matches onboarding's proRecruiters list. */
 export const PRO_ONLY_RECRUITER_KEYS: RecruiterKey[] = [
   "startup_founder",
   "consulting_partner",
@@ -51,7 +51,7 @@ const DEFAULT_RECRUITER_KEY: RecruiterKey = "analytical_hiring_manager";
 
 /**
  * Maps a free-text persona label/name (however the client happens to send
- * it — key, display name, or "Name · Role" string) to a canonical key.
+ * it, key, display name, or "Name · Role" string) to a canonical key.
  * Mirrors the matching logic in onboarding/page.tsx's normalizeRecruiterKey
  * so both sides agree on which persona a given string refers to.
  */
@@ -80,14 +80,14 @@ export function isProOnlyRecruiterKey(key: RecruiterKey): boolean {
 
 /**
  * Given whatever persona string the client sent and whether the caller is
- * on Premium Pro, returns the persona that should actually be used —
+ * on Premium Pro, returns the persona that should actually be used -
  * unchanged if it's allowed, or silently downgraded to the default
  * standard persona if a non-Pro caller requested a Pro-only one.
  *
  * Downgrades rather than rejects: this runs mid-conversation on a live
  * voice interview, so a hard 403 here would break an in-progress session
  * for a legitimate user who somehow got out of sync with the UI's lock
- * state. The onboarding UI already prevents this in the normal flow —
+ * state. The onboarding UI already prevents this in the normal flow -
  * this is a defense-in-depth backstop for direct API calls, not the
  * primary gate, so failing soft is the right tradeoff.
  */

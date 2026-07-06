@@ -26,7 +26,7 @@ export default function PremiumFeatureGate({ feature, title, description, childr
 
   return (
     <>
-      {/* Subtle plan indicator — shows paid users which plan they're on */}
+      {/* Subtle plan indicator, shows paid users which plan they're on */}
       <div className="fixed right-4 top-4 z-30 hidden lg:flex items-center gap-2">
         <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
           planState.plan === "premium_pro"

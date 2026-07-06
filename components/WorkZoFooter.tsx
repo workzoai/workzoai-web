@@ -64,11 +64,11 @@ export default function WorkZoFooter({ minimal = false }: { minimal?: boolean })
               <span className="text-xl font-black tracking-tight">WorkZo <span className="text-brand">AI</span></span>
             </Link>
             <p className="mt-4 max-w-sm text-sm leading-6 text-muted">
-              AI-powered interview preparation. Practice realistic recruiter conversations with your CV and job context — and see exactly why trust rises or falls.
+              AI-powered interview preparation. Practice realistic recruiter conversations with your CV and job context, and see exactly why trust rises or falls.
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               <span className="rounded-full border border-brand/20 bg-brand/10 px-3 py-1 text-xs font-black text-brand">
-                7 languages
+                15 languages
               </span>
               <span className="rounded-full border border-success/20 bg-success/10 px-3 py-1 text-xs font-black text-success">
                 Global job seekers

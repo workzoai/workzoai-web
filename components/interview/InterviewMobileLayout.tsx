@@ -52,7 +52,7 @@ export default function InterviewMobileLayout({ setup, signal, transcript, ui, a
           </button>
         </div>
 
-        {/* Mobile tab switcher — only shown in technical mode */}
+        {/* Mobile tab switcher, only shown in technical mode */}
         {showCodePanel && (
           <div className="mt-3 flex gap-2">
             <button
@@ -84,7 +84,7 @@ export default function InterviewMobileLayout({ setup, signal, transcript, ui, a
       </header>
 
       <div className="space-y-4 p-4">
-        {/* Code tab — shown on mobile when in technical mode and code tab selected */}
+        {/* Code tab, shown on mobile when in technical mode and code tab selected */}
         {showCodePanel && mobileTab === "code" ? (
           <div className="h-[60vh]">
             <CodePanel onCodeChange={actions.onCodeChange} />

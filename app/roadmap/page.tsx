@@ -1,41 +1,41 @@
-import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Circle, Clock3, Rocket, Sparkles, Star } from "lucide-react";
-import WorkZoFooter from "@/components/WorkZoFooter";
+import type { Metadata } from "next";
+import { Check, CheckCircle2, Clock3, Rocket } from "lucide-react";
+import { MarketingShell, Reveal, Eyebrow, CTASection, BackLink } from "@/components/marketing/kit";
 
-export const metadata = {
-  title: "Roadmap | WorkZo AI",
-  description: "See what WorkZo AI has shipped, what is being built now, and what comes next.",
+export const metadata: Metadata = {
+  title: "Roadmap — WorkZo AI",
+  description: "What WorkZo AI has shipped, what is being built now, and what comes next.",
 };
 
 const shipped = [
-  "CV-aware recruiter intelligence — questions built from your actual CV and JD",
+  "CV-aware recruiter intelligence, questions built from your actual CV and JD",
   "Live trust score per answer with the exact reason shown in real time",
-  "Contradiction and claim verification — AI catches unsupported facts instantly",
-  "Recruiter interruption — cuts you off mid-answer when you ramble",
-  "Cross-session career memory — recruiter remembers your recurring patterns",
+  "Contradiction and claim verification, AI catches unsupported facts instantly",
+  "Recruiter interruption, cuts you off mid-answer when you ramble",
+  "Cross-session career memory, recruiter remembers your recurring patterns",
   "7-language support with fully language-enforced recruiter replies",
   "Live copilot panel with real-time coaching during the interview",
-  "Stripe billing with Free / Premium / Premium Pro tiers",
+  "Stripe billing with Free, Premium, and Premium Pro tiers",
   "AI career coach, 30/60/90 roadmaps, and replay intelligence (Pro)",
-  "7 Premium Pro recruiter personas: FAANG, Startup Founder, Consulting Partner, Sales Director, Product Leader, Executive, Enterprise",
-  "Recruiter emotional state engine — visual reactions (sceptical, interested, interrupting)",
-  "Live filler word counter — um, uh, like tracked in real time",
-  "ElevenLabs per-recruiter voices",
-  "Shareable interview moments — contradiction caught, trust recovery",
+  "11 recruiter personas across HR, technical, and leadership styles",
+  "Recruiter emotional state engine with visual reactions",
+  "Live filler word counter, tracked in real time",
+  "Per-recruiter voices",
+  "Shareable interview moments",
 ];
 
 const building = [
   { label: "Candidate video self-review playback", progress: 40 },
   { label: "Speaking pace and WPM coaching in real time", progress: 30 },
-  { label: "Company DNA mode — 'Practice for Google', 'Practice for McKinsey'", progress: 60 },
+  { label: "Company DNA mode: practice for a specific company", progress: 60 },
   { label: "In-place settings editing without returning to onboarding", progress: 50 },
   { label: "Interview probability forecasting dashboard widget", progress: 25 },
 ];
 
 const planned = [
-  "Mobile app — iOS and Android",
-  "B2B — career coaching platform for universities and coaches",
-  "Interview audit — upload a real recording for AI feedback",
+  "Mobile app for iOS and Android",
+  "B2B career-coaching platform for universities and coaches",
+  "Interview audit: upload a real recording for AI feedback",
   "Salary negotiation practice mode",
   "Assessment centre simulation",
   "Candidate benchmarking against top performers by role",
@@ -45,100 +45,96 @@ const planned = [
 
 export default function RoadmapPage() {
   return (
-    <main className="min-h-screen bg-canvas text-fg">
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,rgba(37, 99, 235,0.07),transparent_55%)]" />
-
-      <div className="mx-auto max-w-5xl px-5 py-12 sm:px-6 lg:px-8">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-black text-muted transition hover:text-fg">
-          <ArrowLeft className="h-4 w-4" /> Back home
-        </Link>
-
-        <header className="mt-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-brand">
-            <Sparkles className="h-3.5 w-3.5" /> Product roadmap
-          </div>
-          <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-3xl">What we're building</h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-muted">
-            WorkZo AI ships continuously. Here is what is already live, what is in active development, and what is coming next.
-          </p>
-        </header>
-
-        {/* Shipped */}
-        <section className="mt-12">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="flex items-center gap-2 rounded-full border border-success/20 bg-success/10 px-4 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-success">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Live now
-            </div>
-            <div className="h-px flex-1 bg-fg/[0.07]" />
-          </div>
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            {shipped.map((item) => (
-              <div key={item} className="flex items-start gap-3 rounded-xl border border-line bg-fg/[0.03] px-4 py-3 text-sm leading-5 text-muted">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-                {item}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* In development */}
-        <section className="mt-12">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-brand">
-              <Clock3 className="h-3.5 w-3.5" /> In development
-            </div>
-            <div className="h-px flex-1 bg-fg/[0.07]" />
-          </div>
-          <div className="grid gap-3">
-            {building.map((item) => (
-              <div key={item.label} className="rounded-xl border border-brand/10 bg-brand/[0.05] px-5 py-4">
-                <div className="flex items-center justify-between gap-4">
-                  <p className="text-sm font-black text-fg">{item.label}</p>
-                  <span className="shrink-0 text-xs font-black text-brand">{item.progress}%</span>
-                </div>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-fg/[0.07]">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-brand to-brand transition-all"
-                    style={{ width: `${item.progress}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Planned */}
-        <section className="mt-12">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-brand">
-              <Star className="h-3.5 w-3.5" /> Planned
-            </div>
-            <div className="h-px flex-1 bg-fg/[0.07]" />
-          </div>
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            {planned.map((item) => (
-              <div key={item} className="flex items-start gap-3 rounded-xl border border-line bg-fg/[0.03] px-4 py-3 text-sm leading-5 text-muted">
-                <Circle className="mt-0.5 h-4 w-4 shrink-0 text-subtle" />
-                {item}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <div className="mt-12 rounded-lg border border-brand/20 bg-brand/[0.07] p-7">
-          <h2 className="text-xl font-black">Have a suggestion?</h2>
-          <p className="mt-2 text-sm leading-6 text-muted">The most-requested features move up the priority queue. Email us and tell us what you need.</p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <a href="mailto:support@workzoai.com?subject=WorkZo AI Feature Request" className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-3 text-sm font-black text-on-brand hover:bg-brand">
-              Send a suggestion <ArrowRight className="h-4 w-4" />
-            </a>
-            <Link href="/pricing" className="inline-flex items-center gap-2 rounded-lg border border-line bg-fg/[0.04] px-5 py-3 text-sm font-black text-fg hover:bg-fg/10">
-              View pricing
-            </Link>
-          </div>
-        </div>
+    <MarketingShell>
+      <div className="mx-auto max-w-5xl px-4 pt-8 sm:px-6 lg:px-8">
+        <BackLink href="/">Back home</BackLink>
       </div>
-      <WorkZoFooter />
-    </main>
+
+      <section className="mx-auto max-w-5xl px-4 pb-8 pt-8 sm:px-6 lg:px-8">
+        <Reveal>
+          <Eyebrow icon={Rocket}>Product roadmap</Eyebrow>
+          <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">What we&apos;re building</h1>
+          <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
+            WorkZo AI ships continuously. Here&apos;s what&apos;s already live, what&apos;s in active development, and what&apos;s coming next.
+          </p>
+        </Reveal>
+      </section>
+
+      {/* Live now */}
+      <section className="mx-auto max-w-5xl px-4 pb-12 sm:px-6 lg:px-8">
+        <Reveal>
+          <div className="mb-5 flex items-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full border border-success/25 bg-success/10 px-4 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-success">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Live now
+            </span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </Reveal>
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          {shipped.map((item, i) => (
+            <Reveal key={item} delay={(i % 2) * 40}>
+              <div className="flex items-start gap-3 rounded-xl border border-line bg-surface/60 px-4 py-3 text-sm leading-6 text-muted">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" />{item}
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      {/* In progress */}
+      <section className="mx-auto max-w-5xl px-4 pb-12 sm:px-6 lg:px-8">
+        <Reveal>
+          <div className="mb-5 flex items-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-4 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-brand">
+              <Clock3 className="h-3.5 w-3.5" /> In progress
+            </span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </Reveal>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {building.map((b, i) => (
+            <Reveal key={b.label} delay={(i % 2) * 50}>
+              <div className="rounded-xl border border-line bg-surface/70 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-black text-fg">{b.label}</p>
+                  <span className="text-xs font-black tabular-nums text-brand">{b.progress}%</span>
+                </div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-line">
+                  <div className="h-full rounded-full bg-brand" style={{ width: `${b.progress}%` }} />
+                </div>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      {/* Planned */}
+      <section className="mx-auto max-w-5xl px-4 pb-16 sm:px-6 lg:px-8">
+        <Reveal>
+          <div className="mb-5 flex items-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/[0.05] px-4 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-muted">
+              <Rocket className="h-3.5 w-3.5" /> Planned
+            </span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </Reveal>
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          {planned.map((item, i) => (
+            <Reveal key={item} delay={(i % 2) * 40}>
+              <div className="flex items-start gap-3 rounded-xl border border-dashed border-line bg-transparent px-4 py-3 text-sm leading-6 text-muted">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-muted/50" />{item}
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      <CTASection
+        title="Have a feature request?"
+        intro="We build from real user feedback. Tell us what would make WorkZo better for you."
+        primary={{ href: "mailto:support@workzoai.com?subject=WorkZo%20AI%20Feature%20Request", label: "Share an idea", external: true }}
+        secondary={{ href: "/changelog", label: "See what shipped" }}
+      />
+    </MarketingShell>
   );
 }

@@ -106,7 +106,8 @@ const LEGACY_KEYS_TO_CLEAR = [
   "workzo_onboarding",
 ];
 
-const BLOCKED_NAME_WORDS = /\b(resume|cv|curriculum|profile|summary|experience|education|skills?|projects?|languages?|english|german|dutch|french|spanish|italian|portuguese|fluent|native|conversational|professional|engineer|analyst|manager|developer|specialist|consultant|support|sales|executive|objective|contact|email|phone|linkedin|github|public|relations|management|leadership|teamwork|communication|critical|thinking|programming|python|javascript|typescript|java|sql|data|science|machine|learning|visualization|engineering|tableau|matplotlib|seaborn|tensorflow|sklearn|langchain|generative|retrieval|augmented|generation|ticketing|networking|remote|tools|systems|windows|linux|cloud|platform|functions|scraping|integration|bootcamp|bachelor|master|degree|university|college|school|institute|certification|intern|freelance|volunteer|candidate|profilesummary|workexperience|profile\s*summary|work\s*experience)\b/i;
+const BLOCKED_NAME_WORDS = /\b(unknown|anonymous|anon|guest|none|null|undefined|nan|tbd|there|user|resume|cv|curriculum|profile|summary|experience|education|skills?|projects?|languages?|english|german|dutch|french|spanish|italian|portuguese|fluent|native|conversational|professional|engineer|analyst|manager|developer|specialist|consultant|support|sales|executive|objective|contact|email|phone|linkedin|github|public|relations|management|leadership|teamwork|communication|critical|thinking|programming|python|javascript|typescript|java|sql|data|science|machine|learning|visualization|engineering|tableau|matplotlib|seaborn|tensorflow|sklearn|langchain|generative|retrieval|augmented|generation|ticketing|networking|remote|tools|systems|windows|linux|cloud|platform|functions|scraping|integration|bootcamp|bachelor|master|degree|university|college|school|institute|certification|intern|freelance|volunteer|candidate|profilesummary|workexperience|profile\s*summary|work\s*experience|achievements?|accomplishments?|awards?|honou?rs?)\b/i;
+const NA_NAME_PATTERN = /^(n\.?\s*\/?\s*a\.?|not\s*(specified|available|provided)|no\s*name)$/i;
 
 function cleanString(value: unknown, max = 20000) {
   if (typeof value !== "string") return "";
@@ -178,7 +179,7 @@ function scoreSetup(setup: WorkZoInterviewSetup) {
   if (getTime(setup)) score += 1;
 
   // Weight by experience count so a profile with more entries always beats
-  // a stale cached profile with fewer — prevents old single-job profiles
+  // a stale cached profile with fewer, prevents old single-job profiles
   // from overwriting freshly uploaded multi-job CVs on equal base scores.
   const expCount = Array.isArray(setup.resumeProfile?.experience)
     ? setup.resumeProfile.experience.length
@@ -196,6 +197,7 @@ export function isValidCandidateName(value: unknown): boolean {
 
   if (!text || text.length < 2 || text.length > 60) return false;
   if (/@|www|http|\d/.test(text)) return false;
+  if (NA_NAME_PATTERN.test(text)) return false;
   if (BLOCKED_NAME_WORDS.test(text)) return false;
 
   const parts = text.split(" ").filter(Boolean);
@@ -224,13 +226,55 @@ export function normalizeCandidateName(value: unknown): string {
   return text;
 }
 
+/**
+ * getCandidateDisplayName, the ONE canonical candidate-name resolver.
+ *
+ * Implements the identity priority from the architecture spec (§19):
+ *   structured CV parser (resumeProfile.basics.name)
+ *     → validated setup.candidateName (already canonical after sanitize)
+ *     → validated setup.name / userName
+ *     → "" (anonymous, never a placeholder like "Unknown"/"Candidate")
+ *
+ * Every surface that needs the candidate's name (interview greeting, voice
+ * prompt, results report, verdict email, history) should route through this so
+ * the same rules apply everywhere. It reuses normalizeCandidateName, so a
+ * single blocklist governs what counts as a real human name.
+ */
+export function getCandidateDisplayName(
+  source: WorkZoInterviewSetup | Record<string, any> | null | undefined,
+): string {
+  if (!source || typeof source !== "object") return "";
+  const s = source as Record<string, any>;
+  const profileName = s.resumeProfile?.basics?.name;
+
+  return (
+    normalizeCandidateName(profileName) ||
+    normalizeCandidateName(s.candidateName) ||
+    normalizeCandidateName(s.name) ||
+    normalizeCandidateName(s.userName) ||
+    ""
+  );
+}
+
+/**
+ * First name only, safe for greetings. Returns "" (not a placeholder) when no
+ * valid human name is available, callers decide the no-name greeting.
+ */
+export function getCandidateFirstName(
+  source: WorkZoInterviewSetup | Record<string, any> | null | undefined,
+): string {
+  const full = getCandidateDisplayName(source);
+  if (!full) return "";
+  return full.split(" ")[0] || "";
+}
+
 function sanitizeResumeProfile(profile: any, rawCvText = "") {
   if (!profile || typeof profile !== "object") return undefined;
 
   // ── Structural preservation rule ──────────────────────────────────────────
   // completeResumeProfile runs a dedup/filter pass that can drop valid
   // experience entries when the raw CV text it receives is a formatted context
-  // string rather than original PDF text — the filter misidentifies certain
+  // string rather than original PDF text, the filter misidentifies certain
   // job titles or company names as section headers or artifacts.
   //
   // Similarly, enforceCanonicalCandidateName re-scans rawCvText for a name,
@@ -239,7 +283,7 @@ function sanitizeResumeProfile(profile: any, rawCvText = "") {
   //
   // Rule: if the incoming profile already has a valid name AND at least one
   // structured section (experience, education, or skills), trust the structure
-  // as-is and only clean individual field values — do not re-run the parser.
+  // as-is and only clean individual field values, do not re-run the parser.
   // This preserves all experience entries from the original parse regardless
   // of what rawCvText contains.
 
@@ -309,7 +353,7 @@ function sanitizeResumeProfile(profile: any, rawCvText = "") {
 
   if (hasValidName && hasStructure) {
     // Fast path: profile is already well-formed. Preserve all entries exactly
-    // as parsed — do not re-run completeResumeProfile which can drop entries
+    // as parsed, do not re-run completeResumeProfile which can drop entries
     // via its dedup/filter when rawCvText is a formatted context string rather
     // than the original PDF text.
     return cleanStructure(profile) as any;
@@ -327,7 +371,7 @@ function sanitizeResumeProfile(profile: any, rawCvText = "") {
     return cleaned;
   }
 
-  // No structure at all — run full repair pipeline to build from rawCvText.
+  // No structure at all, run full repair pipeline to build from rawCvText.
   // This is the text-paste flow or a completely empty profile.
   const completed = completeResumeProfile(profile, rawCvText || profile.rawText || "");
   const canonical = enforceCanonicalCandidateName(completed, rawCvText || completed.rawText || "");
@@ -421,7 +465,7 @@ export function readLatestInterviewSetup(): WorkZoInterviewSetup | null {
 
       // GLOBAL FIX: recency ALWAYS wins. The previous 30-second threshold
       // allowed a high-CV-score stale entry to beat a fresh recruiter
-      // selection when both were saved within the same 30s window — which
+      // selection when both were saved within the same 30s window, which
       // is exactly what happens during normal onboarding flow (save → user
       // changes recruiter → save again, all within seconds).
       //
@@ -520,7 +564,7 @@ export function normalizeSetupRecruiterPersonality(
   setup: WorkZoInterviewSetup | null | undefined,
 ): string {
   if (!setup) return "";
-  // Never hardcode a default recruiter here — the caller decides the fallback.
+  // Never hardcode a default recruiter here, the caller decides the fallback.
   // Returning "" lets buildSetupFromStorage fall back to its own default (friendly_hr)
   // via normalizeRecruiterId, rather than silently overwriting the user's choice.
   return cleanString(setup.recruiterPersonality || setup.recruiter || "", 80);

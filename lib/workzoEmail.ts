@@ -3,10 +3,10 @@ import "server-only";
 // WorkZo transactional email via Resend.
 //
 // Required env vars:
-//   RESEND_API_KEY      — from resend.com dashboard
-//   WORKZO_EMAIL_FROM   — defaults to "WorkZo AI <noreply@workzoai.com>"
+//   RESEND_API_KEY    , from resend.com dashboard
+//   WORKZO_EMAIL_FROM , defaults to "WorkZo AI <noreply@workzoai.com>"
 //
-// All emails are fire-and-forget in the webhook — errors are logged but
+// All emails are fire-and-forget in the webhook, errors are logged but
 // never block the subscription activation flow.
 
 const DEFAULT_FROM = "WorkZo AI <noreply@workzoai.com>";
@@ -16,7 +16,7 @@ const COLOR = {
   bg: "#0f1117",
   card: "#16181f",
   border: "#ffffff14",
-  primary: "#6366f1",       // indigo — main CTA
+  primary: "#6366f1",       // indigo, main CTA
   primaryDark: "#4f46e5",
   text: "#f1f5f9",
   muted: "#94a3b8",
@@ -100,10 +100,10 @@ function buildPremiumTemplate(input: { startUrl: string; manageUrl: string }) {
     <tr><td>
       <p style="margin:0 0 14px;font-size:12px;font-weight:600;letter-spacing:.08em;color:${COLOR.muted};text-transform:uppercase">What's included</p>
       <table cellpadding="0" cellspacing="0" border="0" width="100%">
-        ${featureRow("🎙️", "<strong style='color:${COLOR.text}'>50 AI voice interviews / month</strong> with Vapi-powered recruiters")}
+        ${featureRow("🎙️", "<strong style='color:${COLOR.text}'>300 AI voice minutes / month</strong> for realistic recruiter practice")}
         ${featureRow("📄", "CV improvement, ATS optimisation, and STAR bullet rewrites")}
         ${featureRow("✉️", "Personalised cover letter generator")}
-        ${featureRow("🔍", "Job assist — matching, gap analysis, and application strategy")}
+        ${featureRow("🔍", "Job assist, matching, gap analysis, and application strategy")}
         ${featureRow("📊", "Advanced interview reports with trust score and coaching")}
       </table>
     </td></tr>
@@ -119,7 +119,7 @@ function buildPremiumTemplate(input: { startUrl: string; manageUrl: string }) {
     </p>
   `;
 
-  return emailShell(content, "Your Premium plan is ready — start practising now.");
+  return emailShell(content, "Your Premium plan is ready, start practising now.");
 }
 
 function buildPremiumProTemplate(input: { startUrl: string; manageUrl: string }) {
@@ -129,17 +129,17 @@ function buildPremiumProTemplate(input: { startUrl: string; manageUrl: string })
     </div>
 
     <h1 style="margin:0 0 8px;font-size:26px;font-weight:700;color:${COLOR.text};line-height:1.2">You're on the full platform</h1>
-    <p style="margin:0 0 24px;font-size:15px;color:${COLOR.muted};line-height:1.6">Everything in Premium, plus unlimited interviews, a live AI video recruiter, career roadmaps, and your personal AI career coach.</p>
+    <p style="margin:0 0 24px;font-size:15px;color:${COLOR.muted};line-height:1.6">Everything in Premium, plus 600 AI voice minutes, 60 AI video minutes, career roadmaps, and your personal AI career coach.</p>
 
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#1e2029;border-radius:10px;padding:20px 24px;margin-bottom:4px">
     <tr><td>
       <p style="margin:0 0 14px;font-size:12px;font-weight:600;letter-spacing:.08em;color:${COLOR.muted};text-transform:uppercase">What's included</p>
       <table cellpadding="0" cellspacing="0" border="0" width="100%">
-        ${featureRow("♾️", "<strong style='color:${COLOR.text}'>Unlimited AI voice interviews</strong>")}
-        ${featureRow("🎥", "60 min / month of <strong style='color:${COLOR.text}'>live video AI recruiter</strong> (Tavus)")}
-        ${featureRow("🧠", "AI Career Coach — blockers, priorities, and hiring readiness")}
+        ${featureRow("♾️", "<strong style='color:${COLOR.text}'>600 AI voice minutes/month</strong>")}
+        ${featureRow("🎥", "60 min / month of <strong style='color:${COLOR.text}'>AI video interviews</strong>")}
+        ${featureRow("🧠", "AI Career Coach, blockers, priorities, and hiring readiness")}
         ${featureRow("🗺️", "Career roadmaps: 30 / 60 / 90 day plans")}
-        ${featureRow("🔁", "Replay intelligence — best/weakest answers, trust drops, rewrites")}
+        ${featureRow("🔁", "Replay intelligence, best/weakest answers, trust drops, rewrites")}
         ${featureRow("📄", "CV improvement, ATS, cover letters, job assist")}
       </table>
     </td></tr>
@@ -155,13 +155,13 @@ function buildPremiumProTemplate(input: { startUrl: string; manageUrl: string })
     </p>
   `;
 
-  return emailShell(content, "Your Premium Pro plan is active — the full career platform is ready.");
+  return emailShell(content, "Your Premium Pro plan is active, the full career platform is ready.");
 }
 
 // ── Plain text fallbacks ────────────────────────────────────────────────────
 
 function buildPlainText(input: { planLabel: string; startUrl: string; manageUrl: string }) {
-  return `Your ${input.planLabel} plan is active — WorkZo AI
+  return `Your ${input.planLabel} plan is active, WorkZo AI
 
 Welcome to WorkZo AI. Your ${input.planLabel} plan is ready.
 
@@ -227,7 +227,7 @@ export async function sendWorkZoPurchaseConfirmation(input: {
 
   return sendWorkZoTransactionalEmail({
     to: input.to,
-    subject: `Your ${input.planLabel} plan is active — WorkZo AI`,
+    subject: `Your ${input.planLabel} plan is active, WorkZo AI`,
     html,
     text: buildPlainText({
       planLabel: input.planLabel,

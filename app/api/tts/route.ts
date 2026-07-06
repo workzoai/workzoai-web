@@ -2,14 +2,14 @@
  * app/api/tts/route.ts
  *
  * WHAT CHANGED vs original:
- * - Added `addRecruiterHesitationMarkers()` — inserts natural pauses/filler
+ * - Added `addRecruiterHesitationMarkers()`, inserts natural pauses/filler
  *   BEFORE synthesis so the recruiter sounds human, not robotic.
  *   Applied selectively based on recruiterState:
  *   · Before a challenge/skepticism: "Hmm… " prefix
  *   · Before a recovery/warmth moment: no filler (let warmth come through clean)
  *   · Occasionally mid-sentence: "…" after "Hold on" / "Let me" phrases
  *   This is the single biggest perceptual difference between "AI voice" and
- *   "human interviewer" — controlled imperfection costs nothing and changes
+ *   "human interviewer", controlled imperfection costs nothing and changes
  *   everything about how the audio feels.
  *
  * - humanizeRecruiterSpokenText is still called (existing behaviour preserved).
@@ -41,7 +41,7 @@ const allowedVoices = new Set([
 /**
  * Adds subtle, human-sounding hesitation markers to recruiter speech
  * BEFORE TTS synthesis. The goal is one light imperfection per reply
- * at most — not artificial filler on every sentence.
+ * at most, not artificial filler on every sentence.
  *
  * Rules:
  * - skeptical / pressuring state → "Hmm… " prefix (pause, then challenge)
@@ -53,14 +53,14 @@ const allowedVoices = new Set([
  * "…" as a natural pause beat.
  */
 /**
- * addRecruiterHesitationMarkers — makes AI voice sound human, not robotic.
+ * addRecruiterHesitationMarkers, makes AI voice sound human, not robotic.
  *
  * The WBS feedback was specific: "AI's voice sounds quite robotic and difficult
  * to understand." This function inserts micro-imperfections at the text level
  * BEFORE synthesis so gpt-4o-mini-tts renders them as natural speech pauses.
  *
  * Rules:
- * - ONE light imperfection per reply maximum — never pile on
+ * - ONE light imperfection per reply maximum, never pile on
  * - Skeptical/pressuring: "Hmm… " prefix creates a natural thinking pause
  * - "Hold on" / "Let me": trail off with "…" for natural speech rhythm
  * - "Interesting." or "I see." prefix for positive follow-ups
@@ -76,7 +76,7 @@ function addRecruiterHesitationMarkers(
   const state = (recruiterState || "").toLowerCase();
   const trimmed = text.trim();
 
-  // Already has a human marker — don't double up
+  // Already has a human marker, don't double up
   if (/^(hmm|okay|hold on|wait,|right,|interesting|i see|that|let me|good|so,)/i.test(trimmed)) return text;
 
   const words = trimmed.split(/\s+/).filter(Boolean).length;
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // ── Rate limit — prevents TTS cost abuse outside the interview session limit ──
+  // ── Rate limit, prevents TTS cost abuse outside the interview session limit ──
   const ttsPlan = resolved.plan;
   const ttsRateLimit = ttsPlan === "premium_pro" ? 200 : ttsPlan === "premium" ? 120 : 40;
   const { allowed: withinTtsRateLimit } = await checkWorkZoRateLimit(`tts:${resolved.userId}`, ttsRateLimit);
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "rate_limited" }, { status: 429 });
   }
 
-  // Free users get voice — session count is enforced by /api/db/interview-session.
+  // Free users get voice, session count is enforced by /api/db/interview-session.
 
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -162,7 +162,7 @@ export async function POST(request: Request) {
       recruiterState?: string;
     };
 
-    // Strip candidate-side filler (um, uh, erm) from the TEXT before synthesis —
+    // Strip candidate-side filler (um, uh, erm) from the TEXT before synthesis -
     // this applies to any text being read by the recruiter voice.
     const rawText = typeof body.text === "string"
       ? body.text
@@ -203,7 +203,7 @@ export async function POST(request: Request) {
     };
 
     // Sprint fix: Voice instructions are now fully persona-specific.
-    // Sarah: warm, encouraging, genuinely human — not a narrator.
+    // Sarah: warm, encouraging, genuinely human, not a narrator.
     // Priya: energetic and direct, but still natural.
     // All: slower base rate, pitch variation, clear enunciation for non-native speakers.
     const baseInstructions = getOpenAiTtsInstructions({

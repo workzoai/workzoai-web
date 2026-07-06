@@ -1,5 +1,5 @@
 /**
- * WorkZo AI — Universal CV Text Rebuilder
+ * WorkZo AI, Universal CV Text Rebuilder
  * lib/workzoCvPdfCleaner.ts
  *
  * Problem: pdf-parse extracts text in PDF content-stream order, not visual order.
@@ -10,7 +10,7 @@
  * This module rebuilds the text into correct reading order using heuristics
  * and then normalises all artefacts from common CV template engines.
  *
- * It is person-agnostic — works for any CV from any candidate worldwide.
+ * It is person-agnostic, works for any CV from any candidate worldwide.
  */
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -175,7 +175,7 @@ const SECTION_HEADERS: Record<string, CvSection["kind"]> = {
   "accreditations": "certifications", "licences": "certifications",
   "licenses": "certifications", "awards": "certifications",
   "achievements": "certifications",
-  // Multi-word variants — these exact phrases appeared in real CVs and were missed
+  // Multi-word variants, these exact phrases appeared in real CVs and were missed
   "awards and certifications": "certifications",
   "awards and certification": "certifications",
   "awards & certifications": "certifications",
@@ -219,7 +219,7 @@ const LOOKS_LIKE_NAME_RE = /^(?:[A-ZÀ-Ý][a-zà-ÿ]+|[A-ZÀ-Ý]{2,})(?:[\s-](?:
 // Contact line heuristic
 const CONTACT_LINE_RE = /@|linkedin\.com|^\+?[\d\s().-]{8,}$|^\d{5}\b|\bstraße\b|\bstrasse\b|\bstreet\b|\bavenue\b|\broad\b|\bdr\b\.|^\d+\s+[A-Z]/i;
 
-// Date range — indicates an experience or education entry header
+// Date range, indicates an experience or education entry header
 const DATE_RANGE_RE = /\b(19|20)\d{2}\s*[-–—]\s*(19|20)\d{2}|present|current|heute|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*(19|20)\d{2}/i;
 
 // Bullet character normalisation
@@ -236,8 +236,8 @@ export function normalizeExtractedCvText(raw: string): string {
     .replace(/[""]/g, '"')
     .replace(/['']/g, "'")
     // Common dash encoding artefacts
-    .replace(/â€[""]/g, "—")
-    .replace(/â€"|â€"/g, "–")
+    .replace(/â€[""]/g, "-")
+    .replace(/â€"|â€"/g, "-")
     .replace(/â€¢|â€¢/g, "•")
     // Non-breaking space
     .replace(/\u00a0/g, " ")
@@ -510,7 +510,7 @@ function rebuildReadingOrder(lines: string[]): string[] {
       headerStreakCount++;
       if (headerStreakCount >= 3) {
         // Three or more consecutive section headers = interleaved multi-column
-        // header burst. Queue this kind instead of committing immediately —
+        // header burst. Queue this kind instead of committing immediately -
         // the correct kind for this chunk will be resolved when content arrives.
         pendingKinds.push(kind);
         buffer.push(trimmed);
@@ -521,7 +521,7 @@ function rebuildReadingOrder(lines: string[]): string[] {
       continue;
     }
 
-    // Real content arrived — resolve any pending kind
+    // Real content arrived, resolve any pending kind
     if (pendingKinds.length > 0) {
       // The most recently seen structural header (experience/summary/projects)
       // is most likely the correct section for this content. If none, use last pending.

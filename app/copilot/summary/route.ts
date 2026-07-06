@@ -81,7 +81,7 @@ function actionInstruction(action: CopilotAction) {
     ownership:
       "Improve ownership language so the candidate's personal contribution is clearer and not hidden behind team language.",
     concise:
-      "Shorten the answer to a strong 45–75 second interview response while keeping proof, ownership, and role relevance.",
+      "Shorten the answer to a strong 45-75 second interview response while keeping proof, ownership, and role relevance.",
     followups:
       "Predict likely recruiter follow-up questions and give short preparation notes for each.",
     score:

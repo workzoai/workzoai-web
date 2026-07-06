@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { ArrowLeft, BarChart3, CalendarDays, Crown, Lock, LockKeyhole, RotateCcw, ShieldCheck, Star } from "lucide-react";
+import { ArrowLeft, BarChart3, CalendarDays, Crown, Lock, LockKeyhole, RotateCcw, ShieldCheck, Star, FileText } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import HistoryAnalyticsPing from "./HistoryAnalyticsPing";
+import HistoryScoreSummary from "./HistoryScoreSummary";
 
 async function getPlanFromServer(): Promise<string> {
   // Use server-backed DB plan: cannot be spoofed via devtools cookie manipulation.
@@ -33,6 +34,17 @@ function getPlanLimits(plan: string) {
 
 export const dynamic = "force-dynamic";
 
+type TranscriptTurn = { role?: string; speaker?: string; text?: string; timestamp?: string; created_at?: string; message_index?: number };
+
+type MessageRow = {
+  session_id: string | null;
+  role: string | null;
+  speaker: string | null;
+  text: string | null;
+  message_index: number | null;
+  created_at: string | null;
+};
+
 type SessionRow = {
   id: string;
   target_role: string | null;
@@ -49,6 +61,8 @@ type SessionRow = {
   summary: Record<string, unknown> | null;
   weakest_moment: Record<string, unknown> | null;
   report: Record<string, unknown> | null; // packed runtime state including rawResult
+  transcript: TranscriptTurn[] | null;
+  candidate_name: string | null;
   created_at: string | null;
 };
 
@@ -73,7 +87,7 @@ function formatDuration(seconds?: number | null) {
 }
 
 /** Returns the real duration in seconds for a session row.
- *  Falls back to rawResult.durationSeconds when duration_seconds is 0 or null —
+ *  Falls back to rawResult.durationSeconds when duration_seconds is 0 or null -
  *  this covers ECONNRESET drops where the session completion write never landed. */
 function effectiveDuration(session: SessionRow): number {
   const col = Number(session.duration_seconds ?? 0);
@@ -85,12 +99,90 @@ function effectiveDuration(session: SessionRow): number {
   return fromRaw > 0 ? fromRaw : 0;
 }
 
+/** Returns the overall score for a session row, falling back to the packed
+ *  report/rawResult (or an average of category scores) when overall_score is
+ *  null, this covers sessions that ended before the results write landed, so
+ *  the card shows a real number instead of a dash. */
+function effectiveOverall(session: SessionRow): number | null {
+  const col = session.overall_score;
+  if (col != null && Number.isFinite(Number(col))) return Number(col);
+  const raw = session.report as Record<string, unknown> | null;
+  const rawResult = (raw?.rawResult as Record<string, unknown> | null) || raw;
+  const candidates = [
+    rawResult?.overallScore,
+    rawResult?.overall,
+    (rawResult?.scores as Record<string, unknown> | undefined)?.overall,
+    session.trust_score, // last resort: trust is better than an empty dash
+  ];
+  for (const c of candidates) {
+    const n = Number(c);
+    if (Number.isFinite(n) && n > 0) return Math.max(0, Math.min(100, Math.round(n)));
+  }
+  return null;
+}
+
 function scoreTone(score?: number | null) {
   if (score == null) return "text-muted";
   if (score >= 78) return "text-success";
   if (score >= 65) return "text-brand";
   if (score >= 50) return "text-warning";
   return "text-danger";
+}
+
+
+function normalizeTranscript(value: unknown): TranscriptTurn[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): TranscriptTurn | null => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const text = String(row.text ?? row.message ?? row.content ?? row.body ?? "").trim();
+      if (!text) return null;
+      const role = String(row.role ?? row.type ?? "").trim();
+      const speaker = String(row.speaker ?? row.name ?? "").trim();
+      const timestamp = String(row.timestamp ?? row.time ?? row.created_at ?? "").trim();
+      return {
+        role: role || undefined,
+        speaker: speaker || undefined,
+        text,
+        timestamp: timestamp || undefined,
+        created_at: typeof row.created_at === "string" ? row.created_at : undefined,
+        message_index: Number.isFinite(Number(row.message_index)) ? Number(row.message_index) : undefined,
+      };
+    })
+    .filter(Boolean) as TranscriptTurn[];
+}
+
+function transcriptFromReport(session: SessionRow): TranscriptTurn[] {
+  const report = session.report as Record<string, unknown> | null;
+  const rawResult = (report?.rawResult as Record<string, unknown> | null) || report;
+  return (
+    normalizeTranscript(session.transcript).length > 0
+      ? normalizeTranscript(session.transcript)
+      : normalizeTranscript(rawResult?.transcript) ||
+        normalizeTranscript(rawResult?.conversation) ||
+        normalizeTranscript(rawResult?.messages)
+  );
+}
+
+function completionStatus(session: SessionRow, transcript: TranscriptTurn[]) {
+  const report = session.report as Record<string, unknown> | null;
+  const rawResult = (report?.rawResult as Record<string, unknown> | null) || report;
+  const explicit = String(rawResult?.completionStatus ?? rawResult?.status ?? "").toLowerCase();
+  if (explicit.includes("complete") || explicit.includes("closed")) return { label: "Completed", tone: "text-success border-success/20 bg-success/10" };
+  if (explicit.includes("drop") || explicit.includes("disconnect") || explicit.includes("error")) return { label: "Interrupted", tone: "text-warning border-warning/20 bg-warning/10" };
+  const duration = effectiveDuration(session);
+  if (duration >= 60 && transcript.length > 2) return { label: "Saved", tone: "text-brand border-brand/20 bg-brand/10" };
+  return { label: "Saved report", tone: "text-muted border-line bg-fg/[0.04]" };
+}
+
+function formatTime(value?: string | null) {
+  if (!value) return "";
+  try {
+    return new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  } catch {
+    return value;
+  }
 }
 
 function getVerdictText(session: SessionRow) {
@@ -134,13 +226,45 @@ export default async function HistoryPage() {
 
   const { data: sessions, error } = await supabase
     .from("interview_sessions")
-    .select("id, target_role, target_company, recruiter_name, recruiter_title, company_style, atmosphere, country, duration_seconds, overall_score, trust_score, verdict, summary, weakest_moment, report, created_at")
+    .select("id, target_role, target_company, recruiter_name, recruiter_title, company_style, atmosphere, country, duration_seconds, overall_score, trust_score, verdict, summary, weakest_moment, report, transcript, candidate_name, created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(100);
 
   const rows = (sessions || []) as SessionRow[];
   const displayRows = rows.slice(0, planLimits.historyLimit);
+
+  // Fallback transcript source: older sessions may have saved turn-by-turn messages
+  // in interview_messages even when interview_sessions.transcript is empty.
+  // This makes the history page useful for both old and future sessions.
+  const messagesBySession = new Map<string, TranscriptTurn[]>();
+  const visibleSessionIds = displayRows.map((row) => row.id).filter(Boolean);
+  if (visibleSessionIds.length > 0) {
+    try {
+      const { data: messageRows } = await supabase
+        .from("interview_messages")
+        .select("session_id, role, speaker, text, message_index, created_at")
+        .in("session_id", visibleSessionIds)
+        .order("message_index", { ascending: true })
+        .order("created_at", { ascending: true });
+      ((messageRows || []) as MessageRow[]).forEach((row) => {
+        if (!row.session_id || !row.text) return;
+        const list = messagesBySession.get(row.session_id) || [];
+        list.push({
+          role: row.role || undefined,
+          speaker: row.speaker || undefined,
+          text: row.text,
+          created_at: row.created_at || undefined,
+          message_index: row.message_index ?? undefined,
+        });
+        messagesBySession.set(row.session_id, list);
+      });
+    } catch {
+      // Non-fatal. History still renders saved reports even if the optional
+      // messages table is not present in this deployment.
+    }
+  }
+
   const hiddenCount = Math.max(0, rows.length - displayRows.length);
   const isPaidPlan = plan === "premium" || plan === "premium_pro";
   const isProPlan = plan === "premium_pro";
@@ -152,7 +276,7 @@ export default async function HistoryPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted hover:text-fg">
             <ArrowLeft className="h-4 w-4" />
-            Dashboard
+            Settings
           </Link>
           <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-black text-on-brand hover:bg-brand">
             <RotateCcw className="h-4 w-4" />
@@ -192,6 +316,8 @@ export default async function HistoryPage() {
             </div>
           </div>
         </section>
+
+        <HistoryScoreSummary />
 
         {error ? (
           <section className="mt-5 rounded-3xl border border-danger/20 bg-danger/[0.07] p-5 text-danger">
@@ -250,7 +376,15 @@ export default async function HistoryPage() {
         ) : null}
 
         <section className="mt-5 grid gap-4">
-          {displayRows.map((session) => (
+          {displayRows.map((session) => {
+            const fallbackTranscript = messagesBySession.get(session.id) || [];
+            const transcript = transcriptFromReport(session).length > 0 ? transcriptFromReport(session) : fallbackTranscript;
+            const status = completionStatus(session, transcript);
+            const duration = effectiveDuration(session);
+            const title = session.target_role || "Interview Practice";
+            const company = session.target_company || "";
+            const recruiter = session.recruiter_name || "AI Recruiter";
+            return (
             <article key={session.id} className="rounded-3xl border border-line bg-fg/[0.03] p-5 transition hover:bg-fg/[0.05]">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -263,11 +397,10 @@ export default async function HistoryPage() {
                     {session.company_style ? <span>· {session.company_style}</span> : null}
                   </div>
 
-                  <h2 className="mt-2 text-2xl font-black">{session.target_role || "Interview Practice"}</h2>
+                  <h2 className="mt-2 text-2xl font-black">{title}</h2>
                   <p className="mt-1 text-sm text-muted">
-                    {session.recruiter_name || "AI Recruiter"}
+                    {company ? `${company} · ` : ""}{recruiter}
                     {session.recruiter_title ? ` · ${session.recruiter_title}` : ""}
-                    {session.target_company ? ` · ${session.target_company}` : ""}
                   </p>
 
                   <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">{getVerdictText(session)}</p>
@@ -276,32 +409,73 @@ export default async function HistoryPage() {
                 <div className="grid w-full grid-cols-3 gap-3 sm:min-w-[360px] lg:w-auto">
                   <div className="rounded-2xl border border-line bg-canvas-soft p-3">
                     <p className="text-xs text-subtle">Overall</p>
-                    <p className={`mt-1 text-2xl font-black ${scoreTone(session.overall_score)}`}>{session.overall_score ?? "—"}</p>
+                    <p className={`mt-1 text-2xl font-black ${scoreTone(effectiveOverall(session))}`}>{effectiveOverall(session) ?? "-"}</p>
                   </div>
                   <div className="rounded-2xl border border-line bg-canvas-soft p-3">
                     <p className="text-xs text-subtle">Trust</p>
-                    <p className={`mt-1 text-2xl font-black ${scoreTone(session.trust_score)}`}>{session.trust_score ?? "—"}</p>
+                    <p className={`mt-1 text-2xl font-black ${scoreTone(session.trust_score)}`}>{session.trust_score ?? "-"}</p>
                   </div>
                   <div className="rounded-2xl border border-line bg-canvas-soft p-3">
                     <p className="text-xs text-subtle">Duration</p>
-                    <p className="mt-1 text-lg font-black">{(() => { const d = effectiveDuration(session); return d > 0 ? formatDuration(d) : "—"; })()}</p>
+                    <p className="mt-1 text-lg font-black">{duration > 0 ? formatDuration(duration) : "-"}</p>
                   </div>
                 </div>
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-3 py-1.5 text-xs font-bold text-muted">
-                  <BarChart3 className="h-3.5 w-3.5 text-brand" />
-                  Saved report
+                <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${status.tone}`}>
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  {status.label}
                 </div>
                 {session.atmosphere ? (
                   <div className="rounded-full border border-line bg-fg/[0.04] px-3 py-1.5 text-xs font-bold text-muted">
                     {session.atmosphere}
                   </div>
                 ) : null}
+                {company ? (
+                  <div className="rounded-full border border-line bg-fg/[0.04] px-3 py-1.5 text-xs font-bold text-muted">
+                    {company}
+                  </div>
+                ) : null}
+                {transcript.length > 0 ? (
+                  <details className="group w-full">
+                    <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-3 py-1.5 text-xs font-bold text-muted hover:text-fg">
+                      <FileText className="h-3.5 w-3.5 text-brand" />
+                      View transcript
+                      <span className="text-subtle">({transcript.length} turns)</span>
+                    </summary>
+                    <div className="mt-3 max-h-[28rem] overflow-y-auto rounded-xl border border-line bg-canvas-soft p-4">
+                      {transcript.map((turn, i) => {
+                        const role = (turn.role || "").toLowerCase();
+                        const isRecruiter = role === "recruiter" || role === "assistant" || role === "ai";
+                        const who =
+                          turn.speaker ||
+                          (isRecruiter
+                            ? recruiter || "Recruiter"
+                            : session.candidate_name || "You");
+                        const time = formatTime(turn.created_at || turn.timestamp || null);
+                        return (
+                          <div key={i} className="mb-4 rounded-2xl border border-line bg-fg/[0.025] p-3 last:mb-0">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className={`text-[11px] font-black uppercase tracking-[0.14em] ${isRecruiter ? "text-brand" : "text-muted"}`}>
+                                {who}
+                              </p>
+                              {time ? <span className="text-[11px] font-bold text-subtle">{time}</span> : null}
+                            </div>
+                            <p className="mt-1 text-sm leading-6 text-fg whitespace-pre-wrap">{turn.text}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
+                ) : (
+                  <div className="w-full rounded-xl border border-line bg-fg/[0.025] p-3 text-xs text-muted">
+                    Transcript was not captured for this older session. Future interviews will save transcript and duration automatically.
+                  </div>
+                )}
               </div>
             </article>
-          ))}
+          );})}
         </section>
       </div>
     </main>

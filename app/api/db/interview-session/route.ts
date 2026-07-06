@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { checkWorkZoInterviewQuota } from "@/lib/workzoInterviewQuota";
+import { checkWorkZoServerVoiceMinutes } from "@/lib/workzoServerVoiceMinutes";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -81,9 +82,16 @@ export async function POST(request: NextRequest) {
   }
 
   const targetRole = cleanText(body.targetRole, "Interview Practice");
-  const localId = cleanText(body.localId);
+  // The interview page sends its stable per-interview identifier as
+  // `sessionId`, not `localId`, this route only ever read `localId`, so the
+  // identifier was always empty and EVERY autosave inserted a brand-new row
+  // instead of upserting. That was the root cause of duplicate history
+  // entries (previously patched in the UI, not here) and it makes the
+  // voice-minute meter multi-count: each autosave snapshot's duration gets
+  // summed as if it were a separate interview. Accept either field.
+  const localId = cleanText(body.localId) || cleanText((body as { sessionId?: string }).sessionId);
 
-  // Same monthly interview cap as /api/db/interview-session — this route
+  // Same monthly interview cap as /api/db/interview-session, this route
   // writes to the same interview_sessions table, so it must not be a
   // second, unguarded door into it. See workzoInterviewQuota.ts.
   const resolved = await resolveWorkZoServerPlan();
@@ -97,7 +105,29 @@ export async function POST(request: NextRequest) {
         );
       }
     } catch (error) {
-      console.warn("[interview-sessions] quota check failed, failing closed is not appropriate here — allowing", error);
+      console.warn("[interview-sessions] quota check failed, failing closed is not appropriate here, allowing", error);
+    }
+
+    // Voice-minute pool gate: sessions are also capped by monthly minutes
+    // (300 Premium / 600 Pro), not just session count. Skips existing
+    // localId rows (autosaves) inside the check itself. Fails open on
+    // infrastructure errors, see workzoServerVoiceMinutes.ts.
+    try {
+      const minuteGate = await checkWorkZoServerVoiceMinutes(resolved.plan, localId);
+      if (!minuteGate.allowed && minuteGate.reason === "voice_minutes_limit") {
+        return NextResponse.json(
+          {
+            error: "voice_minutes_limit",
+            message: `You've used all ${minuteGate.minutesLimit} AI voice minutes this month on the ${minuteGate.plan} plan.`,
+            minutesUsed: minuteGate.minutesUsed,
+            minutesLimit: minuteGate.minutesLimit,
+            plan: minuteGate.plan,
+          },
+          { status: 403 },
+        );
+      }
+    } catch (error) {
+      console.warn("[interview-session] voice-minute check failed, allowing", error);
     }
   }
 

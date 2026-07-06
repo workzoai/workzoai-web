@@ -3,6 +3,9 @@ import type { ResumeProfile } from "@/lib/workzoResumeParser";
 function cleanText(value: unknown, max = 50000) {
   if (typeof value !== "string") return "";
   return value
+    .replace(/\[\s*PAGE[_\s-]*\d*[_\s-]*(?:LEFT|RIGHT)?[_\s-]*(?:COLUMN)?[_\s-]*(?:START|END)\s*\]/gi, " ")
+    .replace(/\bPAGE\s*(?:\d+\s*)?(?:LEFT|RIGHT)?\s*(?:COLUMN)?\s*(?:START|END)\b/gi, " ")
+    .replace(/\b(?:LEFT|RIGHT)\s+COLUMN\s+(?:START|END)\b/gi, " ")
     .replace(/\u0000/g, " ")
     .replace(/\r\n/g, "\n")
     .replace(/[ \t]+/g, " ")
@@ -118,7 +121,7 @@ function prepareLines(rawText: string) {
     .slice(0, 180);
 }
 
-const STRONG_SECTION_RE = /^(key\s+projects|selected\s+projects|security\s+projects|relevant\s+experience|technical\s+skills|professional\s+skills|about\s+me|awards?|awards?\s+received|berufliches\s+profil|berufserfahrung|bildung|bildungsweg|contacts?|core\s+competencies|education|educational\s+background|education\s+and\s+training|erfolge\s+beim\s+kunden|experience|expertise|fähigkeiten|fahigkeiten|kontakt|languages?|overview|professional\s+experience|professional\s+summary|profile|profile\s+overview|profile\s+summary|profil(?:\s*übersicht|\s*ubersicht)?|projects?|references?|skills?|summary|summary\s+of\s+skills|work\s+experience|certifications?|zertifikate|honou?rs?|honou?rs?\s+and\s+awards|academic\s+history|short\s+courses)$/i;
+const STRONG_SECTION_RE = /^(page\s*(?:start|end)|(?:page\s*)?(?:left|right)\s+column\s+(?:start|end)|key\s+projects|selected\s+projects|security\s+projects|relevant\s+experience|technical\s+skills|professional\s+skills|about\s+me|awards?|awards?\s+received|berufliches\s+profil|berufserfahrung|bildung|bildungsweg|contacts?|core\s+competencies|education|educational\s+background|education\s+and\s+training|erfolge\s+beim\s+kunden|experience|expertise|fähigkeiten|fahigkeiten|kontakt|languages?|overview|professional\s+experience|professional\s+summary|profile|profile\s+overview|profile\s+summary|profil(?:\s*übersicht|\s*ubersicht)?|projects?|references?|skills?|summary|summary\s+of\s+skills|work\s+experience|certifications?|zertifikate|honou?rs?|honou?rs?\s+and\s+awards|academic\s+history|short\s+courses)$/i;
 
 // Soft-skill and professional phrases that appear as CV section content but look
 // superficially like 2-word names. Any of these must never be returned as a name.
@@ -126,7 +129,7 @@ const STRONG_SECTION_RE = /^(key\s+projects|selected\s+projects|security\s+proje
 // which works at the individual-word level.
 const SOFT_SKILL_PHRASE_RE = /^(magna cum laude|summa cum laude|cum laude|educational background|relevant experience|key projects|security projects|professional summary|critical thinking|effective communication|public relations|time management|project management|stakeholder management|problem solving|decision making|data analysis|data visualization|machine learning|generative ai|cloud security|threat detection|threat hunting|soc operations|incident response|penetration testing|vulnerability management|client acquisition|market analysis|market research|brand management|crisis communication|event planning|content creation|social media|digital marketing|agile methodology|process improvement|personal training|team training|product strategy|product design|product lifecycle|user research|growth optimization|cross.functional|analytical thinking|design thinking|lesson planning|classroom management|web design|front end|back end|full stack|database administration|network security|system administration|active directory|windows server|requirements analysis|service delivery|requirements management)$/i;
 
-const BAD_NAME_WORD_RE = /\b(candidate|professional|unknown|resume|cv|curriculum|profile|profilesummary|summary|experience|workexperience|education|skills?|projects?|languages?|contact|email|phone|linkedin|github|headline|english|german|deutsch|dutch|french|spanish|italian|portuguese|arabic|mandarin|chinese|japanese|korean|russian|turkish|polish|hindi|tamil|englisch|françösisch|franzosisch|spanisch|italienisch|portugiesisch|arabisch|japanisch|chinesisch|russisch|türkisch|turkisch|polnisch|fluent|native|conversational|fließend|fliesend|muttersprache|verhandlungssicher|fortgeschritten|grundkenntnisse|anfänger|anfanger|c1|c2|b1|b2|a1|a2|support|engineer|analyst|manager|specialist|developer|consultant|technical|data|customer|success|sales|marketing|product|project|program|software|frontend|backend|fullstack|itil|itsm|api|sql|python|tableau|power|gcp|aws|rag|nlp|matplotlib|seaborn|tensorflow|sklearn|langchain|programming|bash|powershell|security|cloud|ticketing|roadmapping|agile|scrum|stakeholder|competencies|initiative|platform|dashboard|teacher|preschool|accountant|designer|coordinator|assistant|intern|executive|director|officer|lead|head|chief|owner|founder|recruiter|architect|scientist|researcher|writer|editor|planner|technician|school|university|college|industries|solutions|community|financial|senior|junior|principal|jede|stadt|straße|strasse|service|services|startup|bootcamp|institute|corporation|corp|gmbh|inc|ltd|llc|group|holding|digital|technologies|technology|systems|agency|studio|labs|ventures|consulting|innovations?|coaching|thinking|leadership|communication|planning|analysis|management|visualization|engineering|integration|scraping|generation|retrieval|augmented|certification|freelance|volunteer|degree|bachelor|master|associate|diploma|certificate|science|arts|computer|software|development|achievements?|accomplishments?|proficiencies|proficiency|capabilities|strengths?|competency|expertise|tools?|tooling|magna|cum|laude|honours?|honors?|itsd|hts|ats|sop|kpi|okr|roi|ict|erp|crm|saas|sla)\b/i;
+const BAD_NAME_WORD_RE = /\b(candidate|page|pages|left|right|column|columns|start|end|marker|layout|workzo|professional|unknown|resume|cv|curriculum|profile|profilesummary|summary|experience|workexperience|education|skills?|projects?|languages?|contact|email|phone|linkedin|github|headline|english|german|deutsch|dutch|french|spanish|italian|portuguese|arabic|mandarin|chinese|japanese|korean|russian|turkish|polish|hindi|tamil|englisch|françösisch|franzosisch|spanisch|italienisch|portugiesisch|arabisch|japanisch|chinesisch|russisch|türkisch|turkisch|polnisch|fluent|native|conversational|fließend|fliesend|muttersprache|verhandlungssicher|fortgeschritten|grundkenntnisse|anfänger|anfanger|c1|c2|b1|b2|a1|a2|support|engineer|analyst|manager|specialist|developer|consultant|technical|data|customer|success|sales|marketing|product|project|program|software|frontend|backend|fullstack|itil|itsm|api|sql|python|tableau|power|gcp|aws|rag|nlp|matplotlib|seaborn|tensorflow|sklearn|langchain|programming|bash|powershell|security|cloud|ticketing|roadmapping|agile|scrum|stakeholder|competencies|initiative|platform|dashboard|teacher|preschool|accountant|designer|coordinator|assistant|intern|executive|director|officer|lead|head|chief|owner|founder|recruiter|architect|scientist|researcher|writer|editor|planner|technician|school|university|college|industries|solutions|community|financial|senior|junior|principal|jede|stadt|straße|strasse|service|services|startup|bootcamp|institute|corporation|corp|gmbh|inc|ltd|llc|group|holding|digital|technologies|technology|systems|agency|studio|labs|ventures|consulting|innovations?|coaching|thinking|leadership|communication|planning|analysis|management|visualization|engineering|integration|scraping|generation|retrieval|augmented|certification|freelance|volunteer|degree|bachelor|master|associate|diploma|certificate|science|arts|computer|software|development|achievements?|accomplishments?|proficiencies|proficiency|capabilities|strengths?|competency|expertise|tools?|tooling|magna|cum|laude|honours?|honors?|itsd|hts|ats|sop|kpi|okr|roi|ict|erp|crm|saas|sla)\b/i;
 
 // Detects phrases that are clearly job titles (adjective + role word, or role word + company).
 // Generic: any 2-3 word phrase where at least half the words are role/job words.
@@ -136,7 +139,7 @@ const ROLE_TITLE_RE = /\b(senior|junior|lead|head|chief|principal|associate|assi
 const ORG_WORD_RE = /\b(gmbh|ug|ag|kg|ltd|limited|llc|inc|corp|corporation|company|co\.?|group|holding|services|solutions|systems|technologies|technology|software|digital|media|industries|university|college|school|schule|hochschule|institute|academy|akademie|foundation|department|bootcamp|preschool|kindergarten)\b/i;
 
 // GLOBAL FIX: structural contact/location detection instead of enumerated countries.
-// Works for any user anywhere in the world — not just Germany, India, Canada, UK, USA.
+// Works for any user anywhere in the world, not just Germany, India, Canada, UK, USA.
 const CONTACT_WORD_RE = /@|www\.|https?:|linkedin|github|\+?\d[\d\s()./-]{5,}|\b(street|strasse|straße|road|avenue|weg|platz|city|town|address|adresse|rue|via|calle|rua|steig|damm|pfad|ufer)\b/i;
 const CONTACT_STRUCTURE_RE = /\b\d{4,6}\b[,.\s]{1,4}\p{Lu}[\p{Ll}À-ÿ]+|\b\p{Lu}[\p{Ll}À-ÿ]+[,.\s]{1,4}\d{4,6}\b|\b\p{Lu}[\p{Ll}À-ÿ]{2,},\s*\p{Lu}[\p{Ll}À-ÿ]{2,}\b/u;
 const CONTACT_LOCATION_RE = { test(value: string) { return CONTACT_WORD_RE.test(value) || CONTACT_STRUCTURE_RE.test(value); } };
@@ -168,6 +171,7 @@ export function validateCandidateName(value: unknown): string {
     .trim();
 
   if (!raw || raw.length < 3 || raw.length > 70) return "";
+  if (/\b(page|left|right|column|start|end|marker|layout|workzo)\b/i.test(norm(raw))) return "";
   if (isDefinitelyNotHumanName(raw)) return "";
   // Global guard: education/qualification phrases can look like names in title case
   // (e.g. "Associate's Degree In Computer Science"). They are never candidate names.
@@ -443,7 +447,7 @@ function cleanHeadlineField(value: unknown): string {
   let h = raw.replace(/\s*[-–]\s*[A-Z][A-Za-z\s&]+\s*\d{4}\s*.*$/, "").trim();
   // Strip trailing date ranges
   h = h.replace(/\s*\d{4}\s*[-–]\s*(present|current|heute|\d{4})\s*$/i, "").trim();
-  // Strip trailing company-separator patterns like "— Company Name"
+  // Strip trailing company-separator patterns like "- Company Name"
   h = h.replace(/\s*[—–]\s*[A-Z][A-Za-z\s&.]+$/, "").trim();
   return h;
 }
@@ -451,13 +455,13 @@ function cleanHeadlineField(value: unknown): string {
 function cleanLocation(value: unknown): string {
   const raw = cleanText(value, 200);
   if (!raw) return "";
-  // Reject if value contains a month+year pattern — it's a date, not a location
+  // Reject if value contains a month+year pattern, it's a date, not a location
   if (/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{4}/i.test(raw)) return "";
   if (/^\d{4}\s*[-–]/.test(raw)) return "";
   // Reject if value looks like a course/certification title with a trailing year:
-  // "Artificial Intelligence in Marketing, 2022" — contains comma + 4-digit year
+  // "Artificial Intelligence in Marketing, 2022", contains comma + 4-digit year
   if (/,\s*(?:19|20)\d{2}\s*$/.test(raw)) return "";
-  // Reject if implausibly long — real locations are short
+  // Reject if implausibly long, real locations are short
   if (raw.length > 80) return "";
   return raw;
 }

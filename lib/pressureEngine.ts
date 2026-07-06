@@ -90,7 +90,7 @@ export function evaluatePressure({
 Use stronger recruiter pressure.
 
 Examples:
-- "Let me pause you there — I’m still not seeing the actual scope."
+- "Let me pause you there, I’m still not seeing the actual scope."
 - "What changed because of your work?"
 - "You’re staying quite broad. Bring it down to one specific situation."
 - "Give me the specific action and result."

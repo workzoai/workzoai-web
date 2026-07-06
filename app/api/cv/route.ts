@@ -9,51 +9,22 @@ import {
 import { cleanExtractedCvText } from "@/lib/workzoCvPdfCleaner";
 import {
   parseResumeWithAiStructure,
-  type WorkZoAiCvParserResult,
   repairResumeProfileAfterParsing,
 } from "@/lib/workzoAiCvParser";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
-import { enforceCanonicalCandidateName, validateCandidateName } from "@/lib/workzoResumeProfileManager";
-import { mergeCvProfile, shouldRejectAffinda } from "@/lib/cvProfileMerge";
+import { enforceCanonicalCandidateName } from "@/lib/workzoResumeProfileManager";
+import { finalizeCanonicalCvProfile } from "@/lib/workzoCvGlobalFinalizer";
+import { extractPdfTextLayoutAware } from "@/lib/workzoSpatialPdfExtractor";
+import { extractCvWithVision } from "@/lib/workzoVisionCvExtractor";
 
 const require = createRequire(import.meta.url);
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-// ── Parse result cache ───────────────────────────────────────────────────────
-// Caches AI parse results by a hash of the raw CV text.
-// Same file uploaded twice in quick succession → instant return, no AI call.
-// Survives across requests within a warm serverless instance (up to ~10 min).
-const _cvParseCache = new Map<string, { result: WorkZoAiCvParserResult; ts: number }>();
-const CV_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const CV_CACHE_MAX = 20;
-
-function cvCacheKey(text: string): string {
-  // Fast non-crypto hash — good enough for cache keying
-  let h = 0x811c9dc5;
-  for (let i = 0; i < Math.min(text.length, 4000); i++) {
-    h ^= text.charCodeAt(i);
-    h = (h * 0x01000193) >>> 0;
-  }
-  return `cv_${h.toString(16)}_${text.length}`;
-}
-
-function cvCacheGet(key: string): WorkZoAiCvParserResult | null {
-  const entry = _cvParseCache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.ts > CV_CACHE_TTL_MS) { _cvParseCache.delete(key); return null; }
-  return entry.result;
-}
-
-function cvCacheSet(key: string, result: WorkZoAiCvParserResult) {
-  if (_cvParseCache.size >= CV_CACHE_MAX) {
-    // Evict oldest entry
-    const oldest = [..._cvParseCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
-    if (oldest) _cvParseCache.delete(oldest[0]);
-  }
-  _cvParseCache.set(key, { result, ts: Date.now() });
-}
+// Bounded so a slow AI/Affinda call cannot hang the request until the browser
+// aborts. Combined with the deadline below and the AI client timeout, the route
+// degrades to the deterministic parser instead of timing out.
+export const maxDuration = 60;
 
 type RequestBody = {
   cvText?: string;
@@ -88,37 +59,6 @@ type AffindaResult = {
   error?: string;
 };
 
-function normalizeIdentityText(value: unknown) {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function identityAppearsInRawCv(rawCv: string, value: unknown) {
-  const name = validateCandidateName(value);
-  if (!name) return false;
-  const raw = normalizeIdentityText(rawCv);
-  const compactRaw = raw.replace(/\s+/g, "");
-  const key = normalizeIdentityText(name);
-  const compactKey = key.replace(/\s+/g, "");
-  if (!raw || !key) return false;
-  return raw.includes(key) || compactRaw.includes(compactKey);
-}
-
-function isInvalidPhoneValue(value: unknown) {
-  const raw = String(value || "").trim();
-  if (!raw) return false;
-  const digits = raw.replace(/\D/g, "");
-  if (/\b(?:19|20)\d{2}\s*[-–/]\s*(?:19|20)\d{2}\b/.test(raw)) return true;
-  if (/^\(?\s*(?:19|20)\d{2}\s*[-–/]\s*(?:19|20)\d{2}\s*\)?$/.test(raw)) return true;
-  return digits.length > 0 && digits.length < 7;
-}
-
-
 function normalizeUploadFileName(fileName = "") {
   const clean = String(fileName || "uploaded-cv.pdf")
     .replace(/\s+/g, " ")
@@ -131,63 +71,24 @@ function normalizeUploadFileName(fileName = "") {
   );
 }
 
-
-function normalizeCvTextForParsing(value: string) {
-  const text = String(value || "")
-    .replace(/\r/g, "\n")
-    .replace(/\b(EDUCATION)(WORK EXPERIENCE)\b/gi, "$1\n$2")
-    .replace(/\b(Work Experience)(Skills)\b/g, "$1\n$2")
-    .replace(/\b(Professional Summary)(Skills)/gi, "$1\n$2")
-    .replace(/\b(Contact)(Professional Summary)/gi, "$1\n$2")
-    .replace(/\b(Projects?)(Professional|Work|Education|Skills)/gi, "$1\n$2")
-    .split("\n")
-    .map((line) => line.replace(/[ \t]+/g, " ").trim())
-    .join("\n");
-
-  const sectionMap: Array<[RegExp, string]> = [
-    [/^(key|selected|personal|portfolio|bootcamp|academic|capstone|case study|case studies|security|data science|engineering)\s+projects?$/i, "PROJECTS"],
-    [/^projects?$/i, "PROJECTS"],
-    [/^(professional|work|employment|career|relevant)\s+experience$/i, "WORK EXPERIENCE"],
-    [/^berufserfahrung$/i, "WORK EXPERIENCE"],
-    [/^(technical|core|professional|summary of|summary)\s+skills$/i, "SKILLS"],
-    [/^fähigkeiten$|^fahigkeiten$|^expertise$/i, "SKILLS"],
-    [/^(education|educational background|academic history|education and training|bildungsweg|bildung|ausbildung)$/i, "EDUCATION"],
-    [/^(professional summary|profile summary|profile overview|profilübersicht|profilubersicht|about me|overview)$/i, "SUMMARY"],
-    [/^(languages|sprachen)$/i, "LANGUAGES"],
-    [/^(certifications|certificates|awards and certification|short courses)$/i, "CERTIFICATIONS"],
-  ];
-
-  return text
-    .split("\n")
-    .map((line) => {
-      for (const [pattern, replacement] of sectionMap) {
-        if (pattern.test(line.trim())) return replacement;
-      }
-      return line;
-    })
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
 function normalizeCvText(value: string) {
-  return normalizeCvTextForParsing(cleanExtractedCvText(normalizeResumeText(value || "")));
+  return cleanExtractedCvText(normalizeResumeText(value || ""));
 }
 
 // BUG FIXED, ROOT CAUSE: buildInterviewCvContext() (client-side, onboarding
-// page) produces a labeled-summary format — "Candidate name: ...",
-// "Headline: ...", "Experience:\n- title • company • dates" — built FROM an
+// page) produces a labeled-summary format, "Candidate name: ...",
+// "Headline: ...", "Experience:\n- title • company • dates", built FROM an
 // already-parsed profile, for use as LLM context elsewhere. It is NOT raw
 // CV text. Confirmed from live testing: when this derived summary gets fed
 // back into the AI CV-structuring parser (instead of the original raw
 // text), the AI faithfully re-extracts the ALREADY-MANGLED structure
 // (section labels like "Experience:" get misread as actual job titles,
-// "Candidate name:" — omitted entirely when name was previously empty —
+// "Candidate name:", omitted entirely when name was previously empty -
 // means the name stays empty forever). This created a self-reinforcing
 // degradation loop: each "memory sync" call re-parsed the previous garbled
 // output instead of ever returning to the source text. This check refuses
 // to AI-structure text matching this distinctive derived format, REGARDLESS
-// of which client code path sent it — fixing it at the boundary rather than
+// of which client code path sent it, fixing it at the boundary rather than
 // chasing every caller.
 function looksLikeDerivedCvContext(text: string): boolean {
   const sample = (text || "").slice(0, 400);
@@ -199,22 +100,21 @@ function looksLikeDerivedCvContext(text: string): boolean {
     /^Skills:\s*.+/m,
   ];
   // Two or more of these distinctive section labels appearing as their own
-  // lines is not something a real PDF/DOCX resume naturally produces —
+  // lines is not something a real PDF/DOCX resume naturally produces -
   // it's the signature of buildInterviewCvContext's specific output format.
   return markers.filter((re) => re.test(sample)).length >= 2;
 }
 
-async function parsePdf(buffer: Buffer) {
+async function parsePdfFallback(buffer: Buffer) {
   const pdfParseModule = require("pdf-parse");
   const pdfParse: PdfParseFn = pdfParseModule.default || pdfParseModule;
   const result = await pdfParse(buffer);
   return result.text || "";
 }
 
-async function parseDocx(buffer: Buffer): Promise<string> {
-  const mammoth = require("mammoth");
-  const result = await mammoth.extractRawText({ buffer });
-  return result.value || "";
+async function parsePdf(buffer: Buffer) {
+  const result = await extractPdfTextLayoutAware(buffer, parsePdfFallback);
+  return result.text || result.plainText || "";
 }
 
 async function extractFileTextFromBuffer(
@@ -229,15 +129,8 @@ async function extractFileTextFromBuffer(
     return parsePdf(buffer);
   if (lowerType.includes("text") || lowerName.endsWith(".txt"))
     return buffer.toString("utf8");
-  if (
-    lowerType.includes("wordprocessingml") ||
-    lowerType.includes("msword") ||
-    lowerName.endsWith(".docx") ||
-    lowerName.endsWith(".doc")
-  )
-    return parseDocx(buffer);
 
-  throw new Error("Unsupported file type. Please upload a PDF, DOCX, or TXT CV.");
+  throw new Error("Unsupported file type. Please upload a PDF or TXT CV.");
 }
 
 function cleanText(value: unknown) {
@@ -390,8 +283,27 @@ function compactDecorativeLine(line: string) {
     .replace(/\s+/g, " ")
     .trim();
   const tokens = trimmed.split(/\s+/).filter(Boolean);
-  if (tokens.length >= 4 && tokens.every((t) => /^\p{Lu}$/u.test(t)))
-    return tokens.join("");
+  if (tokens.length >= 4 && tokens.every((t) => /^\p{Lu}$/u.test(t))) {
+    const compact = tokens.join("");
+    if (NAME_SECTION_HEADERS.has(compact)) return compact;
+    // Try midpoint split for long all-caps tokens (likely a spaced full name).
+    if (compact.length >= 8 && compact.length <= 35) {
+      const mid = Math.round(compact.length / 2);
+      for (let offset = 0; offset <= Math.min(4, mid - 4); offset++) {
+        for (const pos of offset === 0 ? [mid] : [mid - offset, mid + offset]) {
+          if (pos >= 4 && pos <= compact.length - 4) {
+            const first = compact.slice(0, pos);
+            const second = compact.slice(pos);
+            if (!NAME_SECTION_HEADERS.has(first) && !NAME_SECTION_HEADERS.has(second)
+                && first.length >= 4 && second.length >= 4) {
+              return `${first} ${second}`;
+            }
+          }
+        }
+      }
+    }
+    return compact;
+  }
   return trimmed;
 }
 
@@ -420,6 +332,10 @@ function isHumanName(value: unknown) {
   if (parts.length < 2 || parts.length > 4) return "";
   if (new Set(parts.map((p) => p.toLowerCase())).size === 1) return "";
   if (!parts.every((part) => /^[\p{L}'-]{2,25}$/u.test(part))) return "";
+
+  // Conjunctions in the middle of a name signal a skill category header
+  // ("Testing And Debugging", "Coordination And Communication"), not a human name.
+  if (parts.some((p) => /^(and|or|the|of|for|in|at|to|und|et|y|e|por|per|sur)$/i.test(p))) return "";
 
   const roleWords = parts.filter((part) => ROLE_RE.test(part)).length;
   if (roleWords >= Math.ceil(parts.length / 2)) return "";
@@ -509,7 +425,7 @@ function splitCompactNameByFile(compact: string, fileName = "") {
 }
 
 function extractHeaderName(rawText: string, fileName = "", parserName = "") {
-  const lines = prepareLines(rawText); // scan full document — two-column PDFs often place the name after line 220
+  const lines = prepareLines(rawText); // scan full document, two-column PDFs often place the name after line 220
   const candidates: Array<{ name: string; score: number; reason: string }> = [];
 
   // Highest trust: user-uploaded filename when it contains a real name.
@@ -542,7 +458,7 @@ function extractHeaderName(rawText: string, fileName = "", parserName = "") {
     }
 
     // Compact all-caps line with no filename confirmation:
-    // Check if the compact string matches the email local part — if so,
+    // Check if the compact string matches the email local part, if so,
     // use the email-derived name (which was already split into first/last)
     // and score by position. This handles decorative compact headers when the email is structured.
     if (/^[A-ZÄÖÜ]{10,}$/u.test(line) && fromEmail) {
@@ -615,7 +531,7 @@ function extractHeaderName(rawText: string, fileName = "", parserName = "") {
 
   // Handles two consecutive compact all-caps spaced-letter lines that together form a name.
   // Example: "S U R E N D E R" (compacted to "SURENDER") followed by "D I L L I B A B U"
-  // ("DILLIBABU") — neither alone passes isHumanName (1 part), but together they do.
+  // ("DILLIBABU"), neither alone passes isHumanName (1 part), but together they do.
   for (let i = 0; i < Math.min(lines.length - 1, 80); i += 1) {
     const lineA = cleanText(lines[i]);
     const lineB = cleanText(lines[i + 1]);
@@ -640,7 +556,7 @@ function extractHeaderName(rawText: string, fileName = "", parserName = "") {
   }
 
   // Handles two consecutive single-word proper-case lines that together form a name.
-  // Example: "Estelle" on one line, "Darcy" on the next — each rejected alone (1 word),
+  // Example: "Estelle" on one line, "Darcy" on the next, each rejected alone (1 word),
   // but combined they pass isHumanName. Score by the earlier line's position.
   for (let i = 0; i < Math.min(lines.length - 1, 60); i += 1) {
     const lineA = cleanText(lines[i]);
@@ -685,7 +601,7 @@ function extractHeaderName(rawText: string, fileName = "", parserName = "") {
   if (best && best.score >= 14) return best.name;
 
   // Last resort: if no candidate scored well enough but the AI parser gave us
-  // something that passes isHumanName validation, trust it — it was trained
+  // something that passes isHumanName validation, trust it, it was trained
   // specifically to extract names and often gets it right even when position
   // scoring fails (e.g. names buried deep in two-column PDF extraction order).
   if (parserName) {
@@ -712,35 +628,13 @@ function pickArrayText(value: unknown, limit = 80) {
 
 function findAffindaData(document: unknown): AnyRecord {
   const root = asRecord(document) || {};
-
-  // Affinda v3 API: POST /v3/documents returns
-  //   { meta: {...}, data: { name, emails, workExperience, education, skills, ... } }
-  // OR with an outer wrapper:
-  //   { data: { identifier, fileName, data: { name, workExperience, ... } } }
-  // Try root.data first, then check if the structured fields are one level deeper.
   const direct = asRecord(root.data);
-  if (direct) {
-    // v3 sometimes nests one level deeper: { data: { identifier, data: { workExperience... } } }
-    const nested = asRecord(direct.data);
-    if (nested && (nested.workExperience || nested.education || nested.name || nested.emails)) {
-      return nested;
-    }
-    // root.data itself has the structured fields
-    if (direct.workExperience || direct.education || direct.name || direct.emails) {
-      return direct;
-    }
-  }
-
-  // Wrapped responses: { document: { data: {...} } } or { result: { data: {...} } }
-  for (const key of ["document", "result", "resume", "parsed"]) {
-    const wrapper = asRecord(root[key as keyof typeof root]);
-    if (!wrapper) continue;
-    const inner = asRecord(wrapper.data);
-    if (inner && (inner.workExperience || inner.education || inner.name)) return inner;
-    if (wrapper.workExperience || wrapper.education || wrapper.name) return wrapper;
-  }
-
-  // Fallback: root itself
+  if (direct) return direct;
+  const innerDocument = asRecord(root.document);
+  if (innerDocument && asRecord(innerDocument.data))
+    return asRecord(innerDocument.data) || {};
+  const result = asRecord(root.result);
+  if (result && asRecord(result.data)) return asRecord(result.data) || {};
   return root;
 }
 
@@ -958,12 +852,8 @@ function mapAffindaProfile(
     previewText: rawText.slice(0, 1200),
   } as ResumeProfile;
 
-  // Keep Affinda structure but never override a valid parser-provided name.
+  // Final identity repair using WorkZo rules, but keep Affinda structure.
   const repaired = repairResumeProfileAfterParsing(profile, rawText, fileName);
-  const existing = validateCandidateName(repaired.basics?.name || "");
-  if (existing) {
-    return { ...repaired, basics: { ...repaired.basics, name: existing } } as ResumeProfile;
-  }
   return enforceCanonicalCandidateName(repaired, rawText, fileName, "") as ResumeProfile;
 }
 
@@ -1008,6 +898,7 @@ async function parseWithAffinda(input: {
   fileName: string;
   fileType: string;
   rawText: string;
+  deadline?: number;
 }): Promise<AffindaResult> {
   const apiKey = process.env.AFFINDA_API_KEY?.trim();
   const workspace = process.env.AFFINDA_WORKSPACE_ID?.trim();
@@ -1057,10 +948,16 @@ async function parseWithAffinda(input: {
       valueAt(asRecord(document), ["identifier", "id"]),
     );
 
-    // Some Affinda configurations return before parsing is complete.
+    // Some Affinda configurations return before parsing is complete. Poll, but
+    // stop once the request deadline is near so Affinda can never push the
+    // route past its time budget, the caller still gets the AI/local profile.
+    const affindaDeadline = input.deadline ?? Date.now() + 15000;
     for (
       let attempt = 0;
-      identifier && !affindaIsReady(document) && attempt < 20;
+      identifier &&
+      !affindaIsReady(document) &&
+      attempt < 20 &&
+      Date.now() < affindaDeadline - 1200;
       attempt += 1
     ) {
       await sleep(750);
@@ -1072,13 +969,6 @@ async function parseWithAffinda(input: {
       input.rawText,
       input.fileName,
     );
-
-    // Diagnostic: log actual Affinda response structure so we can confirm the data path
-    const rootKeys = Object.keys(asRecord(document) || {}).join(",");
-    const dataKeys = Object.keys(asRecord((asRecord(document) || {}).data) || {}).join(",");
-    const datadataKeys = Object.keys(asRecord(asRecord((asRecord(document) || {}).data)?.data) || {}).join(",");
-    console.log(`[api/cv] Affinda mapped: exp=${resumeProfile.experience?.length ?? 0} edu=${resumeProfile.education?.length ?? 0} skills=${resumeProfile.skills?.length ?? 0} | root=[${rootKeys.slice(0, 100)}] data=[${dataKeys.slice(0, 100)}] data.data=[${datadataKeys.slice(0, 100)}]`);
-
     return {
       ok: true,
       source: "affinda_resume_parser",
@@ -1094,65 +984,19 @@ async function parseWithAffinda(input: {
   }
 }
 
-function isProfileUsable(profile: ResumeProfile | undefined | null) {
-  if (!profile) return false;
-  const basics = profile.basics || {};
-  const name = (basics.name || "").trim();
-  const expCount = Array.isArray(profile.experience) ? profile.experience.length : 0;
-  const eduCount = Array.isArray(profile.education) ? profile.education.length : 0;
+function isProfileUsable(profile: ResumeProfile) {
+  const name = isHumanName(profile.basics?.name || "");
+  const expCount = profile.experience?.length || 0;
+  const eduCount = profile.education?.length || 0;
+  const skillsCount = profile.skills?.length || 0;
 
-  // Must have at least one structured section (experience OR education).
-  // Skills-only results mean the parser found keyword lists but missed the CV
-  // structure — confirmed from live logs where Affinda returned name + skills
-  // but experience:[] education:[] for decorative PDF templates.
-  if (expCount === 0 && eduCount === 0) return false;
+  // Bad Affinda run pattern: no jobs/education but huge skill dump.
+  if (expCount === 0 && eduCount === 0 && skillsCount > 25) return false;
 
-  // Must have a name that isn't a section heading or placeholder.
-  if (!name) return false;
-  const PLACEHOLDER = /^(candidate|professional|selected project|unknown|n\/a|testing and debugging|projects?|education|skills?|experience)$/i;
-  if (PLACEHOLDER.test(name)) return false;
+  // If both identity and structure are weak, reject the parser output.
+  if (!name && expCount === 0 && eduCount === 0) return false;
 
-  return true;
-}
-
-function profileQualityScore(profile: ResumeProfile | undefined | null) {
-  if (!profile) return -1000;
-  let score = 0;
-  const name = validateCandidateName(profile.basics?.name || "");
-  const email = String(profile.basics?.email || "").trim();
-  const phone = String(profile.basics?.phone || "").trim();
-  const headline = String(profile.basics?.headline || "").trim();
-  const expCount = Array.isArray(profile.experience) ? profile.experience.length : 0;
-  const eduCount = Array.isArray(profile.education) ? profile.education.length : 0;
-  const skillsCount = Array.isArray(profile.skills) ? profile.skills.length : 0;
-  const projectsCount = Array.isArray(profile.projects) ? profile.projects.length : 0;
-  const languagesCount = Array.isArray(profile.languages) ? profile.languages.length : 0;
-
-  if (name) score += 60;
-  else score -= 90;
-  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) score += 35;
-  if (phone.replace(/\D/g, "").length >= 7 && !isInvalidPhoneValue(phone)) score += 15;
-  if (isInvalidPhoneValue(phone)) score -= 35;
-  if (headline && headline.length <= 120) score += 15;
-  if (expCount > 0) score += expCount * 35;
-  else score -= 40;
-  if (eduCount > 0) score += eduCount * 20;
-  if (skillsCount > 0) score += Math.min(skillsCount, 25) * 4;
-  if (projectsCount > 0) score += projectsCount * 18;
-  if (languagesCount > 0) score += Math.min(languagesCount, 5) * 4;
-
-  const experienceLooksCorrupted = (profile.experience || []).some((exp) => {
-    const title = String(exp.title || "").trim();
-    const company = String(exp.company || "").trim();
-    return Boolean(
-      (title && company && title.toLowerCase() === company.toLowerCase()) ||
-      /^\d{4}|^(jan|feb|mar|apr)/i.test(title) ||
-      (/\//.test(title) && title.length > 40)
-    );
-  });
-  if (experienceLooksCorrupted) score -= 80;
-  if (headline.length > 140 || /^(managed|assisted|supported|led|coordinated)\b/i.test(headline)) score -= 45;
-  return score;
+  return expCount > 0 || eduCount > 0 || skillsCount >= 3;
 }
 
 function buildProfileText(profile: ResumeProfile, fallbackText: string) {
@@ -1168,7 +1012,7 @@ function buildProfileText(profile: ResumeProfile, fallbackText: string) {
   if (profile.summary) lines.push(`Summary: ${profile.summary}`);
 
   if (profile.experience?.length) {
-    lines.push("Experience:");
+    lines.push("=== WORK EXPERIENCE (paid employment only, NOT projects, NOT education) ===");
     profile.experience.slice(0, 8).forEach((job) => {
       const header = [job.title, job.company, job.dates]
         .filter(Boolean)
@@ -1176,28 +1020,38 @@ function buildProfileText(profile: ResumeProfile, fallbackText: string) {
       if (header) lines.push(`- ${header}`);
       job.bullets?.slice(0, 6).forEach((bullet) => lines.push(`  • ${bullet}`));
     });
+    lines.push("=== END OF WORK EXPERIENCE ===");
   }
 
   if (profile.education?.length) {
-    lines.push("Education:");
+    lines.push("=== EDUCATION ===");
     profile.education.slice(0, 5).forEach((edu) => {
       const header = [edu.degree, edu.institution, edu.dates]
         .filter(Boolean)
         .join(" • ");
       if (header) lines.push(`- ${header}`);
     });
+    lines.push("=== END OF EDUCATION ===");
   }
 
   if (profile.skills?.length)
     lines.push(`Skills: ${profile.skills.slice(0, 40).join(", ")}`);
+
   if (profile.projects?.length) {
-    lines.push("Projects:");
+    // These markers survive compactContextText()'s newline-to-space collapse.
+    // Without them the LLM attributed Magist project bullets to Zoho Corp
+    // because both appeared consecutively in the raw blob with no boundary.
+    // The fix is global: every section is now explicitly bracketed so the
+    // recruiter always knows which section any given bullet belongs to,
+    // regardless of CV layout, heading style, or section ordering.
+    lines.push("=== INDEPENDENT PROJECTS (the candidate's own work, NOT associated with any employer) ===");
     profile.projects.slice(0, 6).forEach((project) => {
-      if (project.name) lines.push(`- ${project.name}`);
+      if (project.name) lines.push(`- PROJECT: ${project.name}`);
       project.bullets
         ?.slice(0, 4)
         .forEach((bullet) => lines.push(`  • ${bullet}`));
     });
+    lines.push("=== END OF INDEPENDENT PROJECTS ===");
   }
   if (profile.languages?.length)
     lines.push(`Languages: ${profile.languages.join(", ")}`);
@@ -1213,21 +1067,12 @@ function lockResumeProfileIdentity(input: {
   fileName?: string;
   candidateName?: string;
 }) {
-  const profile = { ...(input.profile || {}) } as ResumeProfile;
-  profile.basics = { ...(profile.basics || {}) };
-
-  // Never override a valid parser name. Recovery is allowed only when the name
-  // is missing/invalid. This prevents global post-processing from turning real
-  // names into section headings, project headers, or skill phrases.
-  const existing = validateCandidateName(profile.basics.name || "");
-  if (existing) {
-    profile.basics.name = existing;
-    (profile as ResumeProfile & { name?: string }).name = existing;
-    return profile;
-  }
-
+  // Keep this as a defensive wrapper, but do not let raw PDF layout scans
+  // override a parser-produced identity. The final merge layer validates and
+  // freezes identity. This prevents names from becoming layout markers, skills,
+  // schools, or section headers.
   return enforceCanonicalCandidateName(
-    profile,
+    input.profile,
     input.rawText,
     input.fileName || "",
     input.candidateName || "",
@@ -1253,27 +1098,6 @@ function lockParserResultIdentity<T extends { resumeProfile?: ResumeProfile }>(
   };
 }
 
-
-function sanitizeProfileForResponse(profile: ResumeProfile, rawText: string, fileName = ''): ResumeProfile {
-  const repaired = repairResumeProfileAfterParsing(profile, rawText, fileName);
-  const headline = (repaired.basics?.headline || '').trim();
-  const experience = Array.isArray(repaired.experience) ? repaired.experience : [];
-  const safeHeadline = (() => {
-    if (!headline) return experience[0]?.title || 'Professional';
-    const words = headline.split(/\s+/).filter(Boolean).length;
-    const sentenceLike = headline.length > 150 || (words > 14 && /\b(with|and|for|to|that|which|after|before|because|while|where|using|leading|improving|supporting|managing|developing|creating|providing)\b/i.test(headline));
-    const bulletLike = /^(led|managed|assisted|supported|coordinated|created|developed|implemented|improved|provided|responsible|collaborated|conducted)\b/i.test(headline) && headline.length > 60;
-    return sentenceLike || bulletLike ? (experience[0]?.title || 'Professional') : headline;
-  })();
-  return {
-    ...repaired,
-    basics: {
-      ...repaired.basics,
-      headline: safeHeadline,
-    },
-  } as ResumeProfile;
-}
-
 function buildResponse(input: {
   aiOk: boolean;
   source: string;
@@ -1285,90 +1109,80 @@ function buildResponse(input: {
   jobDescription?: string;
   targetRole?: string;
   targetMarket?: string;
+  // Confidence gate from the vision extractor. When needsConfirmation is true the
+  // client must show a "review what we read" screen before starting the interview.
+  needsConfirmation?: boolean;
+  confidence?: { name: number; experience: number; skills: number; overall: number };
+  confirmationReasons?: string[];
 }) {
-  const lockedAndRepairedProfile = sanitizeProfileForResponse(lockResumeProfileIdentity({
-    profile: input.resumeProfile,
+  // Single authoritative finalize step. The finalizer treats parser output as
+  // draft data and produces one validated CandidateProfile: it rejects layout
+  // markers, section headers, skills, roles, companies, and schools from the
+  // candidate name/headline, moves education out of experience, and dedupes.
+  // Nothing after this is allowed to change identity, so mergeCvProfile() and
+  // the api.cv.name_override stage are removed from this path.
+  const finalizedProfile = finalizeCanonicalCvProfile(input.resumeProfile as any, {
     rawText: input.rawCvText,
     fileName: input.fileName || "",
-    candidateName: input.candidateName || "",
-  }), input.rawCvText, input.fileName || "");
-
-  // Final global guard: run the canonical validator AFTER legacy repair/identity
-  // locking. Some legacy repair functions can reintroduce invalid values (for
-  // example dates as phone numbers or education rows inside experience), so the
-  // last object returned to frontend/interview must always be validated here.
-  const resumeProfile = mergeCvProfile({
-    parsedProfile: lockedAndRepairedProfile as any,
-    rawText: input.rawCvText,
-    fileName: input.fileName || "",
-    requestBody: {
-      candidateName: input.candidateName || "",
-      fileName: input.fileName || "",
-    },
+    selectedName: input.candidateName || "",
+    source: input.source,
+    confidence: input.confidence,
   }) as ResumeProfile;
+
+  // The finalizer is the last profile-changing function. Freeze so no later
+  // stage can mutate name, headline, experience, or education.
+  const resumeProfile = Object.freeze(finalizedProfile) as ResumeProfile;
+
+  const finalizerConfidence = (resumeProfile as any).confidence || {};
+  debugCvPipeline("api.cv.finalizer.identity_decision", {
+    fileName: input.fileName,
+    selectedName: resumeProfile.basics?.name || "",
+    selectedNameSource: finalizerConfidence.nameSource || "unknown",
+    rejectedCandidates: finalizerConfidence.rejectedNameCandidates || [],
+  });
 
   const cleanProfileText = buildProfileText(resumeProfile, input.rawCvText);
 
-  // IMPORTANT v7 safety fix:
-  // The parser may return aiOk=false when it used a fallback or when OpenRouter/Affinda
-  // had a non-fatal issue. The UI was treating that as a hard upload failure and showed
-  // "CV extraction failed" even when we had a perfectly usable profile and raw CV text.
-  // Upload should fail only when we truly have no usable CV data. Otherwise return ok=true
-  // and keep parser issues as non-blocking warnings.
-  const profileUsable = isProfileUsable(resumeProfile);
-  const hasRawCvText = Boolean(input.rawCvText && input.rawCvText.trim().length > 80);
-  const responseOk = Boolean(profileUsable || hasRawCvText);
-  const nonBlockingError = responseOk ? "" : input.error;
-  const warnings = [
-    ...((resumeProfile.warnings || []) as string[]),
-    ...(input.error && responseOk ? [input.error] : []),
-  ].filter(Boolean);
-  const safeResumeProfile = {
-    ...resumeProfile,
-    warnings,
-  } as ResumeProfile;
-
   return NextResponse.json({
-    ok: responseOk,
-    success: responseOk,
+    ok: input.aiOk,
+    success: input.aiOk,
     source: input.source,
-    error: nonBlockingError,
-    warning: input.error && responseOk ? input.error : "",
+    error: input.error,
     text: input.rawCvText,
-    // GLOBAL ROUTER FIX: cvText/uploadedCvText/rawCvText must stay the original
-    // extracted CV text. The derived profile summary is useful for interview
-    // context, but feeding it back into CV rewrite routes caused education,
-    // skills, names, and prior generated CV blocks to leak into final resumes.
-    cvText: input.rawCvText,
+    cvText: cleanProfileText,
     rawCvText: input.rawCvText,
     uploadedCvText: input.rawCvText,
-    resumeText: input.rawCvText,
-    candidateCv: input.rawCvText,
-    profileText: cleanProfileText,
+    resumeText: cleanProfileText,
+    candidateCv: cleanProfileText,
     content: input.rawCvText,
-    resumeProfile: safeResumeProfile,
-    profile: safeResumeProfile,
+    resumeProfile,
+    profile: resumeProfile,
     fileName: input.fileName,
-    candidateName: safeResumeProfile.basics?.name || "",
+    candidateName: resumeProfile.basics?.name || "",
+    // Confidence gate — the client uses needsConfirmation to decide whether to
+    // show the "review what we read" screen before the interview starts.
+    needsConfirmation: input.needsConfirmation ?? false,
+    confidence: input.confidence,
+    confirmationReasons: input.confirmationReasons || [],
     chars: input.rawCvText.length,
     recruiterMemoryProfile: {
-      candidateName: safeResumeProfile.basics?.name || "",
-      candidateHeadline: safeResumeProfile.basics?.headline || "",
-      candidateEmail: safeResumeProfile.basics?.email || "",
-      candidatePhone: safeResumeProfile.basics?.phone || "",
-      candidateLocation: safeResumeProfile.basics?.location || "",
-      candidateLinkedin: safeResumeProfile.basics?.linkedin || "",
-      summary: safeResumeProfile.summary || "",
-      skills: safeResumeProfile.skills || [],
-      experience: safeResumeProfile.experience || [],
-      education: safeResumeProfile.education || [],
-      projects: safeResumeProfile.projects || [],
-      languages: safeResumeProfile.languages || [],
-      certifications: safeResumeProfile.certifications || [],
+      candidateName: resumeProfile.basics?.name || "",
+      candidateHeadline: resumeProfile.basics?.headline || "",
+      candidateEmail: resumeProfile.basics?.email || "",
+      candidatePhone: resumeProfile.basics?.phone || "",
+      candidateLocation: resumeProfile.basics?.location || "",
+      candidateLinkedin: resumeProfile.basics?.linkedin || "",
+      summary: resumeProfile.summary || "",
+      skills: resumeProfile.skills || [],
+      experience: resumeProfile.experience || [],
+      education: resumeProfile.education || [],
+      projects: resumeProfile.projects || [],
+      languages: resumeProfile.languages || [],
+      certifications: resumeProfile.certifications || [],
     },
     jobMemoryProfile: {
       targetRole:
-        input.targetRole || safeResumeProfile.basics?.headline || "General Role",
+        input.targetRole || resumeProfile.basics?.headline || "General Role",
       targetMarket: input.targetMarket || "Global",
       jobDescription: input.jobDescription || "",
     },
@@ -1387,14 +1201,6 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
   );
   const jd = normalizeResumeText(String(body.jobDescription || ""));
   const existingProfile = body.resumeProfile || body.profile;
-  // Normalize fileName from JSON body — client may send triple-extension names
-  // like "candidate-name.pdf.pdf.pdf" from repeated re-parse cycles.
-  if (body.fileName) {
-    body = {
-      ...body,
-      fileName: normalizeUploadFileName(body.fileName),
-    };
-  }
 
   const isImprovementRequest = body.mode === "improve";
   if (isImprovementRequest && !isPremium) {
@@ -1422,7 +1228,6 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
     // job descriptions in the headline, etc.
     // We validate by checking structural sanity, not just name presence.
     const incomingName = (incoming.basics?.name || "").trim();
-    const incomingValidName = validateCandidateName(incomingName);
     const incomingEmail = (incoming.basics?.email || "").trim();
     const incomingPhone = (incoming.basics?.phone || "").trim();
     const incomingHeadline = (incoming.basics?.headline || "").trim();
@@ -1435,13 +1240,12 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
       (incomingEmail.length > 0 && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(incomingEmail));
 
     const phoneLooksCorrupted =
-      isInvalidPhoneValue(incomingPhone) ||
       /^\d{4}[-/]\d{4}/.test(incomingPhone) || // looks like date range
       /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(incomingPhone);
 
     const headlineLooksCorrupted =
-      incomingHeadline.length > 180 || // very long paragraph, not a headline
-      (/^(managed|assisted|supported|led|coordinated|implemented|developed|created|provided)/i.test(incomingHeadline) && incomingHeadline.length > 70); // starts with verb + sentence-length = likely job bullet
+      incomingHeadline.length > 120 || // too long to be a headline
+      /^(managed|assisted|supported|led|coordinated)\b/i.test(incomingHeadline); // starts with verb = job bullet
 
     const experienceLooksCorrupted = incomingExperience.some((exp) => {
       const titleIsCompany = exp.title && exp.company && exp.title === exp.company;
@@ -1450,16 +1254,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
       return titleIsCompany || titleIsDate || titleHasSlash;
     });
 
-    const nameLooksCorrupted = Boolean(incomingName && !incomingValidName);
-    const profileNameMissingFromRaw = Boolean(
-      incomingValidName &&
-      rawCv.length > 200 &&
-      !identityAppearsInRawCv(rawCv, incomingValidName)
-    );
-
     const profileIsCorrupted =
-      nameLooksCorrupted ||
-      profileNameMissingFromRaw ||
       emailLooksCorrupted ||
       phoneLooksCorrupted ||
       headlineLooksCorrupted ||
@@ -1470,7 +1265,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
     // DIFFERENT person's CV. This is the confirmed cross-contamination pattern:
     // the client sends stale cached profile data (e.g. Olivia Wilson's profile)
     // when a different person's CV has just been uploaded.
-    // The email is the most reliable identity anchor — it's unique, precise, and
+    // The email is the most reliable identity anchor, it's unique, precise, and
     // always extracted verbatim from the CV text (unlike names which may vary in
     // formatting). Only apply this check when the incoming profile has a valid
     // email AND the raw CV has enough text to be meaningful.
@@ -1482,13 +1277,13 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
       !rawCv.toLowerCase().includes(incomingEmail.toLowerCase());
 
     if (profileBelongsToDifferentPerson) {
-      console.warn("[WorkZo CV Pipeline] api.cv.json.stale_profile_rejected — profile email not found in CV text, re-parsing", {
+      console.warn("[WorkZo CV Pipeline] api.cv.json.stale_profile_rejected, profile email not found in CV text, re-parsing", {
         profileEmail: incomingEmail,
         profileName: incomingName,
         rawCvLength: rawCv.length,
         fileName: body.fileName || "(no fileName in request body)",
       });
-      // Fall through to fresh AI parse — treat like a corrupted profile
+      // Fall through to fresh AI parse, treat like a corrupted profile
     } else if (profileIsCorrupted) {
       // Re-parse properly instead of using the corrupted cached profile
       console.warn("[WorkZo CV Pipeline] api.cv.json.corrupted_profile_rejected", {
@@ -1496,13 +1291,11 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
         emailCorrupted: emailLooksCorrupted,
         phoneCorrupted: phoneLooksCorrupted,
         headlineCorrupted: headlineLooksCorrupted,
-        nameCorrupted: nameLooksCorrupted,
-        profileNameMissingFromRaw,
         experienceCorrupted: experienceLooksCorrupted,
       });
       // Fall through to fresh AI parse below
     } else {
-      // Profile looks clean — use it but still run through lockResumeProfileIdentity
+      // Profile looks clean, use it but still run through lockResumeProfileIdentity
       // to normalize any minor issues (encoding artifacts, trailing whitespace, etc.)
       const profile = incoming;
       debugCvProfile("api.cv.json.existing_profile_used", profile, {
@@ -1562,14 +1355,14 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
     });
   }
 
-  // Same defensive wrapping as the file-upload path above — protects
+  // Same defensive wrapping as the file-upload path above, protects
   // against the OpenAI SDK throwing an uncaught error when OpenRouter
   // returns a malformed response body, which otherwise crashes this
   // route with a raw 500 instead of degrading to the local fallback.
   let aiResult;
   if (looksLikeDerivedCvContext(rawCv)) {
     console.warn(
-      `[api/cv] buildMemoryFromJson received derived CV context text (not raw CV text) — skipping AI re-structuring. fileName=${body.fileName || "(none)"}`,
+      `[api/cv] buildMemoryFromJson received derived CV context text (not raw CV text), skipping AI re-structuring. fileName=${body.fileName || "(none)"}`,
     );
     const localProfile = repairResumeProfileAfterParsing(
       extractResumeProfileComplex(rawCv),
@@ -1580,7 +1373,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
     // The derived context format ("Candidate name: ...\nExperience:\n- ...") has
     // no raw PDF name pattern, so local extraction almost always returns ''.
     // body.candidateName IS the correctly-parsed name from the real file parse
-    // that just finished — use it directly rather than re-extracting from text
+    // that just finished, use it directly rather than re-extracting from text
     // that was never meant to be re-parsed.
     const resolvedName = (body.candidateName || "").trim() || localProfile.basics?.name || "";
 
@@ -1595,7 +1388,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
 
     aiResult = {
       ok: false,
-      source: "local_fallback_ai_error" as const,
+      source: "local_fallback_derived_context_detected",
       resumeProfile: {
         ...localProfile,
         basics: {
@@ -1604,28 +1397,19 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
           headline: resolvedHeadline,
         },
       },
-      error: "Input text was a derived CV summary — used local extraction with provided candidateName.",
-    } as WorkZoAiCvParserResult;
+      error: "Input text was a derived CV summary, used local extraction with provided candidateName.",
+    };
   } else {
   try {
-    // Check cache before calling AI — same CV text skips the 10-15s parse
-    const _cacheKey = cvCacheKey(rawCv);
-    const _cached = cvCacheGet(_cacheKey);
-    if (_cached) {
-      console.info("[WorkZo CV Pipeline] api.cv.json.cache_hit", { fileName: body.fileName, cacheKey: _cacheKey });
-      aiResult = _cached;
-    } else {
-      aiResult = await parseResumeWithAiStructure({
-        cvText: rawCv,
-        layoutText: rawCv,
-        fileName: body.fileName || "pasted-cv.txt",
-        jobDescription: jd,
-        targetRole: body.targetRole,
-        targetMarket: body.targetMarket,
-        language: body.language,
-      });
-      if (aiResult.ok) cvCacheSet(_cacheKey, aiResult);
-    }
+    aiResult = await parseResumeWithAiStructure({
+      cvText: rawCv,
+      layoutText: rawCv,
+      fileName: body.fileName || "pasted-cv.txt",
+      jobDescription: jd,
+      targetRole: body.targetRole,
+      targetMarket: body.targetMarket,
+      language: body.language,
+    });
   } catch (aiError) {
     console.error("api.cv.json.ai_parser_uncaught_error", aiError);
     const localProfile = repairResumeProfileAfterParsing(
@@ -1635,10 +1419,10 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
     );
     aiResult = {
       ok: false,
-      source: "local_fallback_ai_error" as const,
+      source: "local_fallback_ai_uncaught_error",
       resumeProfile: localProfile,
       error: aiError instanceof Error ? aiError.message : "AI CV parser crashed unexpectedly.",
-    } as WorkZoAiCvParserResult;
+    };
   }
   }
 
@@ -1653,13 +1437,14 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
     ok: aiResult.ok,
     name: aiResult.resumeProfile.basics?.name,
     // BUG INVESTIGATION: fileName was never logged here, which made it
-    // impossible to tell whether a mismatched-looking result was genuine
-    // cross-request data leakage or just confusing
+    // impossible to tell whether a mismatched-looking result (e.g. Jonas
+    // Lausch's data appearing right after Olivia Sanchez's file was
+    // extracted) was genuine cross-request data leakage or just confusing
     // interleaved console output from concurrent uploads. This field
     // settles it on the next test: if fileName here ever doesn't match
     // what was actually uploaded for this request, that confirms a real
     // bug in whatever client code calls this endpoint (it receives
-    // body.rawCvText/cvText as given — this function doesn't fetch or
+    // body.rawCvText/cvText as given, this function doesn't fetch or
     // cache anything itself).
     fileName: body.fileName || "(no fileName in request body)",
   });
@@ -1674,23 +1459,6 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
     jobDescription: jd,
     targetRole: body.targetRole,
     targetMarket: body.targetMarket,
-  });
-}
-
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label}_timeout_after_${ms}ms`)), ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
   });
 }
 
@@ -1712,6 +1480,10 @@ export async function POST(request: Request) {
   const isPremium =
     resolved.plan === "premium" || resolved.plan === "premium_pro";
 
+  // Hard internal deadline so the route never hangs long enough for the browser
+  // to abort. Everything below degrades to the best-effort profile once passed.
+  const requestDeadline = Date.now() + 52000;
+
   try {
     const contentType = request.headers.get("content-type") || "";
 
@@ -1725,15 +1497,11 @@ export async function POST(request: Request) {
         );
 
       const safeFileName = normalizeUploadFileName(file.name);
-      const fileType = (() => {
-        if (file.type && file.type !== "application/octet-stream") return file.type;
-        const n = safeFileName.toLowerCase();
-        if (n.endsWith(".pdf"))  return "application/pdf";
-        if (n.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-        if (n.endsWith(".doc"))  return "application/msword";
-        if (n.endsWith(".txt"))  return "text/plain";
-        return file.type || "application/octet-stream";
-      })();
+      const fileType =
+        file.type ||
+        (safeFileName.toLowerCase().endsWith(".pdf")
+          ? "application/pdf"
+          : "text/plain");
       const buffer = Buffer.from(await file.arrayBuffer());
       const extracted = await extractFileTextFromBuffer(
         buffer,
@@ -1752,49 +1520,113 @@ export async function POST(request: Request) {
           { status: 422 },
         );
 
-      // Affinda disabled by default — set AFFINDA_ENABLED=true to re-enable.
-      const affindaEnabled =
-        process.env.AFFINDA_ENABLED === "true" &&
-        Boolean(process.env.AFFINDA_API_KEY?.trim()) &&
-        Boolean(process.env.AFFINDA_WORKSPACE_ID?.trim());
-      let affinda: AffindaResult;
-      if (!affindaEnabled) {
-        affinda = { ok: false, source: "affinda_not_configured", error: "Affinda disabled" };
-      } else {
-        try {
-          affinda = await parseWithAffinda({ buffer, fileName: safeFileName, fileType, rawText: cleanedCv });
-        } catch (err) {
-          console.warn("[api/cv] Affinda error:", err instanceof Error ? err.message : err);
-          affinda = { ok: false, source: "affinda_failed", error: "Affinda threw" };
-        }
-      }
+      // GLOBAL PERFORMANCE FIX:
+      // The upload route must be fast and reliable. Real user logs showed PDF text
+      // extraction completed quickly, but the AI structuring step held /api/cv open
+      // for ~49 seconds. That can make the browser abort or show a timeout even
+      // though the CV was already readable.
+      //
+      // Therefore multipart CV upload now returns immediately with the raw extracted
+      // text plus the deterministic local profile. The app can continue without
+      // blocking the user. If you ever want to force the old synchronous AI parser
+      // for internal QA, set WORKZO_SYNC_AI_CV_UPLOAD=true in .env.local.
+      const localFastProfile = repairResumeProfileAfterParsing(
+        extractResumeProfileComplex(cleanedCv),
+        cleanedCv,
+        safeFileName,
+      );
 
-      if (affinda.ok && affinda.resumeProfile) {
-        affinda.resumeProfile = lockResumeProfileIdentity({
-          profile: affinda.resumeProfile,
-          rawText: cleanedCv,
+      if (process.env.WORKZO_SYNC_AI_CV_UPLOAD !== "true") {
+        // PRIMARY PATH: vision extraction from page images. Reading the rendered
+        // page (not flattened text) is what makes name/experience/skills reliable
+        // across columns, banners, spaced-caps, and any language. Only for PDFs;
+        // plain-text uploads keep the deterministic path below. Guarded by the
+        // request deadline so we never risk a browser-side timeout.
+        if (
+          fileType === "application/pdf" &&
+          process.env.OPENROUTER_API_KEY &&
+          Date.now() < requestDeadline - 20000
+        ) {
+          try {
+            // Direct-PDF path: send the PDF straight to a document-capable vision
+            // model (e.g. Gemini). No rasterization, so NO native image libraries
+            // (@napi-rs/canvas / pdfjs) in the import graph — those caused the
+            // native-binding crash on Windows dev and behave identically here on
+            // Windows and on Linux/Vercel. If the model call fails for any reason,
+            // the catch below degrades gracefully to the deterministic profile.
+            const pdfDataUrl = `data:application/pdf;base64,${buffer.toString("base64")}`;
+            const vision = await extractCvWithVision({
+              pdfDataUrl,
+              fileName: safeFileName,
+              // Cheap email from the deterministic parse doubles as the name oracle.
+              email: localFastProfile.basics?.email || "",
+            });
+
+            if (vision.ok) {
+              debugCvProfile("api.cv.vision.profile", vision.resumeProfile, {
+                fileName: safeFileName,
+                source: "vision_structured_cv",
+                confidence: vision.confidence,
+                needsConfirmation: vision.needsConfirmation,
+              });
+              return buildResponse({
+                aiOk: true,
+                source: "vision_structured_cv",
+                error: "",
+                rawCvText: cleanedCv,
+                resumeProfile: vision.resumeProfile,
+                fileName: safeFileName,
+                candidateName: vision.resumeProfile.basics?.name || "",
+                needsConfirmation: vision.needsConfirmation,
+                confidence: vision.confidence,
+                confirmationReasons: vision.confirmationReasons,
+              });
+            }
+            // vision.ok === false → fall through to the deterministic profile.
+            debugCvPipeline("api.cv.vision.fallback", {
+              fileName: safeFileName,
+              reason: vision.source,
+              error: vision.error,
+            });
+          } catch (visionErr) {
+            // Rasterize/model failure must never block the upload; fall through.
+            debugCvPipeline("api.cv.vision.error", {
+              fileName: safeFileName,
+              error:
+                visionErr instanceof Error ? visionErr.message : String(visionErr),
+            });
+          }
+        }
+
+        // FALLBACK PATH: deterministic local profile. Lower confidence by
+        // definition, so always force the client-side review screen.
+        debugCvProfile("api.cv.fast_upload.local_profile", localFastProfile, {
           fileName: safeFileName,
+          source: "local_fast_upload",
+        });
+        return buildResponse({
+          aiOk: false,
+          source: "local_fast_upload_ai_structuring_deferred",
+          error: "AI CV structuring was deferred so upload stays responsive.",
+          rawCvText: cleanedCv,
+          resumeProfile: localFastProfile,
+          fileName: safeFileName,
+          needsConfirmation: true,
+          confirmationReasons: [
+            "Used the fast deterministic parser; please review the extracted details.",
+          ],
         });
       }
 
+      // Optional synchronous AI parsing path for internal QA only.
+      // Keep this behind WORKZO_SYNC_AI_CV_UPLOAD=true because it can be slow.
       let aiResult;
-      // Check cache first — same file re-uploaded within 10 min skips the AI call
-      const _uploadCacheKey = cvCacheKey(cleanedCv);
-      const _uploadCached = cvCacheGet(_uploadCacheKey);
-      if (_uploadCached) {
-        console.info("[WorkZo CV Pipeline] api.cv.file.cache_hit", { fileName: safeFileName });
-        aiResult = _uploadCached;
-      } else {
       try {
-        aiResult = await withTimeout(
-          parseResumeWithAiStructure({
-            cvText: cleanedCv,
-            layoutText: cleanedCv,
-            fileName: safeFileName,
-          }),
-          Number(process.env.WORKZO_CV_AI_TIMEOUT_MS || 42000),
-          "ai_cv_parser",
-        );
+        aiResult = await parseResumeWithAiStructure({
+          cvText: cleanedCv,
+          layoutText: cleanedCv,
+          fileName: safeFileName,
+        });
       } catch (aiError) {
         console.error("api.cv.ai_parser_uncaught_error", aiError);
         const localProfile = repairResumeProfileAfterParsing(
@@ -1804,79 +1636,15 @@ export async function POST(request: Request) {
         );
         aiResult = {
           ok: false,
-          source: "local_fallback_ai_error" as const,
+          source: "local_fallback_ai_uncaught_error",
           resumeProfile: localProfile,
           error: aiError instanceof Error ? aiError.message : "AI CV parser crashed unexpectedly.",
-        } as WorkZoAiCvParserResult;
+        };
       }
-      if (aiResult && aiResult.ok) cvCacheSet(_uploadCacheKey, aiResult);
-      } // end cache-miss block
 
       aiResult = lockParserResultIdentity(aiResult, {
         rawText: cleanedCv,
         fileName: safeFileName,
-      });
-
-      const aiScore = profileQualityScore(aiResult.resumeProfile);
-      const affindaScore = profileQualityScore(affinda.resumeProfile);
-      const useAffinda = Boolean(
-        affinda.ok &&
-        affinda.resumeProfile &&
-        isProfileUsable(affinda.resumeProfile) &&
-        !shouldRejectAffinda(affinda.resumeProfile) &&
-        affindaScore > aiScore + 25
-      );
-
-      // Log Affinda outcome so we can distinguish parse failure from field-mapping failure
-      if (affinda.ok && affinda.resumeProfile) {
-        const aExp = affinda.resumeProfile.experience?.length ?? 0;
-        const aEdu = affinda.resumeProfile.education?.length ?? 0;
-        if (!useAffinda) {
-          console.warn(`[api/cv] Affinda result rejected (exp=${aExp} edu=${aEdu} score=${affindaScore} aiScore=${aiScore}) — using AI parser. source=${affinda.source}`);
-        }
-      } else if (!affinda.ok && affinda.source !== "affinda_not_configured") {
-        console.warn(`[api/cv] Affinda failed (${affinda.source}): ${affinda.error ?? "(no message)"}`);
-      }
-
-      if (useAffinda && affinda.resumeProfile) {
-        debugCvPipeline("api.cv.parser.selection", {
-          fileName: safeFileName,
-          aiSource: aiResult.source,
-          aiOk: aiResult.ok,
-          aiScore,
-          affindaSource: affinda.source,
-          affindaOk: affinda.ok,
-          affindaScore,
-          selectedSource: affinda.source,
-          selectedScore: affindaScore,
-        });
-        debugCvProfile("api.cv.parser.output", affinda.resumeProfile, {
-          fileName: safeFileName,
-          source: affinda.source,
-          ok: true,
-          score: affindaScore,
-          name: affinda.resumeProfile.basics?.name,
-        });
-        return buildResponse({
-          aiOk: true,
-          source: affinda.source,
-          error: "",
-          rawCvText: cleanedCv,
-          resumeProfile: affinda.resumeProfile,
-          fileName: safeFileName,
-        });
-      }
-
-      debugCvPipeline("api.cv.parser.selection", {
-        fileName: safeFileName,
-        aiSource: aiResult.source,
-        aiOk: aiResult.ok,
-        aiScore,
-        affindaSource: affinda.source,
-        affindaOk: affinda.ok,
-        affindaScore,
-        selectedSource: aiResult.source,
-        selectedScore: aiScore,
       });
 
       debugCvProfile("api.cv.parser.output", aiResult.resumeProfile, {
@@ -1886,10 +1654,75 @@ export async function POST(request: Request) {
         name: aiResult.resumeProfile.basics?.name,
       });
 
+      if (aiResult.ok && isProfileUsable(aiResult.resumeProfile)) {
+        return buildResponse({
+          aiOk: true,
+          source: aiResult.source,
+          error: aiResult.error,
+          rawCvText: cleanedCv,
+          resumeProfile: aiResult.resumeProfile,
+          fileName: safeFileName,
+        });
+      }
+
+      // Affinda is the slower fallback; only run it if enough time remains.
+      const timeLeftForAffinda = requestDeadline - Date.now();
+      if (timeLeftForAffinda < 8000) {
+        return buildResponse({
+          aiOk: aiResult.ok,
+          source: `${aiResult.source}_affinda_skipped_low_time`,
+          error: aiResult.error || "CV parser produced a weak structure.",
+          rawCvText: cleanedCv,
+          resumeProfile: aiResult.resumeProfile,
+          fileName: safeFileName,
+        });
+      }
+
+      const affinda = await parseWithAffinda({
+        buffer,
+        fileName: safeFileName,
+        fileType,
+        rawText: cleanedCv,
+        deadline: requestDeadline,
+      });
+
+      if (
+        affinda.ok &&
+        affinda.resumeProfile
+      ) {
+        affinda.resumeProfile = lockResumeProfileIdentity({
+          profile: affinda.resumeProfile,
+          rawText: cleanedCv,
+          fileName: safeFileName,
+        });
+      }
+
+      if (
+        affinda.ok &&
+        affinda.resumeProfile &&
+        isProfileUsable(affinda.resumeProfile)
+      ) {
+        debugCvProfile("api.cv.affinda.fallback_output", affinda.resumeProfile, {
+          fileName: safeFileName,
+          source: affinda.source,
+          ok: affinda.ok,
+          name: affinda.resumeProfile.basics?.name,
+        });
+
+        return buildResponse({
+          aiOk: true,
+          source: `${affinda.source}_ai_fallback`,
+          error: aiResult.error,
+          rawCvText: cleanedCv,
+          resumeProfile: affinda.resumeProfile,
+          fileName: safeFileName,
+        });
+      }
+
       return buildResponse({
         aiOk: aiResult.ok,
-        source: aiResult.source,
-        error: aiResult.error,
+        source: `${aiResult.source}_affinda_rejected`,
+        error: aiResult.error || affinda.error || "CV parser produced a weak structure.",
         rawCvText: cleanedCv,
         resumeProfile: aiResult.resumeProfile,
         fileName: safeFileName,

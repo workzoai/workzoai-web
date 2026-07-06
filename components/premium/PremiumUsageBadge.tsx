@@ -12,13 +12,13 @@ export default function PremiumUsageBadge({ compact = false, label }: { compact?
 
   useEffect(() => {
     // Render instantly from the local counter so the badge doesn't sit in a
-    // loading state — then reconcile with the server's count, which is the
+    // loading state, then reconcile with the server's count, which is the
     // real source of truth (interview_sessions rows this month). The two
     // can disagree: the local counter increments as soon as an interview
     // starts, before its DB row necessarily exists, so a very short or
     // aborted session can show as "used" here before the server agrees.
     // Everywhere else that shows quota (dashboard, results page CTA)
-    // already reads the server value for this reason — this badge was the
+    // already reads the server value for this reason, this badge was the
     // one place still relying on local-only data.
     const local = getWorkZoUsageSummary();
     setSummary(local);

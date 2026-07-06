@@ -24,6 +24,7 @@
 
 import { NextResponse } from "next/server";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
+import { checkWorkZoServerVoiceMinutes } from "@/lib/workzoServerVoiceMinutes";
 import { checkWorkZoRateLimit } from "@/lib/workzoRateLimit";
 import { resolveAllowedRecruiterKey } from "@/lib/workzoRecruiterPersonas";
 import {
@@ -89,7 +90,7 @@ function isEnglishLanguage(value: string): boolean {
 }
 
 // ── Gibberish / STT corruption detector ────────────────────────────────────
-// Detects when STT has returned structurally impossible text — consonant cluster
+// Detects when STT has returned structurally impossible text, consonant cluster
 // garble, invalid character ratios, or repeated phoneme noise.
 //
 // NOTE: Short-word phonetic transcription garble (e.g. "Bachelor shop, Shoish
@@ -106,7 +107,7 @@ function detectSTTCorruption(text: string): { isCorrupted: boolean; reason: stri
   const wordCount = clean.split(/\s+/).filter(Boolean).length;
   if (wordCount < 2) return { isCorrupted: true, reason: "too_short" };
 
-  // Invalid character ratio — real speech has >85% valid alphabet chars
+  // Invalid character ratio, real speech has >85% valid alphabet chars
   const validChars = (clean.match(/[a-zA-ZÀ-ɏͰ-ϿЀ-ӿ؀-ۿऀ-ॿ஀-௿぀-ヿ一-鿿\s0-9.,!?'"-]/g) || []).length;
   const invalidRatio = 1 - validChars / clean.length;
   if (invalidRatio > 0.25) return { isCorrupted: true, reason: "invalid_chars" };
@@ -199,7 +200,7 @@ function detectOutputLanguageMismatch(
     }
   }
 
-  // Also detect gibberish in the OUTPUT (not just STT) — e.g. "Schwarzenehoren"
+  // Also detect gibberish in the OUTPUT (not just STT), e.g. "Schwarzenehoren"
   const { isCorrupted } = detectSTTCorruption(reply);
   if (isCorrupted) return { isMismatch: true, reason: "garbled_output" };
 
@@ -260,7 +261,7 @@ type ReplyRequestBody = {
     trust?: number;
     interest?: number;
   };
-  // Structured resume profile — used to build an explicit verified-employers list
+  // Structured resume profile, used to build an explicit verified-employers list
   // so the LLM never falsely challenges a company that is in the candidate's CV.
   resumeProfile?: {
     basics?: { name?: string; headline?: string; email?: string; phone?: string; location?: string; linkedin?: string };
@@ -271,7 +272,7 @@ type ReplyRequestBody = {
     languages?: string[];
     [key: string]: unknown;
   } | null;
-  // V2 persistent memory — enables competency tracking, concern resolution,
+  // V2 persistent memory, enables competency tracking, concern resolution,
   // topic progression, and JD gaps to persist across turns.
   recruiterMemoryV2?: unknown;
 };
@@ -355,7 +356,7 @@ function isOpeningSmallTalk(answer: string): boolean {
   const hasSubstantiveContent = /\b(experience|background|worked|years?|role|position|company|skill|project|studied|degree|responsible|managed|built|developed|led|created|handled|support|engineer|analyst|manager|specialist|supervisor|design|technical)\b/i.test(clean);
 
   // BUG FIXED: this used to return true for ANY answer ≤12 words on the
-  // opening turn regardless of content — a genuine, substantive answer like
+  // opening turn regardless of content, a genuine, substantive answer like
   // "I have 12 years of experience as a product design engineer" (exactly
   // 12 words) was misclassified as small talk and got the canned opening
   // line repeated verbatim instead of being treated as a real answer.
@@ -382,7 +383,7 @@ function isOpeningSmallTalk(answer: string): boolean {
 }
 
 // Opening turns are almost always short ("can you hear me", "I'm good how are
-// you"), but they are NOT all the same message — a candidate who only checked
+// you"), but they are NOT all the same message, a candidate who only checked
 // audio should not get the exact same reply as one who also asked "how are
 // you". This reads the actual words instead of returning one static string
 // regardless of input, so the opening doesn't feel like it ignored half of
@@ -606,7 +607,7 @@ function localizeRecruiterFallback(englishReply: string, languageValue: string |
   };
 
   const phrases = LOCALIZED_FALLBACKS[lang];
-  if (!phrases) return englishReply; // Language not in map — return English
+  if (!phrases) return englishReply; // Language not in map, return English
 
   let result = englishReply;
   for (const [en, translated] of Object.entries(phrases)) {
@@ -630,11 +631,11 @@ function buildSafeFallbackRecruiterReply(body: ReplyRequestBody, answer: string,
   const hasOwnership = /\bi\b|personally|my|handled|built|fixed|resolved|diagnosed|created|led|improved|reduced/i.test(answer);
 
   if (hasCustomerEvidence && !alreadyAskedCustomer) {
-    return localizeRecruiterFallback(`That customer-facing experience is relevant for ${role}. Can you walk me through one difficult customer situation — briefly covering the situation, what you personally did, and what changed afterwards?`, body.language);
+    return localizeRecruiterFallback(`That customer-facing experience is relevant for ${role}. Can you walk me through one difficult customer situation, briefly covering the situation, what you personally did, and what changed afterwards?`, body.language);
   }
 
   if (hasCustomerEvidence && alreadyAskedCustomer) {
-    return localizeRecruiterFallback(`That gives me a clearer example. Let's move to another part of ${role}: how would you manage an ongoing customer relationship after the first issue is solved — for example adoption, follow-ups, retention, or preventing the same problem from happening again?`, body.language);
+    return localizeRecruiterFallback(`That gives me a clearer example. Let's move to another part of ${role}: how would you manage an ongoing customer relationship after the first issue is solved, for example adoption, follow-ups, retention, or preventing the same problem from happening again?`, body.language);
   }
 
   if (hasTechnicalEvidence && hasOutcome && !alreadyAskedDepth) {
@@ -650,14 +651,14 @@ function buildSafeFallbackRecruiterReply(body: ReplyRequestBody, answer: string,
   }
 
   if (!hasOutcome) {
-    return localizeRecruiterFallback(`That gives me context. What changed after your work — even qualitatively, such as a calmer customer, a resolved issue, faster response, better handover, or improved trust?`, body.language);
+    return localizeRecruiterFallback(`That gives me context. What changed after your work, even qualitatively, such as a calmer customer, a resolved issue, faster response, better handover, or improved trust?`, body.language);
   }
 
   return `That helps. Let’s move to a new area: what part of ${role} do you feel strongest in today, and what part would need the most ramp-up?`;
 }
 
 // Structured, greppable logging so a degraded/failed LLM turn is always
-// visible in server logs — never just a silent client-side fallback.
+// visible in server logs, never just a silent client-side fallback.
 // Search server logs for "[interview/reply]" to see every turn's outcome.
 function logReplyOutcome(info: {
   userId?: string | null;
@@ -671,7 +672,7 @@ function logReplyOutcome(info: {
     console.log(line);
   } else {
     // deterministic_guard / deterministic_fallback / hard_failure all mean the
-    // candidate did NOT get the real LLM reply this turn — always a warning.
+    // candidate did NOT get the real LLM reply this turn, always a warning.
     console.warn(line);
   }
 }
@@ -683,16 +684,16 @@ export async function POST(request: Request) {
   try {
     resolved = await resolveWorkZoServerPlan();
   } catch (error) {
-    console.error("[interview/reply] resolveWorkZoServerPlan failed — client will silently fall back to rule engine.", error);
+    console.error("[interview/reply] resolveWorkZoServerPlan failed, client will silently fall back to rule engine.", error);
     return NextResponse.json({ error: "Could not resolve account plan." }, { status: 500 });
   }
   if (!resolved.authenticated) {
-    console.warn("[interview/reply] Unauthenticated request — client will silently fall back to rule engine.");
+    console.warn("[interview/reply] Unauthenticated request, client will silently fall back to rule engine.");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // ── Plan gate ─────────────────────────────────────────────────────────────
-  // Free users get full interview intelligence — 2 sessions/month enforced
+  // Free users get full interview intelligence, 2 sessions/month enforced
   // by /api/db/interview-session via the Supabase usage tracker.
 
   // ── Rate limit ────────────────────────────────────────────────────────────
@@ -700,16 +701,42 @@ export async function POST(request: Request) {
   const rateLimit = resolved.plan === "premium_pro" ? 60 : 30;
   const { allowed } = await checkWorkZoRateLimit(rateLimitKey, rateLimit);
   if (!allowed) {
-    console.warn(`[interview/reply] Rate limited — user=${resolved.userId} plan=${resolved.plan} limit=${rateLimit}/min. Client will silently fall back to rule engine.`);
+    console.warn(`[interview/reply] Rate limited, user=${resolved.userId} plan=${resolved.plan} limit=${rateLimit}/min. Client will silently fall back to rule engine.`);
     return NextResponse.json({ error: "rate_limited", reply: null }, { status: 429 });
   }
 
   const body = (await request.json().catch(() => ({}))) as ReplyRequestBody;
 
+  // ── Voice-minute pool gate (per turn, with grace) ─────────────────────────
+  // New sessions are blocked at creation in /api/db/interview-session and
+  // /api/interview-sessions once the monthly pool is exhausted. This per-turn
+  // check exists so a session that is ALREADY running when the pool empties
+  // can finish naturally, but cannot run indefinitely: once usage exceeds the
+  // pool by GRACE_MINUTES, the server stops paying for LLM turns. The client
+  // treats this like a rate-limit response and falls back to the local rule
+  // engine, so the interview degrades instead of crashing mid-answer.
+  // Only the minutes dimension is checked here, never the session count,
+  // because the user's own in-progress session already counts as a row and
+  // gating on sessions here would block every free user's first interview.
+  {
+    const GRACE_MINUTES = 15;
+    const minuteGate = await checkWorkZoServerVoiceMinutes(resolved.plan);
+    if (
+      minuteGate.reason === "voice_minutes_limit" &&
+      minuteGate.minutesUsed >= minuteGate.minutesLimit + GRACE_MINUTES
+    ) {
+      console.warn(`[interview/reply] Voice-minute pool exceeded past grace, blocking LLM turn. user=${resolved.userId} plan=${resolved.plan} used=${minuteGate.minutesUsed} limit=${minuteGate.minutesLimit}`);
+      return NextResponse.json(
+        { error: "voice_minutes_limit", reply: null, minutesUsed: minuteGate.minutesUsed, minutesLimit: minuteGate.minutesLimit },
+        { status: 403 },
+      );
+    }
+  }
+
   // ── Persona gate ──────────────────────────────────────────────────────────
   // The onboarding UI locks Premium Pro personas (startup_founder,
   // consulting_partner, etc.) for non-Pro users, but nothing previously
-  // stopped a direct API call from requesting one anyway — every downstream
+  // stopped a direct API call from requesting one anyway, every downstream
   // use of body.recruiterPersonality just took the string as given. Mutating
   // it here means every branch below automatically gets the corrected value
   // with no per-callsite changes. See workzoRecruiterPersonas.ts for why
@@ -720,7 +747,7 @@ export async function POST(request: Request) {
       resolved.plan === "premium_pro",
     );
     if (downgraded) {
-      console.warn(`[interview/reply] Non-Pro user requested a Pro-only persona — downgrading. user=${resolved.userId} plan=${resolved.plan} requested="${body.recruiterPersonality}"`);
+      console.warn(`[interview/reply] Non-Pro user requested a Pro-only persona, downgrading. user=${resolved.userId} plan=${resolved.plan} requested="${body.recruiterPersonality}"`);
       body.recruiterPersonality = safeRecruiterKey;
     }
   }
@@ -755,14 +782,14 @@ export async function POST(request: Request) {
   const candidateTurnCount = transcript.filter((turn) => turn.role === "candidate").length;
   // BUG FIXED: this used to also trigger on body.questionIndex <= 1, but the
   // client sends questionIndex BEFORE incrementing it for the current turn
-  // (increment happens only after the reply comes back) — so the second
+  // (increment happens only after the reply comes back), so the second
   // real candidate answer was still sent with questionIndex=1, incorrectly
   // extending the opening-turn guard to it. Confirmed from live testing: a
   // genuine 12-word self-introduction ("I have 12 years of experience as a
   // product design engineer...") got treated as opening small talk and the
   // exact same intro question was asked again verbatim. candidateTurnCount
   // is computed fresh from the actual transcript at request time and isn't
-  // subject to that lag — the transcript sent already includes the current
+  // subject to that lag, the transcript sent already includes the current
   // turn, so candidateTurnCount === 1 only for the literal first turn.
   const isOpeningTurn = candidateTurnCount <= 1;
 
@@ -812,11 +839,11 @@ export async function POST(request: Request) {
     // V2 tracks: competency coverage (never re-tests covered dimensions),
     // concern resolution (moves on when evidence given), topic progression
     // (structured roadmap), JD gaps, candidate goals, metrics, strengths.
-    // The memory is returned to the client and sent back next turn —
+    // The memory is returned to the client and sent back next turn -
     // this is what prevents repeated questions across the full interview.
     // Build an explicit verified-employers block from resumeProfile.experience.
     // Without this, the LLM sees structured CV text but may not parse employer names
-    // as verified facts — causing false challenges against legitimate experience.
+    // as verified facts, causing false challenges against legitimate experience.
     const verifiedEmployersBlock = (() => {
       const p = body.resumeProfile;
       if (!p || typeof p !== "object" || !Array.isArray(p.experience)) return "";
@@ -828,7 +855,7 @@ export async function POST(request: Request) {
         .map((e) => String(e.title || "").trim())
         .filter((t) => t.length >= 2);
       const lines = [
-        `VERIFIED EMPLOYERS (from parsed CV — treat any mention of these as verified): ${employers.join(", ")}`,
+        `VERIFIED EMPLOYERS (from parsed CV, treat any mention of these as verified): ${employers.join(", ")}`,
         roles.length ? `VERIFIED ROLES: ${roles.join(", ")}` : "",
       ].filter(Boolean).join("\n");
       return lines + "\n\n";
@@ -883,18 +910,18 @@ export async function POST(request: Request) {
     const contradictions = Array.isArray(mem.contradictions) ? mem.contradictions as string[] : [];
 
     if (answeredCompetencies.length)
-      lines.push("COMPETENCIES COVERED — DO NOT RE-TEST: " + answeredCompetencies.join(", "));
+      lines.push("COMPETENCIES COVERED, DO NOT RE-TEST: " + answeredCompetencies.join(", "));
     if (activeConcerns.length)
       lines.push("ACTIVE CONCERNS (address once if score >40, then move on): " +
         activeConcerns.map((c) => `${c.id} (score:${c.score}/100, asked:${c.askedCount}x)`).join(", "));
     if (resolvedConcerns.length)
-      lines.push("RESOLVED CONCERNS — NEVER REVISIT: " + resolvedConcerns.join(", "));
+      lines.push("RESOLVED CONCERNS, NEVER REVISIT: " + resolvedConcerns.join(", "));
     if (jdMissingSkills.length)
-      lines.push("JD SKILLS NOT YET EVIDENCED — probe naturally: " + jdMissingSkills.join(", "));
+      lines.push("JD SKILLS NOT YET EVIDENCED, probe naturally: " + jdMissingSkills.join(", "));
     if (jdMatchedSkills.length)
       lines.push("JD SKILLS EVIDENCED: " + jdMatchedSkills.join(", "));
     const nextTopic = topicOrder[topicIndex];
-    if (nextTopic) lines.push("NEXT INTERVIEW TOPIC — follow this: " + nextTopic);
+    if (nextTopic) lines.push("NEXT INTERVIEW TOPIC, follow this: " + nextTopic);
     if (metrics.length) lines.push("CANDIDATE METRICS TO REFERENCE: " + metrics.slice(0, 3).join(", "));
     if (candidateGoals.length) lines.push("CANDIDATE GOALS: " + candidateGoals.join("; "));
     if (strengths.length) lines.push("DEMONSTRATED STRENGTHS: " + strengths.join(", "));
@@ -927,6 +954,8 @@ export async function POST(request: Request) {
       },
       recruiterTrust: typeof body.recruiterTrust === "number" ? body.recruiterTrust : undefined,
       recruiterState: body.recruiterState ?? null,
+      // Server-resolved plan → priority model for Premium Pro (never from body).
+      plan: resolved.plan,
     });
 
     const unifiedReply = decision.spokenReply.trim();
@@ -971,7 +1000,7 @@ export async function POST(request: Request) {
       shouldAdvanceQuestion: decision.shouldAdvanceQuestion,
       provider: reply === unifiedReply ? "unified_engine" : "deterministic_guard",
       durationMs: Date.now() - requestStartedAt,
-      // ── V2 memory — client MUST persist and send back next turn ──────────
+      // ── V2 memory, client MUST persist and send back next turn ──────────
       // Without this, all memory resets to zero every question.
       recruiterMemoryV2: v2.memory,
     });
@@ -979,13 +1008,13 @@ export async function POST(request: Request) {
     const durationMs = Date.now() - requestStartedAt;
     const message = error instanceof Error ? error.message : String(error);
     console.error(
-      `[interview/reply] HARD FAILURE — falling back to rule engine. user=${resolved.userId || "unknown"} durationMs=${durationMs} questionIndex=${body.questionIndex ?? "?"} answerPreview="${answer.slice(0, 80)}" error=${message}`,
+      `[interview/reply] HARD FAILURE, falling back to rule engine. user=${resolved.userId || "unknown"} durationMs=${durationMs} questionIndex=${body.questionIndex ?? "?"} answerPreview="${answer.slice(0, 80)}" error=${message}`,
       error instanceof Error ? error.stack : error,
     );
     const reply = buildSafeFallbackRecruiterReply(body, answer, transcript);
     if (reply) {
       const targetLanguage = normalizeLanguageLabel(body.language);
-      // No translation — use native language safe reply if output is wrong language
+      // No translation, use native language safe reply if output is wrong language
       const { isMismatch: fbMismatch } = detectOutputLanguageMismatch(reply, targetLanguage);
       const finalReply = fbMismatch
         ? buildNativeLanguageSafeReply(targetLanguage, cleanRoleLabel(body.targetRole))

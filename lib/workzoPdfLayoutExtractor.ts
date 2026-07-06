@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * WorkZo AI — Layout-Aware PDF Text Rebuilder
+ * WorkZo AI, Layout-Aware PDF Text Rebuilder
  * Path: lib/workzoPdfLayoutExtractor.ts
  *
  * Use this in onboarding before calling extractResumeProfile().

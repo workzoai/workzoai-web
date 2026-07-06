@@ -1,56 +1,91 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BookOpen, HelpCircle, Map, Newspaper, ShieldCheck, UserRound } from "lucide-react";
+import {
+  ArrowRight, BookOpen, HelpCircle, Map, Newspaper, ShieldCheck, UserRound,
+  Activity, GraduationCap, LifeBuoy, Rocket,
+} from "lucide-react";
+import {
+  MarketingShell, Reveal, Eyebrow, SectionHeading, FeatureCard, CTASection, BackLink,
+} from "@/components/marketing/kit";
 
-const resources = [
-  { title: "About WorkZo AI", text: "Read the founder story and why WorkZo exists.", href: "/about", icon: UserRound },
-  { title: "FAQ", text: "Common questions about interviews, reports, privacy, and plans.", href: "/faq", icon: HelpCircle },
-  { title: "Help Center", text: "Get support for login, CV upload, interviews, and results.", href: "/help", icon: BookOpen },
-  { title: "Roadmap", text: "See what is planned next for WorkZo AI.", href: "/roadmap", icon: Map },
-  { title: "Changelog", text: "Follow product updates and fixes.", href: "/changelog", icon: Newspaper },
-  { title: "Privacy & Legal", text: "Review privacy, terms, cookies, disclaimer, and data deletion.", href: "/legal/privacy", icon: ShieldCheck },
+export const metadata: Metadata = {
+  title: "Resources — WorkZo AI",
+  description: "Guides, support, product updates, and legal information for WorkZo AI in one place.",
+};
+
+const primary = [
+  { title: "Help Center", text: "Step-by-step help for login, CV upload, interviews, and reports.", href: "/help", icon: LifeBuoy },
+  { title: "FAQ", text: "Straight answers on interviews, scoring, privacy, and plans.", href: "/faq", icon: HelpCircle },
+  { title: "For Education", text: "How bootcamps, universities, and academies use WorkZo at scale.", href: "/for-education", icon: GraduationCap },
 ];
 
-export const metadata = {
-  title: "Resources | WorkZo AI",
-  description: "WorkZo AI resources, help, FAQ, roadmap, legal pages, and product updates.",
-};
+const more = [
+  { title: "About WorkZo AI", text: "Why WorkZo exists and the problem it solves.", href: "/about", icon: UserRound },
+  { title: "Roadmap", text: "What we're building next.", href: "/roadmap", icon: Map },
+  { title: "Changelog", text: "Recent releases and fixes.", href: "/changelog", icon: Newspaper },
+  { title: "System Status", text: "Live service status and uptime.", href: "/status", icon: Activity },
+  { title: "Getting started guide", text: "Run your first interview in under five minutes.", href: "/onboarding", icon: Rocket },
+  { title: "Privacy & Legal", text: "Privacy, terms, cookies, disclaimer, and data deletion.", href: "/legal/privacy", icon: ShieldCheck },
+];
 
 export default function ResourcesPage() {
   return (
-    <main className="min-h-screen bg-canvas px-5 py-8 text-fg">
-      <div className="mx-auto max-w-6xl">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-black text-muted hover:text-fg">
-          <ArrowLeft className="h-4 w-4" />
-          Back home
-        </Link>
+    <MarketingShell>
+      <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8">
+        <BackLink href="/">Back home</BackLink>
+      </div>
 
-        <section className="mt-10 text-center">
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-muted">Resources</p>
-          <h1 className="mt-4 text-4xl font-black tracking-[-0.04em] sm:text-4xl">Everything you need to understand WorkZo AI.</h1>
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-muted">
-            Product information, support, legal pages, updates, and launch resources in one place.
+      <section className="mx-auto max-w-7xl px-4 pb-14 pt-8 text-center sm:px-6 lg:px-8">
+        <Reveal>
+          <div className="flex justify-center"><Eyebrow icon={BookOpen}>Resources</Eyebrow></div>
+          <h1 className="mx-auto mt-5 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
+            Everything you need to get the most out of WorkZo AI.
+          </h1>
+          <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-muted">
+            Guides and support, product updates, and legal information, all in one place.
           </p>
-        </section>
+        </Reveal>
+      </section>
 
-        <section className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {resources.map((item) => {
-            const Icon = item.icon;
+      <section className="mx-auto max-w-7xl px-4 pb-4 sm:px-6 lg:px-8">
+        <div className="grid gap-5 md:grid-cols-3">
+          {primary.map((r, i) => (
+            <Reveal key={r.href} delay={i * 70}>
+              <FeatureCard icon={r.icon} title={r.title} href={r.href}>{r.text}</FeatureCard>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <Reveal><Eyebrow>More</Eyebrow></Reveal>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {more.map((r, i) => {
+            const Icon = r.icon;
             return (
-              <Link key={item.href} href={item.href} className="group rounded-lg border border-line bg-fg/[0.04] p-6 transition hover:-translate-y-1 hover:border-brand/30 hover:bg-fg/[0.07]">
-                <div className="grid h-12 w-12 place-items-center rounded-lg bg-brand/10 text-brand">
-                  <Icon className="h-6 w-6" />
-                </div>
-                <h2 className="mt-5 text-xl font-black">{item.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-muted">{item.text}</p>
-                <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-muted group-hover:text-muted">
-                  Open
-                  <ArrowRight className="h-4 w-4" />
-                </span>
-              </Link>
+              <Reveal key={r.href} delay={(i % 3) * 60}>
+                <Link href={r.href} className="group flex items-start gap-4 rounded-2xl border border-line bg-surface/60 p-5 transition hover:border-brand/30 hover:bg-surface">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand transition group-hover:bg-brand group-hover:text-on-brand">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block text-base font-black tracking-tight text-fg">{r.title}</span>
+                    <span className="mt-1 block text-sm leading-6 text-muted">{r.text}</span>
+                  </span>
+                  <ArrowRight className="ml-auto mt-1 h-4 w-4 shrink-0 text-muted transition group-hover:translate-x-0.5 group-hover:text-brand" />
+                </Link>
+              </Reveal>
             );
           })}
-        </section>
-      </div>
-    </main>
+        </div>
+      </section>
+
+      <CTASection
+        title="Ready to practice?"
+        intro="Upload your CV, pick a role, and run a realistic interview with feedback in minutes."
+        primary={{ href: "/onboarding", label: "Start practicing" }}
+        secondary={{ href: "/contact", label: "Contact us" }}
+      />
+    </MarketingShell>
   );
 }

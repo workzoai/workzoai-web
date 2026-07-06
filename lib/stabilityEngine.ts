@@ -1,5 +1,5 @@
 export function safeClientTime() {
-  if (typeof window === "undefined") return "--:--";
+  if (typeof window === "undefined") return "00:00";
 
   return new Date().toLocaleTimeString([], {
     hour: "2-digit",

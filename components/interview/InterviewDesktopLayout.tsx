@@ -89,7 +89,7 @@ export default function InterviewDesktopLayout({ setup, signal, transcript, ui, 
             />
           </div>
 
-          {/* Centre: code editor — takes remaining width */}
+          {/* Centre: code editor, takes remaining width */}
           <div className="min-h-[400px] flex-1 xl:min-h-0">
             <CodePanel onCodeChange={actions.onCodeChange} />
           </div>

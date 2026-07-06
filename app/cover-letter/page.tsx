@@ -80,7 +80,7 @@ export default function CoverLetterWorkspacePage() {
       }
     } catch {
       // Fallback to local generator. Pass the structured resumeProfile if we
-      // have one — without it, generateCoverLetter has to re-parse cvText,
+      // have one, without it, generateCoverLetter has to re-parse cvText,
       // which (for this page) is the labeled "Candidate name: X / Headline: Y"
       // interview-context format, not raw CV text, and can produce garbled
       // output like "Candidate name Olivia Wilson" as the signature.

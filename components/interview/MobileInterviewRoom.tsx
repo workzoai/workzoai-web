@@ -344,7 +344,7 @@ export default function MobileInterviewRoom({
         </div>
         <p className="mt-2 text-center text-[12px] font-medium text-muted">
           {isListening
-            ? "Listening — finish your answer naturally"
+            ? "Listening, finish your answer naturally"
             : isSpeaking
               ? "Recruiter speaking"
               : isLive

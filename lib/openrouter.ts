@@ -9,7 +9,7 @@ type AskOpenRouterOptions = {
   maxTokens?: number;
   /** When true, requests OpenRouter's JSON object response format. The
    * system/user prompt must still instruct the model on the exact JSON
-   * shape expected — this only sets the API-level constraint that the
+   * shape expected, this only sets the API-level constraint that the
    * response must be valid JSON, it does not define the schema itself. */
   jsonMode?: boolean;
 };

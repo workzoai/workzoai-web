@@ -1,18 +1,18 @@
 /**
  * lib/closingOrchestrator.ts
  *
- * v3 ARCHITECTURE — STEP 14 (Candidate Questions), STEP 15 (Proper Closing),
+ * v3 ARCHITECTURE, STEP 14 (Candidate Questions), STEP 15 (Proper Closing),
  * STEP 16 (Timer Logic)
  *
  * State machine for the end of the interview. The timer reaching 100% never
- * ends anything — it only raises a wrap-up flag. Sequence:
+ * ends anything, it only raises a wrap-up flag. Sequence:
  *
  *   active → wrap_up_requested → candidate_questions → closing_delivered → results
  *
  * The client sends `wrapUpRequested: true` once its progress hits 100%
  * (one-line client change; see route patch). Consistent with the existing
  * decoupling of Vapi sessions from browser engine state, the client must
- * never terminate the Vapi session directly — it waits for
+ * never terminate the Vapi session directly, it waits for
  * `interviewComplete: true` from the API, then navigates to results.
  */
 
@@ -35,7 +35,7 @@ export function emptyClosingState(): ClosingState {
   return { phase: "active", wrapUpRequestedAtTurn: null, candidateQuestionsAskedAtTurn: null };
 }
 
-/** True when every competency's budget is spent — natural completion. */
+/** True when every competency's budget is spent, natural completion. */
 export function blueprintExhausted(bp: InterviewBlueprint): boolean {
   return bp.competencies.every((c) => c.status === "explored");
 }
@@ -43,7 +43,7 @@ export function blueprintExhausted(bp: InterviewBlueprint): boolean {
 /**
  * Advances the closing state machine once per turn.
  * `candidateStillSpeaking` should be true when the latest transcript entry
- * is a partial/continuing utterance — the machine never advances past
+ * is a partial/continuing utterance, the machine never advances past
  * wrap_up while the candidate is mid-answer (Step 15: never cut them off).
  */
 export function advanceClosingState(
@@ -63,11 +63,11 @@ export function advanceClosingState(
   }
 
   if (next.phase === "wrap_up" && !input.candidateStillSpeaking) {
-    // Current thread is finished — move to candidate questions on this turn.
+    // Current thread is finished, move to candidate questions on this turn.
     next.phase = "candidate_questions";
     next.candidateQuestionsAskedAtTurn = input.turn;
   } else if (next.phase === "candidate_questions" && !input.candidateStillSpeaking) {
-    // Candidate has asked their questions (or declined) — deliver closing.
+    // Candidate has asked their questions (or declined), deliver closing.
     if (input.turn > (next.candidateQuestionsAskedAtTurn ?? input.turn)) {
       next.phase = "closing_delivered";
     }
@@ -90,7 +90,7 @@ export function renderClosingDirective(state: ClosingState): string {
       return [
         "=== CLOSING DIRECTIVE ===",
         "You are in the CANDIDATE QUESTIONS phase. If you have not yet asked, ask now: 'Do you have any questions for me?'",
-        "Answer any question about the role STRICTLY from the Job Description in your context. If the JD does not contain the answer, say so honestly ('That's a detail the hiring team would confirm') — NEVER invent role details, salary, team size, or policies.",
+        "Answer any question about the role STRICTLY from the Job Description in your context. If the JD does not contain the answer, say so honestly ('That's a detail the hiring team would confirm'), NEVER invent role details, salary, team size, or policies.",
         "Ask no new interview questions.",
         "=== END CLOSING DIRECTIVE ===",
       ].join("\n");
@@ -117,11 +117,11 @@ export function renderClosingDirective(state: ClosingState): string {
  */
 export function fallbackClosingSpeech(recruiterName?: string): string {
   return (
-    "Those are all the questions I wanted to cover today. Thank you for taking the time to speak with me — " +
+    "Those are all the questions I wanted to cover today. Thank you for taking the time to speak with me, " +
     "I appreciate your thoughtful answers. You'll now receive detailed feedback covering communication, " +
     "technical skills, behaviour, leadership, and overall interview performance. " +
     "I wish you the very best with your job search. Take care." +
-    (recruiterName ? ` — ${recruiterName}` : "")
+    (recruiterName ? `, ${recruiterName}` : "")
   );
 }
 

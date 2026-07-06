@@ -41,11 +41,13 @@ import {
 } from "@/lib/workzoInterviewSetup";
 
 import PrivacyNotice from "@/components/BetaPrivacyNotice";
+import CvIdentityConfirm from "@/components/CvIdentityConfirm";
 import { trackWorkZoLaunchEvent } from "@/lib/workzoLaunchAnalytics";
 import { recordWorkZoCvUploaded } from "@/lib/workzoUsageTracker";
 import { useWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 import { buildWorkZoCompanyBlueprint } from "@/lib/workzoCompanyBlueprint";
+import { recommendRecruiters, type RecruiterRecommendation } from "@/lib/recruiterRecommendation";
 
 type Market = "Global" | "Germany" | "US" | "UK" | "India" | "Netherlands";
 type CompanyStyle = "Realistic" | "Startup" | "Corporate" | "Technical" | "Consulting";
@@ -53,7 +55,9 @@ type RecruiterKey =
   | "friendly_hr" | "analytical_hiring_manager" | "startup_recruiter" | "german_corporate"
   | "faang_hiring_manager" | "startup_founder" | "consulting_partner" | "sales_director"
   | "product_leader" | "executive_recruiter" | "enterprise_recruiter";
-type InterviewLanguage = "English" | "German" | "Dutch" | "French" | "Spanish" | "Italian" | "Portuguese";
+type InterviewLanguage =
+  | "English" | "German" | "Dutch" | "French" | "Spanish" | "Italian" | "Portuguese"
+  | "Chinese" | "Hindi" | "Arabic" | "Japanese" | "Korean" | "Polish" | "Russian" | "Turkish";
 
 type SetupState = WorkZoInterviewSetup & {
   // Keep onboarding's extra CV fields, but stay compatible with WorkZoInterviewSetup.
@@ -96,6 +100,14 @@ const interviewLanguages: { label: InterviewLanguage; nativeLabel: string; hint:
   { label: "Spanish", nativeLabel: "Español", hint: "Spanish interview practice" },
   { label: "Italian", nativeLabel: "Italiano", hint: "Italian interview practice" },
   { label: "Portuguese", nativeLabel: "Português", hint: "Portuguese interview practice" },
+  { label: "Chinese", nativeLabel: "中文", hint: "Mandarin Chinese interview practice" },
+  { label: "Hindi", nativeLabel: "हिन्दी", hint: "Hindi interview practice" },
+  { label: "Arabic", nativeLabel: "العربية", hint: "Arabic interview practice" },
+  { label: "Japanese", nativeLabel: "日本語", hint: "Japanese interview practice" },
+  { label: "Korean", nativeLabel: "한국어", hint: "Korean interview practice" },
+  { label: "Polish", nativeLabel: "Polski", hint: "Polish interview practice" },
+  { label: "Russian", nativeLabel: "Русский", hint: "Russian interview practice" },
+  { label: "Turkish", nativeLabel: "Türkçe", hint: "Turkish interview practice" },
 ];
 
 function normalizeInterviewLanguage(value?: unknown): InterviewLanguage {
@@ -106,7 +118,15 @@ function normalizeInterviewLanguage(value?: unknown): InterviewLanguage {
   if (raw.includes("french") || raw.includes("français") || raw === "fr") return "French";
   if (raw.includes("spanish") || raw.includes("español") || raw === "es") return "Spanish";
   if (raw.includes("italian") || raw.includes("italiano") || raw === "it") return "Italian";
-  if (raw.includes("portuguese") || raw.includes("português") || raw === "pt") return "Portuguese";
+  if (raw.includes("portuguese") || raw.includes("português") || raw.includes("portugues") || raw === "pt") return "Portuguese";
+  if (raw.includes("chinese") || raw.includes("mandarin") || raw.includes("中文") || raw === "zh" || raw === "zh-cn" || raw === "zh-tw") return "Chinese";
+  if (raw.includes("hindi") || raw.includes("हिन्दी") || raw.includes("हिंदी") || raw === "hi" || raw === "hi-in") return "Hindi";
+  if (raw.includes("arabic") || raw.includes("العربية") || raw === "ar" || raw === "ar-sa") return "Arabic";
+  if (raw.includes("japanese") || raw.includes("日本語") || raw === "ja" || raw === "ja-jp") return "Japanese";
+  if (raw.includes("korean") || raw.includes("한국어") || raw === "ko" || raw === "ko-kr") return "Korean";
+  if (raw.includes("polish") || raw.includes("polski") || raw === "pl" || raw === "pl-pl") return "Polish";
+  if (raw.includes("russian") || raw.includes("русский") || raw === "ru" || raw === "ru-ru") return "Russian";
+  if (raw.includes("turkish") || raw.includes("türkçe") || raw.includes("turkce") || raw === "tr" || raw === "tr-tr") return "Turkish";
   return "English";
 }
 
@@ -332,8 +352,8 @@ function saveCanonicalCvSetup(setup: SetupState, store: unknown) {
 
 type PersonaItem = (typeof recruiters)[number];
 
-function PersonaCard({ persona, selected, locked, pro, onClick }: {
-  persona: PersonaItem; selected: boolean; locked?: boolean; pro?: boolean; onClick: () => void;
+function PersonaCard({ persona, selected, locked, pro, recommended, onClick }: {
+  persona: PersonaItem; selected: boolean; locked?: boolean; pro?: boolean; recommended?: boolean; onClick: () => void;
 }) {
   return (
     <button
@@ -355,6 +375,14 @@ function PersonaCard({ persona, selected, locked, pro, onClick }: {
           <Lock className="h-2.5 w-2.5" />Pro
         </span>
       )}
+      {recommended && !selected && (
+        <span className={cn(
+          "absolute right-2.5 inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-400",
+          pro && locked ? "top-9" : "top-2.5",
+        )}>
+          <Sparkles className="h-2.5 w-2.5" />Best match
+        </span>
+      )}
       {selected && !locked && (
         <span className={cn("absolute right-2.5 top-2.5 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em]",
           pro ? "bg-brand/15 text-muted" : "bg-brand/15 text-muted")}>
@@ -373,9 +401,10 @@ function PersonaCard({ persona, selected, locked, pro, onClick }: {
   );
 }
 
-function ProPersonaDropdown({ open, onToggle, isProUser, recruiter, onSelect, nudgeKey, onLockedClick }: {
+function ProPersonaDropdown({ open, onToggle, isProUser, recruiter, onSelect, nudgeKey, onLockedClick, recommendedKey }: {
   open: boolean; onToggle: () => void; isProUser: boolean; recruiter: RecruiterKey;
   onSelect: (key: RecruiterKey) => void; nudgeKey: number; onLockedClick: () => void;
+  recommendedKey?: RecruiterKey | null;
 }) {
   return (
     <div className="mt-3 overflow-hidden rounded-lg border border-brand/15 bg-brand/[0.05]">
@@ -414,6 +443,7 @@ function ProPersonaDropdown({ open, onToggle, isProUser, recruiter, onSelect, nu
                 pro
                 locked={!isProUser}
                 selected={recruiter === item.key}
+                recommended={recommendedKey === item.key}
                 onClick={() => { if (isProUser) onSelect(item.key); else onLockedClick(); }}
               />
             ))}
@@ -601,8 +631,13 @@ export default function OnboardingPage() {
   const planState = useWorkZoAuthoritativePlan();
   const isProUser = planState.plan === "premium_pro";
   const [interviewLanguage, setInterviewLanguage] = useState<InterviewLanguage>(normalizeInterviewLanguage(setup.language));
-  const [, setAiResumeProfile] = useState<ResumeProfile | null>(null);
+  const [aiResumeProfile, setAiResumeProfile] = useState<ResumeProfile | null>(null);
   const [aiCvStructuringStatus, setAiCvStructuringStatus] = useState<"idle" | "structuring" | "ready" | "fallback">("idle");
+  // Identity confirmation gate: shown once after a real CV upload, before the
+  // interview starts. Guarantees the recruiter never addresses a candidate by a
+  // mis-parsed name/headline, for any CV layout.
+  const [identityConfirmed, setIdentityConfirmed] = useState(false);
+  const [showIdentityConfirm, setShowIdentityConfirm] = useState(false);
 
   const [contextModalOpen, setContextModalOpen] = useState(false);
   const [jdDraft, setJdDraft] = useState("");
@@ -628,6 +663,21 @@ export default function OnboardingPage() {
     role: Boolean(role.trim()),
     style: true,
   };
+
+  // Recruiter recommendation from CV + JD + target role. Deterministic and
+  // local (no API call), recomputes as the user types/uploads. Suggestion
+  // only: it badges cards and updates the hint line, but NEVER changes the
+  // user's selected persona.
+  const recruiterRecommendation: RecruiterRecommendation | null = useMemo(
+    () => recommendRecruiters({ targetRole: role, jobDescription, cvText: effectiveCvText, market }),
+    [role, jobDescription, effectiveCvText, market],
+  );
+  const recommendedFreeKey = recruiterRecommendation?.freeAlternative ?? null;
+  const recommendedProKey =
+    recruiterRecommendation && recruiterRecommendation.primaryIsPro ? recruiterRecommendation.primary : null;
+  const recommendedPersona = recruiterRecommendation
+    ? [...recruiters, ...proRecruiters].find((item) => item.key === recruiterRecommendation.primary) || null
+    : null;
 
   const selectedPersona = [...recruiters, ...proRecruiters].find((item) => item.key === recruiter) || recruiters[1];
   const summaryLine = `${selectedPersona.name} · ${selectedPersona.role}: ${companyStyle} style, ${market} market, in ${interviewLanguage}${role.trim() ? `, for a ${role.trim()} role` : ""}.`;
@@ -712,6 +762,19 @@ export default function OnboardingPage() {
     saveCanonicalCvSetup(canonicalSetup, store);
     enrichSetupInBackground(canonicalSetup);
   }
+
+  useEffect(() => {
+    // Partner-org capture: a partner shares a coded signup link
+    // (e.g. /onboarding?org=SPRING26). We persist that code so every interview
+    // this learner runs is tagged to the organization for the admin dashboard.
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const code = (p.get("org") || p.get("partner") || p.get("cohort") || "").trim().slice(0, 60);
+      if (code) window.localStorage.setItem("workzo_org_code", code);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     createSupabaseBrowserClient().auth.getUser().then(({ data }) => {
@@ -804,13 +867,14 @@ export default function OnboardingPage() {
     setFileName(file.name);
     setUploading(true);
     setUploadError("");
+    setIdentityConfirmed(false); // a fresh CV must be re-confirmed
     try {
       clearLatestInterviewSetup();
       clearCanonicalProfile(); // clear stale profile before re-upload
       const form = new FormData();
       form.append("file", file);
       const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 65000);
+      const timeout = window.setTimeout(() => controller.abort(), 180000);
       const response = await fetch("/api/cv", {
         method: "POST",
         body: form,
@@ -842,7 +906,7 @@ export default function OnboardingPage() {
       lockInterviewLanguage(interviewLanguage);
       // ─────────────────────────────────────────────────────────────────────
 
-      // Track the upload here — at the moment it genuinely succeeds — rather
+      // Track the upload here, at the moment it genuinely succeeds, rather
       // than only from persist() when the user reaches the next step. A user
       // who uploads successfully and then abandons the flow before clicking
       // Continue still had a real, successful upload; it should count.
@@ -902,13 +966,20 @@ export default function OnboardingPage() {
           rawMsg.toLowerCase().includes("cancel")
         );
       if (isAbortError) {
-        // Silently clear the uploading state: don't show anything
+        // Resilient CV upload behavior: do not blame the candidate or ask for a
+        // re-upload when a slow parser/browser abort happens. Keep the modal
+        // usable and move the user straight to manual paste as the fallback.
+        setContextModalOpen(true);
+        setUploadError(
+          "Automatic CV reading did not finish. Paste the CV text below and you can continue without uploading again.",
+        );
         return;
       }
 
       const friendlyMsg = rawMsg === "Unauthorized" || rawMsg === "Please sign in to upload your CV."
         ? "Please sign in to upload your CV."
-        : rawMsg || "Could not read this CV. Paste the CV text manually for now.";
+        : rawMsg || "Automatic CV reading did not finish. Paste the CV text below and you can continue without uploading again.";
+      if (friendlyMsg !== "Please sign in to upload your CV.") setContextModalOpen(true);
       setUploadError(friendlyMsg);
     } finally {
       uploadInFlightRef.current = false;
@@ -917,7 +988,60 @@ export default function OnboardingPage() {
     }
   }
 
-  function startInterview() { persistFast(); router.push("/interview"); }
+  function launchInterview() { persistFast(); router.push("/interview"); }
+
+  function startInterview() {
+    // Global reliability gate: never start an interview on an unverified
+    // identity. Only gates real uploaded profiles — manual-paste users (no
+    // structured profile) proceed unchanged.
+    if (aiResumeProfile && !identityConfirmed) {
+      setShowIdentityConfirm(true);
+      return;
+    }
+    launchInterview();
+  }
+
+  function handleIdentityConfirmed(edited: { name: string; headline: string }) {
+    setShowIdentityConfirm(false);
+    setIdentityConfirmed(true);
+
+    const base = aiResumeProfile;
+    if (base) {
+      const correctedProfile = {
+        ...base,
+        basics: {
+          ...(base.basics || {}),
+          name: edited.name || base.basics?.name || "",
+          headline: edited.headline || base.basics?.headline || "",
+        },
+      } as ResumeProfile;
+      setAiResumeProfile(correctedProfile);
+
+      // Re-write the canonical profile + setup so every downstream page
+      // (interview, cover letter, results) reads the confirmed identity.
+      try {
+        saveCanonicalProfile(correctedProfile, manualCv, fileName);
+        const correctedSetup = buildCanonicalCvSetup({
+          setup,
+          rawCvText: manualCv,
+          jobDescription: jobDescription.trim(),
+          role: role || correctedProfile.basics.headline || "General Role",
+          market,
+          companyStyle,
+          recruiter: recruiter as RecruiterKey,
+          language: interviewLanguage,
+          profile: correctedProfile,
+        });
+        saveCanonicalCvSetup(correctedSetup, store);
+        debugCvProfile("onboarding.identity_confirmed", correctedProfile, { fileName });
+      } catch {
+        /* proceed even if re-save fails; interview still has prior canonical */
+      }
+    }
+
+    launchInterview();
+  }
+
   function requestPersist() { setPersistRequest((c) => c + 1); }
 
   useEffect(() => { if (persistRequest > 0) persistFast(); }, [persistRequest]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -953,7 +1077,7 @@ export default function OnboardingPage() {
       if (data.jobDescription) {
         setJdDraft(data.jobDescription);
       }
-      // Only fill role/company if the candidate hasn't already typed something —
+      // Only fill role/company if the candidate hasn't already typed something -
       // never overwrite a field they've deliberately set.
       if (data.jobTitle && !role.trim()) setRole(data.jobTitle);
       if (data.companyName && !companyName.trim()) setCompanyName(data.companyName);
@@ -1155,17 +1279,30 @@ export default function OnboardingPage() {
                   {selectedPersona.name} · {selectedPersona.role}
                 </span>
               </div>
-              <p className="mt-1 text-[11px] text-muted">New to interviews? Start with Priya or Sarah: they focus on potential, not just experience.</p>
+              {recruiterRecommendation && recommendedPersona ? (
+                <p className="mt-1 text-[11px] text-muted">
+                  Based on your {effectiveCvText.trim() ? "CV" : "target role"}{jobDescription.trim() ? " and job description" : ""}:{" "}
+                  <span className="font-black text-emerald-400">{recommendedPersona.name} · {recommendedPersona.role}</span>
+                  {" "}looks like the best fit — {recruiterRecommendation.reason}.
+                  {!isProUser && recruiterRecommendation.primaryIsPro && recruiterRecommendation.freeAlternative !== recruiterRecommendation.primary && (
+                    <> On your current plan, <span className="font-black text-fg">{(recruiters.find((r) => r.key === recruiterRecommendation.freeAlternative) || recruiters[1]).name}</span> is the closest match.</>
+                  )}
+                </p>
+              ) : (
+                <p className="mt-1 text-[11px] text-muted">New to interviews? Start with Priya or Sarah: they focus on potential, not just experience.</p>
+              )}
               <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
                 {recruiters.map((item) => (
                   <PersonaCard key={item.key} persona={item} selected={recruiter === item.key}
+                    recommended={recommendedFreeKey === item.key}
                     onClick={() => { setRecruiter(item.key); requestPersist(); }} />
                 ))}
               </div>
               <ProPersonaDropdown open={proListOpen} onToggle={() => setProListOpen((o) => !o)}
                 isProUser={isProUser} recruiter={recruiter}
                 onSelect={(key) => { setRecruiter(key); requestPersist(); }}
-                nudgeKey={nudgeKey} onLockedClick={() => setNudgeKey((k) => k + 1)} />
+                nudgeKey={nudgeKey} onLockedClick={() => setNudgeKey((k) => k + 1)}
+                recommendedKey={recommendedProKey} />
             </div>
 
             {/* readiness rail mobile */}
@@ -1324,6 +1461,14 @@ export default function OnboardingPage() {
           </div>
         </div>
       )}
+
+      <CvIdentityConfirm
+        open={showIdentityConfirm}
+        profile={aiResumeProfile}
+        fileName={fileName}
+        onConfirm={handleIdentityConfirmed}
+        onCancel={() => setShowIdentityConfirm(false)}
+      />
     </main>
   );
 }

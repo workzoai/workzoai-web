@@ -72,7 +72,7 @@ export function getWorkZoVapiRecruiterKey(
   )
     return "markus" as const;
 
-  // Pro personas — map to closest standard voice persona
+  // Pro personas, map to closest standard voice persona
   // FAANG/technical → Daniel (evidence-driven, analytical)
   if (raw.includes("faang") || raw.includes("alex")) return "daniel" as const;
   // Startup founder → Priya (fast-paced, ownership-focused)
@@ -113,6 +113,19 @@ export function getWorkZoVapiRecruiterKey(
   return "sarah" as const;
 }
 
+
+function sanitizeSpokenCandidateName(value: unknown): string {
+  const text = String(value || "")
+    .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ' .-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text || text.length < 2 || text.length > 60) return "";
+  if (/\b(resume|cv|candidate|user|profile|summary|contact|skills?|experience|education|projects?|languages?|achievement|achievements|accomplishment|accomplishments|awards?|honou?rs?|certifications?|technical|support|engineer|analyst|manager|specialist|consultant|developer|director|assistant|associate|recruiter|hiring|data|science|python|sql|tableau|matplotlib|seaborn|tensorflow|sklearn|langchain|gcp|aws|azure|customer|success|project|management|leadership|communication|teamwork|public|relations|critical|thinking|time|professional|bootcamp|school|college|university|degree|bachelor|master)\b/i.test(text)) return "";
+  const parts = text.split(" ").filter(Boolean);
+  if (parts.length > 4) return "";
+  return text;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // buildWorkZoVapiAssistantOverrides
 //
@@ -120,7 +133,7 @@ export function getWorkZoVapiRecruiterKey(
 //
 // variableValues only work when the Vapi dashboard assistant prompt has matching
 // {{placeholder}} tokens. If the dashboard prompt template doesn't reference
-// {{cvSummary}} or {{interviewStyle}}, all CV context is silently dropped — the
+// {{cvSummary}} or {{interviewStyle}}, all CV context is silently dropped, the
 // LLM never sees the candidate's employers, roles, or any CV facts.
 //
 // This function sends the FULL system prompt as `model.messages` in the
@@ -158,16 +171,18 @@ export function buildWorkZoVapiAssistantOverrides(input: {
   const interviewStyle = String(input.variableValues.interviewStyle || "");
   const languageLabel = input.languageLabel || "English";
 
+  const safeCandidateName = sanitizeSpokenCandidateName(input.candidateName);
+
   const systemPrompt = [
     `You are ${input.recruiterName || "Sarah"}, a ${input.recruiterRole || "recruiter"} conducting a job interview.`,
-    `The candidate's name is ${input.candidateName || "the candidate"}.`,
+    `The candidate's name is ${safeCandidateName || "the candidate"}.`,
     `The role being discussed is: ${input.targetRole || "the target role"}.`,
     languageLabel !== "English"
       ? `CRITICAL: Conduct this entire interview in ${languageLabel}. Every message must be in ${languageLabel}.`
       : "",
     "",
     "═══════════════════════════════════════════════",
-    "VERIFIED CV DATA — READ THIS BEFORE RESPONDING",
+    "VERIFIED CV DATA, READ THIS BEFORE RESPONDING",
     "═══════════════════════════════════════════════",
     verifiedCvJdBlock,
     "═══════════════════════════════════════════════",
@@ -179,9 +194,9 @@ export function buildWorkZoVapiAssistantOverrides(input: {
     "If the candidate mentions any employer or role from the list above, acknowledge it",
     "and ask a positive follow-up about responsibilities, scope, achievements, or outcomes.",
     "",
-    "JOB DESCRIPTION GROUNDING — MANDATORY:",
+    "JOB DESCRIPTION GROUNDING, MANDATORY:",
     "This interview must feel specific to the posted role and company, not like a generic support interview.",
-    "In the first six substantive questions, cover: why this role/company, why the candidate wants to move into this role, gaps between CV and JD, customer onboarding/project kickoff, implementation partner coordination, HR administration/process understanding, stakeholder/management-level communication, change management, milestone/to-do tracking, and escalation to management when customer/partner progress stalls — but only if those ideas appear in the JD below.",
+    "In the first six substantive questions, cover: why this role/company, why the candidate wants to move into this role, gaps between CV and JD, customer onboarding/project kickoff, implementation partner coordination, HR administration/process understanding, stakeholder/management-level communication, change management, milestone/to-do tracking, and escalation to management when customer/partner progress stalls, but only if those ideas appear in the JD below.",
     "Do not repeatedly ask documentation/escalation questions. After one process question, move to a different JD requirement.",
     "When the CV appears weaker than the JD asks for, ask naturally: 'I see more technical support experience in your CV; what makes you ready for a customer success/project ownership role like this?' Do not mark it as a failure immediately; probe motivation and transferable evidence.",
     "",
@@ -211,15 +226,15 @@ export function getWorkZoVapiAssistantId(
   const key = resolveRecruiterVoiceKey(recruiterId, recruiterName);
   // BUG FIXED: this used to do `RECRUITER_VOICE_TABLE[key].vapiEnv` (a string
   // like "NEXT_PUBLIC_VAPI_SARAH_ASSISTANT_ID") and then
-  // `process.env[envVar]` — dynamic bracket access using a runtime variable.
+  // `process.env[envVar]`, dynamic bracket access using a runtime variable.
   // Next.js only inlines NEXT_PUBLIC_* env vars when it sees the literal,
   // static `process.env.NEXT_PUBLIC_XXX` text in source at build time;
   // dynamic access like this is invisible to that step and always resolves
   // to undefined client-side, regardless of what's actually configured in
-  // the hosting environment. Confirmed from live testing — the assistant ID
+  // the hosting environment. Confirmed from live testing, the assistant ID
   // never resolved no matter what was set or how many times it was
   // rebuilt. recruiterVoiceProfiles already does this correctly with a
-  // literal `process.env.NEXT_PUBLIC_VAPI_SARAH_ASSISTANT_ID` per entry —
+  // literal `process.env.NEXT_PUBLIC_VAPI_SARAH_ASSISTANT_ID` per entry -
   // reusing that instead of the broken dynamic lookup.
   const assistantId = (recruiterVoiceProfiles[key]?.assistantId || "").trim();
   return { key, assistantId };
@@ -324,7 +339,7 @@ function extractContextLines(value?: string, maxLines = 24) {
 function extractLikelyCompaniesFromContext(value?: string, resumeProfile?: unknown) {
   const companies = new Set<string>();
 
-  // Primary: read directly from resumeProfile.experience — authoritative and exact.
+  // Primary: read directly from resumeProfile.experience, authoritative and exact.
   // The regex approach below strips company names when they appear on the same line as a
   // job title (e.g. "- Senior Engineer | Acme Corp | 2020-2023" → regex removes
   // everything after the title token, so the company name is never found).
@@ -342,7 +357,7 @@ function extractLikelyCompaniesFromContext(value?: string, resumeProfile?: unkno
   const companyHint =
     /\b(corp|corporation|gmbh|ltd|limited|inc|llc|company|technologies|technology|systems|solutions|university|group|co\.?|ai|cloud|digital|industries|cummins|zoho|css|visomax|visteon)\b/i;
   for (const line of lines) {
-    // Split on pipe/bullet separators — structured CV puts "Title | Company | Dates"
+    // Split on pipe/bullet separators, structured CV puts "Title | Company | Dates"
     // so we check each segment independently rather than stripping from the title.
     const segments = line.split(/[|•·–—]/).map((s) =>
       s.replace(/^[-*\s]+/, "").replace(/\d{4}.*$/, "").replace(/\s{2,}/g, " ").trim(),
@@ -370,19 +385,56 @@ function buildCompanyAliasInstruction(companies: string[]) {
       return `"${first} [Corp/GmbH/Ltd/Inc/...]" could be heard as "${company}"`;
     })
     .join("; ");
-  return `Verified company names from the CV/JD include: ${companies.join(", ")}. ${aliasExamples ? `Speech recognition may mishear them as: ${aliasExamples}. ` : ""}If the candidate says a company name that sounds close to any verified company, do NOT say you cannot see it. First assume it is that verified company and ask a confirmation only if needed, e.g. "I may have heard that as Visa Max — did you mean Visomax Coating GmbH, which I see on your resume?" `;
+  return `Verified company names from the CV/JD include: ${companies.join(", ")}. ${aliasExamples ? `Speech recognition may mishear them as: ${aliasExamples}. ` : ""}If the candidate says a company name that sounds close to any verified company, do NOT say you cannot see it. First assume it is that verified company and ask a confirmation only if needed, e.g. "I may have heard that as Visa Max, did you mean Visomax Coating GmbH, which I see on your resume?" `;
+}
+
+
+function normalizeWorkZoFactText(value: unknown): string {
+  return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function isWorkZoEducationLikeExperienceEntry(
+  exp: Record<string, unknown>,
+  education: Array<Record<string, unknown>> = [],
+): boolean {
+  const title = normalizeWorkZoFactText(exp.title);
+  const company = normalizeWorkZoFactText(exp.company);
+  const dates = normalizeWorkZoFactText(exp.dates);
+  const bullets = Array.isArray(exp.bullets)
+    ? (exp.bullets as unknown[]).map(normalizeWorkZoFactText).join(" ")
+    : "";
+  const combined = [title, company, dates, bullets].filter(Boolean).join(" ");
+  if (!combined) return false;
+
+  const educationTerms = /(bootcamp|coding school|university|college|school|hochschule|academy|akademie|institute|bachelor|master|mba|msc|bsc|degree|diploma|certificate|certification|course|training|program)/i;
+  const professionalTitleTerms = /(engineer|administrator|admin|specialist|analyst|consultant|manager|lead|developer|support|technician|coordinator|associate|officer|assistant|intern|teacher|trainer|instructor)/i;
+  const employmentActionTerms = /(resolved|handled|managed|owned|supported|implemented|configured|installed|maintained|troubleshot|coordinated|delivered|improved|reduced|led|worked with customers|tickets?|sla|csat|stakeholders?)/i;
+
+  const overlapsEducation = education.some((edu) => {
+    const institution = normalizeWorkZoFactText(edu.institution);
+    const degree = normalizeWorkZoFactText(edu.degree);
+    if (institution && company && (company.includes(institution) || institution.includes(company))) return true;
+    if (degree && title && (title.includes(degree) || degree.includes(title))) return true;
+    return false;
+  });
+
+  if (overlapsEducation && educationTerms.test(combined)) return true;
+  if (educationTerms.test(title) && !professionalTitleTerms.test(title)) return true;
+  if (educationTerms.test(company) && !employmentActionTerms.test(bullets)) return true;
+  return false;
 }
 
 function buildStructuredEmployerBlock(resumeProfile: unknown): string {
   // Build an explicit numbered employer list from resumeProfile.experience so the
   // LLM receives each job as a clearly labelled entry. compactContextText() collapses
-  // newlines into spaces, making structured CV text hard to parse — the LLM sometimes
+  // newlines into spaces, making structured CV text hard to parse, the LLM sometimes
   // misses employers because they appear mid-sentence after compaction without a clear anchor.
   // A numbered list survives compaction because the content itself is already flat.
   const rp = resumeProfile as Record<string, unknown> | null | undefined;
   if (!rp || typeof rp !== "object" || !Array.isArray(rp.experience)) return "";
+  const education = Array.isArray(rp.education) ? (rp.education as Array<Record<string, unknown>>) : [];
   const jobs = (rp.experience as Array<Record<string, unknown>>)
-    .filter((exp) => exp.company || exp.title)
+    .filter((exp) => (exp.company || exp.title) && !isWorkZoEducationLikeExperienceEntry(exp, education))
     .slice(0, 10)
     .map((exp, i) => {
       const title = String(exp.title || "").trim();
@@ -418,7 +470,7 @@ function buildStructuredEducationBlock(resumeProfile: unknown): string {
 // Extracts named requirements from the job description so the recruiter asks
 // about EACH one specifically, instead of generic "tell me about your
 // experience" questions. Covers CSM, engineering, PM, data, finance, sales,
-// legal, creative, HR, and operations roles — not just CSM/support.
+// legal, creative, HR, and operations roles, not just CSM/support.
 const JD_REQUIREMENT_LIBRARY: Array<{ match: RegExp; label: string; question: string }> = [
   // ── Customer Success / Support ──────────────────────────────────────────
   { match: /customer onboarding|client onboarding|new customer setup/, label: "Customer onboarding", question: "Tell me about a customer onboarding project you led. How did you structure the first 30-60-90 days?" },
@@ -553,7 +605,7 @@ function detectCvJdGaps(cvText: string, requirements: Array<{ label: string; que
 function buildJdGapVerificationInstruction(gaps: string[]): string {
   if (!gaps.length) return "";
   const examples = gaps.slice(0, 3).map(
-    (label) => `"I couldn't find ${label.toLowerCase()} experience listed on your resume — have you had opportunities to do this even if it wasn't formally part of a job title? Sometimes this happens informally."`,
+    (label) => `"I couldn't find ${label.toLowerCase()} experience listed on your resume, have you had opportunities to do this even if it wasn't formally part of a job title? Sometimes this happens informally."`,
   ).join(" ");
   return (
     `CV/JD GAP CHECK: these JD requirements were not found explicitly in the candidate's CV: ${gaps.join(", ")}. ` +
@@ -569,16 +621,18 @@ function buildVerifiedCvJdBlock(cvText?: string, jobDescription?: string, resume
   const companies = extractLikelyCompaniesFromContext(cv, resumeProfile);
   const companyAliasInstruction = buildCompanyAliasInstruction(companies);
 
-  // Structured blocks built directly from parsed resumeProfile — explicit, flat,
+  // Structured blocks built directly from parsed resumeProfile, explicit, flat,
   // and survive the compactContextText newline-collapse. The LLM reads these BEFORE
   // the raw cv blob so it has an unambiguous record of every verified employer first.
   const employerBlock = buildStructuredEmployerBlock(resumeProfile);
   const educationBlock = buildStructuredEducationBlock(resumeProfile);
+  const cvStructureRuleBlock = `CV STRUCTURE RULE, STRICT: Treat VERIFIED EMPLOYMENT HISTORY as jobs only. Treat VERIFIED EDUCATION as education only. Never merge education, bootcamps, courses, certificates, or projects into a job title or employer. Never ask "your role at a bootcamp/course/school" unless that exact item appears under VERIFIED EMPLOYMENT HISTORY as a real job. If a recent item is education, ask about it as training or learning, not as employment. If employment history is older than education, say "your most recent professional role" instead of "your most recent role".`;
 
   return [
-    "VERIFIED WORKZO CONTEXT — AUTHORITATIVE.",
+    "VERIFIED WORKZO CONTEXT, AUTHORITATIVE.",
     "The CV/resume context and job description below have already been read by WorkZo AI. Treat them as the source of truth.",
     companyAliasInstruction,
+    cvStructureRuleBlock,
     employerBlock,
     educationBlock,
     "HARD RULE: Do not say 'I do not see', 'I don't see enough detail', 'I cannot verify', 'not listed', 'not reflected in your CV', or 'I need to pause there' about any employer, role, date range, education, skill, project, achievement, or years-of-experience that appears anywhere in the verified CV facts/context.",
@@ -586,7 +640,7 @@ function buildVerifiedCvJdBlock(cvText?: string, jobDescription?: string, resume
     "Do not claim an employer, role, years of experience, education, skill, or project is missing unless it is absent from BOTH the verified CV facts and the JD context.",
     "When the candidate mentions a company/role with speech-to-text errors, match by sound and context before challenging.",
     // CRITICAL: Projects section must never be attributed to employer work history.
-    "CRITICAL — PROJECT vs EMPLOYER RULE: A CV often has a PROJECTS section that is SEPARATE from WORK EXPERIENCE. Projects listed under a 'Projects' or 'Personal Projects' heading are the candidate's own independent work — they are NOT part of any employer's work history. NEVER attribute a project (e.g. a feasibility study, data analysis project, or personal pipeline) to a specific employer unless the CV text explicitly places it within that employer's section. If you want to ask about a project, frame it as: 'I noticed you worked on [project name] independently — could you walk me through that?' NOT 'I see you worked on [project] at [employer].'",
+    "CRITICAL, PROJECT vs EMPLOYER RULE: A CV often has a PROJECTS section that is SEPARATE from WORK EXPERIENCE. Projects listed under a 'Projects' or 'Personal Projects' heading are the candidate's own independent work, they are NOT part of any employer's work history. NEVER attribute a project (e.g. a feasibility study, data analysis project, or personal pipeline) to a specific employer unless the CV text explicitly places it within that employer's section. If you want to ask about a project, frame it as: 'I noticed you worked on [project name] independently, could you walk me through that?' NOT 'I see you worked on [project] at [employer].'",
     cv
       ? `VERIFIED CV / RESUME DETAILS:\n${cv}`
       : "VERIFIED CV / RESUME DETAILS: not provided.",
@@ -617,7 +671,7 @@ export function buildWorkZoVapiVariableValues(input: {
   recruiterMustChallengeUnsupportedClaims?: string;
   antiHallucinationMode?: string;
   // BUG FIXED: language was never a real, dedicated instruction here. It
-  // only ever reached Vapi as a prefix buried inside cvText/jobDescription —
+  // only ever reached Vapi as a prefix buried inside cvText/jobDescription -
   // fields the model is told to treat as DATA (the candidate's resume, the
   // job posting), not as behavioral directives. A model is far more likely
   // to actually comply with "speak German" when it's stated plainly as an
@@ -631,6 +685,7 @@ export function buildWorkZoVapiVariableValues(input: {
 }) {
   const languageLabel = input.languageLabel || "English";
   const isEnglish = languageLabel.toLowerCase() === "english";
+  const safeCandidateName = sanitizeSpokenCandidateName(input.candidateName);
   const openingGreeting = (input.openingGreeting || "").trim();
   const openingIntroQuestion = (input.openingIntroQuestion || "").trim();
   const verifiedCvJdBlock = buildVerifiedCvJdBlock(
@@ -645,10 +700,10 @@ export function buildWorkZoVapiVariableValues(input: {
   const cvJdGaps = detectCvJdGaps(input.cvText || "", jdRequirements);
   const jdGapVerificationInstruction = buildJdGapVerificationInstruction(cvJdGaps);
   const jdRequirementInstruction = jdRequirements.length
-    ? `JD-EXTRACTED REQUIREMENTS TO COVER: this job description names these specific requirements — ${jdRequirements.map((r) => r.label).join(", ")}. Ask about EACH one specifically over the course of the interview, not generic questions. Suggested phrasing per requirement (adapt naturally, don't read verbatim): ${jdRequirements.map((r) => `[${r.label}] "${r.question}"`).join(" ")} You do not need to ask all of these if the interview is naturally winding down, but cover at least 4-5 of them. `
+    ? `JD-EXTRACTED REQUIREMENTS TO COVER: this job description names these specific requirements, ${jdRequirements.map((r) => r.label).join(", ")}. Ask about EACH one specifically over the course of the interview, not generic questions. Suggested phrasing per requirement (adapt naturally, don't read verbatim): ${jdRequirements.map((r) => `[${r.label}] "${r.question}"`).join(" ")} You do not need to ask all of these if the interview is naturally winding down, but cover at least 4-5 of them. `
     : "";
   return {
-    candidateName: input.candidateName || "Candidate",
+    candidateName: safeCandidateName || "",
     recruiterName: input.recruiterName || "Recruiter",
     recruiterRole: input.recruiterRole || "AI Recruiter",
     targetRole: input.targetRole || "Target Role",
@@ -670,10 +725,10 @@ export function buildWorkZoVapiVariableValues(input: {
     interviewStyle:
       (isEnglish
         ? ""
-        : // Stated first, plainly, repeated in different phrasing — this is
+        : // Stated first, plainly, repeated in different phrasing, this is
           // the one instruction in this whole prompt most likely to get
           // silently dropped if it's not impossible to miss.
-          `CRITICAL — LANGUAGE: conduct this entire interview in ${languageLabel}, not English. Every question, follow-up, clarification, and closing remark must be in ${languageLabel}. This includes your very first greeting — do not open in English and switch later. Only use English if the candidate explicitly asks you to switch to English. `) +
+          `CRITICAL, LANGUAGE: conduct this entire interview in ${languageLabel}, not English. Every question, follow-up, clarification, and closing remark must be in ${languageLabel}. This includes your very first greeting, do not open in English and switch later. Only use English if the candidate explicitly asks you to switch to English. `) +
       (openingGreeting ? `FIRST MESSAGE EXACTLY: ${openingGreeting} ` : "") +
       (openingIntroQuestion
         ? `AFTER THE CANDIDATE ANSWERS THE GREETING, ASK THIS INTRO QUESTION EXACTLY: ${openingIntroQuestion} `
@@ -682,16 +737,18 @@ export function buildWorkZoVapiVariableValues(input: {
       // only for a natural opening greeting, like "Hi there") whenever a
       // real first name can't be safely extracted. That fallback value was
       // then getting reused as a literal name substitute throughout the
-      // ENTIRE conversation, not just the opening — producing sentences
+      // ENTIRE conversation, not just the opening, producing sentences
       // like "Thank you for sharing that, there." on nearly every turn.
       // Confirmed from live testing. This instruction overrides that.
-      `If no real candidate name is available (the name value is "there", empty, or clearly not a real first name), do NOT address the candidate by name anywhere in the conversation except possibly a natural opening like "Hi there" — never insert "there" or any other filler as a name substitute mid-sentence (e.g. never say "Thank you for sharing that, there."). Just phrase the sentence naturally without a name. ` +`CANDIDATE NAME RULE (STRICT): Before using the candidate name in ANY greeting, closing line, or sentence, verify it is a real human first name. NEVER say any of these aloud as a name: Unknown, Candidate, User, Public, Private, Profile, Guest, Anonymous, N/A, None, Null, Undefined, or any CV section header, job title, skill, technology, company, or project word. These are placeholder values from missing data, not names — saying "Thank you, Unknown" or "Take care, Candidate" is an obvious tell that the interviewer is a bot. If the name value is missing or suspicious, greet with "Hi there" and OMIT the name entirely everywhere else (e.g. "Thank you for your time today." not "Thank you, Unknown."). When in doubt, use no name at all. ` +
-      `You are a natural, warm human recruiter — not a scoring robot, not a question machine. ` +
+      `If no real candidate name is available (the name value is "there", empty, or clearly not a real first name), do NOT address the candidate by name anywhere in the conversation except possibly a natural opening like "Hi there", never insert "there" or any other filler as a name substitute mid-sentence (e.g. never say "Thank you for sharing that, there."). Just phrase the sentence naturally without a name. ` +`CANDIDATE NAME RULE (STRICT): Before using the candidate name in ANY greeting, closing line, or sentence, verify it is a real human first name. NEVER say any of these aloud as a name: Unknown, Candidate, User, Public, Private, Profile, Guest, Anonymous, N/A, None, Null, Undefined, or any CV section header, job title, skill, technology, company, or project word. These are placeholder values from missing data, not names, saying "Thank you, Unknown" or "Take care, Candidate" is an obvious tell that the interviewer is a bot. If the name value is missing or suspicious, greet with "Hi there" and OMIT the name entirely everywhere else (e.g. "Thank you for your time today." not "Thank you, Unknown."). When in doubt, use no name at all. ` +
+      `You are a natural, warm human recruiter, not a scoring robot, not a question machine. ` +
       `Start with brief rapport. Answer small social questions naturally before continuing. ` +
       `Ask ONE question per turn. Listen to the candidate's answer and choose your next question FROM what they just said. ` +
+      `ANTI-INTERRUPTION RULE, HIGHEST PRIORITY: never start speaking while the candidate is still answering. If the candidate pauses for less than two seconds, says filler words like um, uh, so, actually, one second, let me think, or continues with and, but, because, then, what I did was, based on that, assume they are still thinking and stay silent. Wait until the candidate clearly finishes the full thought, especially for introduction, experience, STAR stories, technical issue explanations, and project examples. After the candidate finishes, first acknowledge what you heard in one short sentence, then ask one follow-up. Do not cut in with phrases like I see, thank you for clarifying, let's pause, or let's be specific while the candidate is mid-story. ` +
       `Never mix a closing statement with a new interview question. Once you say the interview is ending, do not ask another question. ` +
-      `If they mention a skill, project, career transition, gap, or outcome — follow that thread. Never follow a fixed script: every follow-up question must depend on what the candidate just said, not a predetermined list. Example: if they mention "customer satisfaction", ask "how did you measure satisfaction?" If they then say "NPS", ask "what NPS improvement did you achieve?" Keep drilling one level deeper into whatever specific detail they just gave you before moving to a new topic. ` +
+      `If they mention a skill, project, career transition, gap, or outcome, follow that thread. Never follow a fixed script: every follow-up question must depend on what the candidate just said, not a predetermined list. Example: if they mention "customer satisfaction", ask "how did you measure satisfaction?" If they then say "NPS", ask "what NPS improvement did you achieve?" Keep drilling one level deeper into whatever specific detail they just gave you before moving to a new topic. ` +
       `GLOBAL GROUNDING RULE: The verified CV/JD context below is authoritative. Never say "I do not see", "I don't see enough detail", "I cannot verify", "it is not listed", "not reflected in your CV", or "I need to pause there" for any employer, role, year range, education, skill, project, achievement, requirement, or years-of-experience present in that verified context. ${companyAliasInstruction} If the transcript contains a distorted company name, compare it to verified companies by sound and context before challenging. If a candidate names a company that sounds like a verified employer (speech-to-text distortion), match by sound before challenging. If the candidate answer is short, ask for responsibilities/scope/results positively: "I see that listed in your CV; could you walk me through your responsibilities and results there?" Ask about responsibilities, scope, achievements, decisions, and JD fit instead of disputing verified facts. ` +
+      `CV CATEGORY SAFETY RULE: Work experience, education, projects, and certifications are different categories. Do not combine them. Do not invent a job by attaching a job title to a bootcamp, course, university, school, project, or certification. Do not describe any education, course, training program, certification, or project as a job unless that exact role and employer are listed under VERIFIED EMPLOYMENT HISTORY. ` +
       `VERIFIED CONTEXT FOR THIS INTERVIEW:
 ${verifiedCvJdBlock.slice(0, 8500)}
 END VERIFIED CONTEXT. ` +
@@ -700,19 +757,20 @@ END VERIFIED CONTEXT. ` +
       `If the answer is unclear or speech recognition is poor, ask one natural clarification in ${languageLabel}; do not invent the candidate's words, do not translate random sounds into fake English, and do not demand metrics. ` +
       `Use short human transitions: "That makes sense", "Okay, I see the connection", "Let me ask this differently." ` +
       `Never say STAR, rubric, score, or "as an AI". ` +
-      // A real interviewer always covers these — they were missing from this
+      // A real interviewer always covers these, they were missing from this
       // prompt entirely, even though the text-based engine has covered them
       // for a while. Stated explicitly here so live voice candidates get the
       // same baseline questions every real interview includes.
-      `Early in the interview, naturally ask what the candidate currently does (or most recently did), why they want this specific role, why this company, and why they want to move from their current/previous background into this role. Tie this to actual JD responsibilities, not generic motivation. ` +
+      `Early in the interview, naturally ask what the candidate currently does or what their most recent PROFESSIONAL work role was, why they want this specific role, why this company, and why they want to move from their current/previous professional background into this role. Never treat a bootcamp, course, degree, school, university, project, or certificate as a current or most recent job unless it appears under VERIFIED EMPLOYMENT HISTORY as a real employment entry. If the candidate recently completed education, ask about it as education or training, not as employment. Tie this to actual JD responsibilities, not generic motivation. ` +
       `${jdRequirementInstruction}` +
       `${jdGapVerificationInstruction}` +
-      `COMPANY-SPECIFIC FRAMING: when you ask about a JD requirement, reference ${input.companyName || "the company"} by name where it reads naturally instead of asking abstractly. For example say "${input.companyName || "this company"}'s implementation projects often involve multiple stakeholders — how would you handle a delayed customer?" rather than "What is stakeholder management?" Make the question feel grounded in this specific company and role, not a textbook definition. ` +
-      `Do not keep asking the same documentation/escalation question repeatedly. If the CV verified facts already show experience related to a JD requirement, phrase it positively, e.g. "I see your CV shows experience directly relevant to this requirement — how would that background help you here?" Never say there is not enough detail for a verified employer/role; simply ask for more detail. Only say you do not see something when it is genuinely absent from the verified facts. ` +
-      `Near the end of the interview, invite the candidate's own questions — ask something like "do you have any questions for me about the role or what happens next?" If they ask something, answer it briefly using what you know about the role, then ALWAYS give a clear final goodbye: "That brings us to the end of our interview. Thank you for your time today — you'll now receive your feedback and next steps. Take care." After that final closing sentence, stop completely. Do not say the connection dropped, do not ask the candidate to start a new session, and do not ask process-improvement, documentation, escalation, or any other new question after closing. ` +`CLOSING SEQUENCE — MANDATORY ORDER, NEVER SKIP OR REORDER: (1) You may only BEGIN closing after the candidate has FULLY FINISHED their current answer. Never deliver any closing line while the candidate is mid-sentence or still speaking — if you are unsure whether they have finished, wait in silence; do not close. If your question budget is reached while the candidate is still answering, let them finish completely first, acknowledge their answer, and only THEN close. Reaching your question count is NEVER a reason to cut someone off mid-answer. (2) First, ask the candidate questions invitation and let them respond fully. (3) Only after they have finished responding to that, deliver the final goodbye in one turn. A candidate being cut off mid-answer is the single worst failure of this interview — avoiding it takes priority over your question budget, over time, and over everything else. ` +
-      `INTERVIEW LENGTH BUDGET: this interview should cover roughly 12-14 of your own questions in total (introduction, motivation, background, JD-grounded experience, behavioral/strengths, then closing) — not unlimited rounds of new behavioral questions. Track this mentally as you go. Once you have asked around 12 questions and covered motivation, experience, JD fit, and at least one behavioral/strengths question, move toward the closing invitation within your next 1-2 turns rather than generating another fresh behavioral prompt. Do not keep asking new "tell me about a time when..." questions indefinitely — two or three strong behavioral examples are enough. The question budget is a SOFT guide for pacing, not a hard stop: never end the interview or start the closing while the candidate is in the middle of an answer just because you have reached ~12 questions. Finish the current exchange naturally first. ` +
-      `If the candidate says something like "did you read my answer", "you already asked that", "I just said that", or otherwise signals you ignored or repeated yourself, acknowledge it directly and briefly ("You're right, let me build on what you just shared") before continuing — never ignore a direct callout and plow ahead with a scripted line. ` +
-      // Capped at 700 chars — kept as a precaution from when this was first
+      `COMPANY-SPECIFIC FRAMING: when you ask about a JD requirement, reference ${input.companyName || "the company"} by name where it reads naturally instead of asking abstractly. For example say "${input.companyName || "this company"}'s implementation projects often involve multiple stakeholders, how would you handle a delayed customer?" rather than "What is stakeholder management?" Make the question feel grounded in this specific company and role, not a textbook definition. ` +
+      `Do not keep asking the same documentation/escalation question repeatedly. If the CV verified facts already show experience related to a JD requirement, phrase it positively, e.g. "I see your CV shows experience directly relevant to this requirement, how would that background help you here?" Never say there is not enough detail for a verified employer/role; simply ask for more detail. Only say you do not see something when it is genuinely absent from the verified facts. ` +
+      `Near the end of the interview, invite the candidate's own questions, ask something like "do you have any questions for me about the role or what happens next?" If they ask something, answer it briefly using what you know about the role, then ALWAYS give a clear final goodbye: "That brings us to the end of our interview. Thank you for your time today, you'll now receive your feedback and next steps. Take care." After that final closing sentence, stop completely. Do not say the connection dropped, do not ask the candidate to start a new session, and do not ask process-improvement, documentation, escalation, or any other new question after closing. ` +
+      `CLOSING SEQUENCE, MANDATORY ORDER, NEVER SKIP OR REORDER: (1) You may only BEGIN closing after the candidate has FULLY FINISHED their current answer. Never deliver any closing line while the candidate is mid-sentence or still speaking. If the candidate ends with a comma-like thought, filler, or unfinished phrase such as "uh", "and", "but", "when the customer", "so I", or "what I did was", they are NOT finished: ask "Please continue, I didn't want to cut you off." If your question budget is reached while the candidate is still answering, let them finish completely first, acknowledge their answer, and only THEN close. Reaching your question count or progress target is NEVER a reason to cut someone off mid-answer. (2) Before any final goodbye, first ask the candidate questions invitation and let them respond fully. (3) Only after they have finished responding to that, deliver the final goodbye in one turn. A candidate being cut off mid-answer is the single worst failure of this interview, avoiding it takes priority over your question budget, over time, and over everything else. ` +
+      `INTERVIEW LENGTH BUDGET: this interview should cover roughly 12-14 of your own questions in total (introduction, motivation, background, JD-grounded experience, behavioral/strengths, then closing), not unlimited rounds of new behavioral questions. Track this mentally as you go. Once you have asked around 12 questions and covered motivation, experience, JD fit, and at least one behavioral/strengths question, move toward the closing invitation within your next 1-2 turns rather than generating another fresh behavioral prompt. Do not keep asking new "tell me about a time when..." questions indefinitely, two or three strong behavioral examples are enough. The question budget is a SOFT pacing guide only. Progress reaching 90% or 100% is never a stop command. Never say "I have everything I need" directly after a candidate answer unless you already asked whether they have questions and they answered. Finish the current exchange naturally first. ` +
+      `If the candidate says something like "did you read my answer", "you already asked that", "I just said that", or otherwise signals you ignored or repeated yourself, acknowledge it directly and briefly ("You're right, let me build on what you just shared") before continuing, never ignore a direct callout and plow ahead with a scripted line. ` +
+      // Capped at 700 chars, kept as a precaution from when this was first
       // added, even though the actual regression turned out to be a missing
       // Vapi assistant ID env var, not this content. No downside to keeping
       // the cap regardless.
@@ -725,12 +783,13 @@ END VERIFIED CONTEXT. ` +
         mode: "vapi",
       })} ` +
       `CRITICAL VOICE RULES: ` +
-      `Speak at 0.82x normal speed — slower than you think you need to. ` +
+      `Speak at 0.82x normal speed, slower than you think you need to. ` +
       `Use a 400ms natural pause after each sentence. ` +
       `Do NOT rush into the next question immediately after the candidate stops speaking. ` +
-      `Use a 600ms pause before starting your reply — this sounds human, not robotic. ` +
+      `Wait at least 1.5 seconds after the candidate's last word before starting your reply. If the candidate sounds mid-thought, wait closer to 2 seconds. ` +
+      `Use a 1500ms pause before starting your reply, this sounds human, not robotic. ` +
       `Speak with warm, clear enunciation. If a word has multiple syllables, give each one its space. ` +
-      `Vary your pitch slightly — flat monotone is the #1 sign of AI. ` +
+      `Vary your pitch slightly, flat monotone is the #1 sign of AI. ` +
       `Occasionally use a brief filler before a hard question: "Okay…" or "Hmm…" (just once, not every time).`,
     strictGroundingRules:
       input.strictGroundingRules ||
@@ -744,17 +803,19 @@ END VERIFIED CONTEXT. ` +
     pacingRules:
       "Speak slowly and clearly, at 0.82x normal interview speed. " +
       "Use 400ms natural pauses after each sentence. " +
-      "Use a 600ms pause before starting your reply after the candidate speaks. " +
+      "Use a 1500ms pause before starting your reply after the candidate speaks. " +
+      "If the candidate pauses, says filler words, or continues a sentence, keep listening instead of replying. " +
       "Do not rush follow-up questions. " +
       "Acknowledge social turns briefly before continuing. " +
       "Do not repeat the same question. " +
       "Never say: Give me one concrete metric or proof point: time saved, tickets reduced, customer impact, quality improvement, revenue, cost, or before-and-after result. " +
-      "If the candidate gives a vague answer, narrow the next question — do not lecture and do not demand a metric unless the previous two answers had no evidence at all. " +
+      "If the candidate gives a vague answer, narrow the next question, do not lecture and do not demand a metric unless the previous two answers had no evidence at all. " +
       "If the candidate seems nervous, warm your tone slightly before the next question. " +
       "One question per reply, maximum.",
     voiceRecognitionHints:
       `The selected interview language is ${languageLabel}. The candidate may speak ${languageLabel} with an accent or may code-switch briefly. ` +
-      "Always wait for the candidate to finish speaking before replying — do not interrupt mid-sentence. " +
+      "Always wait for the candidate to finish speaking before replying, do not interrupt mid-sentence. Treat short pauses, filler words, and unfinished phrases as still speaking. " +
+      "For long story answers, wait until there is a clear conclusion before probing for root cause, steps, metrics, or outcome. " +
       "If a transcript looks duplicated, ignore the duplicate and respond to the meaning once. " +
       `If you do not clearly understand the candidate's answer, ask a short clarification in ${languageLabel}; do not invent words or translate unclear audio. ` +
       "Do not assume the candidate said something wrong if the audio was unclear. Ask for clarification naturally.",

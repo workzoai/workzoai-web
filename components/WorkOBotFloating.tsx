@@ -141,7 +141,7 @@ function saveStoredChat(messages: ChatMessage[]) {
   try {
     window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-MAX_STORED_MESSAGES)));
   } catch {
-    // Ignore storage errors — chat just won't persist across reloads.
+    // Ignore storage errors, chat just won't persist across reloads.
   }
 }
 
@@ -243,7 +243,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       i++; continue;
     }
 
-    // Headers — strip leading emoji/symbols from header text
+    // Headers, strip leading emoji/symbols from header text
     const hMatch = line.match(/^(#{1,3})\s+(.+)/);
     if (hMatch) {
       const level = hMatch[1].length;
@@ -256,7 +256,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       i++; continue;
     }
 
-    // Blockquote — collect consecutive > lines into one block
+    // Blockquote, collect consecutive > lines into one block
     // Also handles blockquotes immediately after list items (no blank line)
     if (line.trimStart().startsWith(">")) {
       const blockKey = i; // capture before loop advances i
@@ -275,7 +275,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       continue;
     }
 
-    // Table — collect all | lines
+    // Table, collect all | lines
     if (line.trim().startsWith("|")) {
       const tableKey = i; // capture before loop advances i
       const tableLines: string[] = [];
@@ -317,7 +317,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       continue;
     }
 
-    // Checkbox list item — [ ] or [x]
+    // Checkbox list item, [ ] or [x]
     const checkMatch = raw.match(/^(\s*)- \[( |x|X)\] (.+)/);
     if (checkMatch) {
       const checked = checkMatch[2].toLowerCase() === "x";
@@ -464,8 +464,8 @@ export default function WorkOBotFloating({
         if (data?.error === "upgrade_required" || data?.error === "upgrade_required_rate_limit") {
           const isPro = data?.requiredPlan === "premium_pro";
           const upgradeMsg = isPro
-            ? "This feature is part of Premium Pro — AI Career Coach, 30/60/90 day roadmaps, salary coaching, and replay intelligence are all included.\n\nUpgrade to Premium Pro to unlock it, or open the full Work-O-Bot page for features available on your current plan."
-            : "This feature requires Premium — CV rewriting, cover letters, ATS optimisation, job fit analysis, and more are all included.\n\nUpgrade to Premium to unlock it, or open the full Work-O-Bot page.";
+            ? "This feature is part of Premium Pro, AI Career Coach, 30/60/90 day roadmaps, salary coaching, and replay intelligence are all included.\n\nUpgrade to Premium Pro to unlock it, or open the full Work-O-Bot page for features available on your current plan."
+            : "This feature requires Premium, CV rewriting, cover letters, ATS optimisation, job fit analysis, and more are all included.\n\nUpgrade to Premium to unlock it, or open the full Work-O-Bot page.";
           setMessages((current) => [
             ...current,
             { id: createId(), role: "assistant", content: upgradeMsg, mode: activeModeId },
@@ -580,7 +580,7 @@ export default function WorkOBotFloating({
 
       {!minimized && (
         <>
-          {/* Quick-action mode chips — these just set the "lens" for the next
+          {/* Quick-action mode chips, these just set the "lens" for the next
               message (and are sent to the API as a hint), they no longer
               gate or reset the conversation. */}
           <div className="flex gap-2 overflow-x-auto border-b border-line bg-fg/[0.02] px-3 py-2 [scrollbar-width:none]">
@@ -628,7 +628,7 @@ export default function WorkOBotFloating({
                 </div>
 
                 <p className="mt-3 text-xs leading-5 text-muted">
-                  Ask anything career-related — CV feedback, interview answers, job search
+                  Ask anything career-related, CV feedback, interview answers, job search
                   strategy, cover letters, recruiter messages, salary talk, or general advice.
                   Switch the chip above any time to change focus.
                 </p>

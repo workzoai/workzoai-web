@@ -19,7 +19,7 @@ type AiResumeExperience = { title?: unknown; company?: unknown; location?: unkno
 type AiResumeEducation = { degree?: unknown; institution?: unknown; location?: unknown; dates?: unknown };
 type AiResumeProject = { name?: unknown; bullets?: unknown };
 
-type AiResumeJson = {
+export type AiResumeJson = {
   basics?: { name?: unknown; headline?: unknown; email?: unknown; phone?: unknown; location?: unknown; linkedin?: unknown };
   summary?: unknown;
   experience?: AiResumeExperience[];
@@ -200,7 +200,7 @@ const DEGREE_OR_EDU_RE = /\b(bachelor|master|mba|msc|ma|ba|bsc|phd|degree|diplom
 
 // GLOBAL FIX: structural address detection instead of enumerating countries/cities.
 // Postal code + word, or "Word, Word" comma pattern covers any address worldwide.
-// Country/city name lists were removed — they missed most of the world.
+// Country/city name lists were removed, they missed most of the world.
 const ADDRESS_WORD_RE = /\b(street|straße|strasse|str\.?|road|rd\.?|avenue|ave\.?|platz|gasse|allee|ring|drive|dr\.?|lane|ln\.?|city|town|village|anywhere|rue|via|calle|rua|weg|steig|damm|pfad|ufer)\b/i;
 const ADDRESS_STRUCTURE_RE = /\b\d{4,6}\b[,.\s]{1,4}\p{Lu}[\p{Ll}À-ÿ]+|\b\p{Lu}[\p{Ll}À-ÿ]+[,.\s]{1,4}\d{4,6}\b|\b\p{Lu}[\p{Ll}À-ÿ]{2,},\s*\p{Lu}[\p{Ll}À-ÿ]{2,}\b/u;
 const ADDRESS_OR_LOCATION_RE = { test(value: string) { return ADDRESS_WORD_RE.test(value) || ADDRESS_STRUCTURE_RE.test(value); } };
@@ -228,7 +228,7 @@ function collapseSpacedLetterGroup(group: string): string {
 }
 
 function compactDecorativeLine(line: string): string {
-  // Strip bullet characters but DO NOT normalize whitespace yet —
+  // Strip bullet characters but DO NOT normalize whitespace yet -
   // multi-space boundaries (2+ spaces) are the only signal for where
   // words end in decorative spaced-letter headlines like:
   // "I T - S u p p o r t   /   T e c h n i s c h e r   S u p p o r t - I n g e n i e u r"
@@ -254,7 +254,7 @@ function compactDecorativeLine(line: string): string {
     // A long all-caps compact that isn't a section keyword is likely a person's
     // full name run together (e.g. "JOHNSMITH" from spaced letters).
     // Try splitting near the midpoint so extractBestCandidateName can recognise
-    // a two-word name. Only attempt for lengths typical of two-part names (8–35).
+    // a two-word name. Only attempt for lengths typical of two-part names (8-35).
     // Guard: skip anything that looks like a single English word (section header
     // that wasn't in the map, or a single-word company name).
     if (compact.length >= 8 && compact.length <= 35) {
@@ -280,7 +280,7 @@ function compactDecorativeLine(line: string): string {
   }
 
   // Case 2: Decorative spaced-letter headings (mixed case, dashes, slashes).
-  // Split on 2+ consecutive spaces first — these are WORD GROUP boundaries.
+  // Split on 2+ consecutive spaces first, these are WORD GROUP boundaries.
   // Single spaces within a group separate individual letters.
   // e.g. "I T - S u p p o r t - S p e z i a l i s t   /   T e c h n i s c h e r   S u p p o r t - I n g e n i e u r"
   //       ←────────────── group 1 ─────────────────→ ↑/↑ ←── group 2 ──→ ↑  ↑ ←──── group 3 ────────────→
@@ -294,7 +294,7 @@ function compactDecorativeLine(line: string): string {
     }
   }
 
-  // Single group — still try to collapse if it has spaced-letter content
+  // Single group, still try to collapse if it has spaced-letter content
   if (wordGroups.length === 1) {
     const result = collapseSpacedLetterGroup(stripped);
     if (result !== stripped.trim()) return result;
@@ -490,13 +490,13 @@ export function extractBestCandidateName(rawText: string, fileName = "", modelNa
   const candidates: CandidateName[] = [];
   // BUG FIXED, GENERAL CASE: a skill phrase or company name that happens to
   // sit near the top of the raw extracted text (a PDF column-reordering
-  // artifact, not a real layout choice) could out-score the actual name —
+  // artifact, not a real layout choice) could out-score the actual name -
   // confirmed from live testing with "Critical Thinking" (a skill) and
   // "Aldenaire Partners" (a company from the experience section), each
   // independently extracted elsewhere in the SAME profile. Rather than
   // denylisting those specific phrases (which doesn't generalize to the
   // next CV), this cross-checks against whatever the rest of the parse
-  // already extracted as skills/companies — a file-agnostic signal that
+  // already extracted as skills/companies, a file-agnostic signal that
   // works for any CV, not just these two.
   const excluded = new Set(excludeAsName.map((value) => normalizeForCompare(value)).filter(Boolean));
 
@@ -532,7 +532,7 @@ export function extractBestCandidateName(rawText: string, fileName = "", modelNa
   const emailCandidate = extractNameFromEmail(rawText);
   if (emailCandidate && !excluded.has(normalizeForCompare(emailCandidate))) candidates.push({ name: emailCandidate, index: 997, score: 14 });
 
-  // AI model name is weakest — a company name on Canva CVs must never outrank text candidates
+  // AI model name is weakest, a company name on Canva CVs must never outrank text candidates
   const modelCandidate = isLikelyHumanName(modelName);
   if (modelCandidate && !excluded.has(normalizeForCompare(modelCandidate))) candidates.push({ name: modelCandidate, index: 999, score: 2 });
 
@@ -588,7 +588,7 @@ function coerceEducation(items: unknown): ResumeEducation[] {
       const cleanedDegree =
         degree && institution && degree.toLowerCase() === institution.toLowerCase() ? "" : degree;
       // Reject degree values that are clearly sentences (summary/profile text bled
-      // into the wrong field) — real degree names are short phrases, not sentences.
+      // into the wrong field), real degree names are short phrases, not sentences.
       // Heuristic: >80 chars AND contains common sentence words is a sentence, not a degree.
       const isSentence =
         cleanedDegree.length > 80 &&
@@ -626,7 +626,7 @@ function coerceEducation(items: unknown): ResumeEducation[] {
         const degreeText = (item.degree + " " + item.institution).toLowerCase();
         const isMultiYear = /\b(master|mba|msc|bachelor|bsc|phd|diploma|degree|bootcamp|programme|program)\b/i.test(degreeText);
         if (isMultiYear) {
-          // Keep the entry but flag the dates as unverified — better than dropping the degree
+          // Keep the entry but flag the dates as unverified, better than dropping the degree
           return { ...item, dates: `${startYear} (dates unverified - check original CV)` };
         }
       }
@@ -721,13 +721,13 @@ function cleanEmailField(value: unknown): string {
 
 
 // ── Structural skill/job-title discriminator (module level) ─────────────
-// CLASS A — terminal title nouns: words that END a job title and are never
+// CLASS A, terminal title nouns: words that END a job title and are never
 //   standalone skills by themselves. "Engineer" or "Manager" alone means nothing
 //   as a skill. These filter a skill only when they appear as the LAST word.
 //
-// CLASS B — domain context words: appear in both titles AND skill names.
+// CLASS B, domain context words: appear in both titles AND skill names.
 //   "Cloud" → "Cloud Engineer" (title) vs "Google Cloud" (platform skill).
-//   These must NOT filter a skill on their own — only the full phrase matters.
+//   These must NOT filter a skill on their own, only the full phrase matters.
 //
 // STRUCTURAL RULE: a skill phrase is a job title (not a skill) when:
 //   its last word is a CLASS A title noun
@@ -736,13 +736,13 @@ function cleanEmailField(value: unknown): string {
 //
 // This rule works for any CV, language, role, or domain without a hardcoded list.
 
-// CLASS A: words that are terminal job-title nouns — never standalone skills.
+// CLASS A: words that are terminal job-title nouns, never standalone skills.
 // Safe to filter when the LAST word of a phrase matches this.
 const TITLE_NOUN_RE = /^(manager|managerin|engineer|developer|designer|analyst|specialist|consultant|coordinator|administrator|director|lead|head|chief|officer|executive|intern|trainee|architect|scientist|researcher|recruiter|representative|technician|planner|editor|writer|supervisor|superintendent|leiter|leiterin|ingenieur|ingenieurin|entwickler|entwicklerin|berater|beraterin|spezialist|spezialistin|koordinator|koordinatorin|praktikant|praktikantin|wissenschaftler|forscher)$/i;
 
-// CLASS B: domain-context words — appear in both titles AND skill names.
+// CLASS B: domain-context words, appear in both titles AND skill names.
 // Do NOT use these alone to filter; context (full phrase) determines meaning.
-// Listed here only for documentation — not used in the filter logic.
+// Listed here only for documentation, not used in the filter logic.
 // cloud, data, technical, system, network, software, business, customer,
 // marketing, sales, support, product, it, hr, ux, ui, etc.
 
@@ -786,7 +786,7 @@ function isJobTitleNotSkill(skill: string): boolean {
 
   // All words are domain-context words (no title noun, no area suffix, no brand)
   // e.g. "IT Support" (it=context, support=context → neither CLASS A nor area suffix)
-  // These are skill areas — keep them. The LLM puts them there for a reason.
+  // These are skill areas, keep them. The LLM puts them there for a reason.
   return false;
 }
 
@@ -813,7 +813,7 @@ function repairProfileIdentity(profile: ResumeProfile, rawText: string, fileName
     } as ResumeProfile;
   }
 
-  // Name missing or invalid — attempt raw text recovery.
+  // Name missing or invalid, attempt raw text recovery.
   const excludeAsName = [
     ...(Array.isArray(profile.skills) ? profile.skills : []),
     ...(Array.isArray(profile.experience) ? profile.experience.map((item) => item?.company).filter((value): value is string => Boolean(value)) : []),
@@ -828,13 +828,13 @@ function repairProfileIdentity(profile: ResumeProfile, rawText: string, fileName
   const linkedin = cleanLinkedinUrl(extractLinkedin(rawText) || clean(profile.basics?.linkedin));
 
   // Symmetric to the name fix above: the candidate's own resolved name
-  // should never also appear as one of their listed skills — confirmed
+  // should never also appear as one of their listed skills, confirmed
   // from live testing (a candidate name appearing in its own skills array).
   // General check, not a specific-name denylist: works for any candidate.
   const nameNormalized = normalizeForCompare(name);
   // Also remove bare role-title phrases that ended up in skills
   // (e.g. "Marketing Manager", "Data Analyst" as skills rather than job titles)
-  // using the same isBarePureRoleTitle logic — defined in buildProfileFromAi above.
+  // using the same isBarePureRoleTitle logic, defined in buildProfileFromAi above.
   // Inline version here since we're outside that function scope:
   const skills = Array.isArray(profile.skills)
     ? profile.skills.filter((skill) => {
@@ -887,7 +887,7 @@ function cleanLinkedinUrl(value: string): string {
   // Extract the linkedin.com/in/username portion.
   // LinkedIn usernames: letters, numbers, hyphens only; typically ≤35 chars.
   // PDF line-merging appends the next line's first word directly to the URL
-  // (e.g. "linkedin.com/in/username123Programming" — "Programming" is the
+  // (e.g. "linkedin.com/in/username123Programming", "Programming" is the
   // next line). We detect contamination by finding a camelCase boundary after a run
   // of lowercase-then-digits, or by capping at 35 chars.
   const match = value.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/([A-Za-z0-9-]{1,50})\/?/i);
@@ -927,7 +927,7 @@ function cleanHeadline(value: string): string {
       const separators = [...group.matchAll(/ ([-\/|]) /g)].map((m) => m[1]);
       const processed = parts.map((part) => {
         const chars = part.trim().split(/\s+/).filter(Boolean);
-        // All single letters? Collapse — detect word boundaries by capital restarts
+        // All single letters? Collapse, detect word boundaries by capital restarts
         if (chars.length >= 2 && chars.every((c) => /^[\p{L}]$/u.test(c))) {
           // Group consecutive letters into words: new word starts when a capital
           // follows a lowercase (e.g. "T e c h n i s c h e r S u p p o r t" → ["Technischer", "Support"])
@@ -988,7 +988,7 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
   const projects = aiProjects.length ? aiProjects : rawProjects;
 
   const aiName = clean(basics.name).toLowerCase();
-  // Role-title pattern for skill filtering — matches ONLY when the skill
+  // Role-title pattern for skill filtering, matches ONLY when the skill
   // is a bare job-title phrase with no brand/technology prefix.
   // IMPORTANT: must NOT reject legitimate compound skill names like:
   //   "Google Cloud", "Azure DevOps", "Technical Support", "Data Analysis",
@@ -1007,7 +1007,7 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
       if (!trimmed) return false;
       // Reject if it's the candidate's own name
       if (aiName && trimmed.toLowerCase() === aiName) return false;
-      // Reject BARE role-title phrases (no brand prefix) — but keep compound tool names
+      // Reject BARE role-title phrases (no brand prefix), but keep compound tool names
       // like "Google Cloud", "Technical Support", "Data Analysis", "Azure DevOps"
       if (isJobTitleNotSkill(trimmed)) return false;
       // Reject overly long entries (sentences, not skills)
@@ -1037,9 +1037,9 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
       // SMITH") even in sidebar-first PDFs where the AI gets confused.
       name: clean(basics.name) || fallback.basics?.name || "",
       headline: cleanHeadline(clean(basics.headline) || experience[0]?.title || fallback.basics?.headline || knownHeadline || ""),
-      // Clean email immediately at construction — never let a concatenated email through
+      // Clean email immediately at construction, never let a concatenated email through
       email: cleanEmailField(clean(basics.email) || fallback.basics?.email || extractEmail(rawText)),
-      // Validate AI phone — if it looks like a postal code, year, or date, discard and extract from raw text
+      // Validate AI phone, if it looks like a postal code, year, or date, discard and extract from raw text
       phone: (() => {
         const aiPhone = clean(basics.phone);
         if (aiPhone && isValidPhone(aiPhone)) return aiPhone;
@@ -1069,6 +1069,33 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
   } as ResumeProfile;
 
   return repairProfileIdentity(profile, rawText, fileName, clean(basics.name));
+}
+
+// Public builder so any JSON-producing source (e.g. the vision CV extractor)
+// can reuse the EXACT same coercion + identity repair the text AI parser uses.
+// Single source of truth: skills filtering, email/phone validation, dedup, and
+// repairProfileIdentity all run here regardless of who produced the JSON.
+export function buildResumeProfileFromAiJson(
+  ai: AiResumeJson,
+  opts: { rawText?: string; fileName?: string; knownHeadline?: string } = {},
+): ResumeProfile {
+  const rawText = opts.rawText || "";
+  const fallback: ResumeProfile = {
+    rawText,
+    basics: { name: "", headline: "", email: "", phone: "", location: "", linkedin: "" },
+    summary: "",
+    experience: [],
+    education: [],
+    skills: [],
+    projects: [],
+    languages: [],
+    certifications: [],
+    strengths: [],
+    additionalEvidence: [],
+    warnings: [],
+    previewText: rawText.slice(0, 400),
+  };
+  return buildProfileFromAi(ai, fallback, rawText, opts.fileName || "", opts.knownHeadline || "");
 }
 
 function truncateCvText(value: string, limit = 10000) {  // 10k chars covers even verbose 4-page CVs; 28k was 7x overkill
@@ -1128,7 +1155,7 @@ export function repairResumeProfileAfterParsing(profile: ResumeProfile, rawText:
   //    Fix: if any employer has bullets:[] but there are enough bullets on
   //    the first employer to share, redistribute only the last few bullets.
   //    CONSERVATIVE: only redistribute if first employer has 6+ bullets,
-  //    and give at most 2-3 to the second — never empty the first employer.
+  //    and give at most 2-3 to the second, never empty the first employer.
   const experience = sanitized.experience || [];
   if (experience.length >= 2) {
     for (let i = 1; i < experience.length; i++) {
@@ -1137,7 +1164,7 @@ export function repairResumeProfileAfterParsing(profile: ResumeProfile, rawText:
       const prevBullets = prev.bullets || [];
       const currBullets = curr.bullets || [];
       // Only redistribute if: previous has 6+ bullets AND current has none
-      // Give at most the last 2 bullets — never strip first employer bare
+      // Give at most the last 2 bullets, never strip first employer bare
       if (currBullets.length === 0 && prevBullets.length >= 6) {
         const giveCount = Math.min(2, Math.floor(prevBullets.length * 0.25));
         const splitAt = prevBullets.length - giveCount;
@@ -1147,7 +1174,7 @@ export function repairResumeProfileAfterParsing(profile: ResumeProfile, rawText:
     }
   }
 
-  // 2. DATE SWAP — if experience entries are chronologically inverted
+  // 2. DATE SWAP, if experience entries are chronologically inverted
   //    (first job has older dates than second job), swap their dates.
   if (experience.length >= 2) {
     const getEndYear = (dates: string) => {
@@ -1215,6 +1242,15 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
     const client = new OpenAI({
       apiKey: process.env.OPENROUTER_API_KEY,
       baseURL: "https://openrouter.ai/api/v1",
+      // Bounded so a slow/stalled OpenRouter response can never hang the /api/cv
+      // request until the browser aborts. The OpenAI SDK default is a 10-minute
+      // timeout with 2 retries; on a stalled upstream that produced the
+      // "Reading this CV took too long" abort on onboarding. With these limits a
+      // stalled call throws in ~18s and the catch below degrades to the local
+      // deterministic parser, so the user still gets their CV text and a
+      // best-effort profile fast.
+      timeout: 18000,
+      maxRetries: 1,
       defaultHeaders: {
         "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://workzoai.com",
         "X-Title": "WorkZo AI",
@@ -1235,7 +1271,7 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "Return ONLY valid JSON. Do not write markdown.",
             "Extract facts exactly from the CV. Do not invent anything.",
             "",
-            "CRITICAL — basics.name MUST be a real human person's full name (first + last).",
+            "CRITICAL, basics.name MUST be a real human person's full name (first + last).",
             "NEVER put any of the following in basics.name:",
             "  - Skills or tools: Python, SQL, Tableau, Matplotlib, Seaborn, TensorFlow, LangChain, RAG, GCP, etc.",
             "  - Section headers: Profile Summary, Work Experience, Skills, Education, Contact, Languages, Projects, etc.",
@@ -1259,7 +1295,7 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "  2. It is often in ALL CAPS, Title Case, or spaced letters (H A R I T H A V I J A Y A K U M A R).",
             "  3. It usually appears immediately above or below the job title/headline.",
             "  4. In two-column CVs the name is typically in the header or sidebar at the TOP.",
-            "  5. If you cannot confidently identify a human name, set basics.name to empty string — do NOT guess.",
+            "  5. If you cannot confidently identify a human name, set basics.name to empty string, do NOT guess.",
             "",
             "SPACED-LETTER DECORATIVE TEXT:",
             "  Many PDF CV templates render text with individual letters separated by spaces for visual effect.",
@@ -1282,15 +1318,15 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "  Extract every project name and its technologies/results as bullets.",
             "  If uncertain whether an item is a project or extra experience, keep it in projects rather than dropping it.",
             "  Do not invent projects. Only use text found in the CV.",
-            "  CRITICAL — NEVER put project entries into the experience array. Projects and work experience are always separate.",
-            "  A project is independent work done by the candidate (bootcamp project, personal analysis, portfolio piece, case study) — it has NO employer, NO company name, and NO employment dates.",
+            "  CRITICAL, NEVER put project entries into the experience array. Projects and work experience are always separate.",
+            "  A project is independent work done by the candidate (bootcamp project, personal analysis, portfolio piece, case study), it has NO employer, NO company name, and NO employment dates.",
             "  Work experience is a paid or formal role at a named company with a date range. If an item has a company name AND a date range, it belongs in experience. If it only has a project name and bullets, it belongs in projects.",
             "  NEVER attribute a project bullet to an employer just because the project appears after that employer in the CV text. Section boundaries override linear proximity.",
             "",
             "EDUCATION ordering: sort education entries by start date DESCENDING (most recent first).",
             "EDUCATION fields: 'degree' is the QUALIFICATION NAME (e.g. 'Bachelor of Science', 'Master of Arts in Marketing', 'Data Science Bootcamp'). 'institution' is the SCHOOL/UNIVERSITY NAME. NEVER put the school name in the degree field. If only a school name appears without an explicit degree title, set degree to empty string and only fill institution.",
             "LOCATION field: must be a physical address, city, or country. NEVER put education entries, university names, dates, or date ranges in the location field.",
-            "SKILLS EXTRACTION RULES — extract skills from ALL these formats:",
+            "SKILLS EXTRACTION RULES, extract skills from ALL these formats:",
             "  1. Comma-separated list:  'Python, SQL, Tableau' → [Python, SQL, Tableau]",
             "  2. Line-separated list:   each skill on its own line",
             "  3. Category format:       'Programming: Python, SQL' → [Python, SQL] (extract values, drop category label)",
@@ -1298,39 +1334,39 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "  5. Colon-separated:       'Data Visualization: Tableau, Matplotlib, Seaborn' → [Tableau, Matplotlib, Seaborn]",
             "  NEVER include category labels (like 'Programming', 'Data Engineering', 'Machine Learning', 'Tools', 'Platforms') as skills themselves.",
             "  IMPORTANT PDF artifact: some PDFs merge the category label and first skill with no separator, e.g. 'Security ToolsSplunk, Wireshark' or 'Cloud PlatformsAWS, Azure, Google Cloud'. Recognize this pattern and extract: Splunk, Wireshark (from Security Tools), AWS, Azure, Google Cloud (from Cloud Platforms). The merged part before the first recognizable tool/product name is the category label.",
-            "  ALWAYS include 'Google Cloud', 'Azure', 'AWS', 'Google Cloud Platform', 'Microsoft Azure' as skills when present — these are cloud platforms, not job titles.",
-            "  ALWAYS include 'Technical Support', 'Customer Support', 'Data Analysis', 'IT Support', 'Cloud Security' as skills when present — these are skill areas, not job titles.",
+            "  ALWAYS include 'Google Cloud', 'Azure', 'AWS', 'Google Cloud Platform', 'Microsoft Azure' as skills when present, these are cloud platforms, not job titles.",
+            "  ALWAYS include 'Technical Support', 'Customer Support', 'Data Analysis', 'IT Support', 'Cloud Security' as skills when present, these are skill areas, not job titles.",
             "  DO NOT filter out compound skill names just because they contain words like 'cloud', 'data', 'technical', 'system', or 'network'. Those words appear in both job titles AND skill names. Only exclude a skill if the entire phrase is a standalone job title (e.g. 'Cloud Engineer', 'Data Analyst') with no qualifier.",
             "  The category label is the text before the colon. Extract only what comes AFTER the colon as individual skills.",
             "  Example: 'Generative AI: LangChain, Retrieval-Augmented Generation (RAG)' → [LangChain, RAG]",
             "  Deduplicate: if the same skill appears under multiple categories, include it once.",
             "",
             "SKILLS deduplication: remove duplicate skills that differ only in casing (e.g. 'Python' and 'python').",
-            "BOOTCAMPS, COURSES AND TRAINING PROGRAMMES: a bootcamp, coding school, data science programme, online course, or short training programme is EDUCATION, not work experience. It belongs in the education array with the programme name as the degree and the school as the institution. NEVER put a bootcamp in the experience array as a job. The recruiter must never ask 'tell me about your role at [bootcamp]' — bootcamps produce projects and skills, not employment history. If a bootcamp section has project bullets beneath it, those bullets belong in the projects array, not as experience bullets.",
-            "SKILLS QUALITY FILTER: reject any 'skill' that is actually a phrase, sentence fragment, or soft skill description rather than a concrete tool, technology, methodology, or named competency. Examples to REJECT: 'Planning', 'execution', 'stakeholder communication', 'client relationship building', 'product demonstration', 'Quick learner', 'Team player', 'Curious', 'Creative', 'Detail-oriented'. Examples to KEEP: 'Python', 'SQL', 'Tableau', 'ITIL', 'Active Directory', 'SLA Management', 'Incident Management', 'Agile', 'Scrum'. A skill should be a noun or noun phrase that names something specific — not a verb phrase or generic adjective.",
+            "BOOTCAMPS, COURSES AND TRAINING PROGRAMMES: a bootcamp, coding school, data science programme, online course, or short training programme is EDUCATION, not work experience. It belongs in the education array with the programme name as the degree and the school as the institution. NEVER put a bootcamp in the experience array as a job. The recruiter must never ask 'tell me about your role at [bootcamp]', bootcamps produce projects and skills, not employment history. If a bootcamp section has project bullets beneath it, those bullets belong in the projects array, not as experience bullets.",
+            "SKILLS QUALITY FILTER: reject any 'skill' that is actually a phrase, sentence fragment, or soft skill description rather than a concrete tool, technology, methodology, or named competency. Examples to REJECT: 'Planning', 'execution', 'stakeholder communication', 'client relationship building', 'product demonstration', 'Quick learner', 'Team player', 'Curious', 'Creative', 'Detail-oriented'. Examples to KEEP: 'Python', 'SQL', 'Tableau', 'ITIL', 'Active Directory', 'SLA Management', 'Incident Management', 'Agile', 'Scrum'. A skill should be a noun or noun phrase that names something specific, not a verb phrase or generic adjective.",
             "",
             "PHONE VALIDATION: The phone field must contain an actual phone number with a realistic dial pattern.",
             "  REJECT these as phone numbers: '(2021 - 2022)', '2019 - 2021', any value that is only year ranges.",
             "  A valid phone contains digits AND a country code or area code pattern (e.g. '+49 176 123 456', '(0221) 1234-56', '+1-800-555-1234').",
-            "  If no valid phone number is found, set phone to empty string — never use a date or year range as phone.",
+            "  If no valid phone number is found, set phone to empty string, never use a date or year range as phone.",
             "",
             "NAME VALIDATION: basics.name must be the candidate's full personal name.",
             "  INVALID names: 'Projects', 'Key Projects', 'Education', 'Skills', 'Testing And Debugging', 'Financial Accountant',",
             "    'Senior Accountant', 'Marketing Manager', 'Graphic Designer', 'Candidate', 'Professional',",
             "    any section heading, any skill, any job title used as a name.",
             "  If the name field would be one of these invalid values, scan the document header for a real person name instead.",
-            "  A valid name is 1–5 words, no digits, no section-heading words.",
+            "  A valid name is 1-5 words, no digits, no section-heading words.",
             "",
             "If the name is split across lines around a job title, combine person-name tokens only: FIRST / ROLE / LAST => FIRST LAST.",
             "Keep bullets factual. Split bullets only when the source clearly separates responsibilities.",
-            "BULLETS ARE REQUIRED: If a job listing has any text below the title/company (responsibilities, achievements, tasks, any sentences), you MUST extract those as bullets. An empty bullets array [] is ONLY acceptable when the job listing has literally zero text underneath it — no sentences, no phrases, nothing. If there is ANY text below the role header, extract it as bullets. Never return bullets:[] when content exists.",
-            "BULLET ATTRIBUTION IN TWO-COLUMN PDFs — THIS IS THE MOST COMMON PARSING FAILURE: When a CV has two or more employers in a column layout, PDF extraction often produces all of one employer's bullets AND all of the next employer's bullets in a single block, with only the first employer's header visible before the block. The second employer's header appears AFTER the block. This causes naive parsers to assign ALL bullets to the first employer and leave the second with bullets:[]. YOU MUST NOT DO THIS. Rule: if you have N employers extracted and only M < N have bullets, the remaining N-M employers almost certainly had responsibilities in the original CV that were misattributed. Actively look for content clues within the bullet block to split it: different product names, different customer types, different tools, different responsibilities, different writing style. If you cannot find any distinguishing content clues, split the block roughly in half — the first half belongs to the first employer, the second half to the second. UNDER NO CIRCUMSTANCES should a second or third employer in a multi-employer CV have bullets:[] if there is any bullet content at all in the extracted text for that job's time period.",
-            "If PDF extraction placed a company header AFTER its own bullet content (which happens with two-column PDF templates), attribute the orphaned bullets to that company anyway — the header position in extracted text is unreliable; the bullet content is the ground truth. Example: if you see [CompanyA header] [10 bullets] [CompanyB header] with no bullets after CompanyB, some of those 10 bullets belong to CompanyB. Assign them based on content; if content is ambiguous, give the last 3-5 bullets to CompanyB.",
+            "BULLETS ARE REQUIRED: If a job listing has any text below the title/company (responsibilities, achievements, tasks, any sentences), you MUST extract those as bullets. An empty bullets array [] is ONLY acceptable when the job listing has literally zero text underneath it, no sentences, no phrases, nothing. If there is ANY text below the role header, extract it as bullets. Never return bullets:[] when content exists.",
+            "BULLET ATTRIBUTION IN TWO-COLUMN PDFs, THIS IS THE MOST COMMON PARSING FAILURE: When a CV has two or more employers in a column layout, PDF extraction often produces all of one employer's bullets AND all of the next employer's bullets in a single block, with only the first employer's header visible before the block. The second employer's header appears AFTER the block. This causes naive parsers to assign ALL bullets to the first employer and leave the second with bullets:[]. YOU MUST NOT DO THIS. Rule: if you have N employers extracted and only M < N have bullets, the remaining N-M employers almost certainly had responsibilities in the original CV that were misattributed. Actively look for content clues within the bullet block to split it: different product names, different customer types, different tools, different responsibilities, different writing style. If you cannot find any distinguishing content clues, split the block roughly in half, the first half belongs to the first employer, the second half to the second. UNDER NO CIRCUMSTANCES should a second or third employer in a multi-employer CV have bullets:[] if there is any bullet content at all in the extracted text for that job's time period.",
+            "If PDF extraction placed a company header AFTER its own bullet content (which happens with two-column PDF templates), attribute the orphaned bullets to that company anyway, the header position in extracted text is unreliable; the bullet content is the ground truth. Example: if you see [CompanyA header] [10 bullets] [CompanyB header] with no bullets after CompanyB, some of those 10 bullets belong to CompanyB. Assign them based on content; if content is ambiguous, give the last 3-5 bullets to CompanyB.",
             "",
-            "SECTION HEADING vs JOB TITLE: A section heading (e.g. 'Customer Success Achievements', 'Awards and Recognition', 'Additional Information', 'Volunteer Work', 'Relevant Experience') is NOT a job title. Never add a section heading to the experience array as a job entry. A valid experience entry must have at minimum: a recognisable job title (a role a person would hold, e.g. 'Marketing Manager', 'Software Engineer') AND a company name OR employment dates. A section heading alone with neither company nor dates should be ignored as an experience entry — add its contents to strengths or additionalEvidence instead.",
-            "DATE SWAP DETECTION: In two-column PDFs, dates from the education or contact column sometimes get misattributed to the wrong experience entry because of PDF extraction order. Check: if you have two experience entries and their dates appear chronologically reversed (the first-listed job has older dates than the second-listed job, but by title/seniority/content the first job appears to be more recent), their dates are likely swapped — assign the more recent date range to the first (most senior) role and the older range to the second (more junior) role. Also check: if an experience date exactly matches an education entry's date range, that date was likely extracted from the education column and should be discarded in favour of re-reading the experience section for its actual dates.",
-            "EDUCATION SECTION CAN CONTAIN JOB TITLES IN PLACEHOLDER CVs: Some CV templates list job titles, company names, or Lorem ipsum text under the EDUCATION header. If content under EDUCATION has date ranges AND looks like a job title rather than a degree name, keep it in experience — do not move it to education. A degree name contains words like Bachelor, Master, MBA, BSc, MSc, PhD, Diploma, Certificate, Associate's, or the name of a field of study. A job title contains words like Manager, Engineer, Analyst, Developer, Executive, Accountant, Designer. Do not confuse the two.",
-            "SKILLS CATEGORY LABELS: Many CVs use a header-then-list format for skills, e.g. 'Technical Skills' followed by a list, or 'Teamwork and Communication Skills' followed by bullet points. The header line (e.g. 'Teamwork and Communication Skills', 'Testing and Debugging', 'Project and Time Management') is a CATEGORY LABEL — it is NOT itself a skill. Only extract the individual items listed beneath each category header as skills. Never extract a category header as a skill. If the CV has a skills section formatted as paragraphs describing competencies rather than a list, extract the core noun phrases from those paragraphs (e.g. 'debugging', 'project timeline management') — not the full sentence.",
+            "SECTION HEADING vs JOB TITLE: A section heading (e.g. 'Customer Success Achievements', 'Awards and Recognition', 'Additional Information', 'Volunteer Work', 'Relevant Experience') is NOT a job title. Never add a section heading to the experience array as a job entry. A valid experience entry must have at minimum: a recognisable job title (a role a person would hold, e.g. 'Marketing Manager', 'Software Engineer') AND a company name OR employment dates. A section heading alone with neither company nor dates should be ignored as an experience entry, add its contents to strengths or additionalEvidence instead.",
+            "DATE SWAP DETECTION: In two-column PDFs, dates from the education or contact column sometimes get misattributed to the wrong experience entry because of PDF extraction order. Check: if you have two experience entries and their dates appear chronologically reversed (the first-listed job has older dates than the second-listed job, but by title/seniority/content the first job appears to be more recent), their dates are likely swapped, assign the more recent date range to the first (most senior) role and the older range to the second (more junior) role. Also check: if an experience date exactly matches an education entry's date range, that date was likely extracted from the education column and should be discarded in favour of re-reading the experience section for its actual dates.",
+            "EDUCATION SECTION CAN CONTAIN JOB TITLES IN PLACEHOLDER CVs: Some CV templates list job titles, company names, or Lorem ipsum text under the EDUCATION header. If content under EDUCATION has date ranges AND looks like a job title rather than a degree name, keep it in experience, do not move it to education. A degree name contains words like Bachelor, Master, MBA, BSc, MSc, PhD, Diploma, Certificate, Associate's, or the name of a field of study. A job title contains words like Manager, Engineer, Analyst, Developer, Executive, Accountant, Designer. Do not confuse the two.",
+            "SKILLS CATEGORY LABELS: Many CVs use a header-then-list format for skills, e.g. 'Technical Skills' followed by a list, or 'Teamwork and Communication Skills' followed by bullet points. The header line (e.g. 'Teamwork and Communication Skills', 'Testing and Debugging', 'Project and Time Management') is a CATEGORY LABEL, it is NOT itself a skill. Only extract the individual items listed beneath each category header as skills. Never extract a category header as a skill. If the CV has a skills section formatted as paragraphs describing competencies rather than a list, extract the core noun phrases from those paragraphs (e.g. 'debugging', 'project timeline management'), not the full sentence.",
             "CERTIFICATIONS AND AWARDS: Many CVs have sections named 'Awards and Certifications', 'Awards and Certification', 'Awards & Certifications', 'Short Courses', 'Courses', 'Achievements', 'Distinctions', 'Licences', 'Honours and Awards', 'Professional Development', 'Training and Certifications', or 'Continuing Education'. ALL of these must be extracted into the certifications array, NOT ignored. Each certification or award is one entry: the name of the cert/award/course. Include the year if present. Example: 'Digital Marketing Certification | 2029' → 'Digital Marketing Certification (2029)'. If the section is called 'References' and contains only 'Available on request.', skip it entirely.",
             "EDUCATION INSTITUTION vs COMPANY NAME: Some CV templates use company or organisation names as education institutions (e.g. 'Warner & Spencer', 'Giggling Platypus Co.'). Do not skip an education entry just because the institution name looks like a company name. Always extract the institution exactly as written, even if it sounds unusual. The key signal that something is an education entry is the presence of a degree name (Bachelor, Master, MBA, etc.) paired with a date. Extract both the degree AND the institution, even if the institution looks odd.",
             "",
@@ -1366,7 +1402,7 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
 
     return result;
   } catch (error) {
-    // Log the actual error so it appears in server logs — critical for debugging
+    // Log the actual error so it appears in server logs, critical for debugging
     console.error("[WorkZo CV Pipeline] parseResumeWithAiStructure.ai_error", {
       errorMessage: error instanceof Error ? error.message : String(error),
       errorType: error instanceof Error ? error.constructor.name : typeof error,

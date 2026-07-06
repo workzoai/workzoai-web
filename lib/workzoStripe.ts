@@ -25,6 +25,23 @@ function requiredEnv(name: string) {
   return value;
 }
 
+function optionalEnv(name: string) {
+  const value = process.env[name];
+  return value && value.trim() ? value.trim() : "";
+}
+
+export function normalizeWorkZoStripeCurrency(currency?: unknown) {
+  const value = typeof currency === "string" ? currency.trim().toUpperCase() : "";
+  if (["EUR", "USD", "GBP", "INR", "CAD", "AUD"].includes(value)) return value;
+  return "EUR";
+}
+
+function regionalPriceEnvName(plan: WorkZoPlanType, billingCycle: WorkZoBillingCycle, currency: string) {
+  const planKey = plan === "premium_pro" ? "PREMIUM_PRO" : "PREMIUM";
+  const cycleKey = billingCycle === "yearly" ? "YEARLY" : "MONTHLY";
+  return `STRIPE_${planKey}_${cycleKey}_PRICE_ID_${currency}`;
+}
+
 export function getWorkZoStripeConfig(): WorkZoStripeConfig {
   const vercelUrl = process.env.VERCEL_URL
     ? process.env.VERCEL_URL.startsWith("http")
@@ -50,10 +67,23 @@ export function getWorkZoStripeConfig(): WorkZoStripeConfig {
 export function getWorkZoStripePriceId(
   plan: unknown,
   billingCycle: unknown = "monthly",
+  currency?: unknown,
 ) {
   const config = getWorkZoStripeConfig();
   const normalizedPlan = normalizeWorkZoPlan(plan);
   const normalizedCycle = normalizeWorkZoBillingCycle(billingCycle);
+  const normalizedCurrency = normalizeWorkZoStripeCurrency(currency);
+
+  if (normalizedPlan === "free") {
+    throw new Error("Free plan does not have a Stripe price ID.");
+  }
+
+  // Country-specific Stripe prices. Example env names:
+  // STRIPE_PREMIUM_MONTHLY_PRICE_ID_EUR
+  // STRIPE_PREMIUM_PRO_MONTHLY_PRICE_ID_USD
+  // If a regional env var is missing, we safely fall back to your default Stripe price IDs.
+  const regionalPriceId = optionalEnv(regionalPriceEnvName(normalizedPlan, normalizedCycle, normalizedCurrency));
+  if (regionalPriceId) return regionalPriceId;
 
   if (normalizedPlan === "premium_pro") {
     return normalizedCycle === "yearly"
@@ -61,30 +91,37 @@ export function getWorkZoStripePriceId(
       : config.premiumProMonthlyPriceId;
   }
 
-  if (normalizedPlan === "premium") {
-    return normalizedCycle === "yearly"
-      ? config.premiumYearlyPriceId
-      : config.premiumMonthlyPriceId;
-  }
+  return normalizedCycle === "yearly"
+    ? config.premiumYearlyPriceId
+    : config.premiumMonthlyPriceId;
+}
 
-  throw new Error("Free plan does not have a Stripe price ID.");
+function configuredPriceIds(plan: WorkZoPlanType, billingCycle: WorkZoBillingCycle) {
+  const config = getWorkZoStripeConfig();
+  const fallback = plan === "premium_pro"
+    ? billingCycle === "yearly" ? config.premiumProYearlyPriceId : config.premiumProMonthlyPriceId
+    : billingCycle === "yearly" ? config.premiumYearlyPriceId : config.premiumMonthlyPriceId;
+
+  const regional = ["EUR", "USD", "GBP", "INR", "CAD", "AUD"]
+    .map((currency) => optionalEnv(regionalPriceEnvName(plan, billingCycle, currency)))
+    .filter(Boolean);
+
+  return [fallback, ...regional];
 }
 
 export function getWorkZoPlanFromStripePriceId(priceId?: string | null): WorkZoPlanType {
   if (!priceId) return "free";
 
-  const config = getWorkZoStripeConfig();
-
   if (
-    priceId === config.premiumProMonthlyPriceId ||
-    priceId === config.premiumProYearlyPriceId
+    configuredPriceIds("premium_pro", "monthly").includes(priceId) ||
+    configuredPriceIds("premium_pro", "yearly").includes(priceId)
   ) {
     return "premium_pro";
   }
 
   if (
-    priceId === config.premiumMonthlyPriceId ||
-    priceId === config.premiumYearlyPriceId
+    configuredPriceIds("premium", "monthly").includes(priceId) ||
+    configuredPriceIds("premium", "yearly").includes(priceId)
   ) {
     return "premium";
   }
@@ -97,11 +134,9 @@ export function getWorkZoBillingCycleFromStripePriceId(
 ): WorkZoBillingCycle {
   if (!priceId) return "monthly";
 
-  const config = getWorkZoStripeConfig();
-
   if (
-    priceId === config.premiumYearlyPriceId ||
-    priceId === config.premiumProYearlyPriceId
+    configuredPriceIds("premium", "yearly").includes(priceId) ||
+    configuredPriceIds("premium_pro", "yearly").includes(priceId)
   ) {
     return "yearly";
   }

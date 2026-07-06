@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Real, all-time average interview score for the signed-in user, computed
- * from interview_sessions.overall_score — the same column the History page
+ * from interview_sessions.overall_score, the same column the History page
  * already displays per-session. This intentionally does NOT scope to the
  * current calendar month (unlike /api/account/plan's usage counters, which
  * exist for quota enforcement, not progress tracking).

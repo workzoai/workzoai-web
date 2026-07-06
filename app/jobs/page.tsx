@@ -426,7 +426,7 @@ CANDIDATE BACKGROUND: ${cvText.slice(0, 800)}`,
         rememberJob(job);
       }
     } catch {
-      setJobQuestions((prev) => ({ ...prev, [job.id]: ["Could not generate questions — try again."] }));
+      setJobQuestions((prev) => ({ ...prev, [job.id]: ["Could not generate questions, try again."] }));
     } finally {
       setGeneratingQuestionsFor(null);
     }
@@ -445,7 +445,7 @@ CANDIDATE BACKGROUND: ${cvText.slice(0, 800)}`,
           messages: [
             {
               role: "user",
-              content: `Analyse the fit between this candidate CV and the job below. Be specific and honest — reference actual CV details.
+              content: `Analyse the fit between this candidate CV and the job below. Be specific and honest, reference actual CV details.
 
 CV:
 ${cvText.slice(0, 2500)}
@@ -477,7 +477,7 @@ INTERVIEW TIP:
         setJobAnalysis((prev) => ({ ...prev, [job.id]: text }));
       }
     } catch {
-      // silently fail — button can be retried
+      // silently fail, button can be retried
     } finally {
       setAnalyzingJobId(null);
     }

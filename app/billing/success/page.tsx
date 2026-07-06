@@ -12,12 +12,12 @@ export const dynamic = "force-dynamic";
 /**
  * Backstop for the Stripe webhook's confirmation email. The webhook is the
  * primary sender and handles the vast majority of cases, but webhooks can
- * be delayed, retried oddly, or fail outright — and until now, nothing
+ * be delayed, retried oddly, or fail outright, and until now, nothing
  * caught that: a paying customer could land here having never gotten a
  * confirmation email, with no second chance to get one.
  *
  * claimWorkZoPurchaseEmailSend is race-safe against the webhook (whichever
- * fires first "wins" the claim), and safe against repeat page visits —
+ * fires first "wins" the claim), and safe against repeat page visits -
  * once sent, it won't send again on refresh. Never throws into the page
  * render; a failure here just means no fallback email, not a broken page.
  */
@@ -81,7 +81,7 @@ export default async function BillingSuccessPage() {
           {isActive
             ? isPro
               ? "Unlimited voice interviews, 60 Live AI Recruiter minutes, 7 premium personas, AI Career Coach, 30/60/90 day roadmaps, and replay intelligence are all unlocked."
-              : "Full interview reports, interview history, Improve CV, ATS optimization, Cover Letter generator, Job Assist, Career Brain, and 50 voice interviews per month are now active."
+              : "Full interview reports, interview history, Improve CV, ATS optimization, Cover Letter generator, Job Assist, Career Brain, and 300 voice minutes per month are now active."
             : "Your checkout was completed. Stripe may take a moment to confirm. If your plan does not activate immediately, refresh once or contact support@workzoai.com."}
         </p>
 
@@ -91,7 +91,7 @@ export default async function BillingSuccessPage() {
           <div className="grid gap-2.5 sm:grid-cols-2">
             {(isPro
               ? ["Unlimited voice interviews", "60 Live AI Recruiter minutes", "7 premium recruiter personas", "AI Career Coach", "30/60/90 day career roadmaps", "Replay Intelligence", "Priority AI models", "All Premium features"]
-              : ["50 voice interviews / month", "Full advanced interview reports", "Improve CV + ATS keyword analysis", "Cover Letter generator", "Job Assist with AI fit scores", "Career Brain cross-session memory", "Performance tracking", "Interview history"]
+              : ["300 voice minutes / month, unlimited sessions", "Full advanced interview reports", "Improve CV + ATS keyword analysis", "Cover Letter generator", "Job Assist with AI fit scores", "Career Brain cross-session memory", "Performance tracking", "Interview history"]
             ).map((item) => (
               <div key={item} className="flex items-center gap-3 text-sm text-muted">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />

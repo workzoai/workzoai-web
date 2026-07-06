@@ -15,7 +15,7 @@
  *  - Memory timeline (claims → evidence → contradictions)
  *
  * This output is passed as a structured block into the LLM system prompt
- * so the model always has a pre-computed recruiter brain state to reason from —
+ * so the model always has a pre-computed recruiter brain state to reason from -
  * rather than hoping the LLM infers all of this itself every turn.
  */
 
@@ -148,7 +148,7 @@ const COMPETENCY_PATTERNS: Record<Competency, RegExp> = {
   adaptability: /\b(adapt|pivot|learn|new|chang|switch|transition|different|unfamiliar|stretch|outside my|fast-paced|ambiguous)\b/i,
   motivation_and_fit: /\b(why this|interested in|passion|motiv|goal|career|aspir|attracted|reason for|looking for|what I want)\b/i,
   career_transition: /\b(switch|transition|change|pivot|from .* to|background in|moving|different field|new direction|transferable)\b/i,
-  jd_gap: /gap/i, // special — driven by JD coverage, not transcript pattern
+  jd_gap: /gap/i, // special, driven by JD coverage, not transcript pattern
 };
 
 export function buildCompetencyTracker(
@@ -263,7 +263,7 @@ export function buildInterviewStrategy(
       primaryGoal: "Establish rapport and understand the candidate's background",
       nextBestTopicId: "motivation_and_fit",
       nextBestTopicLabel: "Motivation & Fit",
-      rationale: "Early interview — understand who this person is before evaluating depth",
+      rationale: "Early interview, understand who this person is before evaluating depth",
       suggestedAngle: "Let them introduce themselves and explain their interest in this role",
       urgency: "high",
       skipTopic: null,
@@ -290,8 +290,8 @@ export function buildInterviewStrategy(
       primaryGoal: `Validate whether the candidate can actually do ${gap.skill}, which is required in the JD but not visible in their CV`,
       nextBestTopicId: "jd_gap",
       nextBestTopicLabel: `JD Gap: ${gap.skill}`,
-      rationale: "This skill is required in the JD and not clearly in the CV — this is a hiring risk that must be addressed",
-      suggestedAngle: `Don't ask directly. Introduce naturally: "I see ${gap.skill} in the role. I didn't spot it clearly in your CV — have you worked with it before, or how would you approach that?"`,
+      rationale: "This skill is required in the JD and not clearly in the CV, this is a hiring risk that must be addressed",
+      suggestedAngle: `Don't ask directly. Introduce naturally: "I see ${gap.skill} in the role. I didn't spot it clearly in your CV, have you worked with it before, or how would you approach that?"`,
       urgency: "critical",
       skipTopic: null,
     };
@@ -305,7 +305,7 @@ export function buildInterviewStrategy(
         primaryGoal: "Verify that the candidate can show specific personal ownership, not just team credit",
         nextBestTopicId: "ownership",
         nextBestTopicLabel: "Ownership",
-        rationale: "Low trust — recruiter needs concrete evidence of personal contribution before moving on",
+        rationale: "Low trust, recruiter needs concrete evidence of personal contribution before moving on",
         suggestedAngle: "Narrow to one specific situation they personally owned. What did they decide? What changed?",
         urgency: "critical",
         skipTopic: null,
@@ -325,7 +325,7 @@ export function buildInterviewStrategy(
 
   if (nextTarget) {
     return {
-      primaryGoal: `Assess the candidate's ${nextTarget.label} — not yet evaluated`,
+      primaryGoal: `Assess the candidate's ${nextTarget.label}, not yet evaluated`,
       nextBestTopicId: nextTarget.id,
       nextBestTopicLabel: nextTarget.label,
       rationale: `${nextTarget.label} hasn't been tested and is relevant to this role`,
@@ -335,20 +335,20 @@ export function buildInterviewStrategy(
     };
   }
 
-  // All major competencies tested — go deeper on weakest
+  // All major competencies tested, go deeper on weakest
   const weakest = competencies
     .filter(c => c.tested && c.score !== null && c.score < 60)
     .sort((a, b) => (a.score ?? 100) - (b.score ?? 100))[0];
 
   return {
     primaryGoal: weakest
-      ? `Go deeper on ${weakest.label} — the candidate's answer was weak here`
+      ? `Go deeper on ${weakest.label}, the candidate's answer was weak here`
       : "Move toward closing: strengths, weaknesses, fit, and final questions",
     nextBestTopicId: weakest?.id || "motivation_and_fit",
     nextBestTopicLabel: weakest?.label || "Closing",
     rationale: weakest
-      ? `Score of ${weakest.score}/100 on ${weakest.label} — needs one more probe before forming a recommendation`
-      : "Core competencies covered — natural time to wrap up",
+      ? `Score of ${weakest.score}/100 on ${weakest.label}, needs one more probe before forming a recommendation`
+      : "Core competencies covered, natural time to wrap up",
     suggestedAngle: weakest
       ? "Don't repeat the same question. Narrow to a specific situation or decision that would show this competency"
       : "Ask about development area, ask if they have questions, begin forming a hiring signal",
@@ -381,8 +381,8 @@ export function buildHiringRecommendation(
       confidenceLevel: 10,
       strengthFactors: [],
       riskFactors: [],
-      keyUncertainties: ["Interview just started — no signal yet"],
-      recruiterVerdict: "Too early to assess — interview has just begun.",
+      keyUncertainties: ["Interview just started, no signal yet"],
+      recruiterVerdict: "Too early to assess, interview has just begun.",
     };
   }
 
@@ -407,11 +407,11 @@ export function buildHiringRecommendation(
     else if ((comp.score ?? 0) < 45) riskFactors.push(`Weak ${comp.label}`);
   }
 
-  if (trust >= 75) strengthFactors.push("High recruiter trust — answers are consistent and credible");
-  if (trust < 45) riskFactors.push("Low trust — inconsistencies or vague answers noticed");
+  if (trust >= 75) strengthFactors.push("High recruiter trust, answers are consistent and credible");
+  if (trust < 45) riskFactors.push("Low trust, inconsistencies or vague answers noticed");
   if (jdCoverage >= 70) strengthFactors.push(`CV covers ~${jdCoverage}% of JD requirements`);
   if (jdCoverage < 50) riskFactors.push(`CV only covers ~${jdCoverage}% of JD requirements`);
-  if (hasCareerTransition) keyUncertainties.push("Career transition — transferable skills not yet fully validated");
+  if (hasCareerTransition) keyUncertainties.push("Career transition, transferable skills not yet fully validated");
   for (const gap of uncoveredCriticalJd) keyUncertainties.push(`${gap.skill} required in JD but not shown in CV or interview`);
 
   // Determine likelihood
@@ -428,11 +428,11 @@ export function buildHiringRecommendation(
   ));
 
   const verdictMap: Record<HiringRecommendation["likelihood"], string> = {
-    strong_yes: "Strong candidate — credible, evidence-backed, good role fit.",
-    lean_yes: "Decent candidate — some gaps but overall positive signal.",
-    neutral: "Mixed signals — needs more evidence before a recommendation.",
-    lean_no: "Concerns outweigh strengths — key gaps not addressed.",
-    strong_no: "Not ready for this role — significant credibility or skill gaps.",
+    strong_yes: "Strong candidate, credible, evidence-backed, good role fit.",
+    lean_yes: "Decent candidate, some gaps but overall positive signal.",
+    neutral: "Mixed signals, needs more evidence before a recommendation.",
+    lean_no: "Concerns outweigh strengths, key gaps not addressed.",
+    strong_no: "Not ready for this role, significant credibility or skill gaps.",
   };
 
   return {
@@ -468,7 +468,7 @@ export function computeRecruiterEmotionalState(
       state: "impressed",
       label: "Impressed",
       intensity: Math.ceil((score - 70) / 10),
-      toneInstruction: "Warm, engaged, lean forward. The recruiter is genuinely interested. Go one level deeper — not harder.",
+      toneInstruction: "Warm, engaged, lean forward. The recruiter is genuinely interested. Go one level deeper, not harder.",
       naturalReaction: "That's a strong example. Let me ask you about [related depth].",
     };
   }
@@ -488,8 +488,8 @@ export function computeRecruiterEmotionalState(
       state: "curious",
       label: "Curious",
       intensity: 2,
-      toneInstruction: "Genuinely uncertain — wants to understand more before forming a view. Probe naturally.",
-      naturalReaction: "Okay — help me understand that a bit better. What was your actual role in that?",
+      toneInstruction: "Genuinely uncertain, wants to understand more before forming a view. Probe naturally.",
+      naturalReaction: "Okay, help me understand that a bit better. What was your actual role in that?",
     };
   }
 
@@ -509,7 +509,7 @@ export function computeRecruiterEmotionalState(
       label: "Concerned",
       intensity: 3,
       toneInstruction: "Direct but fair. The recruiter is forming doubts but giving one more chance.",
-      naturalReaction: "I want to be honest — I'm not getting a clear picture yet. Can you ground this in one specific situation?",
+      naturalReaction: "I want to be honest, I'm not getting a clear picture yet. Can you ground this in one specific situation?",
     };
   }
 
@@ -519,7 +519,7 @@ export function computeRecruiterEmotionalState(
       label: "Impatient",
       intensity: 2,
       toneInstruction: "Tighter pacing. Less tolerance for vague answers. Push for specifics quickly.",
-      naturalReaction: "Let's stay specific. I don't need the full picture — just one clear example.",
+      naturalReaction: "Let's stay specific. I don't need the full picture, just one clear example.",
     };
   }
 
@@ -551,7 +551,7 @@ export function computeAdaptiveDifficulty(
     return {
       level: "bar_raising",
       label: "Bar-raising",
-      instruction: "This candidate is performing strongly. Raise the bar: ask about scope, scale, what they'd do differently, or how they'd handle a harder version of this situation. Don't ease up — strong candidates need harder questions to differentiate.",
+      instruction: "This candidate is performing strongly. Raise the bar: ask about scope, scale, what they'd do differently, or how they'd handle a harder version of this situation. Don't ease up, strong candidates need harder questions to differentiate.",
     };
   }
 
@@ -559,7 +559,7 @@ export function computeAdaptiveDifficulty(
     return {
       level: "challenging",
       label: "Challenging",
-      instruction: "Good candidate — apply strategic pressure. Ask for specifics, probe for edge cases, test ownership depth and JD gap awareness. Push past the comfortable answer.",
+      instruction: "Good candidate, apply strategic pressure. Ask for specifics, probe for edge cases, test ownership depth and JD gap awareness. Push past the comfortable answer.",
     };
   }
 
@@ -567,7 +567,7 @@ export function computeAdaptiveDifficulty(
     return {
       level: "probing",
       label: "Probing",
-      instruction: "Mixed signals — probe deliberately. Narrow each answer to one specific situation. Don't accept vague ownership or generic outcomes. One precise follow-up before moving on.",
+      instruction: "Mixed signals, probe deliberately. Narrow each answer to one specific situation. Don't accept vague ownership or generic outcomes. One precise follow-up before moving on.",
     };
   }
 
@@ -575,7 +575,7 @@ export function computeAdaptiveDifficulty(
     return {
       level: "standard",
       label: "Standard",
-      instruction: "Candidate is struggling — keep pressure fair but real. Give them space to answer but don't soften the expectation. One clear, specific question at a time.",
+      instruction: "Candidate is struggling, keep pressure fair but real. Give them space to answer but don't soften the expectation. One clear, specific question at a time.",
     };
   }
 
@@ -705,7 +705,7 @@ export function buildMemoryTimeline(
     // Detect weak answers
     const wordCount = text.split(/\s+/).length;
     if (wordCount < 15 && i > 1) {
-      events.push({ turn: i, type: "weak_moment", detail: "Very short answer — possible avoidance or lack of depth", severity: "medium" });
+      events.push({ turn: i, type: "weak_moment", detail: "Very short answer, possible avoidance or lack of depth", severity: "medium" });
     }
 
     // Detect JD gap addressed
@@ -829,12 +829,12 @@ export function buildRecruiterBrain(input: {
 export function serializeRecruiterBrainForPrompt(brain: RecruiterBrainContext): string {
   const lines: string[] = [];
 
-  lines.push("═══ RECRUITER BRAIN STATE (pre-computed — use this to decide your next move) ═══");
+  lines.push("═══ RECRUITER BRAIN STATE (pre-computed, use this to decide your next move) ═══");
 
   lines.push(`\nCONVERSATION STAGE: ${brain.conversationStage.toUpperCase()}`);
-  if (brain.hasCareerTransition) lines.push("⚠ CAREER TRANSITION DETECTED — must validate before going deep");
+  if (brain.hasCareerTransition) lines.push("⚠ CAREER TRANSITION DETECTED, must validate before going deep");
 
-  lines.push(`\nINTERVIEW STRATEGY — PRIMARY GOAL THIS TURN:`);
+  lines.push(`\nINTERVIEW STRATEGY, PRIMARY GOAL THIS TURN:`);
   lines.push(`  Goal: ${brain.strategy.primaryGoal}`);
   lines.push(`  Next topic: ${brain.strategy.nextBestTopicLabel} (urgency: ${brain.strategy.urgency})`);
   lines.push(`  Approach: ${brain.strategy.suggestedAngle}`);
@@ -859,7 +859,7 @@ export function serializeRecruiterBrainForPrompt(brain: RecruiterBrainContext): 
   const untestedComps = brain.competencies.filter(c => c.shouldTest && !c.tested);
   const testedComps = brain.competencies.filter(c => c.tested);
   if (untestedComps.length > 0) {
-    lines.push(`\nCOMPETENCY TRACKER — NOT YET TESTED: ${untestedComps.map(c => c.label).join(", ")}`);
+    lines.push(`\nCOMPETENCY TRACKER, NOT YET TESTED: ${untestedComps.map(c => c.label).join(", ")}`);
   }
   if (testedComps.length > 0) {
     lines.push(`  Tested: ${testedComps.map(c => `${c.label} (${c.score ?? "?"})`).join(", ")}`);
@@ -893,7 +893,7 @@ export function serializeRecruiterBrainForPrompt(brain: RecruiterBrainContext): 
     }
   }
 
-  lines.push("\n═══ END RECRUITER BRAIN — use the strategy above to choose your next move ═══");
+  lines.push("\n═══ END RECRUITER BRAIN, use the strategy above to choose your next move ═══");
 
   return lines.join("\n");
 }

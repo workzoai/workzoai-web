@@ -44,7 +44,7 @@ export default function FeedbackCapture({
   if (submitted) {
     return (
       <div className="rounded-xl border border-success/20 bg-success/10 p-5 text-success">
-        <p className="font-black">Thank you — saved.</p>
+        <p className="font-black">Thank you, saved.</p>
         <p className="mt-1 text-sm leading-6 text-success/85">
           Your feedback helps improve WorkZo before launch.
         </p>

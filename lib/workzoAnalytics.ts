@@ -4,11 +4,11 @@ import { getWorkZoDevPlanOverride } from "@/lib/workzoUsageTracker";
 import { normalizeWorkZoPlan } from "@/lib/workzoPlanLimits";
 
 // Best-effort cache of the signed-in user's email, so every analytics event
-// can carry it automatically — the same way `plan` and `devOverrideActive`
+// can carry it automatically, the same way `plan` and `devOverrideActive`
 // already are. Without this, the founder-analytics internal-email exclusion
 // filter (FOUNDER_ANALYTICS_INTERNAL_EMAILS) has nothing to check against
 // unless every single trackWorkZoEvent() call site remembers to pass email
-// manually, which in practice almost none of them did — meaning the
+// manually, which in practice almost none of them did, meaning the
 // founder's own real account activity (which has a genuine, permanent plan
 // in the DB, not a temporary dev-tools override) was leaking into
 // production metrics with no way for the filter to catch it.
@@ -218,7 +218,7 @@ function cleanMetadata(metadata: Record<string, unknown> | undefined) {
 }
 
 // Resolve the plan to attach to every analytics event, so founder analytics
-// can be segmented by Free / Premium / Premium Pro without a DB migration —
+// can be segmented by Free / Premium / Premium Pro without a DB migration -
 // it's just an extra field inside the existing `metadata` JSON column.
 // Priority: an active dev-tools plan override (so test sessions are clearly
 // labeled), then the last plan resolved by useWorkZoAuthoritativePlan
@@ -230,14 +230,14 @@ function currentPlanForAnalytics(): string {
     const override = getWorkZoDevPlanOverride();
     if (override) return normalizeWorkZoPlan(override);
   } catch {
-    // Ignore — fall through to stored plan.
+    // Ignore, fall through to stored plan.
   }
 
   try {
     const stored = window.localStorage.getItem("workzo_plan") || window.localStorage.getItem("workzo_plan_type");
     if (stored) return normalizeWorkZoPlan(stored);
   } catch {
-    // Ignore — default to free.
+    // Ignore, default to free.
   }
 
   return "free";
@@ -253,7 +253,7 @@ export function trackWorkZoEvent(payload: WorkZoAnalyticsPayload) {
   const devOverrideActive = Boolean(getWorkZoDevPlanOverride());
 
   // Kick off (or reuse) the background email lookup. Whatever's cached so
-  // far gets attached below — it may be undefined for the very first event
+  // far gets attached below, it may be undefined for the very first event
   // of a page load, but will be populated for every event after that.
   resolveAndCacheUserEmail();
   const email = cachedUserEmail || undefined;

@@ -15,7 +15,7 @@ export type WorkZoLiveReaction = {
   visualState: WorkZoRecruiterVisualState;
   trustDelta: number;
   intensity: WorkZoReactionIntensity;
-  // What the recruiter is "writing down" — only set when visualState is
+  // What the recruiter is "writing down", only set when visualState is
   // "typing_notes". Surfaced in the UI so note-taking feels tied to a real
   // moment in the answer, not just a generic animation.
   noteText?: string;
@@ -64,7 +64,7 @@ export function getWorkZoLiveReaction(answer: string): WorkZoLiveReaction {
 
   if (wordCount > 160) {
     return {
-      text: "Let me pause you there — I want the core example and result.",
+      text: "Let me pause you there, I want the core example and result.",
       visualState: "interrupting",
       trustDelta: -1,
       intensity: "medium",
@@ -72,10 +72,10 @@ export function getWorkZoLiveReaction(answer: string): WorkZoLiveReaction {
   }
 
   // Strongest answer: metric + ownership + outcome all present. A real
-  // attentive recruiter visibly writes this down — surface that moment.
+  // attentive recruiter visibly writes this down, surface that moment.
   if (hasMetric && hasOwnership && hasOutcome) {
     return {
-      text: "That's a strong, specific example — let me note that down.",
+      text: "That's a strong, specific example, let me note that down.",
       visualState: "typing_notes",
       trustDelta: 3,
       intensity: "strong",
@@ -85,7 +85,7 @@ export function getWorkZoLiveReaction(answer: string): WorkZoLiveReaction {
 
   if (hasMetric && hasOwnership) {
     return {
-      text: "Good — that gives me something concrete to evaluate.",
+      text: "Good, that gives me something concrete to evaluate.",
       visualState: "interested",
       trustDelta: 2,
       intensity: "medium",
@@ -179,7 +179,7 @@ export function decideWorkZoInterruption(answer: string): WorkZoInterruptionDeci
   }
 
   // Raised from 170 and now also requires the answer to genuinely be going
-  // nowhere (no outcome signal) before cutting in — pure length was
+  // nowhere (no outcome signal) before cutting in, pure length was
   // interrupting complete, well-structured STAR answers just for being
   // long, which is exactly the opposite of what an interrupt should do.
   // Confirmed from live testing: a clear situation→action→patience→result
@@ -187,7 +187,7 @@ export function decideWorkZoInterruption(answer: string): WorkZoInterruptionDeci
   if (wordCount > 220 && !hasOutcome) {
     return {
       shouldInterrupt: true,
-      line: "Let me pause you there — give me the core situation, your action, and the result in a few sentences.",
+      line: "Let me pause you there, give me the core situation, your action, and the result in a few sentences.",
       reason: "rambling",
     };
   }
@@ -195,7 +195,7 @@ export function decideWorkZoInterruption(answer: string): WorkZoInterruptionDeci
   if (wordCount > 90 && !hasOwnership) {
     return {
       shouldInterrupt: true,
-      line: "Let me pause you there — what was your personal role in that situation?",
+      line: "Let me pause you there, what was your personal role in that situation?",
       reason: "unclear_ownership",
     };
   }
@@ -203,7 +203,7 @@ export function decideWorkZoInterruption(answer: string): WorkZoInterruptionDeci
   if (wordCount > 80 && vagueWithoutEvidence) {
     return {
       shouldInterrupt: true,
-      line: "Let me make this more concrete — choose one real situation and walk me through what happened.",
+      line: "Let me make this more concrete, choose one real situation and walk me through what happened.",
       reason: "too_generic",
     };
   }

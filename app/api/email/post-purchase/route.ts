@@ -8,10 +8,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // This route is called:
-//   1. By the Stripe webhook (checkout.session.completed) — primary trigger
+//   1. By the Stripe webhook (checkout.session.completed), primary trigger
 //   2. From the checkout success page as a fallback if the webhook races
 //
-// It is idempotent — calling it twice just sends two emails, which Resend
+// It is idempotent, calling it twice just sends two emails, which Resend
 // deduplicates by email address within a short window. Not a problem in practice.
 
 async function getUserEmail(userId: string): Promise<string | null> {

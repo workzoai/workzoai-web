@@ -18,15 +18,15 @@ const SHUFFLED_ORDER: number[] = (() => {
 	return order;
 })();
 
-// Per-square target opacity, ranged 0.25–0.75, gives the grid a dithered
+// Per-square target opacity, ranged 0.25-0.75, gives the grid a dithered
 // look so cells don't all read at the same brightness when filled.
 const TARGET_OPACITY: number[] = Array.from(
 	{ length: GRID_SIZE },
 	() => 0.25 + Math.random() * 0.5
 );
 
-// Per-square Bayer pattern offset (0–7px on each axis) so the dither
-// patterns don't line up across cells — adds visual noise to the grid.
+// Per-square Bayer pattern offset (0-7px on each axis) so the dither
+// patterns don't line up across cells, adds visual noise to the grid.
 const DITHER_OFFSETS: string[] = Array.from({ length: GRID_SIZE }, () => {
 	const x = Math.floor(Math.random() * 8);
 	const y = Math.floor(Math.random() * 8);

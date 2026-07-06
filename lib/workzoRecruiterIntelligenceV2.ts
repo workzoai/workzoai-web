@@ -2,12 +2,12 @@
  * workzoRecruiterIntelligenceV2.ts
  *
  * Sprint fixes:
- * 1. extractLikelyCvRole — never returns section headers, contact lines, or skill lists
- * 2. ConcernResolutionEngine — tracks each concern, reduces score on evidence, moves on
- * 3. TopicProgressionEngine — interview roadmap, never repeats same topic
- * 4. CompetencyTracker — marks tested dimensions, routes to untested ones
- * 5. JdGapEngine — pre-computes matched/missing skills, focuses questions there
- * 6. RecruiterMemoryV2 — extended with goals, concerns, strengths, resolvedConcerns
+ * 1. extractLikelyCvRole, never returns section headers, contact lines, or skill lists
+ * 2. ConcernResolutionEngine, tracks each concern, reduces score on evidence, moves on
+ * 3. TopicProgressionEngine, interview roadmap, never repeats same topic
+ * 4. CompetencyTracker, marks tested dimensions, routes to untested ones
+ * 5. JdGapEngine, pre-computes matched/missing skills, focuses questions there
+ * 6. RecruiterMemoryV2, extended with goals, concerns, strengths, resolvedConcerns
  * 7. Fixed: transitionEvidenceProvided was used but never declared (runtime crash)
  */
 
@@ -26,7 +26,7 @@ export type RecruiterIntelligenceSetup = {
   companyStyle?: string;
   recruiterPersonality?: string;
   language?: string;
-  // Pre-computed recruiter brain context from recruiterBrainEngine.ts —
+  // Pre-computed recruiter brain context from recruiterBrainEngine.ts -
   // injected by /api/interview/reply/route.ts before each LLM call.
   recruiterBrainContext?: string;
   // Additional fields used by the interview route
@@ -99,6 +99,18 @@ export type RecruiterMemoryV2 = {
   jdMissingSkills: string[];
   interviewTopicOrder: CompetencyId[];
   currentTopicIndex: number;
+  // ── Global Interview Engine orchestration state ──────────────────────────
+  // Language-agnostic: all four mechanisms operate on structure (topic index
+  // movement, transcript phrase shapes, stage numbers), never on English
+  // keywords, so they behave identically for any CV, role, JD, or language.
+  /** Consecutive recruiter turns without topic progress (follow-up budget). */
+  followUpCount: number;
+  /** Set on the turn a follow-up budget forced a topic advance; cleared next update. */
+  forcedTopicAdvanceFrom: string;
+  /** Normalized opening phrases the recruiter has already used (never reuse). */
+  usedOpeners: string[];
+  /** 0 = interviewing, 1 = final question asked, 2 = candidate questions invited, 3 = done. */
+  closingStage: number;
 };
 
 export type RecruiterDecisionV2 = {
@@ -135,6 +147,10 @@ const EMPTY_MEMORY: RecruiterMemoryV2 = {
   jdMissingSkills: [],
   interviewTopicOrder: [],
   currentTopicIndex: 0,
+  followUpCount: 0,
+  forcedTopicAdvanceFrom: "",
+  usedOpeners: [],
+  closingStage: 0,
 };
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -326,7 +342,7 @@ function looksLikeRoleTitle(value: string): boolean {
 }
 
 /**
- * extractLikelyCvRole — the single most important function for recruiter quality.
+ * extractLikelyCvRole, the single most important function for recruiter quality.
  *
  * Priority order:
  * 1. Structured experience entries (lines like "• Senior Engineer • Acme Corp • 2020")
@@ -543,7 +559,7 @@ function buildTopicQuestion(topic: CompetencyId, setup: RecruiterIntelligenceSet
     case "career_transition": {
       const cvRole = extractLikelyCvRole(setup);
       if (cvRole && cvRole.length <= 60) {
-        return `I can see your background is mainly in ${cvRole}. This role is ${target}, which is a different direction. What have you done hands-on — a project, course, or direct experience — that shows you're ready for it?`;
+        return `I can see your background is mainly in ${cvRole}. This role is ${target}, which is a different direction. What have you done hands-on, a project, course, or direct experience, that shows you're ready for it?`;
       }
       return `Looking at your background and this ${target} role, there's a transition here I want to understand. What have you done practically that shows readiness, not just interest?`;
     }
@@ -554,12 +570,12 @@ function buildTopicQuestion(topic: CompetencyId, setup: RecruiterIntelligenceSet
     case "technical_depth": {
       const technical = isTechnicalRole(setup);
       if (technical && skills) {
-        return `You mentioned ${skills}. Walk me through a specific time you used that — what was the actual technical decision you had to make, what trade-off did it involve, and what would you do differently if you rebuilt it today?`;
+        return `You mentioned ${skills}. Walk me through a specific time you used that, what was the actual technical decision you had to make, what trade-off did it involve, and what would you do differently if you rebuilt it today?`;
       }
       if (technical) {
-        return `What's the part of your stack you know deepest? Pick one real piece of it and walk me through a production issue you personally diagnosed there — what broke, how did you find it, and what fixed it?`;
+        return `What's the part of your stack you know deepest? Pick one real piece of it and walk me through a production issue you personally diagnosed there, what broke, how did you find it, and what fixed it?`;
       }
-      if (skills) return `You mentioned ${skills}. Give me one example where you used that skill to solve a real problem — what did you actually do, and how did you know it worked?`;
+      if (skills) return `You mentioned ${skills}. Give me one example where you used that skill to solve a real problem, what did you actually do, and how did you know it worked?`;
       return `What are you strongest at in this kind of work, and can you give me a concrete example of using that to solve a real problem?`;
     }
 
@@ -577,20 +593,20 @@ function buildTopicQuestion(topic: CompetencyId, setup: RecruiterIntelligenceSet
       const technical = isTechnicalRole(setup);
       if (metrics) {
         return technical
-          ? `You mentioned ${metrics}. That's useful evidence. Walk me through the actual technical decision behind it — what approach did you choose, why that one over the alternatives, and how did you confirm it actually worked?`
-          : `You mentioned ${metrics}. That's useful evidence. Walk me through the actual decision behind it — what did you choose to do, why that approach, and how did you confirm it actually worked?`;
+          ? `You mentioned ${metrics}. That's useful evidence. Walk me through the actual technical decision behind it, what approach did you choose, why that one over the alternatives, and how did you confirm it actually worked?`
+          : `You mentioned ${metrics}. That's useful evidence. Walk me through the actual decision behind it, what did you choose to do, why that approach, and how did you confirm it actually worked?`;
       }
-      return `Let's talk about impact in a practical way. In ${target}, what outcome would show that your work is successful — and can you point to a specific time you moved that number?`;
+      return `Let's talk about impact in a practical way. In ${target}, what outcome would show that your work is successful, and can you point to a specific time you moved that number?`;
     }
 
     case "motivation_fit":
       return `What specifically attracted you to ${target}, and what would make this role a step forward for you rather than just a lateral move?`;
 
     case "closing":
-      return `We're coming toward the end of our time. Before we wrap up — do you have any questions for me about the role, the team, or what happens next?`;
+      return `We're coming toward the end of our time. Before we wrap up, do you have any questions for me about the role, the team, or what happens next?`;
 
     default:
-      return `Let's go deeper. Take me through one specific situation that is most relevant to ${target} — what happened, what you did, and what changed.`;
+      return `Let's go deeper. Take me through one specific situation that is most relevant to ${target}, what happened, what you did, and what changed.`;
   }
 }
 
@@ -707,7 +723,7 @@ function makeReplyPersonaSpecific(reply: string, setup: RecruiterIntelligenceSet
   // ── Sarah (Friendly HR) ───────────────────────────────────────────────────
   if (/sarah|friendly_hr|friendly|talent partner|supportive/.test(persona)) {
     return reply
-      .replace(/^Let me pause you there —/i, "That's helpful. To make it even stronger,")
+      .replace(/^Let me pause you there -/i, "That's helpful. To make it even stronger,")
       .replace(/^I need to pause there\./i, "Let me gently clarify something.")
       .replace(/^I need to verify that\./i, "I want to make sure I've understood that correctly.")
       .replace(/^Give me/i, "Could you give me")
@@ -716,7 +732,7 @@ function makeReplyPersonaSpecific(reply: string, setup: RecruiterIntelligenceSet
       .replace(/^I'm not convinced/i, "I'd like to understand that a bit better")
       .replace(/^That's not enough/i, "Could you share a bit more about that?")
       .replace(/^Prove it/i, "Could you give me a real example of that?")
-      .replace(/^What's the number\?/i, "What was the impact — even roughly?");
+      .replace(/^What's the number\?/i, "What was the impact, even roughly?");
   }
 
   // ── Priya (Startup Recruiter) ─────────────────────────────────────────────
@@ -726,10 +742,10 @@ function makeReplyPersonaSpecific(reply: string, setup: RecruiterIntelligenceSet
       .replace(/^Could you walk me through/i, "Walk me through")
       .replace(/^I would like to understand/i, "I need to understand")
       .replace(/^That is interesting/i, "Okay, but what did you actually ship?")
-      .replace(/^Let me stop you there\./i, "Stop —")
+      .replace(/^Let me stop you there\./i, "Stop -")
       .replace(/^That gives me something to work with/i, "That's a start. What else?")
-      .replace(/^Could you give me a sense/i, "Give me a number —")
-      .replace(/^I appreciate that/i, "Right, but specifically —");
+      .replace(/^Could you give me a sense/i, "Give me a number -")
+      .replace(/^I appreciate that/i, "Right, but specifically -");
   }
 
   // ── Markus (Corporate Recruiter) ─────────────────────────────────────────
@@ -741,7 +757,7 @@ function makeReplyPersonaSpecific(reply: string, setup: RecruiterIntelligenceSet
       .replace(/^How did you handle/i, "What was the approved procedure for handling")
       .replace(/^That's not enough/i, "I'd like more procedural detail on that.")
       .replace(/^I need more than that/i, "Could you elaborate on the compliance and documentation aspects?")
-      .replace(/^Stop —/i, "If I may interject —")
+      .replace(/^Stop -/i, "If I may interject -")
       .replace(/^I'm not buying it/i, "I'm not confident the process picture is complete here.")
       .replace(/^What did you ship/i, "What was the formally delivered output of that initiative?");
   }
@@ -751,16 +767,16 @@ function makeReplyPersonaSpecific(reply: string, setup: RecruiterIntelligenceSet
 
 // ── Priority 5: JD Gap Engine ─────────────────────────────────────────────────
 
-// Generic, profession-agnostic requirement extraction — no hardcoded skill
+// Generic, profession-agnostic requirement extraction, no hardcoded skill
 // vocabulary. Finds short requirement phrases in the JD text structurally,
 // via the trigger language job postings actually use ("experience with",
-// "knowledge of", "responsible for", "certified in", etc.) — the same way a
+// "knowledge of", "responsible for", "certified in", etc.), the same way a
 // human reads a job posting, regardless of whether the role is software
 // engineering, nursing, law, teaching, or a trade.
 //
 // This replaces a closed list of ~30 tech/CSM-specific keywords
 // (Salesforce, AWS, SQL, ITIL, CSAT...) that matched almost nothing for any
-// profession outside tech/IT/customer-success — meaning a nurse's,
+// profession outside tech/IT/customer-success, meaning a nurse's,
 // teacher's, or electrician's JD produced an empty or near-empty gap
 // analysis every time, not because they had no real skills gap, but
 // because the detector had no vocabulary for their field at all.
@@ -796,7 +812,7 @@ function buildJdGapAnalysis(setup: RecruiterIntelligenceSetup): { matched: strin
 
   for (const req of requirements) {
     // A requirement "counts" as present if most of its core content words
-    // appear in the CV — a fuzzy match, not an exact phrase match, since a
+    // appear in the CV, a fuzzy match, not an exact phrase match, since a
     // CV describes the same skill in its own words rather than echoing the
     // JD's exact phrasing.
     const words = req.split(/\s+/).filter((w) => w.length > 2 && !JD_GAP_STOP_WORDS.has(w));
@@ -901,10 +917,10 @@ function hasCareerTransitionEvidenceProvided(answer: string): boolean {
   if (/\b(csat|customer satisfaction|95|96|97|98|99|5\s*(?:\/|out of)\s*5|nps|retention|relationship|onboarding|adoption|crm|escalation|hands.on|course|bootcamp|project|self.learning|freelance|certification|built|implemented|managed customer|helped customer|resolved customer|similar role|similar job|transferable|face.to.face|face the customer|talk to the customer|b2b|b2c|customer.facing)\b/i.test(low)) return true;
 
   // Medium evidence: any substantive answer (12+ words) with customer/support context
-  // The candidate explained WHY their support background connects to CSM — that counts.
+  // The candidate explained WHY their support background connects to CSM, that counts.
   if (words >= 12 && /\b(support|customer|client|resolved|ticket|stakeholder|handled|communicated|technically|diagnosed|troubleshot|service|helpdesk|interact|relationship|satisfaction|assist|guide|explain)\b/i.test(low)) return true;
 
-  // Candidate explicitly argues the roles are similar — that IS evidence of their reasoning
+  // Candidate explicitly argues the roles are similar, that IS evidence of their reasoning
   if (/\b(similar|same|overlap|connect|translate|related|both|also|already|experience with customer|customer experience|deal with customer|work with customer)\b/i.test(low) && words >= 15) return true;
 
   return false;
@@ -930,17 +946,17 @@ function buildPostTransitionProgressionQuestion(answer: string, setup: Recruiter
   // CSM target: acknowledge the support bridge, then probe the KEY difference
   if (isCustomerSuccessTarget(setup)) {
     if (/\b(similar|same|both|customer.facing|customer facing|face the customer)\b/i.test(low)) {
-      return `You’re right that customer-facing experience is a strong foundation. The key difference in Customer Success is that you’re not waiting for customers to call you with problems — you’re proactively reaching out to make sure they’re getting value before issues arise. Have you ever done that proactively — reaching out to a customer before they came to you?`;
+      return `You’re right that customer-facing experience is a strong foundation. The key difference in Customer Success is that you’re not waiting for customers to call you with problems, you’re proactively reaching out to make sure they’re getting value before issues arise. Have you ever done that proactively, reaching out to a customer before they came to you?`;
     }
     if (hasCareerTransitionEvidenceProvided(answer)) {
-      return `That support background is a real asset for Customer Success — especially the customer empathy and troubleshooting ownership. The next thing I want to understand is the proactive side: in CS, you’re managing the relationship before problems surface. Tell me about a time you followed up with a customer after closing an issue — what did you do and why?`;
+      return `That support background is a real asset for Customer Success, especially the customer empathy and troubleshooting ownership. The next thing I want to understand is the proactive side: in CS, you’re managing the relationship before problems surface. Tell me about a time you followed up with a customer after closing an issue, what did you do and why?`;
     }
-    return `I can see the customer-handling experience. For ${target}, the core shift is from reactive to proactive — owning the relationship, not just the ticket. Tell me about one customer relationship you personally owned end-to-end. What did staying on top of it look like?`;
+    return `I can see the customer-handling experience. For ${target}, the core shift is from reactive to proactive, owning the relationship, not just the ticket. Tell me about one customer relationship you personally owned end-to-end. What did staying on top of it look like?`;
   }
 
   // Technical roles
   if (/\b(troubleshoot|ticket|incident|support|escalat|technical|diagnos)\b/i.test(low)) {
-    return `That helps. Tell me about one technically complex issue you personally diagnosed and resolved — what you checked first, how you narrowed it down, and what the outcome was.`;
+    return `That helps. Tell me about one technically complex issue you personally diagnosed and resolved, what you checked first, how you narrowed it down, and what the outcome was.`;
   }
 
   return `Good context. Now give me one concrete example from your background that directly connects to ${target}: a situation you personally owned, the action you took, and what changed.`;
@@ -980,10 +996,10 @@ function buildEvidenceRequest(answer: string, setup: RecruiterIntelligenceSetup,
     return "I want to separate your part from the team's part. What did you personally diagnose, decide, fix, configure, explain, or escalate?";
   }
   if (!hasOutcome(answer) && !hasQualitativeOutcome && !earlyInterview && !askedEvidence) {
-    return "What changed after that work — for the customer, the system, the team, or the business? A qualitative result is fine if you do not have an exact number.";
+    return "What changed after that work, for the customer, the system, the team, or the business? A qualitative result is fine if you do not have an exact number.";
   }
   if (!hasMetric(answer) && !hasQualitativeOutcome && turns >= 4 && !askedEvidence) {
-    return "Can you give me the scale of that work in a natural way — for example how often it happened, how many users or customers were affected, or what improved afterward?";
+    return "Can you give me the scale of that work in a natural way, for example how often it happened, how many users or customers were affected, or what improved afterward?";
   }
   return "";
 }
@@ -1050,6 +1066,10 @@ export function createRecruiterMemoryV2(seed?: Partial<RecruiterMemoryV2> | unkn
     jdMissingSkills: unique(s.jdMissingSkills || []),
     interviewTopicOrder: Array.isArray(s.interviewTopicOrder) ? s.interviewTopicOrder : [],
     currentTopicIndex: Number(s.currentTopicIndex || 0),
+    followUpCount: Math.max(0, Number(s.followUpCount || 0)),
+    forcedTopicAdvanceFrom: text(s.forcedTopicAdvanceFrom),
+    usedOpeners: unique(s.usedOpeners || [], 24),
+    closingStage: Math.max(0, Math.min(3, Number(s.closingStage || 0))),
   };
 }
 
@@ -1088,6 +1108,10 @@ function mergeRecruiterMemoryV2(...memories: Array<unknown>): RecruiterMemoryV2 
       jdMissingSkills: unique([...merged.jdMissingSkills, ...current.jdMissingSkills], 20),
       interviewTopicOrder: current.interviewTopicOrder.length ? current.interviewTopicOrder : merged.interviewTopicOrder,
       currentTopicIndex: Math.max(merged.currentTopicIndex, current.currentTopicIndex),
+      followUpCount: Math.max(merged.followUpCount, current.followUpCount),
+      forcedTopicAdvanceFrom: current.forcedTopicAdvanceFrom || merged.forcedTopicAdvanceFrom,
+      usedOpeners: unique([...merged.usedOpeners, ...current.usedOpeners], 24),
+      closingStage: Math.max(merged.closingStage, current.closingStage),
     };
   }, createRecruiterMemoryV2());
 }
@@ -1149,6 +1173,31 @@ export function updateRecruiterMemoryV2(
       newTopicIndex = i;
     }
   }
+
+  // ── Follow-up budget (Global Interview Engine) ─────────────────────────
+  // Language-agnostic hard cap: it watches TOPIC-INDEX MOVEMENT, not any
+  // keyword. Each recruiter turn that fails to advance the topic increments
+  // the counter (original question = 1, follow-up #1 = 2, follow-up #2 = 3).
+  // At 3, the topic is LOCKED (marked answered even if coverage is partial —
+  // a real interviewer notes the gap in their assessment and moves on rather
+  // than interrogating) and the index is forced to the next open topic. The
+  // turn is flagged in forcedTopicAdvanceFrom so the directives layer can
+  // issue an explicit MUST-MOVE-ON instruction to the LLM for this reply.
+  let followUpCount = newTopicIndex === current.currentTopicIndex ? current.followUpCount + 1 : 0;
+  let forcedTopicAdvanceFrom = "";
+  if (followUpCount >= 3 && currentTopic && currentTopic !== "closing") {
+    if (!allAnsweredCompetencies.includes(currentTopic)) allAnsweredCompetencies.push(currentTopic);
+    newTopicIndex = current.currentTopicIndex;
+    for (let i = current.currentTopicIndex + 1; i < roadmap.length; i += 1) {
+      if (!allAnsweredCompetencies.includes(roadmap[i])) {
+        newTopicIndex = i;
+        break;
+      }
+      newTopicIndex = i;
+    }
+    forcedTopicAdvanceFrom = TOPIC_LABEL[currentTopic] || String(currentTopic);
+    followUpCount = 0;
+  }
   const newAnsweredCompetencies = allAnsweredCompetencies;
 
   return {
@@ -1173,13 +1222,17 @@ export function updateRecruiterMemoryV2(
     jdMissingSkills: current.jdMissingSkills,
     interviewTopicOrder: roadmap,
     currentTopicIndex: newTopicIndex,
+    followUpCount,
+    forcedTopicAdvanceFrom,
+    usedOpeners: current.usedOpeners,
+    closingStage: current.closingStage,
   };
 }
 
 // ── Main decision function ────────────────────────────────────────────────────
 
 // ── Natural acknowledgment layer ──────────────────────────────────────────────
-// The topic-roadmap questions below (buildTopicQuestion) are a SAFETY NET —
+// The topic-roadmap questions below (buildTopicQuestion) are a SAFETY NET -
 // they only fire when the GPT-4o call fails or is unavailable. But a safety
 // net that just announces "next topic" with zero acknowledgment of what the
 // candidate said is exactly what feels like "a mock test" instead of a real
@@ -1197,7 +1250,7 @@ const GENERIC_ACK_VARIANTS = [
 ];
 
 // Picks a short, concrete thing to reference from what the candidate actually
-// said this turn — preferring a remembered metric, goal, or company over a
+// said this turn, preferring a remembered metric, goal, or company over a
 // generic line, since a callback to specifics is what makes a recruiter sound
 // like they're actually tracking the conversation rather than reading a list.
 function buildNaturalAcknowledgment(
@@ -1217,7 +1270,7 @@ function buildNaturalAcknowledgment(
     return "That patience with the customer stands out.";
   }
   if (/\b(took over|stepped in|inherited|frustrated)\b/.test(lower)) {
-    return "Stepping into an already-frustrated situation isn't easy — good context.";
+    return "Stepping into an already-frustrated situation isn't easy, good context.";
   }
   return GENERIC_ACK_VARIANTS[turns % GENERIC_ACK_VARIANTS.length];
 }
@@ -1239,11 +1292,11 @@ export function decideRecruiterResponseV2(input: {
   const setup = input.setup || {};
   const turns = candidateTurnCount(input.transcript);
 
-  // Too short — treat as STT noise / filler, return gentle prompt
+  // Too short, treat as STT noise / filler, return gentle prompt
   const wordCount = answer.trim().split(/\s+/).filter(Boolean).length;
   if (wordCount < 8 && turns > 0) {
     return {
-      reply: localize(setup, "I want to make sure I'm following you — could you say a bit more about that?"),
+      reply: localize(setup, "I want to make sure I'm following you, could you say a bit more about that?"),
       memory: createRecruiterMemoryV2(input.memory),
       trustDelta: 0, interestDelta: 0, concern: "", weakAnswer: false,
       contradictionDetected: false, evidenceRequested: false, projectDeepDive: false,
@@ -1283,12 +1336,12 @@ export function decideRecruiterResponseV2(input: {
   // alreadyAskedTransition: detects whether the recruiter has already raised the
   // career transition challenge in any form. Uses multiple patterns to cover all
   // the phrasings used by buildTopicQuestion and buildCareerTransitionQuestion.
-  // Previously too narrow — missed "shows you're ready for it", "different direction", etc.
+  // Previously too narrow, missed "shows you're ready for it", "different direction", etc.
   const alreadyAskedTransition = transcriptContains(input.transcript, /\b(transition|switch|shift|move into|why .* role|ready for this role|ready for it|shows you.re ready|different direction|hands.on|proves? you are ready|ramp.up|prepared for|background is mainly|what have you done.{0,40}ready|practical|readiness)\b/i);
   const transitionAlreadyResolved = memory.resolvedConcerns.includes("career_switch") || previousMemory.resolvedConcerns.includes("career_switch");
   // transitionConcernAskedTooMuch: move on after asking once and getting any
   // substantive response (12+ words). Real recruiters don't ask the same
-  // transition question twice — they probe deeper or move to a new topic.
+  // transition question twice, they probe deeper or move to a new topic.
   const transitionAskCount = previousMemory.activeConcerns.find((c) => c.id === "career_switch")?.askedCount ?? 0;
   const candidateGaveSubstantiveResponse = wordCount >= 12;
   const transitionConcernAskedTooMuch = transitionAskCount >= 2 || (transitionAskCount >= 1 && candidateGaveSubstantiveResponse);
@@ -1303,7 +1356,7 @@ export function decideRecruiterResponseV2(input: {
   // ── Decision tree ─────────────────────────────────────────────────────────
 
   if (contradictions.length) {
-    // Priority 1: Contradiction — always address
+    // Priority 1: Contradiction, always address
     concern = contradictions[0];
     reply = contradictionClarifyingQuestion(contradictions[0], previousMemory);
     trustDelta = -18;
@@ -1326,7 +1379,7 @@ export function decideRecruiterResponseV2(input: {
       const cvRole = extractLikelyCvRole(setup);
       const target = text(setup.targetRole, "this role");
       const safeRole = cvRole && cvRole.length <= 60 ? cvRole : "";
-      if (safeRole) return `I can see your background is mainly in ${safeRole}. This role is ${target}, which is a different direction. What have you done hands-on — a project, course, freelance work, or direct experience — that shows you're ready for it?`;
+      if (safeRole) return `I can see your background is mainly in ${safeRole}. This role is ${target}, which is a different direction. What have you done hands-on, a project, course, freelance work, or direct experience, that shows you're ready for it?`;
       return `Looking at your background and this ${target} role, there's a transition here I want to understand. What have you done practically that shows readiness for this role, not just interest in it?`;
     })();
     trustDelta = 0;
@@ -1344,7 +1397,7 @@ export function decideRecruiterResponseV2(input: {
     memory.currentTopicIndex = next.index;
 
   } else if (turns <= 1) {
-    // Priority 3: Very early — contextual background question.
+    // Priority 3: Very early, contextual background question.
     // If the candidate already gave customer evidence, avoid asking the same customer question again.
     concern = "Early background answer should be explored contextually.";
     const target = text(setup.targetRole, "this role");
@@ -1376,7 +1429,7 @@ export function decideRecruiterResponseV2(input: {
     evidenceRequested = true;
 
   } else {
-    // Priority 6: Normal progression — follow the topic roadmap
+    // Priority 6: Normal progression, follow the topic roadmap
 
     // Check if we should address a JD gap
     const unaskedJdGap = jdMissing.find((skill) =>
@@ -1391,7 +1444,7 @@ export function decideRecruiterResponseV2(input: {
       interestDelta = 4;
 
     } else {
-      // Follow topic roadmap — ask the next uncovered competency, not the previous question again.
+      // Follow topic roadmap, ask the next uncovered competency, not the previous question again.
       const askedTopic = inferAskedTopicFromQuestion(input.currentQuestion || "") || inferAskedTopicFromQuestion(
         Array.isArray(input.transcript)
           ? [...input.transcript].reverse().find((item) => item.role === "recruiter")?.text || ""
@@ -1473,7 +1526,7 @@ export function buildAdvancedReportV2(input: {
   };
 }
 
-// ── Compatibility wrappers — consumed by unifiedRecruiterIntelligence.ts ──────
+// ── Compatibility wrappers, consumed by unifiedRecruiterIntelligence.ts ──────
 // These preserve the existing import contract while using the new sprint engine.
 
 export function enhanceWorkZoDecisionV2(input: {
@@ -1582,7 +1635,7 @@ export function enhanceWorkZoDecisionV2(input: {
       memoryCompanies: enhanced.memory.companies,
       memoryRoles: enhanced.memory.roles,
       memorySkills: enhanced.memory.skills,
-      // Sprint additions — surfaced to LLM context
+      // Sprint additions, surfaced to LLM context
       jdMatchedSkills: enhanced.memory.jdMatchedSkills,
       jdMissingSkills: enhanced.memory.jdMissingSkills,
       answeredCompetencies: enhanced.memory.answeredCompetencies,
@@ -1608,6 +1661,139 @@ export function enhanceWorkZoDecisionV2(input: {
     contradictionDetected: enhanced.contradictionDetected,
     evidenceRequested: enhanced.evidenceRequested,
     projectDeepDive: enhanced.projectDeepDive,
+  };
+}
+
+// ── Global Interview Engine: orchestration directives ─────────────────────────
+// Turns the deterministic memory state into explicit, authoritative
+// instructions for the LLM turn. Everything here is computed from structure
+// (topic indices, transcript phrase shapes, stage counters), so it works
+// identically for any CV, role, JD, or interview language. The directive TEXT
+// is English because the system prompt is English; the language instruction in
+// the unified engine makes the LLM render the actual reply natively.
+
+/** First few words of a question, normalized — language-agnostic phrase key. */
+function extractOpener(replyText: string): string {
+  const firstSentence = text(replyText).split(/(?<=[.!?…])\s+/)[0] || text(replyText);
+  const words = firstSentence
+    .replace(/[«»"“”'’]/g, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 4)
+    .join(" ")
+    .toLowerCase()
+    .replace(/[.,!?;:…]+$/g, "");
+  return words.length >= 6 ? words : "";
+}
+
+const QUESTION_STYLE_VARIATIONS = [
+  "a walk-me-through ask (retrace a specific past situation step by step)",
+  "a hypothetical scenario (suppose/imagine a realistic situation from this role's daily work)",
+  "a look-back reflection (what would you do differently, what surprised you)",
+  "a quantification ask (how did you measure it, what moved and by how much)",
+  "a trade-off probe (what did you give up, why that option over the alternative)",
+  "a contrast ask (how did that differ from the other situation they mentioned)",
+];
+
+export function buildRecruiterDirectivesV2(input: {
+  memory?: unknown;
+  transcript?: TranscriptItem[];
+  setup?: RecruiterIntelligenceSetup;
+  /** Total recruiter questions the session plans; closing starts 2 before it. */
+  questionBudget?: number;
+}): { directives: string; memory: RecruiterMemoryV2 } {
+  const memory = createRecruiterMemoryV2(input.memory);
+  const transcript = Array.isArray(input.transcript) ? input.transcript : [];
+  const questionBudget = Math.max(6, Math.min(40, Number(input.questionBudget) || 12));
+
+  const recruiterTurns = transcript.filter(
+    (item) => item && item.role !== "candidate" && item.role !== "user" && text(item.text),
+  );
+  const recruiterTurnCount = recruiterTurns.length;
+
+  // ── Phrase ledger ────────────────────────────────────────────────────────
+  const openersFromTranscript = recruiterTurns
+    .map((item) => extractOpener(item.text || ""))
+    .filter(Boolean);
+  const usedOpeners = unique([...memory.usedOpeners, ...openersFromTranscript], 24);
+
+  // ── Coverage ledger ──────────────────────────────────────────────────────
+  const roadmap = memory.interviewTopicOrder.length
+    ? memory.interviewTopicOrder
+    : buildInterviewRoadmap(input.setup || {});
+  const answered = new Set(memory.answeredCompetencies);
+  const currentTopic = roadmap[memory.currentTopicIndex];
+  const openTopics = roadmap.filter((topic) => topic !== "closing" && !answered.has(topic));
+  const coverageLines = roadmap
+    .filter((topic) => topic !== "closing")
+    .map((topic) => {
+      const label = TOPIC_LABEL[topic] || String(topic);
+      const status = answered.has(topic) ? "COVERED (locked — never ask about this again)" : topic === currentTopic ? "ACTIVE NOW" : "NOT YET COVERED";
+      return `- ${label}: ${status}`;
+    });
+
+  // ── Closing state machine ────────────────────────────────────────────────
+  // Triggers when every topic is covered OR the question budget is nearly
+  // spent. Advances exactly one stage per recruiter turn, so the sequence is
+  // final question → thanks + candidate questions → goodbye, never skipped
+  // and never abrupt.
+  let closingStage = memory.closingStage;
+  const closingShouldStart = closingStage > 0 || openTopics.length === 0 || recruiterTurnCount >= questionBudget - 2;
+  if (closingShouldStart && closingStage < 3) closingStage += 1;
+
+  const directives: string[] = [];
+
+  if (memory.forcedTopicAdvanceFrom) {
+    const nextLabel = currentTopic ? TOPIC_LABEL[currentTopic] || String(currentTopic) : "the next topic";
+    directives.push(
+      `FOLLOW-UP LIMIT REACHED on "${memory.forcedTopicAdvanceFrom}". You have already asked the maximum follow-ups on it. ` +
+      `Briefly acknowledge the candidate's last answer in one short sentence, then your question MUST open a completely new topic: ${nextLabel}. ` +
+      `Asking anything further about ${memory.forcedTopicAdvanceFrom} is forbidden for the rest of the interview.`,
+    );
+  }
+
+  if (closingStage === 0) {
+    directives.push(
+      "COMPETENCY COVERAGE LEDGER (select your next question from the topics NOT YET COVERED, preferring the ACTIVE topic; a real interviewer balances coverage instead of drilling one area):\n" +
+      coverageLines.join("\n"),
+    );
+    directives.push(
+      "FOLLOW-UP DISCIPLINE: if the last answer was complete, move to a new topic. If partial, ask at most ONE follow-up. If weak or evasive, ask at most TWO total, then move on and silently note the gap for the assessment. Never stack more follow-ups than that, even if unsatisfied.",
+    );
+  }
+
+  if (usedOpeners.length) {
+    directives.push(
+      `OPENING PHRASES ALREADY USED — never begin a reply with any of these again: ${usedOpeners.map((o) => `"${o}"`).join(", ")}. ` +
+      `Vary your question form this turn; for example use ${QUESTION_STYLE_VARIATIONS[recruiterTurnCount % QUESTION_STYLE_VARIATIONS.length]}.`,
+    );
+  }
+
+  if (closingStage === 1) {
+    const finalTopic = openTopics[0] ? TOPIC_LABEL[openTopics[0]] || String(openTopics[0]) : "the most important remaining gap";
+    directives.push(
+      `CLOSING SEQUENCE — STEP 1 of 3 (mandatory): Tell the candidate you're nearly out of time and you'd like to finish with one last question. Ask ONE final question about ${finalTopic}. Do not open any other topic and do not ask more than this one question.`,
+    );
+  } else if (closingStage === 2) {
+    const strengthHint = memory.strengths[0] || memory.metrics[0] || "";
+    directives.push(
+      "CLOSING SEQUENCE — STEP 2 of 3 (mandatory): Do NOT ask any new interview question. Thank the candidate warmly for the conversation" +
+      (strengthHint ? `, briefly reference something concrete they shared (for example: ${strengthHint})` : "") +
+      ", tell them they'll receive detailed feedback covering communication, role fit, and areas to improve, and then ask if THEY have any questions about the role or the company.",
+    );
+  } else if (closingStage >= 3) {
+    directives.push(
+      "CLOSING SEQUENCE — STEP 3 of 3 (mandatory): If the candidate asked a question, answer it briefly, honestly, and realistically for this role and company type. Then close the interview with a warm, natural goodbye and wish them well. Do NOT ask the candidate anything further. The interview is over after this message.",
+    );
+  }
+
+  return {
+    directives: directives.length
+      ? "=== INTERVIEW ORCHESTRATION DIRECTIVES (authoritative — these override any other instinct) ===\n" +
+        directives.join("\n\n") +
+        "\n=== END DIRECTIVES ==="
+      : "",
+    memory: { ...memory, usedOpeners, closingStage },
   };
 }
 

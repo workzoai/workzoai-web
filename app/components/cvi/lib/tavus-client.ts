@@ -1,5 +1,5 @@
 // Browser client that talks to your server-side /api/tavus route.
-// The AI video recruiter API key stays on the server — see the matching server route
+// The AI video recruiter API key stays on the server, see the matching server route
 // installed by `npx @tavus/cvi-ui add tavus-api`.
 //
 // Get an API key: https://platform.tavus.io/api-keys

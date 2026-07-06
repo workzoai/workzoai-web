@@ -412,7 +412,7 @@ function buildLetterHooks(input: PhaseBInput, strongestEvidence: EvidenceItem | 
     },
     {
       style: "Story-driven",
-      text: `After working through real customer and technical challenges, I learned that strong outcomes come from understanding the problem, taking ownership, and communicating clearly — the same strengths I would bring to ${company}.`,
+      text: `After working through real customer and technical challenges, I learned that strong outcomes come from understanding the problem, taking ownership, and communicating clearly, the same strengths I would bring to ${company}.`,
     },
     {
       style: "Executive",

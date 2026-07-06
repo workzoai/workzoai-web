@@ -124,7 +124,7 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // Open text / SQL / code / scenario — LLM score
+      // Open text / SQL / code / scenario, LLM score
       const openText = String(answer.openAnswer || "").trim();
       if (!openText) {
         results.push({
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
           passed: false,
           feedback: "No answer provided.",
           strengths: [],
-          gaps: [`${answer.skill} — no answer submitted.`],
+          gaps: [`${answer.skill}, no answer submitted.`],
         });
         continue;
       }

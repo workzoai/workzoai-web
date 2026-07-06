@@ -38,7 +38,11 @@ import WorkZoPremiumProSuitePanel from "@/components/premium/WorkZoPremiumProSui
 import ReadinessScorePanel from "@/components/ReadinessScorePanel";
 import { recordWorkZoReportViewed, getWorkZoUsageSummary } from "@/lib/workzoUsageTracker";
 import { useWorkZoAdvancedReportGate } from "@/lib/workzoAdvancedReportGate";
-import { readLatestInterviewSetup } from "@/lib/workzoInterviewSetup";
+import {
+  readLatestInterviewSetup,
+  getCandidateDisplayName,
+  isValidCandidateName,
+} from "@/lib/workzoInterviewSetup";
 import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
 import { buildCareerBrain, updateCareerMemoryFromReport, type PhaseCCareerBrain } from "@/lib/workzoCareerMemory";
 import {
@@ -125,6 +129,7 @@ type AnswerInsight = {
   answer: string;
   wordCount: number;
   fillerCount: number;
+  hedgeCount: number;
   metricPresent: boolean;
   ownershipPresent: boolean;
   resultPresent: boolean;
@@ -477,7 +482,7 @@ function getTurnText(turn: TranscriptTurn) {
 }
 
 function isRecruiterTurn(turn: TranscriptTurn) {
-  // Trust the explicit role field first — always set by the interview engine
+  // Trust the explicit role field first, always set by the interview engine
   const role = cleanText(turn.role).toLowerCase();
   if (role === "recruiter" || role === "assistant") return true;
   if (role === "candidate" || role === "user") return false;
@@ -566,6 +571,12 @@ function countFillers(text: string) {
   return (text.match(/\b(um|uh|like|basically|actually|sort of|kind of|you know|i mean|maybe|probably)\b/gi) || []).length;
 }
 
+// Low-certainty / hedging markers — used to score Confidence as genuine
+// assuredness, independent of whether the answer contained ownership or a metric.
+function countHedges(text: string) {
+  return (text.match(/\b(maybe|probably|i think|i guess|i'm not sure|not really sure|not sure|sort of|kind of|possibly|might have|i suppose|perhaps|hopefully|i believe so|or something|i'd say|i would say|somewhat|a little bit|to be honest not)\b/gi) || []).length;
+}
+
 function hasMetric(text: string) {
   const t = text.toLowerCase();
   // Numeric metrics (digits)
@@ -597,21 +608,35 @@ function detectRedFlags(answer: string) {
   const flags: string[] = [];
   const words = countWords(answer);
 
+  // Genuine behavioural red flags only. Missing metrics / unclear ownership are
+  // NOT red flags here: they are already scored directly as Evidence and
+  // Ownership, so flagging them again would penalise the same gap two or three
+  // times over and push honest scores toward artificial zeros.
   if (/\b(my manager told me|just did what i was told|not my responsibility)\b/i.test(answer)) flags.push("May sound low-ownership unless clarified.");
   if (/\b(they failed|team failed|manager failed|because of them|not my fault)\b/i.test(answer)) flags.push("Possible blame-shifting signal.");
-  if (words > 0 && words < 25) flags.push("Answer ended before enough evidence was provided.");
-  if (words > 230) flags.push("Answer may feel too long or unfocused.");
-  if (!hasMetric(answer)) flags.push("No measurable outcome detected.");
-  if (!hasOwnership(answer)) flags.push("Personal ownership is not clear enough.");
+  if (words > 0 && words < 18) flags.push("Answer ended before enough evidence was provided.");
+  if (words > 260) flags.push("Answer may feel too long or unfocused.");
 
-  return flags.slice(0, 4);
+  return flags.slice(0, 3);
 }
 
 // ─── 5-Category Scoring Rubric (Interview Engine v2.0 spec) ────────────────
 // Communication 20% / Relevance 20% / Experience 20% / Evidence & Impact 20% / Job Fit 20%
-// Each category is scored 0-100 independently, uncapped — no artificial 50 ceiling
+// Each category is scored 0-100 independently, uncapped, no artificial 50 ceiling
 // and no floor that fakes a minimum score for thin sessions. A genuinely weak
 // session can and should score low; a genuinely strong one can reach 90-100.
+
+function stemToken(word: string): string {
+  let w = word.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (w.length <= 4) return w;
+  // Strip common inflectional / derivational suffixes so different word forms
+  // of the same skill collapse together (manage/managing/management → manag).
+  w = w
+    .replace(/(ational|ization|isation|ements?|ments?|tions?|sions?|ings?|ible|able|edly|fully|ies)$/,"")
+    .replace(/(ing|ers?|est|ies|ied|ery|ory|ily|ely|al|ic)$/,"")
+    .replace(/(ed|es|s)$/,"");
+  return w.length >= 3 ? w : word.toLowerCase();
+}
 
 function extractJdKeywords(jobDescription: string): string[] {
   if (!jobDescription) return [];
@@ -676,24 +701,48 @@ function compute5CategoryScore(input: {
     (tooShortCount / answersCount) * 25,
   ));
 
-  // 3. EXPERIENCE (20%): relevant examples, ownership, seniority, domain knowledge
+  // 3. CONFIDENCE (20%): how assured and decisive the delivery sounded. This is
+  // deliberately NOT ownership (that is captured by Ownership Signal and Trust)
+  // — it measures certainty: few hedges/fillers, complete thoughts, steady pace.
+  // So a candidate who spoke crisply but modestly still scores well here, and a
+  // candidate who rambled with "maybe / I think / kind of" scores lower even if
+  // they used the word "I".
   const ownershipRate = answerInsights.filter((a) => a.ownershipPresent).length / answersCount;
   const resultRate = answerInsights.filter((a) => a.resultPresent).length / answersCount;
-  const experience = clamp(Math.round((ownershipRate * 55) + (resultRate * 30) + 15));
+  const avgHedges = average(answerInsights.map((a) => a.hedgeCount ?? 0), 0);
+  const completeAnswers = answerInsights.filter((a) => a.wordCount >= 30).length / answersCount;
+  const experience = clamp(Math.round(
+    62
+    + (paceScore >= 90 ? 10 : paceScore >= 70 ? 4 : paceScore <= 50 ? -6 : 0)
+    + (completeAnswers * 16)
+    + (resultRate * 8)
+    - Math.min(avgHedges * 9, 30)
+    - Math.min(avgFillerCount * 4, 18),
+  ));
 
   // 4. EVIDENCE & IMPACT (20%): STAR structure, metrics, results, business impact
   const metricRate = answerInsights.filter((a) => a.metricPresent).length / answersCount;
   const avgStructure = average(answerInsights.map((a) => a.structureScore), 20);
-  const evidenceImpact = clamp(Math.round((metricRate * 45) + (resultRate * 25) + (avgStructure * 0.3)));
+  const evidenceImpact = clamp(Math.round(8 + (metricRate * 42) + (resultRate * 22) + (avgStructure * 0.3)));
 
-  // 5. JOB FIT (20%): compare answer content against JD requirements
+  // 5. JOB FIT (20%): compare answer content against JD requirements using
+  // stemmed, word-boundary matching (so "manage" matches "managing/management",
+  // but "java" no longer falsely matches "javascript"). Phrases require their
+  // meaningful tokens to appear.
   const jdKeywords = extractJdKeywords(jobDescription);
-  const transcriptLower = fullTranscriptText.toLowerCase();
-  const matchedKeywords = jdKeywords.filter((kw) => transcriptLower.includes(kw));
-  const missingJdRequirements = jdKeywords.filter((kw) => !transcriptLower.includes(kw)).slice(0, 6);
+  const transcriptStems = new Set(
+    fullTranscriptText.toLowerCase().replace(/[^a-z0-9\s-]/g, " ").split(/\s+/).filter(Boolean).map(stemToken),
+  );
+  const keywordCovered = (kw: string) => {
+    const tokens = kw.split(/[\s-]+/).filter((t) => t.length > 2).map(stemToken);
+    if (tokens.length === 0) return false;
+    return tokens.every((t) => transcriptStems.has(t));
+  };
+  const matchedKeywords = jdKeywords.filter(keywordCovered);
+  const missingJdRequirements = jdKeywords.filter((kw) => !keywordCovered(kw)).slice(0, 6);
   const jdCoverageRate = jdKeywords.length > 0 ? matchedKeywords.length / jdKeywords.length : 0.5;
   const jobFit = jdKeywords.length > 0
-    ? clamp(Math.round((jdCoverageRate * 70) + (ownershipRate * 15) + (resultRate * 15)))
+    ? clamp(Math.round(15 + (jdCoverageRate * 60) + (ownershipRate * 12) + (resultRate * 13)))
     : clamp(Math.round((ownershipRate * 45) + (resultRate * 35) + 20)); // no JD provided: fall back to general fit signal
 
   const overall = clamp(Math.round(
@@ -708,7 +757,7 @@ function compute5CategoryScore(input: {
 }
 
 function hireRecommendationFromScore(score: number): string {
-  if (score >= 90) return "Outstanding — Strong Hire";
+  if (score >= 90) return "Outstanding, Strong Hire";
   if (score >= 80) return "Hire";
   if (score >= 70) return "Lean Hire";
   if (score >= 60) return "Borderline";
@@ -720,7 +769,7 @@ function hireRecommendationFromScore(score: number): string {
 // ─── STAR Coaching (Interview Engine v2.0 spec) ─────────────────────────────
 // For each answer, identify which STAR component (Situation/Task, Action,
 // Result) was weak or missing, quote what the candidate actually said, and
-// give one concrete coaching tip — not a generic "use STAR" reminder.
+// give one concrete coaching tip, not a generic "use STAR" reminder.
 function buildStarCoaching(answerInsights: AnswerInsight[]): RichReport["starCoaching"] {
   return answerInsights
     .filter((item) => !item.metricPresent || !item.ownershipPresent || !item.resultPresent || item.wordCount < 25)
@@ -732,24 +781,24 @@ function buildStarCoaching(answerInsights: AnswerInsight[]): RichReport["starCoa
       let howToAnswer: string;
 
       if (item.wordCount < 25) {
-        missingComponent = "Situation & Task — answer ended too early to establish context";
+        missingComponent = "Situation & Task, answer ended too early to establish context";
         coachingTip = "Open with one sentence on the situation, one on your specific task, before moving to what you did.";
         howToAnswer = `Try: "In [context/company], I was responsible for [your task]. When [situation arose], I [specific action]. As a result, [measurable outcome]."`;
       } else if (!item.ownershipPresent) {
-        missingComponent = "Action — unclear what you personally did versus the team";
+        missingComponent = "Action, unclear what you personally did versus the team";
         coachingTip = "Rewrite using 'I' as the subject for every action: what you decided, built, or resolved yourself.";
-        howToAnswer = `Try: "I personally [action verb] — not the team, not my manager. Specifically, I [detail of what you did]. The outcome was [result]."`;
+        howToAnswer = `Try: "I personally [action verb], not the team, not my manager. Specifically, I [detail of what you did]. The outcome was [result]."`;
       } else if (!item.resultPresent && !item.metricPresent) {
-        missingComponent = "Result — no outcome or measurable impact stated";
-        coachingTip = "Close with one sentence: 'As a result, X changed' — even an estimated number is better than none.";
-        howToAnswer = `Try ending with: "As a result, [what changed] — for example, [customer stayed / issue was resolved / we saved X hours / satisfaction improved]." Even a rough number makes this answer 3x stronger.`;
+        missingComponent = "Result, no outcome or measurable impact stated";
+        coachingTip = "Close with one sentence: 'As a result, X changed', even an estimated number is better than none.";
+        howToAnswer = `Try ending with: "As a result, [what changed], for example, [customer stayed / issue was resolved / we saved X hours / satisfaction improved]." Even a rough number makes this answer 3x stronger.`;
       } else if (!item.metricPresent) {
-        missingComponent = "Result — outcome stated but not measurable";
+        missingComponent = "Result, outcome stated but not measurable";
         coachingTip = "Add a number to the result you already gave: time saved, percentage improved, customers affected.";
-        howToAnswer = `You said the outcome happened — now quantify it. Ask yourself: how many customers? how long did it take? what % improved? what was the before vs after? Add one of those numbers and close with it.`;
+        howToAnswer = `You said the outcome happened, now quantify it. Ask yourself: how many customers? how long did it take? what % improved? what was the before vs after? Add one of those numbers and close with it.`;
       } else {
-        missingComponent = "Structure — answer has the right pieces but could be tighter";
-        coachingTip = "Lead with the result first, then explain how you got there — recruiters remember outcomes.";
+        missingComponent = "Structure, answer has the right pieces but could be tighter";
+        coachingTip = "Lead with the result first, then explain how you got there, recruiters remember outcomes.";
         howToAnswer = `Try the inverted structure: start with the outcome ("We increased X by Y"), then walk back through the situation and what you did to get there. This keeps the recruiter anchored on the impact.`;
       }
 
@@ -788,7 +837,7 @@ function buildThirtyDayPlan(input: {
     plan.push({
       week: "Week 1",
       focus: "Build a metrics bank",
-      action: `Write down 5 of your past projects or tickets and attach one real number to each (time saved, customers affected, % improved). You used a measurable number in only ${Math.round(metricRate * 100)}% of your answers — aim for every answer to have one.`,
+      action: `Write down 5 of your past projects or tickets and attach one real number to each (time saved, customers affected, % improved). You used a measurable number in only ${Math.round(metricRate * 100)}% of your answers, aim for every answer to have one.`,
     });
   } else {
     plan.push({
@@ -808,7 +857,7 @@ function buildThirtyDayPlan(input: {
     plan.push({
       week: "Week 2",
       focus: "Practice harder follow-ups",
-      action: "Have someone ask you 'what would you do differently?' after each story — this was not tested deeply enough in this session.",
+      action: "Have someone ask you 'what would you do differently?' after each story, this was not tested deeply enough in this session.",
     });
   }
 
@@ -840,18 +889,18 @@ function buildThirtyDayPlan(input: {
 // ─── Missed Opportunities (Interview Engine v2.0 spec) ──────────────────────
 // Concrete moments in the actual transcript where a stronger answer was
 // available but not given, distinct from "weaknesses" (which are about
-// patterns) — these are specific, one-time missed chances.
+// patterns), these are specific, one-time missed chances.
 function buildMissedOpportunities(answerInsights: AnswerInsight[], missingJdRequirements: string[]): string[] {
   const opportunities: string[] = [];
 
   const vagueWithGoodTopic = answerInsights.find((item) => item.wordCount < 25 && item.wordCount > 0);
   if (vagueWithGoodTopic) {
-    opportunities.push(`On "${vagueWithGoodTopic.question}" — the answer ended quickly. This looked like a topic you likely had more to say about; a fuller answer here would have helped your evidence score.`);
+    opportunities.push(`On "${vagueWithGoodTopic.question}", the answer ended quickly. This looked like a topic you likely had more to say about; a fuller answer here would have helped your evidence score.`);
   }
 
   const noResultAnswer = answerInsights.find((item) => item.ownershipPresent && !item.resultPresent);
   if (noResultAnswer) {
-    opportunities.push(`On "${noResultAnswer.question}" — you clearly owned the work but never stated what happened afterward. Closing with the outcome would have made this a much stronger answer.`);
+    opportunities.push(`On "${noResultAnswer.question}", you clearly owned the work but never stated what happened afterward. Closing with the outcome would have made this a much stronger answer.`);
   }
 
   if (missingJdRequirements.length) {
@@ -863,7 +912,7 @@ function buildMissedOpportunities(answerInsights: AnswerInsight[], missingJdRequ
 
 // ─── Recruiter-Voiced Interview Summary (Interview Engine v2.0 spec) ────────
 // Written in first person as the recruiter would actually write it in a
-// hiring debrief — not a third-person scorecard description.
+// hiring debrief, not a third-person scorecard description.
 function buildRecruiterSummary(input: {
   recruiterName: string;
   roleLabel: string;
@@ -878,23 +927,23 @@ function buildRecruiterSummary(input: {
   const { recruiterName, roleLabel, companyLabel, overallScore, answersCount, metricRate, ownershipRate, missingJdRequirements, biggestBlocker } = input;
 
   if (answersCount === 0) {
-    return `${recruiterName}: I didn't get enough from this session to form a real opinion — we need a full conversation before I can give you an honest read on ${roleLabel}.`;
+    return `${recruiterName}: I didn't get enough from this session to form a real opinion, we need a full conversation before I can give you an honest read on ${roleLabel}.`;
   }
 
   const openLine = overallScore >= 80
     ? `${recruiterName}: This was a strong conversation for the ${roleLabel} role at ${companyLabel}.`
     : overallScore >= 60
       ? `${recruiterName}: This was a solid start for the ${roleLabel} role, but there's real work to do before I'd be confident moving forward.`
-      : `${recruiterName}: I want to be direct with you — this session needs another pass before I could put you forward for ${roleLabel}.`;
+      : `${recruiterName}: I want to be direct with you, this session needs another pass before I could put you forward for ${roleLabel}.`;
 
   const evidenceLine = metricRate >= 0.6
     ? "You backed most of your answers with real numbers, which made it easy to believe your impact."
     : ownershipRate >= 0.6
-      ? "I could tell what you personally did in most answers, but I was often left wondering exactly how it landed — a number or outcome would have closed that gap."
+      ? "I could tell what you personally did in most answers, but I was often left wondering exactly how it landed, a number or outcome would have closed that gap."
       : "Several answers told me what happened around you more than what you specifically did, and that's the first thing I'd want to see fixed.";
 
   const jdLine = missingJdRequirements.length
-    ? ` One more thing — ${missingJdRequirements.slice(0, 2).join(" and ")} ${missingJdRequirements.length > 1 ? "are" : "is"} called out in the job description and didn't come up at all. Worth preparing a story for that before the real thing.`
+    ? ` One more thing, ${missingJdRequirements.slice(0, 2).join(" and ")} ${missingJdRequirements.length > 1 ? "are" : "is"} called out in the job description and didn't come up at all. Worth preparing a story for that before the real thing.`
     : "";
 
   return `${openLine} ${evidenceLine} The biggest thing holding the score back right now is: ${biggestBlocker.toLowerCase()}.${jdLine}`;
@@ -903,17 +952,51 @@ function buildRecruiterSummary(input: {
 function analyzeAnswer(question: string, answer: string, index: number): AnswerInsight {
   const words = countWords(answer);
   const fillerCount = countFillers(answer);
+  const hedgeCount = countHedges(answer);
   const metricPresent = hasMetric(answer);
   const ownershipPresent = hasOwnership(answer);
   const resultPresent = hasResult(answer);
   const redFlags = detectRedFlags(answer);
 
-  // structureScore: base 20: candidate earns points for substance, not just showing up
-  const structureScore = clamp(20 + (words >= 40 ? 18 : words >= 20 ? 8 : 0) + (words <= 180 ? 10 : 0) + (ownershipPresent ? 18 : 0) + (resultPresent ? 20 : 0) + (metricPresent ? 10 : 0) - (words > 230 ? 8 : 0) - (fillerCount >= 5 ? 6 : 0));
-  // evidenceScore: base 15: must be earned through actual content
-  const evidenceScore = clamp(15 + (metricPresent ? 38 : 0) + (ownershipPresent ? 22 : 0) + (resultPresent ? 20 : 0) + (words >= 60 ? 5 : 0) - (redFlags.length * 4));
-  // trustImpact: honest spread: good answers reward well, weak answers show clearly
-  const trustImpact = clamp(35 + (ownershipPresent ? 22 : -10) + (metricPresent ? 20 : -10) + (resultPresent ? 15 : -5) + (words >= 50 ? 5 : words < 20 ? -8 : 0) - (redFlags.length * 5) - (fillerCount >= 5 ? 5 : 0));
+  // Each sub-score starts from a credible baseline for a real, on-topic answer
+  // and is ADJUSTED by what's present/missing, rather than built up from near
+  // zero. A single missing signal lowers exactly one relevant dimension once.
+  const tooShort = words > 0 && words < 18;
+  const tooLong = words > 260;
+  const goodLength = words >= 40 && words <= 200;
+  const flagPenalty = Math.min(redFlags.length * 6, 14); // capped: no runaway stacking
+
+  // structureScore: STAR completeness + brevity (how organised the answer is)
+  const structureScore = clamp(
+    42
+    + (ownershipPresent ? 16 : 0)
+    + (resultPresent ? 16 : 0)
+    + (goodLength ? 12 : words >= 25 ? 4 : 0)
+    - (tooShort ? 18 : 0)
+    - (tooLong ? 12 : 0),
+  );
+  // evidenceScore: how much proof (metrics, outcomes) backs the answer
+  const evidenceScore = clamp(
+    32
+    + (metricPresent ? 34 : 0)
+    + (resultPresent ? 18 : 0)
+    + (ownershipPresent ? 8 : 0)
+    + (words >= 60 ? 4 : 0)
+    - (tooShort ? 14 : 0),
+  );
+  // trustImpact: would a recruiter believe/rely on this answer. A plausible,
+  // on-topic answer is credible-neutral (~52) and moves up with proof/ownership,
+  // down only for genuine concerns — it floors around 30 for any real answer so
+  // an engaged candidate never reads as "0% trustworthy".
+  const trustImpact = clamp(
+    52
+    + (ownershipPresent ? 16 : 0)
+    + (metricPresent ? 14 : 0)
+    + (resultPresent ? 8 : 0)
+    - (tooShort ? 16 : 0)
+    - flagPenalty,
+    metricPresent || ownershipPresent || resultPresent ? 34 : 22,
+  );
 
   let weakness = "Good foundation; make the answer sharper with stronger structure.";
   if (!metricPresent) weakness = "Missing measurable evidence.";
@@ -939,7 +1022,7 @@ function analyzeAnswer(question: string, answer: string, index: number): AnswerI
   if (!answer || /not captured/i.test(answer)) {
     rewrite = "Use a short STAR answer: situation, task, action, measurable result, and one sentence linking it to the role.";
   } else if (words < 25) {
-    rewrite = "Expand this answer: add the situation in one sentence, what you personally did, and one result. Aim for 60–90 seconds when spoken aloud.";
+    rewrite = "Expand this answer: add the situation in one sentence, what you personally did, and one result. Aim for 60-90 seconds when spoken aloud.";
   } else if (!ownershipPresent && !metricPresent) {
     rewrite = "Rewrite with 'I' as the subject: 'I decided...', 'I built...', 'I resolved...': then close with one number that shows the impact.";
   } else if (!metricPresent) {
@@ -961,6 +1044,7 @@ function analyzeAnswer(question: string, answer: string, index: number): AnswerI
     answer: cleanText(answer, "Answer not captured yet."),
     wordCount: words,
     fillerCount,
+    hedgeCount,
     metricPresent,
     ownershipPresent,
     resultPresent,
@@ -1082,9 +1166,11 @@ function buildRichReport(result: StoredResult, isPremium: boolean, jobDescriptio
     ? average(answerInsights.map((item) => item.trustImpact), 45)
     : numberOr(result.trustScore, numberOr(resultRecord.score?.trust, 0));
   const structureScore = answersCount > 0 ? average(answerInsights.map((item) => item.structureScore), 42) : 0;
-  // ownershipScore: honest: clear ownership gets high score, missing gets low score
+  // ownershipScore: share of answers with clear personal ownership, mapped to a
+  // 40–95 band so "little ownership" reads as a genuine weak signal rather than
+  // an implausible near-zero.
   const ownershipScore = answersCount > 0
-    ? average(answerInsights.map((item) => item.ownershipPresent ? 80 : 35), 50)
+    ? clamp(Math.round(40 + (answerInsights.filter((a) => a.ownershipPresent).length / answersCount) * 55))
     : 50;
 
   // ── 5-Category Scoring Rubric (Interview Engine v2.0 spec) ──────────────
@@ -1168,7 +1254,7 @@ function buildRichReport(result: StoredResult, isPremium: boolean, jobDescriptio
         : "Needs retry before real interview";
 
   // Formal hire recommendation per the spec's score bands (90-100 Outstanding
-  // Strong Hire down to 0-34 Strong No Hire) — shown alongside the existing
+  // Strong Hire down to 0-34 Strong No Hire), shown alongside the existing
   // recruiter-style decision phrasing above.
   const hiringRecommendation = hireRecommendationFromScore(overallScore);
 
@@ -1217,7 +1303,7 @@ function buildRichReport(result: StoredResult, isPremium: boolean, jobDescriptio
     redFlags,
     contradictions,
   });
-  // The email this performance would have earned. Deterministic — derived
+  // The email this performance would have earned. Deterministic, derived
   // from the committee memo so email and memo can never disagree.
   const verdictEmail = buildWorkZoVerdictEmail({
     memo: hiringCommittee,
@@ -1416,7 +1502,7 @@ function VerdictEmailCard({ email }: { email: WorkZoVerdictEmail }) {
       </div>
 
       <p className="mt-2 text-[10px] leading-4 text-muted">
-        Generated from this session&apos;s hiring committee decision — this is the outcome this performance would have earned, not a real employer email.
+        Generated from this session&apos;s hiring committee decision, this is the outcome this performance would have earned, not a real employer email.
       </p>
     </section>
   );
@@ -2303,7 +2389,7 @@ function EmailCapture({
         <div className="flex-1">
           <p className="font-black text-fg">Get the report and a 5-day plan by email</p>
           <p className="mt-1 text-sm leading-6 text-muted">
-            Get your score breakdown and a daily coaching prompt targeting your biggest gap —
+            Get your score breakdown and a daily coaching prompt targeting your biggest gap -
             {roleLabel ? ` specifically for ${roleLabel}` : " personalised to this session"}.
             No spam.
           </p>
@@ -2350,7 +2436,7 @@ export default function ResultsPage() {
   const [sessionsRemaining, setSessionsRemaining] = useState(1);
   const reportGate = useWorkZoAdvancedReportGate();
   // Guards results_viewed from firing more than once per mount. This event
-  // had no call site anywhere in the codebase before this fix — the
+  // had no call site anywhere in the codebase before this fix, the
   // dashboard's "Results viewed" number was reading only stale historical
   // rows from before a past refactor removed whatever used to fire it.
   const resultsViewedTrackedRef = useRef(false);
@@ -2363,6 +2449,19 @@ export default function ResultsPage() {
       const localResult = readStoredResult();
       const dbResult = await fetchLatestDbInterviewResult();
       const sourceResult = chooseMostCompleteResult(dbResult, localResult);
+
+      // Candidate name resolution: the report and verdict email greet the
+      // candidate by name, but an older or DB-sourced result row can be missing
+      // it. Backfill from the canonical interview setup (the CV parser's
+      // resumeProfile.basics.name) so the name is correct on the results page
+      // even when it wasn't saved onto the result itself.
+      if (!isValidCandidateName((sourceResult as Record<string, unknown>).candidateName)) {
+        // Prefer the CV-parsed name from setup; if none is valid either, clear
+        // the field entirely so the report/email greet with "Hi," rather than a
+        // placeholder like "Unknown" or a CV section header ("Achievements").
+        (sourceResult as Record<string, unknown>).candidateName =
+          getCandidateDisplayName(storedSetup) || "";
+      }
       const nextLoadState: ResultsLoadState = dbResult
         ? (countReportableAnswers(localResult) > countReportableAnswers(dbResult) ? "local" : "db")
         : Object.keys(localResult).length
@@ -2596,7 +2695,7 @@ export default function ResultsPage() {
 
         <section className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard icon={MessageSquareText} label="Communication" value={report.communicationScore} note="Clarity, answer length, and structure." />
-          <MetricCard icon={Gauge} label="Confidence" value={report.confidenceScore} note="Pace, ownership, certainty, and delivery signals." />
+          <MetricCard icon={Gauge} label="Confidence" value={report.confidenceScore} note="Certainty and decisiveness: pace, completeness, and few hedges or fillers." />
           <MetricCard icon={Target} label="Role Competency" value={report.roleCompetencyScore} note="How relevant your evidence sounded for the role." />
           <MetricCard icon={ShieldCheck} label="Trust Signal" value={report.trustScore} note="Consistency, ownership, and proof strength." />
         </section>
@@ -2741,7 +2840,7 @@ export default function ResultsPage() {
                 <h2 className="flex items-center gap-2 text-base font-black"><ShieldCheck className="h-4 w-4 text-success" />Delivery signals</h2>
                 <p className="mt-2 text-xs leading-5 text-muted">Estimated from transcript length, word count, and filler word detection.</p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-4">
-                  <div className="rounded-xl bg-canvas-soft p-3"><p className="text-xs text-muted">Speaking pace</p><p className="mt-1.5 text-xl font-black">{report.averageWpm || "—"} <span className="text-sm text-muted">WPM</span></p><p className="mt-0.5 text-[10px] text-muted">{report.averageWpm ? (report.averageWpm >= 110 && report.averageWpm <= 170 ? "Good pace" : report.averageWpm < 110 ? "Too slow" : "Too fast") : "Not measured"}</p></div>
+                  <div className="rounded-xl bg-canvas-soft p-3"><p className="text-xs text-muted">Speaking pace</p><p className="mt-1.5 text-xl font-black">{report.averageWpm || "-"} <span className="text-sm text-muted">WPM</span></p><p className="mt-0.5 text-[10px] text-muted">{report.averageWpm ? (report.averageWpm >= 110 && report.averageWpm <= 170 ? "Good pace" : report.averageWpm < 110 ? "Too slow" : "Too fast") : "Not measured"}</p></div>
                   {(result.fillerWordCount ?? 0) >= 0 && (
                     <div className="rounded-xl bg-canvas-soft p-3"><p className="text-xs text-muted">Filler words</p><p className="mt-1.5 text-xl font-black">{result.fillerWordCount ?? 0}</p><p className="mt-0.5 text-[10px] text-muted">{(result.fillerWordCount ?? 0) === 0 ? "None detected" : (result.fillerWordCount ?? 0) <= 3 ? "Low: good" : (result.fillerWordCount ?? 0) <= 8 ? "Moderate" : "High: work on this"}</p></div>
                   )}
@@ -2910,7 +3009,7 @@ export default function ResultsPage() {
             {report.starCoaching.length > 0 && (
               <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
                 <h2 className="flex items-center gap-2 text-base font-black"><Star className="h-4 w-4 text-brand" />STAR coaching</h2>
-                <p className="mt-1 text-xs leading-5 text-muted">Situation, Task, Action, Result — where each answer fell short and how to fix it.</p>
+                <p className="mt-1 text-xs leading-5 text-muted">Situation, Task, Action, Result, where each answer fell short and how to fix it.</p>
                 <div className="mt-4 space-y-3">
                   {report.starCoaching.map((item, index) => (
                     <div key={index} className="rounded-xl border border-line bg-canvas-soft p-3">
@@ -2935,7 +3034,7 @@ export default function ResultsPage() {
             <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
               <h2 className="flex items-center gap-2 text-base font-black"><Sparkles className="h-4 w-4 text-brand" />30-day improvement plan</h2>
 
-            {/* Pro feature CTAs — highlighted buttons, not more content */}
+            {/* Pro feature CTAs, highlighted buttons, not more content */}
             {isPremium && (
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 <Link

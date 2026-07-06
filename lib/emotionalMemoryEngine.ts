@@ -132,7 +132,7 @@ export function getMemoryBasedRecruiterLine(
   }
 
   if (memory.repeatedWeaknesses.includes("vague_answer")) {
-    return "I’m noticing a pattern here — your answers are still a bit general. What exactly did you do?";
+    return "I’m noticing a pattern here, your answers are still a bit general. What exactly did you do?";
   }
 
   if (memory.repeatedWeaknesses.includes("weak_clarity")) {

@@ -17,7 +17,7 @@ export type InterviewUiState = {
   transcriptCollapsed: boolean;
   copilotEnabled: boolean;
   isPremiumUnlocked?: boolean;
-  // Technical mode — shows the code editor panel for premium users
+  // Technical mode, shows the code editor panel for premium users
   technicalMode?: boolean;
 };
 

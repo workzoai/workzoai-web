@@ -30,8 +30,8 @@ const EUR_PRICES: RegionalPriceSet = {
   countryHint: "EU",
   currency: "EUR",
   free: { monthly: "€0", yearly: "€0" },
-  premium: { monthly: "€19.99", yearly: "€149.99", regularMonthly: "€39.99", regularYearly: "€239.88", savings: "Save about 37% yearly" },
-  premium_pro: { monthly: "€39.99", yearly: "€299.99", regularMonthly: "€59.99", regularYearly: "€479.88", savings: "Save about 37% yearly" },
+  premium: { monthly: "€29.99", yearly: "€224.99", regularMonthly: "€49.99", regularYearly: "€359.88", savings: "Save about 37% yearly" },
+  premium_pro: { monthly: "€59.99", yearly: "€449.99", regularMonthly: "€99.99", regularYearly: "€719.88", savings: "Save about 37% yearly" },
 };
 
 const REGIONAL_PRICES: Record<string, RegionalPriceSet> = {
@@ -40,36 +40,36 @@ const REGIONAL_PRICES: Record<string, RegionalPriceSet> = {
     countryHint: "United States",
     currency: "USD",
     free: { monthly: "$0", yearly: "$0" },
-    premium: { monthly: "$19.99", yearly: "$149.99", regularMonthly: "$39.99", regularYearly: "$239.88", savings: "Save about 37% yearly" },
-    premium_pro: { monthly: "$39.99", yearly: "$299.99", regularMonthly: "$59.99", regularYearly: "$479.88", savings: "Save about 37% yearly" },
+    premium: { monthly: "$29.99", yearly: "$224.99", regularMonthly: "$49.99", regularYearly: "$359.88", savings: "Save about 37% yearly" },
+    premium_pro: { monthly: "$59.99", yearly: "$449.99", regularMonthly: "$99.99", regularYearly: "$719.88", savings: "Save about 37% yearly" },
   },
   GBP: {
     countryHint: "United Kingdom",
     currency: "GBP",
     free: { monthly: "£0", yearly: "£0" },
-    premium: { monthly: "£16.99", yearly: "£129.99", regularMonthly: "£32.99", regularYearly: "£203.88", savings: "Save about 36% yearly" },
-    premium_pro: { monthly: "£34.99", yearly: "£249.99", regularMonthly: "£49.99", regularYearly: "£419.88", savings: "Save about 40% yearly" },
+    premium: { monthly: "£24.99", yearly: "£189.99", regularMonthly: "£42.99", regularYearly: "£299.88", savings: "Save about 37% yearly" },
+    premium_pro: { monthly: "£49.99", yearly: "£374.99", regularMonthly: "£79.99", regularYearly: "£599.88", savings: "Save about 37% yearly" },
   },
   INR: {
     countryHint: "India",
     currency: "INR",
     free: { monthly: "₹0", yearly: "₹0" },
-    premium: { monthly: "₹1,699", yearly: "₹12,499", regularMonthly: "₹3,399", regularYearly: "₹20,388", savings: "Save about 38% yearly" },
-    premium_pro: { monthly: "₹3,399", yearly: "₹24,999", regularMonthly: "₹4,999", regularYearly: "₹40,788", savings: "Save about 38% yearly" },
+    premium: { monthly: "₹2,499", yearly: "₹18,999", regularMonthly: "₹4,199", regularYearly: "₹29,988", savings: "Save about 37% yearly" },
+    premium_pro: { monthly: "₹4,999", yearly: "₹37,499", regularMonthly: "₹8,299", regularYearly: "₹59,988", savings: "Save about 37% yearly" },
   },
   CAD: {
     countryHint: "Canada",
     currency: "CAD",
     free: { monthly: "CA$0", yearly: "CA$0" },
-    premium: { monthly: "CA$27.99", yearly: "CA$199.99", regularMonthly: "CA$54.99", regularYearly: "CA$335.88", savings: "Save about 40% yearly" },
-    premium_pro: { monthly: "CA$54.99", yearly: "CA$399.99", regularMonthly: "CA$79.99", regularYearly: "CA$659.88", savings: "Save about 39% yearly" },
+    premium: { monthly: "CA$41.99", yearly: "CA$314.99", regularMonthly: "CA$69.99", regularYearly: "CA$503.88", savings: "Save about 37% yearly" },
+    premium_pro: { monthly: "CA$79.99", yearly: "CA$599.99", regularMonthly: "CA$129.99", regularYearly: "CA$959.88", savings: "Save about 37% yearly" },
   },
   AUD: {
     countryHint: "Australia",
     currency: "AUD",
     free: { monthly: "A$0", yearly: "A$0" },
-    premium: { monthly: "A$29.99", yearly: "A$229.99", regularMonthly: "A$59.99", regularYearly: "A$359.88", savings: "Save about 36% yearly" },
-    premium_pro: { monthly: "A$59.99", yearly: "A$449.99", regularMonthly: "A$89.99", regularYearly: "A$719.88", savings: "Save about 37% yearly" },
+    premium: { monthly: "A$44.99", yearly: "A$339.99", regularMonthly: "A$74.99", regularYearly: "A$539.88", savings: "Save about 37% yearly" },
+    premium_pro: { monthly: "A$89.99", yearly: "A$674.99", regularMonthly: "A$149.99", regularYearly: "A$1,079.88", savings: "Save about 37% yearly" },
   },
 };
 
@@ -139,7 +139,7 @@ export function getWorkZoDisplayPrice(): WorkZoDisplayPrice {
   return {
     countryHint: premium.countryHint,
     currency: premium.currency,
-    regular: premium.regular || "€39.99",
+    regular: premium.regular || "€49.99",
     opening: premium.amount,
     billingNote: "Charged in the Stripe price configured for your selected plan.",
   };

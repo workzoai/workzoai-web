@@ -108,7 +108,7 @@ export function evaluateAdaptiveState(
     pressureLevel = Math.max(15, pressureLevel - 10);
 
     recruiterReaction =
-      "Good — now I can see what you owned and what changed. Let’s go one level deeper.";
+      "Good, now I can see what you owned and what changed. Let’s go one level deeper.";
 
     interruptionChance = 5;
 

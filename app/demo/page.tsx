@@ -38,7 +38,7 @@ const questionBank: Record<RoleId, Record<RecruiterId, string[]>> = {
   },
   "software-engineer": {
     sarah: ["Tell me about a bug you found in production. How did you diagnose and fix it?", "How do you decide when to refactor vs rewrite a piece of code?", "Describe a feature you built that you are most proud of."],
-    daniel: ["Walk me through a technical decision you made that had a significant performance impact.", "How do you approach code reviews — both giving and receiving feedback?", "Give me an example of how you reduced technical debt in a production system."],
+    daniel: ["Walk me through a technical decision you made that had a significant performance impact.", "How do you approach code reviews, both giving and receiving feedback?", "Give me an example of how you reduced technical debt in a production system."],
     priya: ["How do you handle ambiguous requirements when the product direction is unclear?", "Tell me about a time you had to ship fast and what trade-offs you made.", "How have you contributed to improving engineering culture at a previous company?"],
     markus: ["Describe your approach to writing documentation that stays up to date.", "How do you ensure compliance and security standards are met in your code?", "Walk me through how you collaborate with cross-functional teams on a large feature."],
   },
@@ -102,7 +102,7 @@ export default function DemoPage() {
             Try a recruiter question
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-muted">
-            Pick a role and recruiter to hear a sample question. In the real interview, questions are built from <em>your</em> CV — not a generic bank.
+            Pick a role and recruiter to hear a sample question. In the real interview, questions are built from <em>your</em> CV, not a generic bank.
           </p>
         </div>
 
@@ -230,7 +230,7 @@ export default function DemoPage() {
         <div className="mt-14 rounded-lg border border-brand/20 bg-brand/[0.07] p-8 text-center">
           <h2 className="text-3xl font-black tracking-tight">The real interview reads your CV.</h2>
           <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-muted">
-            The demo shows sample questions. The real interview uses your actual CV and job description — so every follow-up is specific to your experience.
+            The demo shows sample questions. The real interview uses your actual CV and job description, so every follow-up is specific to your experience.
           </p>
           <Link
             href="/onboarding"
