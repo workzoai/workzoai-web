@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createWorkZoStripeClient } from "@/lib/workzoStripe";
-import { getWorkZoServerPlan } from "@/lib/workzoServerPlan";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { getCurrentWorkZoUserSubscription } from "@/lib/workzoSubscription";
 import {
   getWorkZoTopUpPack,
@@ -46,8 +46,8 @@ export async function POST(request: Request) {
     }
 
     // Server-resolved plan, never from the request body.
-    const plan = await getWorkZoServerPlan();
-    if (!planCanBuyTopUps(plan)) {
+    const resolved = await resolveWorkZoServerPlan();
+    if (!planCanBuyTopUps(resolved.plan)) {
       return NextResponse.json(
         { error: "Voice top-ups are available on Premium and Premium Pro. Upgrade first to unlock them.", code: "plan_required" },
         { status: 403 },
