@@ -21,8 +21,6 @@ import {
   Video,
 } from "lucide-react";
 import AuthNavButton from "@/components/auth/AuthNavButton";
-import { SectionHeading } from "@/components/marketing/kit";
-import B2BLeadForm from "@/components/marketing/B2BLeadForm";
 import { type WorkZoBillingCycle, type WorkZoPlanType } from "@/lib/workzoPlanLimits";
 import { getWorkZoDisplayPrices, getWorkZoRegionalPriceSet } from "@/lib/workzoLocalizedPricing";
 import {
@@ -331,11 +329,7 @@ export default function PricingPage() {
   }
 
   function requestDemo() {
-    const subject = encodeURIComponent("WorkZo AI Enterprise / Education Demo Request");
-    const body = encodeURIComponent(
-      "Hi WorkZo AI team,\n\nI would like to request a demo for Enterprise / Education pricing.\n\nOrganization name:\nCohort size:\nUse case:\nPreferred demo time:\n\nThank you.",
-    );
-    window.location.href = `mailto:support@workzoai.com?subject=${subject}&body=${body}`;
+    window.location.href = "/request-demo";
   }
 
   return (
@@ -588,17 +582,6 @@ export default function PricingPage() {
               <p className="mt-2 text-sm leading-6 text-muted">{item.text}</p>
             </div>
           ))}
-        </section>
-
-        <section id="contact" className="mx-auto mt-16 max-w-3xl">
-          <SectionHeading
-            eyebrow="Request a demo"
-            title="Bring WorkZo AI to your team or cohort"
-            intro="Enterprise and Education plans are tailored to your organization. Tell us your cohort size, target roles, and timeline — we reply within one business day."
-          />
-          <div className="mt-8">
-            <B2BLeadForm source="pricing" />
-          </div>
         </section>
       </div>
     </main>
