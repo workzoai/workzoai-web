@@ -43,6 +43,24 @@ export type InterviewPhase =
   | "candidate_questions"
   | "closing";
 
+/**
+ * Structural result of comparing the candidate's professional history (CV)
+ * against the domain the interview is FOR (JD + target role). When the target
+ * domain is not backed by any prior professional role, the interview must
+ * source target-skill evidence from study/projects/transferable work rather
+ * than demanding on-the-job examples that cannot exist. This is detected once,
+ * deterministically, and rendered as a binding directive every persona obeys.
+ */
+export type CareerTransition = {
+  isChanger: boolean;
+  targetDomain: string;           // domain the interview is FOR (from JD/role)
+  originDomain: string | null;    // dominant domain of the CV's work history
+  originLabel: string;            // human phrase for the prior field
+  transferableThemes: string;     // prior-field strengths worth probing
+  evidenceFromEducation: boolean; // target skills present, but only via study/projects
+  confidence: "low" | "medium" | "high";
+};
+
 export type InterviewBlueprint = {
   version: 3;
   targetRole: string;
@@ -51,6 +69,7 @@ export type InterviewBlueprint = {
   phasePlan: InterviewPhase[];
   jdSignals: string[];            // JD-derived focus lines (70% source)
   cvSignals: string[];            // CV-derived supporting lines (30% source)
+  transition?: CareerTransition;  // present when the engine ran the check
   createdAtIso: string;
 };
 
@@ -191,14 +210,245 @@ const LEADERSHIP_PATTERN =
 
 // ── Blueprint generation ─────────────────────────────────────────────────────
 
-function detectDomain(jd: string, targetRole: string): DomainTemplate | null {
-  const haystack = `${targetRole}\n${jd}`;
+/**
+ * Core domain matcher over arbitrary text. `exclude` lets callers ignore a
+ * domain (used so target-skill keywords appearing in old CV bullets can't
+ * masquerade as the ORIGIN domain).
+ */
+function detectDomainFromText(text: string, exclude?: string): DomainTemplate | null {
+  if (!text) return null;
   let best: { t: DomainTemplate; hits: number } | null = null;
   for (const t of DOMAIN_TEMPLATES) {
-    const hits = (haystack.match(new RegExp(t.patterns.source, "gi")) || []).length;
+    if (exclude && t.domain === exclude) continue;
+    const hits = (text.match(new RegExp(t.patterns.source, "gi")) || []).length;
     if (hits > 0 && (!best || hits > best.hits)) best = { t, hits };
   }
   return best ? best.t : null;
+}
+
+function detectDomain(jd: string, targetRole: string): DomainTemplate | null {
+  return detectDomainFromText(`${targetRole}\n${jd}`);
+}
+
+// ── STEP 12b, Career-change detection (structural, global) ──────────────────
+// The observed failure: the interview probes the TARGET domain's technical
+// depth (e.g. "give me a specific on-the-job example of solving X with SQL")
+// when the candidate's professional history is in a DIFFERENT field and the
+// target skills come from a bootcamp/course/projects. The candidate can only
+// say "I don't have that experience" and disengages ("next question").
+//
+// Fix condition (all structural, no candidate-specific content):
+//   targetDomain is known, AND
+//   no JOB TITLE in the CV belongs to the target domain, AND
+//   (explicit transition language is present OR the target skills clearly
+//    appear only via study/projects OR a different professional domain exists).
+// Origin domain (for transferable-strength guidance) is the CV work history's
+// dominant domain, excluding the target so acquired-skill mentions don't count.
+
+// Explicit "I am switching careers" language across the platform's languages.
+const TRANSITION_MARKERS =
+  /\b(transition(?:ing)?\s+(?:in)?to|career\s+chang|changing\s+careers?|pivot(?:ing)?\s+(?:in)?to|re[- ]?skill|aspiring|looking\s+to\s+(?:move|break)\s+into|after\s+completing\s+(?:a\s+|my\s+)?(?:bootcamp|boot\s+camp|course|certification|degree|retraining)|ex[- ]|former\b|umschulung|quereinsteiger(?:in)?|neuorientierung|nach\s+abschluss\s+(?:des|meines)|reconversion|en\s+reconversion|reconvertir|reconversión|cambio\s+de\s+carrera|transición|riconversione|cambio\s+di\s+carriera|omscholing|carrièreswitch)\b/i;
+
+// Section headers that start the work-history region (multilingual).
+const EXPERIENCE_HEADER =
+  /^\s*(?:work\s+|professional\s+|employment\s+)?(?:experience|history|employment|berufserfahrung|werdegang|erfahrung|expérience(?:s)?\s*(?:professionnelle)?|parcours|experiencia(?:s)?\s*(?:profesional)?|esperienza(?:e)?\s*(?:professionale|lavorativa)?|werkervaring|ervaring)\b/i;
+
+// Headers that END the work-history region (so acquired skills / study don't
+// leak into origin-domain detection).
+const NON_EXPERIENCE_HEADER =
+  /^\s*(?:skills?|technical\s+skills?|education|profile|summary|about|languages?|projects?|certifications?|interests?|references?|kenntnisse|f[äa]higkeiten|ausbildung|bildung|profil|zusammenfassung|sprachen|projekte|compétences|formation|éducation|profil|langues|projets|habilidades|competencias|educación|formación|perfil|idiomas|proyectos|competenze|istruzione|formazione|profilo|lingue|progetti|vaardigheden|opleiding|talen|projecten)\b/i;
+
+// Common role-title nouns → line looks like a job title (multilingual-ish).
+const TITLE_NOUN =
+  /\b(engineer|developer|analyst|scientist|manager|specialist|consultant|designer|administrator|coordinator|representative|associate|assistant|lead|director|officer|technician|accountant|nurse|teacher|architect|advisor|strateg(?:ist|y)|executive|agent|supervisor|intern|trainee|ingenieur|entwickler|berater|leiter|assistent|techniker|ingénieur|développeur|responsable|chargé|técnico|ingeniero|desarrollador|responsabile|tecnico|ontwikkelaar)\b/i;
+
+const DATE_RANGE =
+  /\b(19|20)\d{2}\b[^\n]{0,20}?[-–—][^\n]{0,20}?((19|20)\d{2}|present|current|now|heute|aktuell|présent|actuel|presente|actual|heden)\b|\b\d{1,2}\/(19|20)\d{2}\b/i;
+
+// Prior-field strengths worth probing, keyed by the domain templates already
+// defined above. Any origin domain resolves to concrete transferable themes;
+// an unknown origin degrades to a generic (still useful) phrase.
+const TRANSFERABLE_THEMES: Record<string, string> = {
+  software_engineering: "systematic debugging, ownership of technical problems, working from requirements",
+  customer_success: "customer communication, stakeholder handling, turning messy requirements into clear outcomes",
+  sales: "communicating value, resilience, working to targets, reading stakeholders",
+  product_management: "prioritisation, cross-functional coordination, evidence-based decisions",
+  data: "analytical rigour, translating findings for non-technical audiences",
+  marketing: "audience insight, experimentation, communicating results",
+  operations: "process discipline, continuous improvement, coordinating across teams",
+  hr_people: "empathy, stakeholder management, handling sensitive situations",
+  finance: "accuracy, analytical rigour, business partnering",
+};
+
+const DOMAIN_LABEL: Record<string, string> = {
+  software_engineering: "software engineering",
+  customer_success: "customer-facing / support",
+  sales: "sales",
+  product_management: "product",
+  data: "data / analytics",
+  marketing: "marketing",
+  operations: "operations",
+  hr_people: "people / HR",
+  finance: "finance",
+};
+
+/** Slice the CV down to its work-history region so acquired skills/study in
+ *  other sections don't pollute origin-domain detection. Falls back to lines
+ *  around date ranges, then to the whole CV, so it works on messy text too. */
+function extractExperienceRegion(cvText: string): string {
+  const lines = cvText.split(/\n+/).map((l) => l.trim());
+  const start = lines.findIndex((l) => EXPERIENCE_HEADER.test(l));
+  if (start >= 0) {
+    const region: string[] = [];
+    for (let i = start + 1; i < lines.length; i++) {
+      if (NON_EXPERIENCE_HEADER.test(lines[i])) break;
+      region.push(lines[i]);
+    }
+    if (region.join(" ").trim().length > 0) return region.join("\n");
+  }
+  // Fallback: date-range lines plus their neighbours (title context).
+  const near: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (DATE_RANGE.test(lines[i])) {
+      near.push(lines[Math.max(0, i - 1)], lines[i], lines[Math.min(lines.length - 1, i + 1)]);
+    }
+  }
+  return near.length ? Array.from(new Set(near)).join("\n") : cvText;
+}
+
+/** Lines that look like job titles within the experience region. */
+function extractTitleLines(experienceRegion: string): string[] {
+  return experienceRegion
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter((l) => l.length >= 3 && l.length <= 70 && TITLE_NOUN.test(l));
+}
+
+// Seniority / filler words that carry no field meaning, stripped before
+// comparing a target role against the candidate's past job titles.
+const ROLE_STOPWORDS = new Set([
+  "junior", "senior", "lead", "principal", "staff", "entry", "level", "mid", "associate",
+  "assistant", "trainee", "intern", "graduate", "the", "a", "an", "of", "for", "and", "or",
+  "to", "in", "with", "i", "ii", "iii", "iv", "jr", "sr", "role", "position",
+]);
+
+// Role nouns so common they don't prove two roles are the SAME field
+// (Financial Analyst vs Data Analyst both contain "analyst"). Matching on
+// these alone must not count as "already held the target role".
+const GENERIC_ROLE_NOUNS = new Set([
+  "analyst", "engineer", "manager", "specialist", "associate", "coordinator", "consultant",
+  "officer", "developer", "administrator", "lead", "director", "representative", "agent",
+  "executive", "supervisor", "advisor", "assistant", "technician", "architect", "designer",
+]);
+
+/** Distinctive (field-bearing) words from the target role, e.g. "Junior Data
+ *  Analyst" → ["data"]; "Backend Engineer" → ["backend"]. Generic role nouns
+ *  and seniority words are dropped so matches actually indicate the field. */
+function distinctiveRoleTokens(role: string): string[] {
+  return (role || "")
+    .toLowerCase()
+    .split(/[^a-zà-ÿ0-9+#]+/)
+    .filter((w) => w.length >= 3 && !ROLE_STOPWORDS.has(w) && !GENERIC_ROLE_NOUNS.has(w));
+}
+
+/**
+ * Has the candidate already held a job of the TARGET kind? Library-free
+ * (target-role's own distinctive words appear in a past title) with the
+ * domain library as an optional extra path. Erring toward "yes" here is the
+ * safe direction: it suppresses false career-change flags.
+ */
+function heldTargetRoleBefore(
+  titleLines: string[],
+  targetRole: string,
+  targetDomain: string,
+  targetTemplate: DomainTemplate | null,
+): boolean {
+  const titleText = titleLines.join("\n").toLowerCase();
+  // Library path (only when the target maps to a known domain).
+  if (targetTemplate && targetDomain !== "general") {
+    if (new RegExp(targetTemplate.patterns.source, "i").test(titleText)) return true;
+    if (titleLines.some((t) => detectDomainFromText(t)?.domain === targetDomain)) return true;
+  }
+  // Library-free path: a past title shares a distinctive field word with the
+  // target role (e.g. a "Data Support Analyst" applying for "Data Analyst").
+  const focus = distinctiveRoleTokens(targetRole);
+  if (focus.length && focus.some((tok) => titleText.includes(tok))) return true;
+  return false;
+}
+
+export function detectCareerTransition(input: {
+  jobDescription: string;
+  cvText: string;
+  targetRole: string;
+}): CareerTransition {
+  const jd = input.jobDescription || "";
+  const cv = input.cvText || "";
+  const targetRole = input.targetRole || "";
+  const targetTemplate = detectDomain(jd, targetRole);
+  const targetDomain = targetTemplate?.domain || "general";
+  const hasLibraryTarget = !!targetTemplate && targetDomain !== "general";
+
+  const inactive = (): CareerTransition => ({
+    isChanger: false,
+    targetDomain,
+    originDomain: null,
+    originLabel: "their prior field",
+    transferableThemes: TRANSFERABLE_THEMES[targetDomain] || "communication, problem solving, ownership",
+    evidenceFromEducation: false,
+    confidence: "low",
+  });
+
+  // A CV is the only hard requirement. The target role need NOT be one of the
+  // known domains — the explicit-transition and role-title paths below are
+  // fully library-independent, so this works for ANY role.
+  if (!cv.trim()) return inactive();
+
+  const experienceRegion = extractExperienceRegion(cv);
+  const titleLines = extractTitleLines(experienceRegion);
+  const titleText = titleLines.join("\n");
+  const workHistoryExists = titleLines.length > 0 || DATE_RANGE.test(experienceRegion);
+
+  // Already held a target-kind role? Then it isn't a career change.
+  if (heldTargetRoleBefore(titleLines, targetRole, targetDomain, targetTemplate)) return inactive();
+
+  // Origin domain (enrichment only). Title-derived is trustworthy enough to
+  // NAME to the candidate; region-derived is used only to decide a different
+  // field exists, never to assert one (a stray tool word in an old bullet
+  // must not become "you were an X").
+  const originFromTitle = detectDomainFromText(titleText, targetDomain)?.domain || null;
+  const originFromRegion = detectDomainFromText(experienceRegion, targetDomain)?.domain || null;
+  const namedOrigin = originFromTitle;
+  const anyOrigin = originFromTitle || originFromRegion;
+
+  // ── Signals (each independently sufficient; all safe on any role) ──────────
+  // A) Explicit transition language — fully global, no library needed.
+  const explicit = TRANSITION_MARKERS.test(cv);
+  // B) A different KNOWN professional domain vs a KNOWN target domain.
+  const differentProfessionalDomain = hasLibraryTarget && !!anyOrigin && anyOrigin !== targetDomain;
+  // C) Target-domain skills present but never held as a job (covered targets).
+  const targetRe = hasLibraryTarget ? new RegExp(targetTemplate!.patterns.source, "i") : null;
+  const targetSkillsPresent = targetRe ? targetRe.test(cv) : false;
+  const skillsOnlyFromStudy =
+    targetSkillsPresent && !!targetRe && !targetRe.test(experienceRegion);
+
+  const isChanger = workHistoryExists && (explicit || differentProfessionalDomain || skillsOnlyFromStudy);
+  if (!isChanger) return inactive();
+
+  const signalCount = [explicit, differentProfessionalDomain, skillsOnlyFromStudy].filter(Boolean).length;
+  const confidence: CareerTransition["confidence"] = signalCount >= 2 ? "high" : "medium";
+
+  const GENERIC_THEMES =
+    "communication, stakeholder handling, problem solving, and domain knowledge carried over from their prior work";
+
+  return {
+    isChanger: true,
+    targetDomain,
+    originDomain: namedOrigin,
+    originLabel: namedOrigin ? DOMAIN_LABEL[namedOrigin] || "their prior field" : "their prior field",
+    transferableThemes: (namedOrigin && TRANSFERABLE_THEMES[namedOrigin]) || GENERIC_THEMES,
+    evidenceFromEducation: targetSkillsPresent,
+    confidence,
+  };
 }
 
 /** Extract short JD requirement lines (bullets / requirement sentences). */
@@ -240,6 +490,15 @@ export function generateInterviewBlueprint(input: {
   const template = detectDomain(jd, targetRole);
   let competencies = (template ? template.competencies : UNIVERSAL_COMPETENCIES).map((c) => ({ ...c }));
 
+  // The domain template's first competency is its primary technical/depth axis
+  // (e.g. analytical_depth, technical_depth). We cap its question budget for
+  // career changers so the interview doesn't spend three forced turns demanding
+  // professional depth the candidate has never had the chance to build.
+  const primaryTechnicalId = competencies[0]?.id;
+
+  // STEP 12b: detect a career change once, deterministically.
+  const transition = detectCareerTransition({ jobDescription: jd, cvText: cv, targetRole });
+
   // Mandatory global interview dimensions. These are required for every job,
   // regardless of persona. They fix the observed gap where interviews skipped
   // "why this role/company" and never explored missing JD requirements.
@@ -251,6 +510,14 @@ export function generateInterviewBlueprint(input: {
   if (jd.trim() && cv.trim() && !competencies.some((c) => c.id === "resume_jd_gap")) {
     competencies = competencies.map((c) => ({ ...c, weight: Math.round(c.weight * 0.85) }));
     competencies.push({ id: "resume_jd_gap", label: "Resume vs JD Gaps & Missing Requirements", weight: 15 });
+  }
+
+  // Career changers: add a first-class competency for transferable strengths
+  // from the prior field, so the interview budgets real time for evidence the
+  // candidate can actually provide (rebalancing weights like the blocks above).
+  if (transition.isChanger && !competencies.some((c) => c.id === "transferable_experience")) {
+    competencies = competencies.map((c) => ({ ...c, weight: Math.round(c.weight * 0.85) }));
+    competencies.push({ id: "transferable_experience", label: "Transferable Strengths from Prior Field", weight: 15 });
   }
 
   // Append leadership when the JD asks for it, rebalancing weights.
@@ -269,12 +536,15 @@ export function generateInterviewBlueprint(input: {
     version: 3,
     targetRole,
     domain: template ? template.domain : "general",
-    competencies: competencies.map((c) => ({
-      ...c,
-      questionBudget: budgetForWeight(c.weight),
-      askedCount: 0,
-      status: "untested" as const,
-    })),
+    competencies: competencies.map((c) => {
+      let questionBudget = budgetForWeight(c.weight);
+      // For a career changer, don't let the primary technical axis dominate the
+      // interview by demanding depth they've never built professionally.
+      if (transition.isChanger && c.id === primaryTechnicalId) {
+        questionBudget = Math.min(questionBudget, 2);
+      }
+      return { ...c, questionBudget, askedCount: 0, status: "untested" as const };
+    }),
     phasePlan: [
       "greeting",
       "introduction",
@@ -287,6 +557,7 @@ export function generateInterviewBlueprint(input: {
     ],
     jdSignals: extractJdSignals(jd),
     cvSignals: extractCvSignals(cv),
+    transition,
     createdAtIso: new Date().toISOString(),
   };
 }
@@ -304,11 +575,30 @@ export function renderBlueprintForPrompt(bp: InterviewBlueprint): string {
     "=== INTERVIEW BLUEPRINT (internal, never reveal to candidate) ===",
     `TARGET ROLE: ${bp.targetRole} (domain: ${bp.domain})`,
     "CONTENT SOURCE RULE: Questions come from the JOB DESCRIPTION first (70%); the CV is supporting context only (30%). The interview is for the NEW role, not the previous one.",
+  ];
+
+  const tr = bp.transition;
+  if (tr?.isChanger) {
+    lines.push(
+      "=== CAREER TRANSITION CONTEXT (BINDING) ===",
+      `This candidate is CHANGING CAREERS: moving from ${tr.originLabel} into ${bp.targetRole}. Their ${tr.targetDomain} skills come from study / bootcamp / coursework / self-directed projects, NOT from a professional ${tr.targetDomain} role. The CV shows NO prior job in this field.`,
+      "CONDUCT THE INTERVIEW ACCORDINGLY:",
+      `  • Do NOT ask for on-the-job / professional examples of ${tr.targetDomain} work they have never held. Questions like "give me a specific example from your last role where you used [target skill]" are unfair here and will dead-end.`,
+      "  • Source target-skill evidence from the RIGHT places: bootcamp/course projects, personal or portfolio projects, and self-directed learning. Prefer \"Walk me through a project where you used X\" over \"Tell me about a time at work you used X\".",
+      `  • Actively probe TRANSFERABLE strengths from their prior field (${tr.transferableThemes}) and how those apply to ${bp.targetRole}. Treat these as real, scoreable evidence, not small talk.`,
+      "  • Ask ONCE, early, why they are making this change and what draws them to this role. Do not interrogate the motivation repeatedly.",
+      "  • For any required skill they lack professionally, assess comfort level, HOW they learned it, and their learning approach, not professional depth.",
+      "  • NON-REPETITION (critical): the moment the candidate says they have no professional experience with a skill, ACCEPT it, record it, and pivot to project/learning evidence or an adjacent transferable strength. NEVER re-ask for professional proof of the same gap, and never escalate specificity on a skill they've said they only studied.",
+      "=== END CAREER TRANSITION CONTEXT ===",
+    );
+  }
+
+  lines.push(
     "COMPETENCY PLAN (weight%, budget used):",
     ...bp.competencies.map(
       (c) => `  - ${c.label} (${c.weight}%, ${c.askedCount}/${c.questionBudget} questions, ${c.status})`,
     ),
-  ];
+  );
   if (remaining.length)
     lines.push("FOCUS NEXT ON: " + remaining.slice(0, 3).map((c) => c.label).join(", "));
   if (explored.length)
@@ -321,6 +611,7 @@ export function renderBlueprintForPrompt(bp: InterviewBlueprint): string {
     "  • Ask at least one JD-specific scenario, not just generic CV questions.",
     "  • Ask at least one Resume-vs-JD gap question: mention a missing or weaker requirement respectfully and ask for transferable evidence.",
     "  • If the JD requires a skill not obvious in the CV, ask comfort level and learning approach instead of pretending it is listed.",
+    "UNIVERSAL FAIRNESS RULE (every interview, no exceptions): Match your questions to the experience the candidate actually has. The instant a candidate says they lack professional/hands-on experience with something, ACCEPT it, score it silently, and move on, draw any evidence from their projects, studies, or transferable work instead. NEVER re-ask for professional proof of a gap they've already acknowledged, and never escalate into more detailed sub-questions on a skill they've said they only studied or never used. Demanding on-the-job examples the person cannot have is the single most common way these interviews dead-end.",
     "RULES: One objective per question, never bundle multiple asks. Once a competency's budget is used, move to the next; never let one topic dominate.",
     "=== END BLUEPRINT ===",
   );
