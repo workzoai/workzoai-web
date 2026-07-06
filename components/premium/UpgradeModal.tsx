@@ -91,7 +91,7 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
               <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-brand">What Premium Pro unlocks</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {[
-                  "600 AI voice minutes/month",
+                  "240 AI voice minutes/month (top-ups available)",
                   "60 AI Video Interviews minutes/month",
                   "7 premium recruiter personas",
                   "AI Career Coach",
@@ -124,7 +124,7 @@ export default function UpgradeModal({ open, feature = "premium", onClose, onUpg
               <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-brand">What Premium unlocks</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {[
-                  "300 AI voice minutes/month",
+                  "120 AI voice minutes/month (top-ups available)",
                   "Full advanced reports",
                   "Improve CV + ATS analysis",
                   "Cover Letter generator",

@@ -400,8 +400,8 @@ export default function DashboardPage() {
                 </h2>
                 <p className="mt-1 text-sm text-muted">
                   {isPremium
-                    ? "600 voice minutes, 60 AI video minutes, premium personas, roadmaps, and replay intelligence."
-                    : "300 AI voice minutes a month, CV improvement, cover letters, Job Assist, Career Brain, and advanced reports."}
+                    ? "240 voice minutes, 60 AI video minutes, premium personas, roadmaps, and replay intelligence."
+                    : "120 AI voice minutes a month, CV improvement, cover letters, Job Assist, Career Brain, and advanced reports."}
                 </p>
               </div>
               <Link
@@ -688,7 +688,7 @@ function Sidebar({ plan }: { plan: WorkZoPlanType }) {
       {plan === "free" && (
         <div className="mt-6 rounded-2xl border border-brand/20 bg-brand/10 p-4">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">Upgrade to Premium</p>
-          <p className="mt-1.5 text-xs leading-5 text-muted">300 AI voice minutes, CV tools, cover letters, Job Assist, and advanced reports.</p>
+          <p className="mt-1.5 text-xs leading-5 text-muted">120 AI voice minutes, CV tools, cover letters, Job Assist, and advanced reports.</p>
           <Link href="/pricing?plan=premium" className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-black text-on-brand hover:bg-brand">
             <Crown className="h-3.5 w-3.5" /> Upgrade: {displayPrices.premium.amount}/mo
           </Link>

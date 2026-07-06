@@ -2,6 +2,19 @@ import { sendWorkZoPurchaseConfirmation } from "@/lib/workzoEmail";
 import { getWorkZoPlanLimits } from "@/lib/workzoPlanLimits";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
+import { createClient } from "@supabase/supabase-js";
+
+/** Service-role client for webhook-side writes (same pattern as workzoSubscription). */
+function createTopUpServiceClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
 import {
   createWorkZoStripeClient,
   getWorkZoStripeConfig,
@@ -134,6 +147,37 @@ export async function POST(request: Request) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        // ── Voice top-up fulfilment (one-time payments) ────────────────────
+        // Top-up sessions are mode:"payment" and carry workzo_purchase_kind
+        // metadata. They must NEVER fall through to the subscription upsert
+        // below (a one-time payment has no plan and would corrupt the
+        // subscription row). Insert is idempotent on stripe_session_id so
+        // Stripe's webhook retries can't double-credit.
+        if (session.metadata?.workzo_purchase_kind === "voice_topup") {
+          const topUpUserId = session.client_reference_id || session.metadata?.workzo_user_id || null;
+          const topUpMinutes = Math.max(0, Math.floor(Number(session.metadata?.workzo_topup_minutes) || 0));
+          if (topUpUserId && topUpMinutes > 0 && session.payment_status === "paid") {
+            const { error: topUpError } = await createTopUpServiceClient()
+              .from("voice_topup_purchases")
+              .upsert(
+                {
+                  user_id: topUpUserId,
+                  minutes: topUpMinutes,
+                  pack_id: session.metadata?.workzo_topup_pack_id || null,
+                  stripe_session_id: session.id,
+                  amount_total: session.amount_total ?? null,
+                  currency: session.currency ?? null,
+                },
+                { onConflict: "stripe_session_id", ignoreDuplicates: true },
+              );
+            if (topUpError) {
+              console.error("workzo_topup_fulfilment_error", topUpError.message);
+            }
+          }
+          break;
+        }
+
         const userId = session.client_reference_id || session.metadata?.workzo_user_id || null;
         const customerId = getCustomerId(session.customer);
         const subscriptionId = getSubscriptionId(session.subscription);

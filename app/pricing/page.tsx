@@ -96,7 +96,7 @@ const PRICING_CARDS: PricingCard[] = [
     popular: true,
     priceNote: "24-hour free trial · cancel anytime",
     features: [
-      "300 AI voice minutes / month",
+      "120 AI voice minutes / month (top-ups available)",
       "Unlimited sessions within your minutes",
       "Unlimited resume optimization",
       "Unlimited ATS analysis",
@@ -119,7 +119,7 @@ const PRICING_CARDS: PricingCard[] = [
     priceNote: "Includes AI video practice (early access)",
     features: [
       "Everything in Premium",
-      "600 AI voice minutes / month",
+      "240 AI voice minutes / month (top-ups available)",
       "60 AI video minutes / month (early access)",
       "Detailed interview feedback",
       "Advanced performance analysis",
@@ -152,7 +152,7 @@ const PRICING_CARDS: PricingCard[] = [
 ];
 
 const comparisonRows = [
-  { label: "AI Voice Interviews", free: "1 interview", premium: "300 mins / mo", pro: "600 mins / mo", enterprise: "Shared pool" },
+  { label: "AI Voice Interviews", free: "1 interview", premium: "120 mins / mo + top-ups", pro: "240 mins / mo + top-ups", enterprise: "Custom" },
   { label: "AI Video Interviews (early access)", free: "—", premium: "—", pro: "60 mins / mo", enterprise: "Shared pool" },
   { label: "Resume Optimization", free: "Basic", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },
   { label: "ATS Analysis", free: "Basic", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },

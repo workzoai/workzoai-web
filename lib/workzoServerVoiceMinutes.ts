@@ -5,14 +5,89 @@ import { isWorkZoFounderDevEmail, WORKZO_FOUNDER_DEV_LIMITS } from "@/lib/workzo
 
 export type WorkZoServerVoiceMinutesCheck = {
   allowed: boolean;
-  reason: "ok" | "voice_minutes_limit" | "session_limit_reached" | "unauthenticated" | "check_unavailable";
+  reason: "ok" | "ok_using_topup_credits" | "voice_minutes_limit" | "session_limit_reached" | "unauthenticated" | "check_unavailable";
   minutesUsed: number;
   minutesLimit: number;
   minutesRemaining: number;
   sessionsUsed: number;
   sessionsLimit: number;
   plan: WorkZoPlanType;
+  /** Purchased top-up minutes still available (never expire, roll over). */
+  topUpMinutesRemaining: number;
 };
+
+/**
+ * ── Top-up credit accounting (pay-as-you-go) ─────────────────────────────────
+ * Purchases live in `voice_topup_purchases` (written only by the Stripe
+ * webhook). Consumption is COMPUTED, never mutated: credits are burned only
+ * by usage that exceeded the monthly plan allowance, so
+ *
+ *   creditsConsumed  = Σ over calendar months  max(0, monthMinutes − planLimit)
+ *   creditsRemaining = totalPurchased − creditsConsumed
+ *
+ * This keeps the gate idempotent and write-free on the read path (the same
+ * property that made the monthly pool reliable), at the cost of one extra
+ * query for users who have ever bought a pack. Plan changes are valued at the
+ * CURRENT plan limit for past months — a deliberate simplification that can
+ * only ever round in the user's favor after an upgrade.
+ */
+async function computeTopUpCredits(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  planLimit: number,
+): Promise<{ purchased: number; remaining: number; earliestPurchase: string | null }> {
+  const { data: purchases, error } = await supabase
+    .from("voice_topup_purchases")
+    .select("minutes, created_at")
+    .eq("user_id", userId);
+
+  if (error || !purchases || purchases.length === 0) {
+    return { purchased: 0, remaining: 0, earliestPurchase: null };
+  }
+
+  const purchased = purchases.reduce(
+    (sum: number, row: { minutes: number | null }) => sum + Math.max(0, Number(row.minutes) || 0),
+    0,
+  );
+  const earliestPurchase = purchases
+    .map((row: { created_at: string | null }) => row.created_at || "")
+    .filter(Boolean)
+    .sort()[0] || null;
+  if (!purchased || !earliestPurchase) return { purchased, remaining: purchased, earliestPurchase };
+
+  // Overage only starts counting from the first purchase month: usage before
+  // the user ever bought credits can't retroactively consume them.
+  const overageStart = new Date(earliestPurchase);
+  overageStart.setUTCDate(1);
+  overageStart.setUTCHours(0, 0, 0, 0);
+
+  const { data: sessions, error: sessionsError } = await supabase
+    .from("interview_sessions")
+    .select("duration_seconds, created_at")
+    .eq("user_id", userId)
+    .gte("created_at", overageStart.toISOString());
+
+  if (sessionsError) {
+    // Fail open on the credit side too: report full balance rather than
+    // blocking a paying user on an infrastructure hiccup.
+    console.error("[workzoServerVoiceMinutes] top-up overage query failed, assuming full balance:", sessionsError.message);
+    return { purchased, remaining: purchased, earliestPurchase };
+  }
+
+  const byMonth = new Map<string, number>();
+  for (const row of sessions || []) {
+    const created = row.created_at ? new Date(row.created_at) : null;
+    if (!created || Number.isNaN(created.getTime())) continue;
+    const key = `${created.getUTCFullYear()}-${created.getUTCMonth()}`;
+    const minutes = Math.ceil(Math.max(0, Number(row.duration_seconds) || 0) / 60);
+    byMonth.set(key, (byMonth.get(key) || 0) + minutes);
+  }
+  let consumed = 0;
+  for (const monthMinutes of byMonth.values()) {
+    consumed += Math.max(0, monthMinutes - planLimit);
+  }
+  return { purchased, remaining: Math.max(0, purchased - consumed), earliestPurchase };
+}
 
 /**
  * Authoritative, server-side check of the monthly voice-minute pool.
@@ -59,6 +134,7 @@ export async function checkWorkZoServerVoiceMinutes(
     sessionsUsed: 0,
     sessionsLimit,
     plan,
+    topUpMinutesRemaining: 0,
   };
 
   try {
@@ -122,6 +198,21 @@ export async function checkWorkZoServerVoiceMinutes(
       return { ...base, sessionsUsed, minutesUsed, minutesRemaining, allowed: false, reason: "session_limit_reached" };
     }
     if (minutesUsed >= minutesLimit) {
+      // Monthly allowance exhausted: purchased top-up credits keep the
+      // session allowed. Only queried at the boundary, so users who never
+      // bought a pack pay zero extra queries.
+      const credits = await computeTopUpCredits(supabase, user.id, minutesLimit);
+      if (credits.remaining > 0) {
+        return {
+          ...base,
+          sessionsUsed,
+          minutesUsed,
+          minutesRemaining: 0,
+          topUpMinutesRemaining: credits.remaining,
+          allowed: true,
+          reason: "ok_using_topup_credits",
+        };
+      }
       return { ...base, sessionsUsed, minutesUsed, minutesRemaining: 0, allowed: false, reason: "voice_minutes_limit" };
     }
 

@@ -7929,7 +7929,7 @@ function InterviewPageInner() {
         text:
           blockedPlan === "premium"
             ? `You've used all ${sessionPersistResult.limit} interviews this month. Upgrade to Premium Pro for unlimited voice interviews.`
-            : `You've used all ${sessionPersistResult.limit} free interviews this month. Upgrade to Premium for 300 voice minutes per month.`,
+            : `You've used all ${sessionPersistResult.limit} free interviews this month. Upgrade to Premium for 120 voice minutes per month, with top-up boosts when you need more.`,
       });
       setStatus("idle");
       return;
