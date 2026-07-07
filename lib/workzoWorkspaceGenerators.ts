@@ -1668,19 +1668,29 @@ function parseExperienceFromRawV4(profile: ResumeProfile, rawText = "") {
   })();
   const section = lines.slice(start + 1, end);
   const jobs: ResumeExperience[] = [];
-  let current: ResumeExperience | null = null;
+  // Use a mutable state object instead of a bare local variable. TypeScript does
+  // not reliably narrow locals that are assigned inside nested functions, which
+  // caused Vercel builds to fail with "current is possibly null" / "never".
+  const state: { current: ResumeExperience | null } = { current: null };
   let headerRole = cleanContactFieldV4(profile.basics?.headline || "", "headline");
   if (/customer success|project implementation/i.test(headerRole)) headerRole = "";
   const flush = () => {
-    if (!current) return;
-    current.bullets = unique<string>((current.bullets || []).map(cleanBulletV4).filter(Boolean), (b) => normLoose(b)).slice(0, 6);
-    if (current.company || current.title || current.bullets.length) jobs.push(current);
-    current = null;
+    const active = state.current;
+    if (!active) return;
+    active.bullets = unique<string>((active.bullets || []).map(cleanBulletV4).filter(Boolean), (b) => normLoose(b)).slice(0, 6);
+    if (active.company || active.title || active.bullets.length) jobs.push(active);
+    state.current = null;
   };
 
-  const startJob = (title: string, company: string, dates: string) => {
+  const startJob = (title: string, company: string, dates: string): ResumeExperience => {
     flush();
-    current = { title: cleanExperienceTitle(title || headerRole || "Professional Experience"), company: cleanCompanyName(company), location: "", dates: clean(dates), bullets: [] };
+    const next: ResumeExperience = { title: cleanExperienceTitle(title || headerRole || "Professional Experience"), company: cleanCompanyName(company), location: "", dates: clean(dates), bullets: [] };
+    state.current = next;
+    return next;
+  };
+
+  const ensureCurrentJob = (): ResumeExperience => {
+    return state.current ?? startJob("", "", "");
   };
 
   for (let i = 0; i < section.length; i++) {
@@ -1713,10 +1723,12 @@ function parseExperienceFromRawV4(profile: ResumeProfile, rawText = "") {
       }
     }
     if (ACTION_OR_RESPONSIBILITY_RE.test(line)) {
-      if (!current) startJob("", "", "");
-      current.bullets.push(line);
-    } else if (current?.bullets?.length && line.length < 140 && !ROLE_LINE_RE_V4.test(line)) {
-      current.bullets[current.bullets.length - 1] += ` ${line}`;
+      ensureCurrentJob().bullets.push(line);
+    } else {
+      const active = state.current;
+      if (active?.bullets?.length && line.length < 140 && !ROLE_LINE_RE_V4.test(line)) {
+        active.bullets[active.bullets.length - 1] += ` ${line}`;
+      }
     }
   }
   flush();
