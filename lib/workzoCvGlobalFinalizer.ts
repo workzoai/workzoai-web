@@ -86,6 +86,11 @@ const GENERIC_NOISE_PATTERNS = [
   /\bweb\s*design\b/i,
   /\bsocial\s*media\b/i,
   /\bdata\s*analysis\b/i,
+  /\bdata\s*science\b/i,
+  /\bdata\s*analytics\b/i,
+  /\bbootcamp\b/i,
+  /\btraining\b/i,
+  /\bcourse\b/i,
   /\bprogramming\b/i,
   /\baws\b/i,
   /\bsql\b/i,
@@ -174,6 +179,9 @@ export function isGenericNoise(text: string): boolean {
   if (COMPANY_HINTS.test(clean)) return true;
   if (GENERIC_NOISE_PATTERNS.some((pattern) => pattern.test(clean) || pattern.test(alpha))) return true;
   if (clean.split(/\s+/).length > 5) return true;
+  // Reject education/training/course lines globally. They often look like
+  // Title Case person names in extracted PDFs, e.g. "Data Science Bootcamp".
+  if (/\b(bootcamp|course|training|degree|bachelor|master|phd|mba|university|college|school|academy|institute|certification|certificate|diploma|data\s+science|computer\s+science|engineering|studies)\b/i.test(clean)) return true;
   if (/[,;:|/\\]/.test(clean)) return true;
   return false;
 }
@@ -705,7 +713,7 @@ export function finalizeCanonicalCvProfile<T extends Record<string, any>>(
     rawLines: options?.rawLines,
     rawText: options?.rawText || "",
     localParserName:
-      options?.selectedName ||
+      (options?.selectedName && looksLikePersonName(String(options.selectedName)) ? options.selectedName : "") ||
       basics.name ||
       profile.candidateName ||
       profile.name ||

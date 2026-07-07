@@ -1187,17 +1187,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
   const jd = normalizeResumeText(String(body.jobDescription || ""));
   const existingProfile = body.resumeProfile || body.profile;
 
-  const isImprovementRequest = body.mode === "improve";
-  if (isImprovementRequest && !isPremium) {
-    return NextResponse.json(
-      {
-        error: "upgrade_required",
-        requiredPlan: "premium",
-        message: "CV improvement requires Premium.",
-      },
-      { status: 403 },
-    );
-  }
+  // CV improvement is a free feature — no premium gate here.
 
   if (
     existingProfile &&

@@ -21,6 +21,8 @@ import {
   Video,
 } from "lucide-react";
 import AuthNavButton from "@/components/auth/AuthNavButton";
+import { FREE_TOOL_LINKS } from "@/lib/free-tools";
+import { getFreeToolIcon } from "@/components/marketing/freeToolIcons";
 import { type WorkZoBillingCycle, type WorkZoPlanType } from "@/lib/workzoPlanLimits";
 import { getWorkZoDisplayPrices, getWorkZoRegionalPriceSet } from "@/lib/workzoLocalizedPricing";
 import {
@@ -80,7 +82,9 @@ const PRICING_CARDS: PricingCard[] = [
       "CV-aware recruiter questions",
       "Basic STAR scorecard",
       "Standard interview report",
-      "Score, pace, and filler-word analysis",
+      "Improve CV & Cover Letter — free",
+      "Free CV Review",
+      "Interview Question Generator",
       "Standard recruiter personas",
     ],
     muted: ["No video interview", "No interview history", "No advanced performance analysis"],
@@ -101,6 +105,7 @@ const PRICING_CARDS: PricingCard[] = [
       "Unlimited resume optimization",
       "Unlimited ATS analysis",
       "Unlimited cover letters",
+      "All free career tools included",
       "Job description analysis",
       "Basic progress tracking",
       "All core recruiter personas",
@@ -154,9 +159,9 @@ const PRICING_CARDS: PricingCard[] = [
 const comparisonRows = [
   { label: "AI Voice Interviews", free: "1 interview", premium: "120 mins / mo + top-ups", pro: "240 mins / mo + top-ups", enterprise: "Custom" },
   { label: "AI Video Interviews (early access)", free: "—", premium: "—", pro: "60 mins / mo", enterprise: "Shared pool" },
-  { label: "Resume Optimization", free: "Basic", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },
-  { label: "ATS Analysis", free: "Basic", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },
-  { label: "Cover Letters", free: "—", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },
+  { label: "Resume Optimization", free: "Included", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },
+  { label: "ATS Analysis", free: "Included", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },
+  { label: "Cover Letters", free: "Included", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },
   { label: "Job Description Analysis", free: "—", premium: "Included", pro: "Included", enterprise: "Included" },
   { label: "Recruiter Personas", free: "Standard", premium: "Core", pro: "Premium", enterprise: "Custom" },
   { label: "Progress Tracking", free: "—", premium: "Basic", pro: "Advanced", enterprise: "Cohort analytics" },
@@ -242,6 +247,32 @@ function PriceLine({ plan, billingCycle }: { plan: WorkZoPlanType | "enterprise"
       {plan !== "free" && billingCycle === "yearly" ? (
         <p className="mt-2 text-xs font-black text-success">{price.savings}</p>
       ) : null}
+    </div>
+  );
+}
+
+function FreeToolsBlock({ label }: { label: string }) {
+  return (
+    <div className="mt-4 rounded-xl border border-brand/20 bg-brand/[0.06] p-3.5">
+      <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-brand">
+        <Tag className="h-3.5 w-3.5" />
+        {label}
+      </p>
+      <div className="mt-2.5 space-y-2">
+        {FREE_TOOL_LINKS.map((tool) => {
+          const Icon = getFreeToolIcon(tool.icon);
+          return (
+            <Link
+              key={tool.id}
+              href={tool.href}
+              className="group flex items-center gap-2.5 text-sm font-bold text-fg transition hover:text-brand"
+            >
+              <Icon className="h-[15px] w-[15px] shrink-0 text-brand" />
+              <span className="leading-[1.4]">{tool.label}</span>
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -469,6 +500,10 @@ export default function PricingPage() {
                         </div>
                       ))}
                     </div>
+                  ) : null}
+
+                  {!card.enterprise ? (
+                    <FreeToolsBlock label={isFree ? "Free Career Tools" : "Free Career Tools Included"} />
                   ) : null}
                 </div>
 

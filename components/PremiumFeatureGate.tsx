@@ -12,6 +12,13 @@ export default function PremiumFeatureGate({ feature, title, description, childr
   const allowed = useMemo(() => canUseWorkZoFeature(planState.plan, feature), [planState.plan, feature]);
   const required = getWorkZoPlanLimits(requiredPlan);
 
+  // Free features (Improve CV, Cover Letter, and every free tool) are public.
+  // No plan check, no login gate — they render for everyone on every plan.
+  // Hooks above stay unconditional so this early return is safe.
+  if (requiredPlan === "free") {
+    return <>{children}</>;
+  }
+
   if (planState.loading) {
     return <main className="grid min-h-screen place-items-center bg-canvas text-fg"><div className="flex items-center gap-3 rounded-2xl border border-line bg-fg/[0.04] px-5 py-4 text-sm font-black text-muted"><Loader2 className="h-4 w-4 animate-spin" /> Checking your plan…</div></main>;
   }
@@ -26,15 +33,15 @@ export default function PremiumFeatureGate({ feature, title, description, childr
 
   return (
     <>
-      {/* Subtle plan indicator, shows paid users which plan they're on */}
+      {/* Subtle plan indicator. Free tools stay unlocked on every plan. */}
       <div className="fixed right-4 top-4 z-30 hidden lg:flex items-center gap-2">
         <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
-          planState.plan === "premium_pro"
-            ? "border-brand/25 bg-brand/10 text-brand"
+          planState.plan === "free"
+            ? "border-success/25 bg-success/10 text-success"
             : "border-brand/25 bg-brand/10 text-brand"
         }`}>
           {planState.plan === "premium_pro" ? <Star className="h-3 w-3" /> : <Crown className="h-3 w-3" />}
-          {planState.plan === "premium_pro" ? "Premium Pro" : "Premium"}
+          {planState.plan === "premium_pro" ? "Premium Pro" : planState.plan === "premium" ? "Premium" : "Free"}
         </span>
       </div>
       {children}

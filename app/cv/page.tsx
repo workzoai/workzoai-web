@@ -34,7 +34,12 @@ import {
   readLatestInterviewSetup,
 } from "@/lib/workzoInterviewSetup";
 import type { ResumeProfile } from "@/lib/workzoResumeParser";
-import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
+import CvSourcePanel from "@/components/CvSourcePanel";
+import {
+  debugCvPipeline,
+  debugCvProfile,
+  debugCvText,
+} from "@/lib/workzoCvPipelineDebug";
 import { buildPhaseAInsights } from "@/lib/workzoCareerSuitePhaseA";
 import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
 import {
@@ -45,11 +50,24 @@ import {
   resumeProfileHasMinimumStructure,
 } from "@/lib/workzoResumeProfileManager";
 
-const templates: Array<{ id: CvTemplate; label: string; description: string }> = [
-  { id: "ats", label: "ATS Clean", description: "Strict, single-column, recruiter-safe layout." },
-  { id: "modern", label: "Modern Professional", description: "Premium two-column layout with skill chips." },
-  { id: "career_switcher", label: "Career Switcher", description: "Highlights transferable fit and projects." },
-];
+const templates: Array<{ id: CvTemplate; label: string; description: string }> =
+  [
+    {
+      id: "ats",
+      label: "ATS Clean",
+      description: "Strict, single-column, recruiter-safe layout.",
+    },
+    {
+      id: "modern",
+      label: "Modern Professional",
+      description: "Premium two-column layout with skill chips.",
+    },
+    {
+      id: "career_switcher",
+      label: "Career Switcher",
+      description: "Highlights transferable fit and projects.",
+    },
+  ];
 
 const OUTPUT_LANGUAGES = [
   { value: "English", label: "🇬🇧 English" },
@@ -66,6 +84,90 @@ const OUTPUT_LANGUAGES = [
 
 function cn(...c: Array<string | false | null | undefined>) {
   return c.filter(Boolean).join(" ");
+}
+
+function renderResumeProfilePlainText(profile?: ResumeProfile | null): string {
+  if (!profile || typeof profile !== "object" || !("basics" in profile))
+    return "";
+  const out: string[] = [];
+  const basics = profile.basics || {
+    name: "",
+    headline: "",
+    email: "",
+    phone: "",
+    location: "",
+    linkedin: "",
+  };
+  const push = (line?: string) => {
+    const value = String(line || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (value) out.push(value);
+  };
+
+  push(basics.name);
+  push(basics.headline);
+  const contact = [basics.email, basics.phone, basics.location, basics.linkedin]
+    .filter(Boolean)
+    .join(" | ");
+  push(contact);
+
+  if (profile.summary) {
+    out.push("", "PROFESSIONAL SUMMARY");
+    push(profile.summary);
+  }
+
+  if (profile.skills?.length) {
+    out.push("", "CORE SKILLS");
+    push(profile.skills.slice(0, 32).join(", "));
+  }
+
+  if (profile.experience?.length) {
+    out.push("", "PROFESSIONAL EXPERIENCE");
+    profile.experience.forEach((job) => {
+      const heading = [job.title, job.company, job.location, job.dates]
+        .filter(Boolean)
+        .join(" | ");
+      push(heading);
+      (job.bullets || []).slice(0, 6).forEach((bullet) => push(`- ${bullet}`));
+    });
+  }
+
+  if (profile.projects?.length) {
+    out.push("", "PROJECTS");
+    profile.projects.forEach((project) => {
+      push(project.name);
+      (project.bullets || [])
+        .slice(0, 5)
+        .forEach((bullet) => push(`- ${bullet}`));
+    });
+  }
+
+  if (profile.education?.length) {
+    out.push("", "EDUCATION");
+    profile.education.forEach((edu) =>
+      push(
+        [edu.degree, edu.institution, edu.location, edu.dates]
+          .filter(Boolean)
+          .join(" | "),
+      ),
+    );
+  }
+
+  if (profile.certifications?.length) {
+    out.push("", "CERTIFICATIONS");
+    profile.certifications.forEach(push);
+  }
+
+  if (profile.languages?.length) {
+    out.push("", "LANGUAGES");
+    push(profile.languages.join(", "));
+  }
+
+  return out
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function CollapsibleSection({
@@ -88,18 +190,31 @@ function CollapsibleSection({
         className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
       >
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-subtle">{eyebrow}</p>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-subtle">
+            {eyebrow}
+          </p>
           <h3 className="mt-1 text-lg font-black text-fg">{title}</h3>
         </div>
-        <ChevronDown className={cn("h-5 w-5 shrink-0 text-muted transition-transform", open && "rotate-180")} />
+        <ChevronDown
+          className={cn(
+            "h-5 w-5 shrink-0 text-muted transition-transform",
+            open && "rotate-180",
+          )}
+        />
       </button>
-      {open && <div className="border-t border-line px-5 pb-5 pt-4">{children}</div>}
+      {open && (
+        <div className="border-t border-line px-5 pb-5 pt-4">{children}</div>
+      )}
     </div>
   );
 }
 
 export default function CvWorkspacePage() {
   const [cvText, setCvText] = useState("");
+  // Original uploaded CV text/layout text. Keep this separate from the clean
+  // display text. Improve CV must use this as evidence so experience bullets
+  // from the uploaded resume are not lost after the profile is rendered cleanly.
+  const [rawCvText, setRawCvText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [targetRole, setTargetRole] = useState("");
   const [targetMarket, setTargetMarket] = useState("global");
@@ -109,14 +224,18 @@ export default function CvWorkspacePage() {
   const [aiRewriteLoading, setAiRewriteLoading] = useState(false);
   const [aiRewriteError, setAiRewriteError] = useState("");
   const [aiRewriteApplied, setAiRewriteApplied] = useState(false);
-  const [savedResumeProfile, setSavedResumeProfile] = useState<ResumeProfile | undefined>(undefined);
+  const [savedResumeProfile, setSavedResumeProfile] = useState<
+    ResumeProfile | undefined
+  >(undefined);
   // Structured profile returned directly by the AI rewrite (cv_rewrite_ats),
   // when available. Using this instead of re-parsing the rewritten plain
   // text through extractResumeProfile avoids the data loss/corruption that
   // happened previously: dropped jobs, the candidate's name being
   // overwritten by a project title, single-word project names falling
   // back to "Candidate", and the summary collapsing into a single bullet.
-  const [rewrittenResumeProfile, setRewrittenResumeProfile] = useState<ResumeProfile | undefined>(undefined);
+  const [rewrittenResumeProfile, setRewrittenResumeProfile] = useState<
+    ResumeProfile | undefined
+  >(undefined);
   const [profileRecovering, setProfileRecovering] = useState(false);
   const [profileNeedsReupload, setProfileNeedsReupload] = useState(false);
   const [viewMode, setViewMode] = useState<"text" | "preview">("text");
@@ -127,7 +246,10 @@ export default function CvWorkspacePage() {
     const setup = readLatestInterviewSetup();
     debugCvPipeline("cv.page.setup.loaded", {
       hasSetup: Boolean(setup),
-      setupKeys: setup && typeof setup === "object" ? Object.keys(setup).slice(0, 40) : [],
+      setupKeys:
+        setup && typeof setup === "object"
+          ? Object.keys(setup).slice(0, 40)
+          : [],
       cvChars: normalizeSetupCvText(setup).length,
       hasResumeProfile: Boolean(setup?.resumeProfile),
     });
@@ -136,6 +258,14 @@ export default function CvWorkspacePage() {
 
     syncCandidateIdentityFromSetup(setup);
     const storedCvText = normalizeSetupCvText(setup);
+    const rawStoredCvText = String(
+      (setup as Record<string, unknown> | null)?.rawCvText ||
+        (setup as Record<string, unknown> | null)?.uploadedCvText ||
+        (setup as Record<string, unknown> | null)?.content ||
+        storedCvText ||
+        "",
+    );
+    setRawCvText(rawStoredCvText);
     setCvText(storedCvText);
     setJobDescription(normalizeSetupJobDescription(setup));
     setTargetRole(normalizeSetupTargetRole(setup));
@@ -149,35 +279,74 @@ export default function CvWorkspacePage() {
 
       const rawName = prof.basics?.name?.trim() || "";
       const name = rawName.toLowerCase();
-      if (!name || name === "candidate" || name === "professional" || name === "unknown") return true;
+      if (
+        !name ||
+        name === "candidate" ||
+        name === "professional" ||
+        name === "unknown"
+      )
+        return true;
 
-      const normalizedName = name.replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
-      const skillNames = (prof.skills || []).map((s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim());
+      const normalizedName = name
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      const skillNames = (prof.skills || []).map((s) =>
+        String(s)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim(),
+      );
       if (skillNames.includes(normalizedName)) return true;
 
       // Also reject if the name exactly matches one of the candidate's own
       // project titles: this is the specific failure mode where a project
       // name like "YouTube API And NLP" or "GANS E-Scooter Service" ends up
       // in basics.name instead of the real human name.
-      const projectNames = (prof.projects || []).map((proj) => String(proj?.name || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim());
+      const projectNames = (prof.projects || []).map((proj) =>
+        String(proj?.name || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim(),
+      );
       if (normalizedName && projectNames.includes(normalizedName)) return true;
 
       // Reject names containing tech/project acronyms that essentially never
       // appear in a real human name (API, NLP, RAG, GCP, SQL, etc.): these
       // are strong signals the "name" is actually a project title or skill
       // phrase that slipped past the other checks.
-      if (/\b(API|NLP|RAG|GCP|SQL|ITIL|ITSM|CRM|ERP|SDK|CSS|HTML|JSON|REST|AWS)\b/.test(rawName)) return true;
+      if (
+        /\b(API|NLP|RAG|GCP|SQL|ITIL|ITSM|CRM|ERP|SDK|CSS|HTML|JSON|REST|AWS)\b/.test(
+          rawName,
+        )
+      )
+        return true;
 
-      if (/\b(project management|resource planning|software development|cost planning|data analysis|machine learning|process improvement|team training|customer support|technical support|stakeholder management|communication|leadership|python|sql|excel|tableau|power bi|salesforce|sap|erp|crm|public relations|time management|critical thinking|effective communication|generative ai|data engineering|data visualization|machine learning|web scraping|cloud functions|api integration|process improvement)\b/i.test(rawName)) return true;
-      if (/\b(manager|engineer|designer|developer|analyst|consultant|specialist|coordinator|administrator|support|officer|director|lead|intern|project|software|data|technical|customer|enterprise|resource|planning|relations|communication|management|specialist)\b/i.test(rawName)) return true;
+      if (
+        /\b(project management|resource planning|software development|cost planning|data analysis|machine learning|process improvement|team training|customer support|technical support|stakeholder management|communication|leadership|python|sql|excel|tableau|power bi|salesforce|sap|erp|crm|public relations|time management|critical thinking|effective communication|generative ai|data engineering|data visualization|machine learning|web scraping|cloud functions|api integration|process improvement)\b/i.test(
+          rawName,
+        )
+      )
+        return true;
+      if (
+        /\b(manager|engineer|designer|developer|analyst|consultant|specialist|coordinator|administrator|support|officer|director|lead|intern|project|software|data|technical|customer|enterprise|resource|planning|relations|communication|management|specialist)\b/i.test(
+          rawName,
+        )
+      )
+        return true;
 
       const headline = prof.basics?.headline || "";
       if (/\b(gmbh|ag|ltd|llc|inc|corp)\b/i.test(headline)) return true;
-      if (headline.trim().split(/\s+/).length === 1 && headline.length < 12) return true;
+      if (headline.trim().split(/\s+/).length === 1 && headline.length < 12)
+        return true;
 
       const exp = prof.experience || [];
       if (exp.length > 0) {
-        const allTitlesTruncated = exp.every((e) => !e.title || e.title.trim().split(/\s+/).length <= 1);
+        const allTitlesTruncated = exp.every(
+          (e) => !e.title || e.title.trim().split(/\s+/).length <= 1,
+        );
         if (allTitlesTruncated) return true;
         const hasBadTitle = exp.some((e) => /^\d{4}/.test(e.title || ""));
         if (hasBadTitle) return true;
@@ -192,8 +361,16 @@ export default function CvWorkspacePage() {
       return false;
     }
 
-    if (profile && typeof profile === "object" && "basics" in profile && !isLowQualityResumeProfile(profile)) {
-      const completed = completeResumeProfile(profile as ResumeProfile, storedCvText);
+    if (
+      profile &&
+      typeof profile === "object" &&
+      "basics" in profile &&
+      !isLowQualityResumeProfile(profile)
+    ) {
+      const completed = completeResumeProfile(
+        profile as ResumeProfile,
+        storedCvText,
+      );
       // Enforce the authoritative candidate name from the setup store.
       // The setup store's candidateName was set by the name_override pipeline
       // which is more reliable than what the AI parser put in basics.name.
@@ -201,26 +378,48 @@ export default function CvWorkspacePage() {
       // from slipping through isLowQualityProfile and corrupting the rewritten CV.
       const storedCandidateName = String(
         (setup as Record<string, unknown>)?.candidateName ||
-        (setup as Record<string, unknown>)?.name ||
-        ""
+          (setup as Record<string, unknown>)?.name ||
+          "",
       ).trim();
-      if (storedCandidateName && storedCandidateName.toLowerCase() !== "candidate" && storedCandidateName !== completed.basics?.name) {
+      if (
+        storedCandidateName &&
+        storedCandidateName.toLowerCase() !== "candidate" &&
+        storedCandidateName !== completed.basics?.name
+      ) {
         const nameWords = storedCandidateName.split(/\s+/);
         // Only use stored name if it looks like a real human name (2+ words, no role keywords)
-        const looksHuman = nameWords.length >= 2 && nameWords.length <= 5 &&
-          !/\b(public|relations|management|engineer|analyst|specialist|manager|developer|coordinator)\b/i.test(storedCandidateName);
+        const looksHuman =
+          nameWords.length >= 2 &&
+          nameWords.length <= 5 &&
+          !/\b(public|relations|management|engineer|analyst|specialist|manager|developer|coordinator)\b/i.test(
+            storedCandidateName,
+          );
         if (looksHuman) {
           completed.basics = { ...completed.basics, name: storedCandidateName };
         }
       }
-      setSavedResumeProfile(completed);
+      const completedWithRaw = {
+        ...completed,
+        rawText: completed.rawText || rawStoredCvText || storedCvText,
+        previewText:
+          completed.previewText ||
+          (rawStoredCvText || storedCvText).slice(0, 1200),
+      } as ResumeProfile;
+      setSavedResumeProfile(completedWithRaw);
+      setCvText(renderResumeProfilePlainText(completedWithRaw) || storedCvText);
       setProfileNeedsReupload(false);
-      debugCvProfile("cv.page.savedResumeProfile.set", completed);
+      debugCvProfile("cv.page.savedResumeProfile.set", completedWithRaw);
       return;
     }
 
     const s = setup as Record<string, unknown> | null;
-    const rawText = (s?.rawCvText as string) || (s?.uploadedCvText as string) || storedCvText;
+    const rawText =
+      (s?.rawCvText as string) ||
+      (s?.uploadedCvText as string) ||
+      (s?.content as string) ||
+      rawStoredCvText ||
+      storedCvText;
+    if (rawText && !rawCvText) setRawCvText(rawText);
 
     debugCvPipeline("cv.page.profile.recovery", {
       reason: profile ? "low_quality_profile" : "no_profile",
@@ -231,7 +430,9 @@ export default function CvWorkspacePage() {
     const textForAi = rawText?.trim() || "";
     if (textForAi.length > 200) {
       setProfileRecovering(true);
-      debugCvPipeline("cv.page.profile.ai_reparse", { chars: textForAi.length });
+      debugCvPipeline("cv.page.profile.ai_reparse", {
+        chars: textForAi.length,
+      });
       fetch("/api/cv/structure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -243,44 +444,73 @@ export default function CvWorkspacePage() {
           targetMarket: normalizeSetupTargetMarket(setup),
           // Pass any already-known name so the structure route doesn't re-derive
           // a wrong name from the pasted/layout text when the profile exists.
-          candidateName: (profile as ResumeProfile | undefined)?.basics?.name || "",
-          fileName: (setup as Record<string, unknown>)?.fileName as string || "",
+          candidateName:
+            (profile as ResumeProfile | undefined)?.basics?.name || "",
+          fileName:
+            ((setup as Record<string, unknown>)?.fileName as string) || "",
         }),
       })
         .then((res) => res.json())
         .then((data) => {
           const aiProfile = data?.resumeProfile || data?.profile;
-          if (aiProfile && typeof aiProfile === "object" && "basics" in aiProfile) {
-            const best = keepBetterProfile(aiProfile as ResumeProfile, profile as ResumeProfile | undefined, textForAi);
+          if (
+            aiProfile &&
+            typeof aiProfile === "object" &&
+            "basics" in aiProfile
+          ) {
+            const best = keepBetterProfile(
+              aiProfile as ResumeProfile,
+              profile as ResumeProfile | undefined,
+              textForAi,
+            );
             if (best && !isLowQualityResumeProfile(best)) {
-              setSavedResumeProfile(best);
+              const bestWithRaw = {
+                ...best,
+                rawText: best.rawText || textForAi,
+                previewText: best.previewText || textForAi.slice(0, 1200),
+              } as ResumeProfile;
+              setSavedResumeProfile(bestWithRaw);
+              setRawCvText(textForAi);
+              setCvText(renderResumeProfilePlainText(bestWithRaw) || textForAi);
               setProfileRecovering(false);
               setProfileNeedsReupload(false);
-              debugCvProfile("cv.page.savedResumeProfile.ai_reparse", best);
+              debugCvProfile("cv.page.savedResumeProfile.ai_reparse", bestWithRaw);
               const cleanLines: string[] = [];
               const b = best.basics || {};
               if (b.name) cleanLines.push(`Candidate name: ${b.name}`);
               if (b.headline) cleanLines.push(`Headline: ${b.headline}`);
-              const ct = [b.email, b.phone, b.location].filter(Boolean).join(" • ");
+              const ct = [b.email, b.phone, b.location]
+                .filter(Boolean)
+                .join(" • ");
               if (ct) cleanLines.push(`Contact: ${ct}`);
               if (best.summary) cleanLines.push(`Summary: ${best.summary}`);
               if (best.experience?.length) {
                 cleanLines.push("Experience:");
                 best.experience.slice(0, 6).forEach((e) => {
-                  const t = [e.title, e.company, e.dates].filter(Boolean).join(" • ");
+                  const t = [e.title, e.company, e.dates]
+                    .filter(Boolean)
+                    .join(" • ");
                   if (t) cleanLines.push(`- ${t}`);
-                  e.bullets?.slice(0, 4).forEach((bl: string) => cleanLines.push(`  • ${bl}`));
+                  e.bullets
+                    ?.slice(0, 4)
+                    .forEach((bl: string) => cleanLines.push(`  • ${bl}`));
                 });
               }
               if (best.education?.length) {
                 cleanLines.push("Education:");
                 best.education.slice(0, 4).forEach((e) => {
-                  const l = [e.degree, e.institution, e.dates].filter(Boolean).join(" • ");
+                  const l = [e.degree, e.institution, e.dates]
+                    .filter(Boolean)
+                    .join(" • ");
                   if (l) cleanLines.push(`- ${l}`);
                 });
               }
-              if (best.skills?.length) cleanLines.push(`Skills: ${best.skills.slice(0, 24).join(", ")}`);
-              if (best.languages?.length) cleanLines.push(`Languages: ${best.languages.join(", ")}`);
+              if (best.skills?.length)
+                cleanLines.push(
+                  `Skills: ${best.skills.slice(0, 24).join(", ")}`,
+                );
+              if (best.languages?.length)
+                cleanLines.push(`Languages: ${best.languages.join(", ")}`);
               // Do NOT replace cvText with this derived profile summary.
               // cvText must remain the original uploaded/raw CV text. Feeding a
               // derived summary back into /api/cv or /api/copilot causes the
@@ -313,21 +543,39 @@ export default function CvWorkspacePage() {
   // English regeneration within the same render cycle.
   const baselineInput = useMemo(
     () => ({
-      cvText,
+      cvText:
+        rawCvText ||
+        savedResumeProfile?.rawText ||
+        (savedResumeProfile ? renderResumeProfilePlainText(savedResumeProfile) : cvText),
       resumeProfile: savedResumeProfile,
       jobDescription,
       targetRole,
       targetMarket,
       template,
     }),
-    [cvText, savedResumeProfile, jobDescription, targetRole, targetMarket, template],
+    [
+      cvText,
+      rawCvText,
+      savedResumeProfile,
+      jobDescription,
+      targetRole,
+      targetMarket,
+      template,
+    ],
   );
 
   // `resumeInput` feeds the template/preview/download: this is the one that
   // SHOULD reflect the rewrite (and its language) once applied.
   const resumeInput = useMemo(
     () => ({
-      cvText: aiRewriteApplied && atsText.trim() ? atsText : cvText,
+      cvText:
+        rawCvText ||
+        savedResumeProfile?.rawText ||
+        (aiRewriteApplied && atsText.trim()
+          ? atsText
+          : savedResumeProfile
+            ? renderResumeProfilePlainText(savedResumeProfile)
+            : cvText),
       // Prefer the AI's own structured profile from the rewrite when we have
       // one: this is the fix for the rewrite corrupting the candidate name,
       // dropping jobs/projects, and losing education. Only fall back to
@@ -336,19 +584,34 @@ export default function CvWorkspacePage() {
       // didn't return structured JSON for some reason: e.g. an older
       // cached response, or the JSON path failed and the route fell back
       // to plain text.
-      resumeProfile: aiRewriteApplied && atsText.trim()
-        ? (rewrittenResumeProfile || undefined)
-        : savedResumeProfile,
+      resumeProfile:
+        aiRewriteApplied && atsText.trim()
+          ? rewrittenResumeProfile || undefined
+          : savedResumeProfile,
       jobDescription,
       targetRole,
       targetMarket,
       template,
     }),
-    [cvText, atsText, aiRewriteApplied, savedResumeProfile, rewrittenResumeProfile, jobDescription, targetRole, targetMarket, template],
+    [
+      cvText,
+      rawCvText,
+      atsText,
+      aiRewriteApplied,
+      savedResumeProfile,
+      rewrittenResumeProfile,
+      jobDescription,
+      targetRole,
+      targetMarket,
+      template,
+    ],
   );
 
   const improvedCv = useMemo(() => {
-    debugCvProfile("cv.page.generateImprovedCv.inputProfile", baselineInput.resumeProfile);
+    debugCvProfile(
+      "cv.page.generateImprovedCv.inputProfile",
+      baselineInput.resumeProfile,
+    );
     const output = generateImprovedCv(baselineInput);
     debugCvText("cv.page.generateImprovedCv.outputText", output);
     return output;
@@ -365,61 +628,249 @@ export default function CvWorkspacePage() {
     });
     return output;
   }, [resumeInput]);
-  const htmlPreview = useMemo(() => generateResumeHtml(resumeInput), [resumeInput]);
+  const htmlPreview = useMemo(
+    () => generateResumeHtml(resumeInput),
+    [resumeInput],
+  );
 
-  const phaseA = useMemo(() => buildPhaseAInsights({ cvText, jobDescription, targetRole, targetMarket }), [cvText, jobDescription, targetRole, targetMarket]);
+  const phaseA = useMemo(
+    () =>
+      buildPhaseAInsights({ cvText, jobDescription, targetRole, targetMarket }),
+    [cvText, jobDescription, targetRole, targetMarket],
+  );
 
   const KNOWN_PHRASES = [
-    "project management", "account management", "change management", "key account manager",
-    "customer success", "customer success manager", "success manager",
-    "stakeholder management", "people management", "team management",
-    "hr management", "hr administration", "human resources",
-    "power bi", "power point", "google sheets", "microsoft office",
-    "machine learning", "data analysis", "data analytics",
-    "public relations", "media relations", "crisis communication",
-    "content creation", "event planning", "social media management",
-    "brand management", "press releases",
+    "project management",
+    "account management",
+    "change management",
+    "key account manager",
+    "customer success",
+    "customer success manager",
+    "success manager",
+    "stakeholder management",
+    "people management",
+    "team management",
+    "hr management",
+    "hr administration",
+    "human resources",
+    "power bi",
+    "power point",
+    "google sheets",
+    "microsoft office",
+    "machine learning",
+    "data analysis",
+    "data analytics",
+    "public relations",
+    "media relations",
+    "crisis communication",
+    "content creation",
+    "event planning",
+    "social media management",
+    "brand management",
+    "press releases",
   ];
 
   const SKILL_DICTIONARY = new Set([
     ...KNOWN_PHRASES,
-    "sql", "python", "excel", "tableau", "salesforce", "zendesk", "jira", "hubspot",
-    "azure", "aws", "gcp", "react", "node", "java", "typescript", "javascript",
-    "api", "saas", "agile", "scrum", "crm", "erp",
-    "stakeholder", "stakeholders", "customer", "customers", "client", "clients",
-    "communication", "leadership", "negotiation", "presentation", "onboarding",
-    "implementation", "escalation", "escalations", "milestones", "rollout",
-    "management", "manager", "project", "projects", "experience",
-    "german", "english", "french", "dutch", "spanish",
-    "degree", "certification", "certifications", "qualification", "qualifications",
-    "travel", "conferences", "salary", "bonus", "commission",
-    "empathy", "eloquent", "eloquence", "proactive", "structured",
-    "media", "press", "branding", "marketing", "advertising",
-    "support", "training", "documentation", "reporting", "dashboards",
+    "sql",
+    "python",
+    "excel",
+    "tableau",
+    "salesforce",
+    "zendesk",
+    "jira",
+    "hubspot",
+    "azure",
+    "aws",
+    "gcp",
+    "react",
+    "node",
+    "java",
+    "typescript",
+    "javascript",
+    "api",
+    "saas",
+    "agile",
+    "scrum",
+    "crm",
+    "erp",
+    "stakeholder",
+    "stakeholders",
+    "customer",
+    "customers",
+    "client",
+    "clients",
+    "communication",
+    "leadership",
+    "negotiation",
+    "presentation",
+    "onboarding",
+    "implementation",
+    "escalation",
+    "escalations",
+    "milestones",
+    "rollout",
+    "management",
+    "manager",
+    "project",
+    "projects",
+    "experience",
+    "german",
+    "english",
+    "french",
+    "dutch",
+    "spanish",
+    "degree",
+    "certification",
+    "certifications",
+    "qualification",
+    "qualifications",
+    "travel",
+    "conferences",
+    "salary",
+    "bonus",
+    "commission",
+    "empathy",
+    "eloquent",
+    "eloquence",
+    "proactive",
+    "structured",
+    "media",
+    "press",
+    "branding",
+    "marketing",
+    "advertising",
+    "support",
+    "training",
+    "documentation",
+    "reporting",
+    "dashboards",
   ]);
 
   const keywordGap = useMemo(() => {
     if (!jobDescription.trim() || !cvText.trim()) {
-      return { score: 0, matched: [] as string[], partial: [] as string[], missing: [] as string[], total: 0 };
+      return {
+        score: 0,
+        matched: [] as string[],
+        partial: [] as string[],
+        missing: [] as string[],
+        total: 0,
+      };
     }
 
     const jdLower = jobDescription.toLowerCase();
     const cvLower = cvText.toLowerCase();
 
     const stopwords = new Set([
-      "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "from",
-      "is", "are", "was", "were", "will", "be", "been", "being", "have", "has", "had", "do", "does", "did",
-      "not", "this", "that", "these", "those", "we", "you", "they", "their", "our", "your", "its", "it",
-      "as", "if", "than", "then", "so", "can", "could", "should", "would", "may", "must", "shall",
-      "who", "what", "when", "where", "how", "why", "which", "all", "any", "both", "each", "more", "most",
-      "again", "out", "up", "down", "no", "yes", "etc", "also", "such", "into", "about", "over", "after",
-      "before", "right", "make", "made", "get", "got", "go", "going", "want", "like", "lot", "point",
-      "start", "level", "job", "work", "works", "working", "really", "very", "well", "good",
+      "the",
+      "a",
+      "an",
+      "and",
+      "or",
+      "but",
+      "in",
+      "on",
+      "at",
+      "to",
+      "for",
+      "of",
+      "with",
+      "by",
+      "from",
+      "is",
+      "are",
+      "was",
+      "were",
+      "will",
+      "be",
+      "been",
+      "being",
+      "have",
+      "has",
+      "had",
+      "do",
+      "does",
+      "did",
+      "not",
+      "this",
+      "that",
+      "these",
+      "those",
+      "we",
+      "you",
+      "they",
+      "their",
+      "our",
+      "your",
+      "its",
+      "it",
+      "as",
+      "if",
+      "than",
+      "then",
+      "so",
+      "can",
+      "could",
+      "should",
+      "would",
+      "may",
+      "must",
+      "shall",
+      "who",
+      "what",
+      "when",
+      "where",
+      "how",
+      "why",
+      "which",
+      "all",
+      "any",
+      "both",
+      "each",
+      "more",
+      "most",
+      "again",
+      "out",
+      "up",
+      "down",
+      "no",
+      "yes",
+      "etc",
+      "also",
+      "such",
+      "into",
+      "about",
+      "over",
+      "after",
+      "before",
+      "right",
+      "make",
+      "made",
+      "get",
+      "got",
+      "go",
+      "going",
+      "want",
+      "like",
+      "lot",
+      "point",
+      "start",
+      "level",
+      "job",
+      "work",
+      "works",
+      "working",
+      "really",
+      "very",
+      "well",
+      "good",
     ]);
 
     const includesWord = (text: string, term: string) => {
       if (term.includes(" ")) return text.includes(term);
-      return new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(text);
+      return new RegExp(
+        `\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+      ).test(text);
     };
 
     const found = new Set<string>();
@@ -448,7 +899,9 @@ export default function CvWorkspacePage() {
         matched.push(keyword);
         continue;
       }
-      const words = keyword.split(" ").filter((w) => w.length >= 4 && !stopwords.has(w));
+      const words = keyword
+        .split(" ")
+        .filter((w) => w.length >= 4 && !stopwords.has(w));
       if (words.length > 1 && words.some((w) => includesWord(cvLower, w))) {
         partial.push(keyword);
         continue;
@@ -457,7 +910,9 @@ export default function CvWorkspacePage() {
     }
 
     const total = keywords.length || 1;
-    const score = Math.round(((matched.length + partial.length * 0.5) / total) * 100);
+    const score = Math.round(
+      ((matched.length + partial.length * 0.5) / total) * 100,
+    );
 
     return { score, matched, partial, missing, total };
   }, [cvText, jobDescription]);
@@ -465,7 +920,8 @@ export default function CvWorkspacePage() {
   const atsKeywords = keywordGap;
   const atsScore = keywordGap.score;
   const phaseB = useMemo(
-    () => buildPhaseBInsights({ cvText, jobDescription, targetRole, targetMarket }),
+    () =>
+      buildPhaseBInsights({ cvText, jobDescription, targetRole, targetMarket }),
     [cvText, jobDescription, targetRole, targetMarket],
   );
 
@@ -479,7 +935,7 @@ export default function CvWorkspacePage() {
   useEffect(() => {
     if (!resumeJson?.profile?.basics?.name) return;
     syncCandidateIdentityFromSetup({
-      cvText,
+      cvText: rawCvText || cvText,
       jobDescription,
       targetRole,
       targetMarket,
@@ -491,19 +947,29 @@ export default function CvWorkspacePage() {
       candidateLocation: resumeJson.profile.basics.location,
       candidateLinkedin: resumeJson.profile.basics.linkedin,
     });
-  }, [resumeJson, cvText, jobDescription, targetRole, targetMarket]);
+  }, [resumeJson, cvText, rawCvText, jobDescription, targetRole, targetMarket]);
 
   function safeName() {
-    return resumeJson.profile.basics.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "workzo-cv";
+    return (
+      resumeJson.profile.basics.name
+        .replace(/[^a-z0-9]+/gi, "-")
+        .replace(/^-|-$/g, "") || "workzo-cv"
+    );
   }
 
   function handleDownloadHtml(selectedTemplate = template) {
-    const html = generateResumeHtml({ ...resumeInput, template: selectedTemplate });
+    const html = generateResumeHtml({
+      ...resumeInput,
+      template: selectedTemplate,
+    });
     downloadHtmlFile(`${safeName()}-${selectedTemplate}.html`, html);
   }
 
   function handlePrintPdf(selectedTemplate = template) {
-    const html = generateResumeHtml({ ...resumeInput, template: selectedTemplate });
+    const html = generateResumeHtml({
+      ...resumeInput,
+      template: selectedTemplate,
+    });
     printResumeHtml(html);
   }
 
@@ -515,11 +981,13 @@ export default function CvWorkspacePage() {
 
   async function handleAiRewrite() {
     if (!jobDescription.trim()) {
-      setAiRewriteError("Paste a job description first so the rewrite can target it.");
+      setAiRewriteError(
+        "Paste a job description first so the rewrite can target it.",
+      );
       return;
     }
-    if (!(atsText || improvedCv).trim()) {
-      setAiRewriteError("Upload a CV first.");
+    if (!cvReady) {
+      setAiRewriteError("Upload or paste a CV first.");
       return;
     }
 
@@ -533,8 +1001,19 @@ export default function CvWorkspacePage() {
       // as input causes each successive rewrite to lose more content (missing
       // jobs, merged projects, shortened bullets) because merge artifacts
       // compound across runs.
+      const originalEvidenceText =
+        rawCvText || savedResumeProfile?.rawText || cvText || atsText || improvedCv;
       const freshProfileForRewrite = savedResumeProfile
-        ? completeResumeProfile(savedResumeProfile, cvText)
+        ? completeResumeProfile(
+            {
+              ...savedResumeProfile,
+              rawText: savedResumeProfile.rawText || originalEvidenceText,
+              previewText:
+                savedResumeProfile.previewText ||
+                originalEvidenceText.slice(0, 1200),
+            },
+            originalEvidenceText,
+          )
         : undefined;
 
       const response = await fetch("/api/copilot", {
@@ -543,7 +1022,7 @@ export default function CvWorkspacePage() {
         credentials: "include",
         body: JSON.stringify({
           action: "cv_rewrite_ats",
-          cvText: cvText || atsText || improvedCv,
+          cvText: originalEvidenceText,
           resumeProfile: freshProfileForRewrite,
           jobDescription,
           targetRole,
@@ -574,22 +1053,35 @@ export default function CvWorkspacePage() {
       // parser having to infer structure from prose after the fact.
       let mergedProfile = savedResumeProfile
         ? mergePreservingOriginalStructure(
-            completeResumeProfile(savedResumeProfile, cvText),
-            data.resumeProfile && typeof data.resumeProfile === "object" ? data.resumeProfile : undefined,
+            completeResumeProfile(savedResumeProfile, rawCvText || savedResumeProfile.rawText || cvText),
+            data.resumeProfile && typeof data.resumeProfile === "object"
+              ? data.resumeProfile
+              : undefined,
           )
         : undefined;
       // Final name safety: if the merged profile still has a wrong name,
       // restore it from savedResumeProfile which has the correct name.
-      if (mergedProfile && savedResumeProfile?.basics?.name && mergedProfile.basics?.name !== savedResumeProfile.basics.name) {
+      if (
+        mergedProfile &&
+        savedResumeProfile?.basics?.name &&
+        mergedProfile.basics?.name !== savedResumeProfile.basics.name
+      ) {
         mergedProfile = {
           ...mergedProfile,
-          basics: { ...mergedProfile.basics, name: savedResumeProfile.basics.name },
+          basics: {
+            ...mergedProfile.basics,
+            name: savedResumeProfile.basics.name,
+          },
         };
       }
       setRewrittenResumeProfile(mergedProfile);
       setAiRewriteApplied(true);
     } catch (err) {
-      setAiRewriteError(err instanceof Error ? err.message : "AI rewrite failed. Please try again.");
+      setAiRewriteError(
+        err instanceof Error
+          ? err.message
+          : "AI rewrite failed. Please try again.",
+      );
     } finally {
       setAiRewriteLoading(false);
     }
@@ -603,32 +1095,58 @@ export default function CvWorkspacePage() {
   }
 
   const jdReady = jobDescription.trim().length > 0;
-  const cvReady = cvText.trim().length > 0;
+  const cvReady =
+    Boolean(
+      savedResumeProfile &&
+      resumeProfileHasMinimumStructure(savedResumeProfile),
+    ) || cvText.trim().length > 0;
 
   return (
-    <PremiumFeatureGate feature="improve_cv" title="Improve CV is a Premium feature" description="ATS keyword analysis, job-specific CV improvement, exports, and advanced CV targeting are included in Premium.">
+    <PremiumFeatureGate
+      feature="improve_cv"
+      title="Improve CV"
+      description="Improve CV is available on every WorkZo plan."
+    >
       <main className="min-h-screen bg-canvas px-4 py-6 text-fg sm:px-5">
         {(profileRecovering || profileNeedsReupload) && (
-          <div className={cn(
-            "mx-auto mb-5 flex max-w-5xl items-start gap-3 rounded-lg border px-4 py-3 text-sm",
-            profileNeedsReupload ? "border-warning/30 bg-warning/10 text-warning" : "border-brand/20 bg-brand/[0.06] text-brand",
-          )}>
+          <div
+            className={cn(
+              "mx-auto mb-5 flex max-w-5xl items-start gap-3 rounded-lg border px-4 py-3 text-sm",
+              profileNeedsReupload
+                ? "border-warning/30 bg-warning/10 text-warning"
+                : "border-brand/20 bg-brand/[0.06] text-brand",
+            )}
+          >
             {profileRecovering ? (
               <>
                 <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
-                <span>Refreshing your CV profile with improved extraction…</span>
+                <span>
+                  Refreshing your CV profile with improved extraction…
+                </span>
               </>
             ) : (
               <>
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                <span>Your stored CV data needs refreshing. <a href="/onboarding" className="font-semibold underline underline-offset-2 hover:text-warning">Re-upload your CV on the setup page</a> to fix this.</span>
+                <span>
+                  Your stored CV data needs refreshing.{" "}
+                  <a
+                    href="/onboarding"
+                    className="font-semibold underline underline-offset-2 hover:text-warning"
+                  >
+                    Re-upload your CV on the setup page
+                  </a>{" "}
+                  to fix this.
+                </span>
               </>
             )}
           </div>
         )}
 
         <header className="mx-auto mb-6 flex max-w-6xl items-center justify-between">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/5 px-4 py-2 text-sm font-bold text-fg transition hover:bg-fg/10">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/5 px-4 py-2 text-sm font-bold text-fg transition hover:bg-fg/10"
+          >
             <ArrowLeft className="h-4 w-4" /> Back
           </Link>
           <div className="flex items-center gap-3">
@@ -642,6 +1160,30 @@ export default function CvWorkspacePage() {
           </div>
         </header>
 
+        {/* Standalone entry: users who arrive here directly (from the
+            landing / features page) never went through onboarding, so
+            there is no stored CV. Let them upload or paste one right
+            here. This also loads the full experience section, which is
+            what feeds the rewrite. */}
+        {!cvReady && (
+          <section className="mx-auto mb-6 max-w-6xl">
+            <CvSourcePanel
+              requireJobDescription
+              initialJobDescription={jobDescription}
+              initialTargetRole={targetRole}
+              heading="Add your CV to improve it"
+              subheading="Upload a file or paste your CV, then add the job description. WorkZo rewrites it to target that role."
+              onLoaded={(r) => {
+                setRawCvText(r.rawCvText);
+                setCvText(r.cvText);
+                setSavedResumeProfile(r.resumeProfile);
+                setJobDescription(r.jobDescription);
+                setTargetRole(r.targetRole);
+              }}
+            />
+          </section>
+        )}
+
         {/* ── Step 1: target this job ───────────────────────────────────── */}
         <section className="mx-auto max-w-6xl rounded-lg border border-line bg-fg/[0.035] p-5 shadow-2xl shadow-black/20 sm:p-6">
           <div className="flex items-start gap-3">
@@ -649,16 +1191,21 @@ export default function CvWorkspacePage() {
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Rewrite your CV for this job</h1>
+              <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
+                Rewrite your CV for this job
+              </h1>
               <p className="mt-1 text-sm leading-6 text-muted">
-                Paste the job description, pick a language, and WorkZo rewrites your CV to match: same jobs and dates, sharper wording.
+                Paste the job description, pick a language, and WorkZo rewrites
+                your CV to match: same jobs and dates, sharper wording.
               </p>
             </div>
           </div>
 
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
             <label className="block">
-              <span className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-muted">Job description</span>
+              <span className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-muted">
+                Job description
+              </span>
               <textarea
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
@@ -670,7 +1217,9 @@ export default function CvWorkspacePage() {
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-muted">Target role</span>
+                  <span className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-muted">
+                    Target role
+                  </span>
                   <input
                     value={targetRole}
                     onChange={(e) => setTargetRole(e.target.value)}
@@ -679,14 +1228,18 @@ export default function CvWorkspacePage() {
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-muted">Output language</span>
+                  <span className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-muted">
+                    Output language
+                  </span>
                   <select
                     value={outputLanguage}
                     onChange={(e) => setOutputLanguage(e.target.value)}
                     className="w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm font-bold outline-none transition focus:border-brand"
                   >
                     {OUTPUT_LANGUAGES.map((l) => (
-                      <option key={l.value} value={l.value}>{l.label}</option>
+                      <option key={l.value} value={l.value}>
+                        {l.label}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -698,10 +1251,24 @@ export default function CvWorkspacePage() {
                 className="flex items-center justify-between rounded-lg border border-line bg-canvas-soft px-4 py-3 text-left text-sm font-bold text-muted transition hover:bg-canvas-soft"
               >
                 <span className="flex items-center gap-2">
-                  <CheckCircle2 className={cn("h-4 w-4", cvReady ? "text-success" : "text-subtle")} />
-                  {cvReady ? "CV loaded from your profile" : "No CV text yet: add it below"}
+                  <CheckCircle2
+                    className={cn(
+                      "h-4 w-4",
+                      cvReady ? "text-success" : "text-subtle",
+                    )}
+                  />
+                  {savedResumeProfile
+                    ? "CV loaded from your profile"
+                    : cvReady
+                      ? "CV text loaded"
+                      : "No CV text yet: add it below"}
                 </span>
-                <ChevronDown className={cn("h-4 w-4 transition-transform", cvTextExpanded && "rotate-180")} />
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform",
+                    cvTextExpanded && "rotate-180",
+                  )}
+                />
               </button>
 
               {cvTextExpanded && (
@@ -720,22 +1287,44 @@ export default function CvWorkspacePage() {
                 type="button"
                 onClick={() => void handleAiRewrite()}
                 disabled={aiRewriteLoading || !jdReady || !cvReady}
-                title={!jdReady ? "Paste a job description first" : !cvReady ? "Add your CV text first" : undefined}
+                title={
+                  !jdReady
+                    ? "Paste a job description first"
+                    : !cvReady
+                      ? "Add your CV text first"
+                      : undefined
+                }
                 className="mt-1 inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-brand to-brand px-5 py-3.5 text-sm font-black text-on-brand shadow-lg shadow-brand/20 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {aiRewriteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {aiRewriteLoading ? "Rewriting your CV…" : aiRewriteApplied ? "Rewrite again" : "Rewrite for this job"}
+                {aiRewriteLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                {aiRewriteLoading
+                  ? "Rewriting your CV…"
+                  : aiRewriteApplied
+                    ? "Rewrite again"
+                    : "Rewrite for this job"}
               </button>
-              {!jdReady && <p className="text-xs text-subtle">Paste a job description above to enable the rewrite.</p>}
+              {!jdReady && (
+                <p className="text-xs text-subtle">
+                  Paste a job description above to enable the rewrite.
+                </p>
+              )}
             </div>
           </div>
 
           {aiRewriteError && (
-            <p className="mt-4 rounded-xl border border-warning/20 bg-warning/10 px-4 py-2.5 text-sm font-bold text-warning">{aiRewriteError}</p>
+            <p className="mt-4 rounded-xl border border-warning/20 bg-warning/10 px-4 py-2.5 text-sm font-bold text-warning">
+              {aiRewriteError}
+            </p>
           )}
           {aiRewriteApplied && !aiRewriteError && (
             <p className="mt-4 rounded-xl border border-success/20 bg-success/10 px-4 py-2.5 text-sm font-bold text-success">
-              Rewritten for this job description in {outputLanguage}. Same jobs, dates, and companies: only wording changed. Review before downloading.
+              Rewritten for this job description in {outputLanguage}. Same jobs,
+              dates, and companies: only wording changed. Review before
+              downloading.
             </p>
           )}
         </section>
@@ -747,14 +1336,24 @@ export default function CvWorkspacePage() {
               <button
                 type="button"
                 onClick={() => setViewMode("text")}
-                className={cn("rounded-xl px-4 py-2 text-sm font-black transition", viewMode === "text" ? "bg-brand text-on-brand" : "text-muted hover:text-on-brand")}
+                className={cn(
+                  "rounded-xl px-4 py-2 text-sm font-black transition",
+                  viewMode === "text"
+                    ? "bg-brand text-on-brand"
+                    : "text-muted hover:text-on-brand",
+                )}
               >
                 Editable text
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("preview")}
-                className={cn("rounded-xl px-4 py-2 text-sm font-black transition", viewMode === "preview" ? "bg-brand text-on-brand" : "text-muted hover:text-on-brand")}
+                className={cn(
+                  "rounded-xl px-4 py-2 text-sm font-black transition",
+                  viewMode === "preview"
+                    ? "bg-brand text-on-brand"
+                    : "text-muted hover:text-on-brand",
+                )}
               >
                 Template preview
               </button>
@@ -762,17 +1361,34 @@ export default function CvWorkspacePage() {
 
             <div className="flex flex-wrap items-center gap-2">
               {aiRewriteApplied && (
-                <button type="button" onClick={handleRevertRewrite} className="rounded-full border border-line px-3.5 py-2 text-xs font-black text-muted transition hover:bg-fg/10">
+                <button
+                  type="button"
+                  onClick={handleRevertRewrite}
+                  className="rounded-full border border-line px-3.5 py-2 text-xs font-black text-muted transition hover:bg-fg/10"
+                >
                   Revert to original
                 </button>
               )}
-              <button type="button" onClick={handleCopy} className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/5 px-3.5 py-2 text-xs font-black text-fg transition hover:bg-fg/10">
-                <Copy className="h-3.5 w-3.5" /> {copyConfirmed ? "Copied!" : "Copy"}
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/5 px-3.5 py-2 text-xs font-black text-fg transition hover:bg-fg/10"
+              >
+                <Copy className="h-3.5 w-3.5" />{" "}
+                {copyConfirmed ? "Copied!" : "Copy"}
               </button>
-              <button type="button" onClick={() => handleDownloadHtml()} className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/5 px-3.5 py-2 text-xs font-black text-fg transition hover:bg-fg/10">
+              <button
+                type="button"
+                onClick={() => handleDownloadHtml()}
+                className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/5 px-3.5 py-2 text-xs font-black text-fg transition hover:bg-fg/10"
+              >
                 <Download className="h-3.5 w-3.5" /> HTML
               </button>
-              <button type="button" onClick={() => handlePrintPdf()} className="inline-flex items-center gap-2 rounded-full bg-brand px-3.5 py-2 text-xs font-black text-on-brand transition hover:bg-brand">
+              <button
+                type="button"
+                onClick={() => handlePrintPdf()}
+                className="inline-flex items-center gap-2 rounded-full bg-brand px-3.5 py-2 text-xs font-black text-on-brand transition hover:bg-brand"
+              >
                 <Printer className="h-3.5 w-3.5" /> PDF
               </button>
             </div>
@@ -796,7 +1412,9 @@ export default function CvWorkspacePage() {
                     onClick={() => setTemplate(item.id)}
                     className={cn(
                       "rounded-xl border px-3.5 py-2 text-xs font-black transition",
-                      template === item.id ? "border-brand/70 bg-brand/15 text-on-brand" : "border-line bg-canvas-soft text-muted hover:border-brand/40",
+                      template === item.id
+                        ? "border-brand/70 bg-brand/15 text-on-brand"
+                        : "border-line bg-canvas-soft text-muted hover:border-brand/40",
                     )}
                     title={item.description}
                   >
@@ -805,7 +1423,11 @@ export default function CvWorkspacePage() {
                 ))}
               </div>
               <div className="max-h-[75vh] overflow-auto rounded-xl border border-line bg-white">
-                <iframe title="CV template preview" srcDoc={htmlPreview} className="h-[1120px] w-full bg-white" />
+                <iframe
+                  title="CV template preview"
+                  srcDoc={htmlPreview}
+                  className="h-[1120px] w-full bg-white"
+                />
               </div>
             </div>
           )}
@@ -819,51 +1441,93 @@ export default function CvWorkspacePage() {
 
         {/* ── Step 3: why this works (collapsed insights) ────────────────── */}
         <section className="mx-auto mt-6 max-w-6xl space-y-4">
-          <CollapsibleSection eyebrow="Recruiter scan" title={phaseA.recruiterScan.decision} defaultOpen={false}>
+          <CollapsibleSection
+            eyebrow="Recruiter scan"
+            title={phaseA.recruiterScan.decision}
+            defaultOpen={false}
+          >
             <div className="flex items-start justify-between gap-4">
-              <p className="text-sm leading-6 text-muted">{phaseA.recruiterScan.firstImpression}</p>
+              <p className="text-sm leading-6 text-muted">
+                {phaseA.recruiterScan.firstImpression}
+              </p>
               <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-brand/20 bg-canvas-soft text-center">
-                <p className="text-xl font-black text-muted">{phaseA.readinessScore}</p>
+                <p className="text-xl font-black text-muted">
+                  {phaseA.readinessScore}
+                </p>
                 <p className="-mt-1 text-[9px] font-black text-subtle">READY</p>
               </div>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-success/15 bg-success/[0.06] p-4">
-                <div className="mb-3 flex items-center gap-2 text-sm font-black text-success"><CheckCircle2 className="h-4 w-4" /> What works</div>
+                <div className="mb-3 flex items-center gap-2 text-sm font-black text-success">
+                  <CheckCircle2 className="h-4 w-4" /> What works
+                </div>
                 <div className="space-y-2">
-                  {phaseA.recruiterScan.strengths.map((item) => <p key={item} className="text-sm leading-6 text-muted">• {item}</p>)}
+                  {phaseA.recruiterScan.strengths.map((item) => (
+                    <p key={item} className="text-sm leading-6 text-muted">
+                      • {item}
+                    </p>
+                  ))}
                 </div>
               </div>
               <div className="rounded-lg border border-warning/15 bg-warning/[0.06] p-4">
-                <div className="mb-3 flex items-center gap-2 text-sm font-black text-warning"><AlertTriangle className="h-4 w-4" /> Recruiter concerns</div>
+                <div className="mb-3 flex items-center gap-2 text-sm font-black text-warning">
+                  <AlertTriangle className="h-4 w-4" /> Recruiter concerns
+                </div>
                 <div className="space-y-2">
-                  {phaseA.recruiterScan.concerns.map((item) => <p key={item} className="text-sm leading-6 text-muted">• {item}</p>)}
+                  {phaseA.recruiterScan.concerns.map((item) => (
+                    <p key={item} className="text-sm leading-6 text-muted">
+                      • {item}
+                    </p>
+                  ))}
                 </div>
               </div>
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg border border-line bg-canvas-soft p-4">
-                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-muted"><Gauge className="h-4 w-4" /> Current</div>
-                <p className="mt-2 text-2xl font-black">{phaseA.interviewProbability.current}%</p>
-                <p className="mt-1 text-xs text-subtle">Interview probability estimate</p>
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-muted">
+                  <Gauge className="h-4 w-4" /> Current
+                </div>
+                <p className="mt-2 text-2xl font-black">
+                  {phaseA.interviewProbability.current}%
+                </p>
+                <p className="mt-1 text-xs text-subtle">
+                  Interview probability estimate
+                </p>
               </div>
               <div className="rounded-lg border border-line bg-canvas-soft p-4">
-                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-muted"><Target className="h-4 w-4" /> After CV fix</div>
-                <p className="mt-2 text-2xl font-black text-muted">{phaseA.interviewProbability.afterCvFix}%</p>
-                <p className="mt-1 text-xs text-subtle">If missing proof is added</p>
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-muted">
+                  <Target className="h-4 w-4" /> After CV fix
+                </div>
+                <p className="mt-2 text-2xl font-black text-muted">
+                  {phaseA.interviewProbability.afterCvFix}%
+                </p>
+                <p className="mt-1 text-xs text-subtle">
+                  If missing proof is added
+                </p>
               </div>
               <div className="rounded-lg border border-line bg-canvas-soft p-4">
-                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-muted"><Sparkles className="h-4 w-4" /> After prep</div>
-                <p className="mt-2 text-2xl font-black text-success">{phaseA.interviewProbability.afterInterviewPrep}%</p>
-                <p className="mt-1 text-xs text-subtle">With interview stories ready</p>
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-muted">
+                  <Sparkles className="h-4 w-4" /> After prep
+                </div>
+                <p className="mt-2 text-2xl font-black text-success">
+                  {phaseA.interviewProbability.afterInterviewPrep}%
+                </p>
+                <p className="mt-1 text-xs text-subtle">
+                  With interview stories ready
+                </p>
               </div>
             </div>
           </CollapsibleSection>
 
           {jobDescription.trim() && cvText.trim() && (
-            <CollapsibleSection eyebrow="ATS optimization" title={`Keyword match: ${atsScore}%`} defaultOpen={false}>
+            <CollapsibleSection
+              eyebrow="ATS optimization"
+              title={`Keyword match: ${atsScore}%`}
+              defaultOpen={false}
+            >
               <p className="text-sm leading-6 text-muted">
                 {atsScore >= 75
                   ? "Strong keyword coverage. Your CV includes most JD requirements."
@@ -874,31 +1538,71 @@ export default function CvWorkspacePage() {
 
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-fg/10">
                 <div
-                  className={cn("h-full rounded-full transition-all duration-500", atsScore >= 75 ? "bg-success" : atsScore >= 50 ? "bg-warning" : "bg-danger")}
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500",
+                    atsScore >= 75
+                      ? "bg-success"
+                      : atsScore >= 50
+                        ? "bg-warning"
+                        : "bg-danger",
+                  )}
                   style={{ width: `${atsScore}%` }}
                 />
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border border-success/15 bg-success/[0.06] p-4">
-                  <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-success">Matched ({atsKeywords.matched.length})</p>
+                  <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-success">
+                    Matched ({atsKeywords.matched.length})
+                  </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {atsKeywords.matched.map((kw) => <span key={kw} className="rounded-lg border border-success/20 bg-success/10 px-2 py-0.5 text-[11px] font-black text-success">{kw}</span>)}
-                    {atsKeywords.matched.length === 0 && <p className="text-xs text-subtle">None yet</p>}
+                    {atsKeywords.matched.map((kw) => (
+                      <span
+                        key={kw}
+                        className="rounded-lg border border-success/20 bg-success/10 px-2 py-0.5 text-[11px] font-black text-success"
+                      >
+                        {kw}
+                      </span>
+                    ))}
+                    {atsKeywords.matched.length === 0 && (
+                      <p className="text-xs text-subtle">None yet</p>
+                    )}
                   </div>
                 </div>
                 <div className="rounded-lg border border-warning/15 bg-warning/[0.06] p-4">
-                  <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-warning">Partial ({atsKeywords.partial.length})</p>
+                  <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-warning">
+                    Partial ({atsKeywords.partial.length})
+                  </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {atsKeywords.partial.map((kw) => <span key={kw} className="rounded-lg border border-warning/20 bg-warning/10 px-2 py-0.5 text-[11px] font-black text-warning">{kw}</span>)}
-                    {atsKeywords.partial.length === 0 && <p className="text-xs text-subtle">None</p>}
+                    {atsKeywords.partial.map((kw) => (
+                      <span
+                        key={kw}
+                        className="rounded-lg border border-warning/20 bg-warning/10 px-2 py-0.5 text-[11px] font-black text-warning"
+                      >
+                        {kw}
+                      </span>
+                    ))}
+                    {atsKeywords.partial.length === 0 && (
+                      <p className="text-xs text-subtle">None</p>
+                    )}
                   </div>
                 </div>
                 <div className="rounded-lg border border-danger/15 bg-danger/[0.06] p-4">
-                  <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-danger">Missing ({atsKeywords.missing.length})</p>
+                  <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-danger">
+                    Missing ({atsKeywords.missing.length})
+                  </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {atsKeywords.missing.map((kw) => <span key={kw} className="rounded-lg border border-danger/20 bg-danger/10 px-2 py-0.5 text-[11px] font-black text-danger">{kw}</span>)}
-                    {atsKeywords.missing.length === 0 && <p className="text-xs text-subtle">None missing</p>}
+                    {atsKeywords.missing.map((kw) => (
+                      <span
+                        key={kw}
+                        className="rounded-lg border border-danger/20 bg-danger/10 px-2 py-0.5 text-[11px] font-black text-danger"
+                      >
+                        {kw}
+                      </span>
+                    ))}
+                    {atsKeywords.missing.length === 0 && (
+                      <p className="text-xs text-subtle">None missing</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -907,36 +1611,59 @@ export default function CvWorkspacePage() {
                 <div className="mt-4 rounded-xl border border-line bg-canvas-soft p-4">
                   <p className="text-xs font-black text-fg">Quick fix</p>
                   <p className="mt-1 text-sm leading-6 text-muted">
-                    Add these terms naturally to your CV where you genuinely have experience: <span className="font-bold text-warning">{atsKeywords.missing.slice(0, 5).join(", ")}</span>. Only add terms that reflect real experience: never keyword-stuff.
+                    Add these terms naturally to your CV where you genuinely
+                    have experience:{" "}
+                    <span className="font-bold text-warning">
+                      {atsKeywords.missing.slice(0, 5).join(", ")}
+                    </span>
+                    . Only add terms that reflect real experience: never
+                    keyword-stuff.
                   </p>
                 </div>
               )}
             </CollapsibleSection>
           )}
 
-          <CollapsibleSection eyebrow="Deeper analysis" title={phaseB.companyDNA.label} defaultOpen={false}>
+          <CollapsibleSection
+            eyebrow="Deeper analysis"
+            title={phaseB.companyDNA.label}
+            defaultOpen={false}
+          >
             <div className="flex items-start justify-between gap-4">
-              <p className="text-sm leading-6 text-muted">{phaseB.companyDNA.description}</p>
+              <p className="text-sm leading-6 text-muted">
+                {phaseB.companyDNA.description}
+              </p>
               <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-brand/20 bg-canvas-soft text-center">
-                <p className="text-xl font-black text-muted">{phaseB.trustAudit.overall}</p>
+                <p className="text-xl font-black text-muted">
+                  {phaseB.trustAudit.overall}
+                </p>
                 <p className="-mt-1 text-[9px] font-black text-subtle">TRUST</p>
               </div>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-line bg-canvas-soft p-4">
-                <p className="text-sm font-black text-muted">Company DNA rules</p>
+                <p className="text-sm font-black text-muted">
+                  Company DNA rules
+                </p>
                 <div className="mt-3 space-y-3">
                   {phaseB.companyDNA.dimensions.map((item) => (
                     <div key={item.label}>
                       <div className="mb-1 flex justify-between text-xs font-black">
                         <span className="text-muted">{item.label}</span>
-                        <span className="text-brand">{item.score}% / {item.target}%</span>
+                        <span className="text-brand">
+                          {item.score}% / {item.target}%
+                        </span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-fg/10">
-                        <div className="h-full rounded-full bg-brand" style={{ width: `${item.score}%` }} />
+                        <div
+                          className="h-full rounded-full bg-brand"
+                          style={{ width: `${item.score}%` }}
+                        />
                       </div>
-                      <p className="mt-1 text-xs leading-5 text-subtle">{item.note}</p>
+                      <p className="mt-1 text-xs leading-5 text-subtle">
+                        {item.note}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -946,8 +1673,20 @@ export default function CvWorkspacePage() {
                 <p className="text-sm font-black text-success">Trust audit</p>
                 <div className="mt-3 space-y-2">
                   {phaseB.trustAudit.dimensions.map((item) => (
-                    <p key={item.label} className="text-sm leading-6 text-muted">
-                      <span className="font-black text-fg">{item.label}:</span> {item.score}% <span className={item.delta >= 0 ? "text-success" : "text-warning"}>({item.delta >= 0 ? "+" : ""}{item.delta})</span>
+                    <p
+                      key={item.label}
+                      className="text-sm leading-6 text-muted"
+                    >
+                      <span className="font-black text-fg">{item.label}:</span>{" "}
+                      {item.score}%{" "}
+                      <span
+                        className={
+                          item.delta >= 0 ? "text-success" : "text-warning"
+                        }
+                      >
+                        ({item.delta >= 0 ? "+" : ""}
+                        {item.delta})
+                      </span>
                     </p>
                   ))}
                 </div>
@@ -956,29 +1695,52 @@ export default function CvWorkspacePage() {
 
             <div className="mt-4 rounded-lg border border-line bg-canvas-soft p-4">
               <p className="text-sm font-black text-fg">Evidence engine</p>
-              <p className="mt-2 text-sm leading-6 text-muted">{phaseB.evidenceEngine.summary}</p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                {phaseB.evidenceEngine.summary}
+              </p>
               <div className="mt-4 space-y-3">
                 {phaseB.evidenceEngine.items.slice(0, 4).map((item) => (
-                  <div key={item.text} className="rounded-xl border border-line bg-fg/[0.03] p-3">
+                  <div
+                    key={item.text}
+                    className="rounded-xl border border-line bg-fg/[0.03] p-3"
+                  >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-black text-fg">{item.score}% evidence</p>
+                      <p className="text-sm font-black text-fg">
+                        {item.score}% evidence
+                      </p>
                       <p className="text-xs text-muted">
-                        {item.ownership ? "✓ Ownership" : "⚠ Ownership"} · {item.metric ? "✓ Metric" : "⚠ Metric"} · {item.result ? "✓ Result" : "⚠ Result"}
+                        {item.ownership ? "✓ Ownership" : "⚠ Ownership"} ·{" "}
+                        {item.metric ? "✓ Metric" : "⚠ Metric"} ·{" "}
+                        {item.result ? "✓ Result" : "⚠ Result"}
                       </p>
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-muted">{item.text}</p>
-                    <p className="mt-2 text-xs leading-5 text-muted">Recruiter hears: {item.recruiterHeard}</p>
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      {item.text}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-muted">
+                      Recruiter hears: {item.recruiterHeard}
+                    </p>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="mt-4 rounded-lg border border-success/15 bg-success/[0.06] p-4">
-              <p className="text-sm font-black text-success">Top 10% rewrite target</p>
-              <p className="mt-3 text-xs font-black uppercase tracking-[0.18em] text-subtle">Current weak line</p>
-              <p className="mt-1 text-sm leading-6 text-muted">{phaseB.top10Rewrite.weakestLine}</p>
-              <p className="mt-3 text-xs font-black uppercase tracking-[0.18em] text-subtle">Elite version</p>
-              <p className="mt-1 text-sm leading-6 text-success">{phaseB.top10Rewrite.eliteLine}</p>
+              <p className="text-sm font-black text-success">
+                Top 10% rewrite target
+              </p>
+              <p className="mt-3 text-xs font-black uppercase tracking-[0.18em] text-subtle">
+                Current weak line
+              </p>
+              <p className="mt-1 text-sm leading-6 text-muted">
+                {phaseB.top10Rewrite.weakestLine}
+              </p>
+              <p className="mt-3 text-xs font-black uppercase tracking-[0.18em] text-subtle">
+                Elite version
+              </p>
+              <p className="mt-1 text-sm leading-6 text-success">
+                {phaseB.top10Rewrite.eliteLine}
+              </p>
             </div>
           </CollapsibleSection>
         </section>

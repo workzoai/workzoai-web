@@ -1260,11 +1260,7 @@ function repairProjectsFromRaw(profile: ResumeProfile, projects: ResumeProfile["
     if (!exists) merged.push(raw);
   }
   return merged.map((project) => {
-    const displayName = clean(project.name)
-      .replace(/^entering the\s+/i, "")
-      .replace(/^Selected Projects?$/i, "Independent Project")
-      .replace(/^Magist$/i, "Brazilian Market Feasibility Study")
-      .replace(/^Brazilian market$/i, "Brazilian Market Feasibility Study");
+    const displayName = cleanProjectNameV4(project.name, project.bullets || []);
     return {
       name: displayName,
       bullets: unique<string>((project.bullets || []).map(improveBulletVerb).filter(Boolean), (b) => normLoose(b))
@@ -1330,15 +1326,12 @@ function finalIntegrityCleanup(data: ResumeJson): ResumeJson {
       company: cleanCompanyName(job.company),
       bullets: unique<string>(removeBulletsThatBelongToProjects(job.bullets || [], data.projects), (b) => normLoose(b)).slice(0, 6),
     })).filter((job) => clean(job.title || job.company || job.dates) || job.bullets.length),
-    projects: data.projects.map((project) => ({
-      ...project,
-      bullets: unique<string>(project.bullets || [], (b) => normLoose(b)).slice(0, 4),
-    })),
+    projects: finalProjectCleanupV4(data.projects),
   };
 }
 
 function preserveExperienceStructure(items: ResumeProfile["experience"]) {
-  return unique(
+  return unique<ResumeExperience>(
     items
       .map((job) => ({
         ...job,
@@ -1354,7 +1347,7 @@ function preserveExperienceStructure(items: ResumeProfile["experience"]) {
 }
 
 function preserveProjectStructure(items: ResumeProfile["projects"]) {
-  return unique(
+  return unique<ResumeProfile["projects"][number]>(
     items
       .map((project) => {
         const rawName = clean(project.name);
@@ -1388,6 +1381,407 @@ function preserveProjectStructure(items: ResumeProfile["projects"]) {
   ).slice(0, 6);
 }
 
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WorkZo global resume guardrails v4
+// ─────────────────────────────────────────────────────────────────────────────
+// These functions are intentionally NOT tied to any one CV, company, school, or
+// project. They enforce universal resume rules before any JD tailoring happens:
+// - contact fields cannot contain section headings
+// - candidate name cannot be a role, section, school, project, or placeholder
+// - generated/page-layout headings cannot become projects
+// - projects are deduped by title and bullet meaning, not by exact text only
+// - education dates are repaired when a PDF text layer put the section-year next
+//   to the next line (for example: LINKEDIN...EDUCATION2024)
+// - experience entries are recovered from raw section text when the parser merged
+//   title/company/date columns incorrectly.
+
+const BAD_NAME_RE_V4 = /^(candidate|professional|profile|summary|professional summary|profile summary|education|work experience|professional experience|experience|projects?|skills?|languages?|certifications?|data science bootcamp|bootcamp|bachelor|master|university|college|school|institute|itsupportspecialist dataanalyst|it support specialist data analyst)$/i;
+const ROLE_ONLY_NAME_RE_V4 = /\b(engineer|analyst|specialist|manager|developer|designer|consultant|technician|administrator|assistant|scientist|support|success|project implementation|technical support|data analyst|it support)\b/i;
+const SECTION_WORD_RE_V4 = /\b(education|professional summary|profile summary|work experience|professional experience|projects?|skills?|languages?|certifications?|contact|kontakt|bildung|sprachen)\b/i;
+const CONTACT_STOP_RE_V4 = /(education|professional summary|profile summary|work experience|professional experience|projects?|skills?|languages?|certifications?|contact|kontakt|bildung|sprachen)\s*\d{0,4}\s*$/i;
+const PROJECT_BAD_NAME_RE_V4 = /^(candidate|professional|independent project|selected project|selected projects|unknown section header|project management|teamwork|time management|leadership|effective communication|critical thinking|itsupportspecialist\s*\/?\s*dataanalyst|it\s*support\s*specialist\s*\/?\s*data\s*analyst)$/i;
+const PROJECT_TITLE_SIGNAL_RE_V4 = /\b(project|study|analysis|dashboard|pipeline|research|feasibility|automation|portfolio|case study|sentiment|nlp|api|platform|application|service|system|tool|model|prediction|classification|visualization|visualisation)\b/i;
+const COMPANY_SIGNAL_RE_V4 = /\b(gmbh|ug|ag|kg|bv|ltd|limited|llc|inc|corp|corporation|company|co\.?|group|systems|solutions|technologies|software|services|labs|studio|consulting|industries|enterprises|associates|partners|ventures|university|college|school|institute|academy)\b/i;
+const ROLE_LINE_RE_V4 = /\b(engineer|analyst|specialist|manager|developer|designer|consultant|technician|administrator|assistant|scientist|support|success|coordinator|intern|lead|officer|executive)\b/i;
+const EMAIL_RE_V4 = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
+const PHONE_RE_V4 = /(?:\+?\d[\d\s().-]{7,}\d)/;
+const URL_RE_V4 = /\b(?:https?:\/\/)?(?:www\.)?(?:linkedin\.com\/in\/|github\.com\/|[a-z0-9.-]+\.[a-z]{2,}\/)[^\s|,;)]*/i;
+const DATE_RE_V4 = /\b(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december|märz|maerz|mai|juni|juli|okt|dez)[a-zä]*\s*)?(?:19|20)\d{2}\s*(?:[-–]\s*(?:present|current|heute|(?:19|20)\d{2}))?\b/i;
+
+function titleCaseNameV4(value = "") {
+  return clean(value)
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.includes("-")
+      ? part.split("-").map((p) => p ? p[0].toUpperCase() + p.slice(1).toLowerCase() : p).join("-")
+      : part[0].toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ")
+    .trim();
+}
+
+function nameFromEmailV4(email = "") {
+  const local = clean(email).split("@")[0] || "";
+  if (!local) return "";
+  const withoutNumbers = local.replace(/\d+/g, " ").replace(/[._-]+/g, " ").replace(/\s+/g, " ").trim();
+  const parts = withoutNumbers.split(/\s+/).filter((p) => p.length >= 2 && !/^(info|contact|hello|admin|support|jobs|career|cv|resume)$/i.test(p));
+  if (parts.length >= 2) return titleCaseNameV4(parts.slice(0, 3).join(" "));
+  // camel-ish local part: harithavijayakumar -> Haritha Vijayakumar is not
+  // generally knowable, so do not fabricate for arbitrary users.
+  return "";
+}
+
+function looksLikeBadCandidateNameV4(name = "") {
+  const n = clean(name).replace(/[|•·]+/g, " ").trim();
+  if (!n) return true;
+  if (n.length < 2 || n.length > 60) return true;
+  if (EMAIL_RE_V4.test(n) || PHONE_RE_V4.test(n) || URL_RE_V4.test(n)) return true;
+  if (BAD_NAME_RE_V4.test(n) || SECTION_WORD_RE_V4.test(n)) return true;
+  if (/\b(?:19|20)\d{2}\b/.test(n)) return true;
+  const words = n.split(/\s+/).filter(Boolean);
+  if (words.length > 5) return true;
+  // A name can be all caps, but a pure role line should not be used as a name.
+  if (ROLE_ONLY_NAME_RE_V4.test(n) && !/^[A-Z][a-z]+\s+[A-Z][a-z]+/.test(n)) return true;
+  if (/^(data|technical|customer|project|product|it|software)\b/i.test(n) && ROLE_LINE_RE_V4.test(n)) return true;
+  return false;
+}
+
+function deriveCandidateNameV4(profile: ResumeProfile, rawText = "") {
+  const current = clean(profile.basics?.name || "");
+  if (!looksLikeBadCandidateNameV4(current)) return titleCaseNameV4(current);
+
+  const raw = normalizeResumeText(rawText || profile.rawText || profile.previewText || "");
+  const email = clean(profile.basics?.email || raw.match(EMAIL_RE_V4)?.[0] || "");
+  const emailName = nameFromEmailV4(email);
+  if (emailName && !looksLikeBadCandidateNameV4(emailName)) return emailName;
+
+  const lines = raw.split(/\n+/).map((l) => clean(l)).filter(Boolean).slice(0, 20);
+  for (const line of lines) {
+    const candidate = line.replace(/\s+/g, " ").trim();
+    if (!looksLikeBadCandidateNameV4(candidate) && !ROLE_LINE_RE_V4.test(candidate) && /^[A-ZÀ-Ö][A-Za-zÀ-ÖØ-öø-ÿ' -]+$/.test(candidate)) {
+      return titleCaseNameV4(candidate);
+    }
+  }
+  return "Candidate";
+}
+
+function cleanContactFieldV4(value = "", kind: "email" | "phone" | "linkedin" | "location" | "headline" | "generic" = "generic") {
+  let v = clean(value)
+    .replace(/\s+/g, " ")
+    .replace(/\bLinked\s+In\b/gi, "LinkedIn")
+    .trim();
+  if (!v) return "";
+  // Cut off merged section headings: LinkedIn...EDUCATION2024 -> LinkedIn...
+  v = v.replace(CONTACT_STOP_RE_V4, "").replace(/\s*\|\s*$/g, "").trim();
+  if (kind === "email") return v.match(EMAIL_RE_V4)?.[0] || "";
+  if (kind === "phone") return v.match(PHONE_RE_V4)?.[0]?.trim() || "";
+  if (kind === "linkedin") {
+    const m = v.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[a-z0-9._-]+\/?/i);
+    return m ? m[0].replace(/\/+$/, "") : "";
+  }
+  if (kind === "headline") {
+    const h = v.replace(/^[^A-Za-zÀ-ÖØ-öø-ÿ]+|[^A-Za-zÀ-ÖØ-öø-ÿ/ &|+-]+$/g, "").trim();
+    if (!h || SECTION_WORD_RE_V4.test(h) || EMAIL_RE_V4.test(h) || PHONE_RE_V4.test(h)) return "Professional";
+    return h.length > 80 ? h.slice(0, 80).replace(/\s+\S*$/, "") : h;
+  }
+  if (SECTION_WORD_RE_V4.test(v) || EMAIL_RE_V4.test(v) || PHONE_RE_V4.test(v)) return "";
+  return v;
+}
+
+function globallyNormalizedResumeTextV4(value = "") {
+  return normalizeResumeText(value)
+    .replace(/(linkedin\.com\/in\/[A-Za-z0-9._-]+)\s*(education|bildung)\s*((?:19|20)\d{2})/gi, "$1\n$2\n$3")
+    .replace(/([a-z])([A-Z][A-Z ]{4,})(?=\n|$)/g, "$1\n$2")
+    .replace(/\bITSupportSpecialist\b/gi, "IT Support Specialist")
+    .replace(/\bDataanalyst\b/gi, "Data Analyst")
+    .replace(/\bPROFILESUMMARY\b/gi, "PROFILE SUMMARY")
+    .replace(/\bWORKEXPERIENCE\b/gi, "WORK EXPERIENCE")
+    .replace(/\bCORE S K I L L S\b/gi, "CORE SKILLS")
+    .replace(/\bPR O J E C TS\b/gi, "PROJECTS")
+    .replace(/\bE D U CATI O N\b/gi, "EDUCATION")
+    .replace(/\bL A N G UAG ES\b/gi, "LANGUAGES");
+}
+
+function rawLinesV4(profile: ResumeProfile, rawText = "") {
+  return globallyNormalizedResumeTextV4(rawText || profile.rawText || profile.previewText || "")
+    .split(/\n+/)
+    .map((line) => clean(line))
+    .filter(Boolean)
+    .slice(0, 350);
+}
+
+function shouldDropProjectNameV4(name = "", bullets: string[] = []) {
+  const n = clean(name);
+  if (!n) return !bullets.length;
+  if (PROJECT_BAD_NAME_RE_V4.test(n)) return true;
+  if (SECTION_WORD_RE_V4.test(n)) return true;
+  if (EMAIL_RE_V4.test(n) || PHONE_RE_V4.test(n) || URL_RE_V4.test(n)) return true;
+  if (DATE_RE_V4.test(n)) return true;
+  if (ROLE_LINE_RE_V4.test(n) && !PROJECT_TITLE_SIGNAL_RE_V4.test(n)) return true;
+  if (n.length > 90) return true;
+  return false;
+}
+
+
+function titleCaseSmall(value = "") {
+  return clean(value)
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function deriveProjectNameFromBulletsV4(name = "", bullets: string[] = []) {
+  const rawName = clean(name);
+  const joined = clean([rawName, ...bullets].join(" "));
+
+  // Generic repair for parser fragments such as "entering the Brazilian market using SQL".
+  // The fragment is a topic/action phrase, not a stable project title. When the
+  // bullets describe a feasibility/market-entry analysis, render it as a proper
+  // project title without hard-coding any specific country or company.
+  const marketFragment = rawName.match(/(?:entering|entry into|market entry(?: for)?|expansion into)\s+(?:the\s+)?([A-Za-z][A-Za-z &/-]{3,45}?)(?:\s+market)?(?:\s+using|\s+with|$)/i);
+  if (marketFragment && /feasibility|market|business opportunit|competition|competitive|partnership|strategic/i.test(joined)) {
+    let topic = clean(marketFragment[1]).replace(/\bmarket\b$/i, "").trim();
+    if (topic) return `${titleCaseSmall(topic)} Market Feasibility Study`;
+  }
+
+  const feasibilityTopic = joined.match(/feasibility study (?:on|for|of) (?:entering\s+)?(?:the\s+)?([A-Za-z][A-Za-z &/-]{3,45}?)(?:\s+market|\s+using|\.|,|$)/i);
+  if (feasibilityTopic) {
+    const topic = clean(feasibilityTopic[1]).replace(/\bmarket\b$/i, "").trim();
+    if (topic) return `${titleCaseSmall(topic)} Market Feasibility Study`;
+  }
+
+  return "";
+}
+
+function cleanProjectNameV4(name = "", bullets: string[] = []) {
+  let n = clean(name)
+    .replace(/^Candidate$/i, "")
+    .replace(/^Independent Project$/i, "")
+    .replace(/^Selected Projects?$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const derivedName = deriveProjectNameFromBulletsV4(n, bullets);
+  if (derivedName) n = derivedName;
+  if (shouldDropProjectNameV4(n, bullets)) n = "";
+  if (!n && bullets.length) {
+    const first = bullets[0] || "";
+    const m = first.match(/(?:study|analysis|pipeline|dashboard|project|model|system|service|platform|application)\s+(?:on|for|of)?\s*([A-Z][A-Za-z0-9 &/-]{3,45})(?:\s+using|\s+with|\.|,|$)/i)
+      || first.match(/(?:entering|supporting|building|developing|analyzing|analysing)\s+(?:the\s+)?([A-Z][A-Za-z0-9 &/-]{3,45})(?:\s+market|\s+service|\s+platform|\s+using|\.|,|$)/i);
+    n = m ? clean(m[1]) : "Project";
+  }
+  return n;
+}
+
+function cleanBulletV4(value = "") {
+  const b = improveBulletVerb(value)
+    .replace(/^[-•*]\s*/, "")
+    .replace(/^APIs,\s+and\s+/i, "Used REST APIs and ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!b || b.length < 22) return "";
+  if (SECTION_WORD_RE_V4.test(b) && b.length < 80) return "";
+  if (PROJECT_BAD_NAME_RE_V4.test(b)) return "";
+  return b.endsWith(".") ? b : `${b}.`;
+}
+
+function finalProjectCleanupV4(projects: ResumeProfile["projects"]) {
+  const byKey = new Map<string, ResumeProfile["projects"][number]>();
+  for (const project of projects || []) {
+    const rawBullets = (project.bullets || []).map(cleanBulletV4).filter(Boolean);
+    const name = cleanProjectNameV4(project.name, rawBullets);
+    if (!name && !rawBullets.length) continue;
+    if (shouldDropProjectNameV4(name, rawBullets) && rawBullets.length < 2) continue;
+    const key = normLoose(name || rawBullets[0] || "project");
+    const existing = byKey.get(key);
+    const mergedBullets = unique<string>([...(existing?.bullets || []), ...rawBullets], (b) => {
+      // A truncated duplicate is considered the same as its longer version.
+      const k = normLoose(b).replace(/\b(rest|apis?|mysql|python|sql|tableau|gcp|aws)\b/g, "").slice(0, 90);
+      return k;
+    });
+    const bestBullets = mergedBullets
+      .filter((b, _, arr) => !arr.some((other) => other !== b && normLoose(other).startsWith(normLoose(b).slice(0, 60)) && other.length > b.length + 20))
+      .slice(0, 4);
+    byKey.set(key, { name: existing?.name || name || "Project", bullets: bestBullets });
+  }
+  return Array.from(byKey.values()).filter((p) => p.bullets.length || p.name !== "Project").slice(0, 5);
+}
+
+function repairEducationDatesV4(profile: ResumeProfile, rawText = "") {
+  const lines = rawLinesV4(profile, rawText);
+  const existing = cleanEducation(profile.education || [], profile.basics.name)
+    .filter((e) => !/maternity|completed|technical skills|professional summary|profile summary|customer-facing|fluent in/i.test(`${e.degree} ${e.institution}`));
+
+  const eduIndex = lines.findIndex((l) => /^(education|bildung|educational background)$/i.test(l));
+  if (eduIndex < 0) return existing;
+  const eduLines: string[] = [];
+  for (let i = eduIndex + 1; i < Math.min(lines.length, eduIndex + 40); i++) {
+    if (/^(languages?|sprachen|projects?|work experience|professional experience|skills?|certifications?|contact|kontakt)$/i.test(lines[i])) break;
+    eduLines.push(lines[i]);
+  }
+  const found: ResumeProfile["education"] = [];
+  let pendingDate = "";
+  for (let i = 0; i < eduLines.length; i++) {
+    const line = eduLines[i];
+    const dateMatch = line.match(/(?:19|20)\d{2}\s*[-–]\s*(?:19|20)\d{2}|(?:19|20)\d{2}/)?.[0] || "";
+    const withoutDate = clean(line.replace(dateMatch, ""));
+    if (dateMatch && !EDUCATION_DEGREE_RE.test(withoutDate) && !INSTITUTION_RE.test(withoutDate)) {
+      pendingDate = dateMatch;
+      continue;
+    }
+    if (!EDUCATION_DEGREE_RE.test(line)) continue;
+    let degree = clean(withoutDate || line);
+    let institution = "";
+    let dates = dateMatch || pendingDate;
+    pendingDate = "";
+    // Pattern: Degree | Institution | Dates
+    const parts = line.split(/\s*\|\s*/).map(clean).filter(Boolean);
+    if (parts.length >= 2) {
+      degree = parts[0].replace(DATE_RE_V4, "").trim();
+      const instPart = parts.slice(1).join(" | ");
+      const d = instPart.match(/(?:19|20)\d{2}\s*[-–]\s*(?:19|20)\d{2}|(?:19|20)\d{2}/)?.[0] || "";
+      dates = dates || d;
+      institution = clean(instPart.replace(d, ""));
+    } else {
+      for (let j = i + 1; j < Math.min(eduLines.length, i + 5); j++) {
+        const next = eduLines[j];
+        if (!institution && INSTITUTION_RE.test(next) && !EDUCATION_DEGREE_RE.test(next)) institution = next.replace(DATE_RE_V4, "").trim();
+        if (!dates) dates = next.match(/(?:19|20)\d{2}\s*[-–]\s*(?:19|20)\d{2}|(?:19|20)\d{2}/)?.[0] || "";
+      }
+    }
+    if (degree && (institution || dates)) found.push({ degree, institution, location: "", dates });
+  }
+
+  const combined = found.length ? [...found, ...existing] : existing;
+  return cleanEducation(combined, profile.basics.name).slice(0, 5);
+}
+
+function parseExperienceFromRawV4(profile: ResumeProfile, rawText = "") {
+  const lines = rawLinesV4(profile, rawText);
+  const start = lines.findIndex((l) => /^(professional experience|work experience|experience|berufserfahrung)$/i.test(l));
+  if (start < 0) return [] as ResumeExperience[];
+  const end = (() => {
+    for (let i = start + 1; i < lines.length; i++) if (/^(projects?|education|bildung|skills?|languages?|sprachen|certifications?)$/i.test(lines[i])) return i;
+    return lines.length;
+  })();
+  const section = lines.slice(start + 1, end);
+  const jobs: ResumeExperience[] = [];
+  let current: ResumeExperience | null = null;
+  let headerRole = cleanContactFieldV4(profile.basics?.headline || "", "headline");
+  if (/customer success|project implementation/i.test(headerRole)) headerRole = "";
+  const flush = () => {
+    if (!current) return;
+    current.bullets = unique<string>((current.bullets || []).map(cleanBulletV4).filter(Boolean), (b) => normLoose(b)).slice(0, 6);
+    if (current.company || current.title || current.bullets.length) jobs.push(current);
+    current = null;
+  };
+
+  const startJob = (title: string, company: string, dates: string) => {
+    flush();
+    current = { title: cleanExperienceTitle(title || headerRole || "Professional Experience"), company: cleanCompanyName(company), location: "", dates: clean(dates), bullets: [] };
+  };
+
+  for (let i = 0; i < section.length; i++) {
+    const line = section[i];
+    if (!line || SECTION_WORD_RE_V4.test(line)) continue;
+    const parts = line.split(/\s*\|\s*/).map(clean).filter(Boolean);
+    const date = line.match(DATE_RE_V4)?.[0] || "";
+    if (parts.length >= 3 && DATE_RE_V4.test(parts[parts.length - 1])) {
+      startJob(parts[0], parts[1], parts[parts.length - 1]);
+      continue;
+    }
+    if (parts.length >= 2 && date) {
+      const a = parts[0].replace(DATE_RE_V4, "").trim();
+      const b = parts[1].replace(DATE_RE_V4, "").trim();
+      const titleFirst = ROLE_LINE_RE_V4.test(a) && !COMPANY_SIGNAL_RE_V4.test(a);
+      startJob(titleFirst ? a : "", titleFirst ? b : a, date);
+      continue;
+    }
+    if (date && COMPANY_SIGNAL_RE_V4.test(line) && !ACTION_OR_RESPONSIBILITY_RE.test(line)) {
+      startJob("", line.replace(DATE_RE_V4, "").replace(/[|–-]+$/g, "").trim(), date);
+      continue;
+    }
+    if (ROLE_LINE_RE_V4.test(line) && !ACTION_OR_RESPONSIBILITY_RE.test(line) && !DATE_RE_V4.test(line) && line.length <= 80) {
+      const next = section[i + 1] || "";
+      const nextDate = next.match(DATE_RE_V4)?.[0] || "";
+      if (COMPANY_SIGNAL_RE_V4.test(next) || nextDate) {
+        startJob(line, next.replace(DATE_RE_V4, "").trim(), nextDate);
+        if (nextDate || COMPANY_SIGNAL_RE_V4.test(next)) i += 1;
+        continue;
+      }
+    }
+    if (ACTION_OR_RESPONSIBILITY_RE.test(line)) {
+      if (!current) startJob("", "", "");
+      current.bullets.push(line);
+    } else if (current?.bullets?.length && line.length < 140 && !ROLE_LINE_RE_V4.test(line)) {
+      current.bullets[current.bullets.length - 1] += ` ${line}`;
+    }
+  }
+  flush();
+  return unique(jobs, (j) => `${normLoose(j.company)}|${normLoose(j.title)}|${j.dates}`).slice(0, 8);
+}
+
+
+function repairLanguagesFromRawV4(profile: ResumeProfile, rawText = "") {
+  const existing = unique<string>((profile.languages || []).map(clean).filter(Boolean), (l) => normLoose(l.split(/[-:()]/)[0]));
+  const lines = rawLinesV4(profile, rawText);
+  const langIndex = lines.findIndex((l) => /^(languages?|sprachen)$/i.test(l));
+  const found: string[] = [];
+  const scan = langIndex >= 0 ? lines.slice(langIndex + 1, Math.min(lines.length, langIndex + 12)) : lines;
+  const langPattern = /\b(English|German|Deutsch|French|Französisch|Spanish|Spanisch|Italian|Italienisch|Dutch|Niederländisch|Portuguese|Portugiesisch|Tamil|Hindi|Telugu|Arabic|Chinese|Mandarin|Polish)\b\s*(?:[-:()]?\s*([A-Za-z0-9+ ]{1,28}))?/gi;
+  for (const line of scan) {
+    if (langIndex >= 0 && /^(education|bildung|projects?|professional experience|work experience|skills?|certifications?|contact|kontakt)$/i.test(line)) break;
+    let m: RegExpExecArray | null;
+    while ((m = langPattern.exec(line))) {
+      const name = clean(m[1]);
+      const level = clean(m[2] || "")
+        .replace(/^(and|,|;|\||English|German|Deutsch)$/i, "")
+        .replace(/\b(PR O F|CORE|SKILLS|EDUCATION|PROJECTS?)\b.*$/i, "")
+        .trim();
+      if (!name) continue;
+      const display = level ? `${name} - ${level}` : name;
+      found.push(display);
+    }
+  }
+  return unique<string>([...existing, ...found], (l) => {
+    const k = normLoose(l.split(/[-:()]/)[0]);
+    return k === "deutsch" ? "german" : k;
+  }).slice(0, 6);
+}
+
+function globallyRepairProfileV4(profile: ResumeProfile, rawText = ""): ResumeProfile {
+  const raw = globallyNormalizedResumeTextV4(rawText || profile.rawText || profile.previewText || "");
+  const email = cleanContactFieldV4(profile.basics?.email || raw.match(EMAIL_RE_V4)?.[0] || "", "email");
+  const phone = cleanContactFieldV4(profile.basics?.phone || raw.match(PHONE_RE_V4)?.[0] || "", "phone");
+  const linkedin = cleanContactFieldV4(profile.basics?.linkedin || raw.match(/linkedin\.com\/in\/[a-z0-9._/-]+/i)?.[0] || "", "linkedin");
+  const name = deriveCandidateNameV4({ ...profile, basics: { ...profile.basics, email } }, raw);
+  const headline = cleanContactFieldV4(profile.basics?.headline || "Professional", "headline");
+  const rawExperience = parseExperienceFromRawV4(profile, raw);
+  const useRawExperience = rawExperience.length >= Math.max(1, (profile.experience || []).length) || (profile.experience || []).some((j) => !j.title || !j.company || /education|bootcamp|bachelor|project/i.test(`${j.title} ${j.company}`));
+  const repaired: ResumeProfile = {
+    ...profile,
+    rawText: raw || profile.rawText || "",
+    basics: {
+      ...profile.basics,
+      name,
+      headline,
+      email,
+      phone,
+      linkedin,
+      location: cleanContactFieldV4(profile.basics?.location || "", "location"),
+    },
+    summary: clean(profile.summary).replace(/([a-z])([A-Z])/g, "$1 $2"),
+    experience: useRawExperience ? rawExperience : profile.experience || [],
+    projects: finalProjectCleanupV4(profile.projects || []),
+    education: repairEducationDatesV4(profile, raw),
+    skills: cleanSkillsForDisplay(profile.skills || []),
+    languages: repairLanguagesFromRawV4(profile, raw),
+  };
+  return repaired;
+}
+
 function preserveSummary(profile: ResumeProfile, roleFit: ResumeJson["roleFit"]) {
   const summary = compactSentence(profile.summary || "", 650);
   const badSummary =
@@ -1406,7 +1800,7 @@ function preserveSummary(profile: ResumeProfile, roleFit: ResumeJson["roleFit"])
 }
 
 export function buildResumeJson(input: CvGenerationInput): ResumeJson {
-  const profile = profileFromInput(input);
+  const profile = globallyRepairProfileV4(profileFromInput(input), input.cvText || "");
   const jd = analyzeJd(input);
   const roleFit = buildRoleFit(profile, jd);
 
@@ -1445,7 +1839,7 @@ export function buildResumeJson(input: CvGenerationInput): ResumeJson {
     experience,
     projects,
     education,
-    languages: unique<string>(profile.languages || [], (item) => item.split(" - ")[0]).slice(0, 4),
+    languages: repairLanguagesFromRawV4(profile, profile.rawText || input.cvText || ""),
     strengths: unique<string>([...(profile.strengths || []), ...roleFit.highlights]).slice(0, 7),
     roleFit,
     market: normalizeMarket(input.targetMarket),

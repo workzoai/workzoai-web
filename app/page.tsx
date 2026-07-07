@@ -999,6 +999,8 @@ export default function LandingPage() {
                   ["Cover Letter", "/features/cover-letter", "See how tailored letters are generated."],
                   ["Job Assist", "/features/job-assist", "Understand role-preparation tools."],
                   ["Results Report", "/features/results-intelligence", "Preview trust, score, and weak-answer reports."],
+                  ["Free CV Review", "/tools/cv-review", "Free · instant AI feedback on your CV."],
+                  ["Interview Question Generator", "/tools/interview-questions", "Free · realistic questions for any role."],
                 ].map(([title, href, text]) => (
                   <Link
                     key={title}
@@ -1486,7 +1488,7 @@ export default function LandingPage() {
                 price: localizedPlans.free.amount,
                 suffix: "",
                 text: "Perfect for trying one realistic AI interview before committing.",
-                features: ["1 complete AI voice interview", "CV-aware recruiter questions", "Basic interview report", "Basic STAR scorecard", "Standard recruiter personas"],
+                features: ["1 complete AI voice interview", "CV-aware recruiter questions", "Basic interview report", "Basic STAR scorecard", "Improve CV & Cover Letter — free", "Free CV Review & Interview Question Generator", "Standard recruiter personas"],
                 cta: "Get Started",
                 href: "/onboarding",
                 featured: false,

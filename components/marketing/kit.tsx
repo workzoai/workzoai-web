@@ -18,8 +18,16 @@ import Image from "next/image";
 import { ArrowRight, ArrowUpRight, type LucideIcon } from "lucide-react";
 import AuthNavButton from "@/components/auth/AuthNavButton";
 import WorkZoFooter from "@/components/WorkZoFooter";
+import { CareerToolsDropdown, MarketingMobileMenu } from "./MarketingNav";
 
 export { Reveal } from "./Reveal";
+
+const MARKETING_MOBILE_LINKS = [
+  { label: "For Education", href: "/for-education" },
+  { label: "Enterprise", href: "/enterprise" },
+  { label: "Resources", href: "/resources" },
+  { label: "Pricing", href: "/pricing" },
+];
 
 /* ── Ambient page background ─────────────────────────────────── */
 export function AmbientBackdrop() {
@@ -47,10 +55,16 @@ export function MarketingHeader() {
         <nav className="hidden items-center gap-8 text-sm font-bold text-muted md:flex">
           <Link href="/for-education" className="transition hover:text-fg">For Education</Link>
           <Link href="/enterprise" className="transition hover:text-fg">Enterprise</Link>
+          <CareerToolsDropdown triggerClassName="inline-flex items-center gap-1.5 font-bold text-muted transition hover:text-fg" />
           <Link href="/resources" className="transition hover:text-fg">Resources</Link>
           <Link href="/pricing" className="transition hover:text-fg">Pricing</Link>
         </nav>
-        <AuthNavButton />
+        <div className="flex items-center gap-2">
+          <div className="hidden md:block">
+            <AuthNavButton />
+          </div>
+          <MarketingMobileMenu links={MARKETING_MOBILE_LINKS} />
+        </div>
       </div>
     </header>
   );

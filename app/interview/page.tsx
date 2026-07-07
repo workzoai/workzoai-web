@@ -5492,6 +5492,12 @@ function InterviewPageInner() {
   // V2 recruiter memory: persists competency tracker, concern resolution,
   // topic progression, and JD gaps across every turn of the interview.
   const recruiterMemoryV2Ref = useRef<unknown>(null);
+  // Shadow Recruiter Calibration: the organization scoring snapshot,
+  // pinned ONCE at interview start. Deep-frozen so an admin editing the
+  // rubric mid-interview cannot change the model this live session is
+  // scored against. Null for consumer users (no org rubric applies).
+  const scoringSnapshotRef = useRef<Record<string, unknown> | null>(null);
+  const organizationRubricPromptRef = useRef<string>("");
   const vapiConnectedRef = useRef(false);
   const vapiStartingRef = useRef(false);
   const vapiFallbackStartedRef = useRef(false);
@@ -5592,6 +5598,25 @@ function InterviewPageInner() {
     setSetup(nextSetup);
     setupRef.current = nextSetup;
     setSetupLoaded(true);
+
+    // Shadow Recruiter Calibration: resolve the organization's active
+    // scoring rubric ONCE, at interview start, and pin it. The server
+    // maps this candidate's email domain to their org's active profile;
+    // no org key is needed and no per-turn query is added. If the
+    // candidate has no org rubric (the consumer default), the refs stay
+    // empty and nothing downstream changes.
+    if (!scoringSnapshotRef.current) {
+      fetch("/api/interview/scoring-context", { cache: "no-store", credentials: "include" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => {
+          if (json?.ok && json.hasProfile && json.snapshot) {
+            // Deep-freeze so the pinned rubric cannot mutate mid-session.
+            scoringSnapshotRef.current = Object.freeze({ ...json.snapshot });
+            organizationRubricPromptRef.current = String(json.organizationRubricPrompt || "");
+          }
+        })
+        .catch(() => undefined);
+    }
 
     // Map stored companyStyle into simulation mode for companySimulationEngine
     const storedStyle = String(
@@ -5892,6 +5917,68 @@ function InterviewPageInner() {
         : null;
       const overallScore = computedOverall ?? session.overallScore ?? session.summary?.trust ?? null;
 
+      // WorkZo 2.0 forward hook: persist a stable rubric/WIRI snapshot at save time.
+      // This keeps the B2C result flow simple while giving cohort, employer, and
+      // future custom-rubric dashboards queryable telemetry from this point onward.
+      const toScore = (value: unknown): number | null => {
+        if (typeof value === "number" && Number.isFinite(value)) {
+          const scaled = value > 0 && value <= 1 ? value * 100 : value;
+          return Math.max(0, Math.min(100, Math.round(scaled)));
+        }
+        if (typeof value === "string" && value.trim()) {
+          const parsed = Number(value.replace("%", ""));
+          if (Number.isFinite(parsed)) {
+            const scaled = parsed > 0 && parsed <= 1 ? parsed * 100 : parsed;
+            return Math.max(0, Math.min(100, Math.round(scaled)));
+          }
+        }
+        return null;
+      };
+
+      const evidenceScore = toScore(session.answerQuality?.evidenceScore);
+      const baselineRubric = {
+        communication: toScore(sig.communication ?? sig.clarity ?? overallScore),
+        relevance: toScore(sig.relevance ?? overallScore),
+        experience: toScore(evidenceScore ?? sig.trust ?? overallScore),
+        evidenceImpact: toScore(evidenceScore ?? sig.trust ?? overallScore),
+        jobFit: toScore(sig.relevance ?? overallScore),
+      };
+      const existingRubric = session.computedRubric && typeof session.computedRubric === "object"
+        ? session.computedRubric
+        : {};
+      const computedRubric = { ...baselineRubric, ...existingRubric };
+
+      const communicationForWiri = toScore(computedRubric.communication ?? sig.communication) ?? 0;
+      const jobFitForWiri = toScore(computedRubric.jobFit ?? sig.relevance) ?? 0;
+      const technicalForWiri = toScore(computedRubric.experience ?? evidenceScore) ?? 0;
+      const performanceForWiri = toScore(overallScore) ?? 0;
+      const confidenceForWiri = toScore(sig.confidence) ?? 0;
+      const evidenceForWiri = toScore(computedRubric.evidenceImpact ?? evidenceScore) ?? 0;
+      const wiriSnapshot = Math.round(
+        communicationForWiri * 0.15 +
+        jobFitForWiri * 0.15 +
+        technicalForWiri * 0.15 +
+        performanceForWiri * 0.20 +
+        confidenceForWiri * 0.15 +
+        evidenceForWiri * 0.20,
+      );
+
+      const rawResultWithTelemetry = {
+        ...session,
+        score: { ...(session.score || {}) },
+        computedRubric,
+        wiri_snapshot: wiriSnapshot,
+        wiriSnapshot,
+        // Shadow Recruiter Calibration: the exact rubric this session ran
+        // under, pinned at start. The save route reads this to persist an
+        // interview_scoring_snapshots row and the Organization Readiness
+        // Score, while WIRI above stays preserved separately. Absent for
+        // consumer users, in which case no snapshot row is written.
+        ...(scoringSnapshotRef.current
+          ? { scoringProfileSnapshot: scoringSnapshotRef.current }
+          : {}),
+      };
+
       // Return the promise so callers (e.g. endInterview) can await the
       // actual DB write completing before navigating to /results, fixing
       // the race where navigation happened on a fixed timer regardless of
@@ -5912,7 +5999,7 @@ function InterviewPageInner() {
           contradictions: session.memory?.patterns || [],
           evidenceRequests: session.answerQuality?.evidenceRequests || [],
           durationSeconds: session.durationSeconds || 0,
-          rawResult: session,
+          rawResult: rawResultWithTelemetry,
         }),
       }).catch(() => undefined);
     },
@@ -6196,6 +6283,11 @@ function InterviewPageInner() {
               interest: recruiterSignalRef.current?.interest,
             },
             recruiterMemoryV2: recruiterMemoryV2Ref.current || undefined,
+            // Shadow Recruiter Calibration: pinned at interview start,
+            // empty for consumer users so it adds no overhead.
+            ...(organizationRubricPromptRef.current
+              ? { organizationRubricPrompt: organizationRubricPromptRef.current }
+              : {}),
           }),
         });
 
@@ -7716,6 +7808,17 @@ function InterviewPageInner() {
           firstMessage: localizedFirstMessage,
           transcriber: buildVapiTranscriberOverride(activeSetup),
         };
+
+        // Shadow Recruiter Calibration: forward the pinned organization
+        // rubric to the custom-LLM route via call metadata. Only added
+        // when an org rubric applies, so the consumer voice payload is
+        // unchanged. The route reads it from assistantOverrides.metadata.
+        if (organizationRubricPromptRef.current) {
+          vapiStartOptions.metadata = {
+            ...(vapiStartOptions.metadata as Record<string, unknown> | undefined),
+            organizationRubricPrompt: organizationRubricPromptRef.current,
+          };
+        }
 
         // Debug log: verify what CV data VAPI actually receives
         // Diagnostic: log everything that reaches the Vapi call

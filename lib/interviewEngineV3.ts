@@ -88,6 +88,13 @@ export type EngineV3Input = {
   candidateStillSpeaking?: boolean;
   /** Restored from the incoming recruiterMemoryV2 blob. */
   previousState?: EngineV3State | null;
+  /**
+   * Shadow Recruiter Calibration (B2B): pre-rendered organization
+   * rubric block from renderOrganizationRubricForPrompt. Changes what
+   * the recruiter probes deeper on; never shown to the candidate.
+   * Global WIRI evaluation is unaffected.
+   */
+  organizationRubricPrompt?: string | null;
 };
 
 export type EngineV3Result = {
@@ -146,8 +153,11 @@ export async function runInterviewEngineV3(input: EngineV3Input): Promise<Engine
   const persona = await loadPersona(input.recruiterPersonality, input.recruiterName);
 
   // 7. Compose the shared brain context, identical for every persona.
+  //    The optional organization rubric block (B2B calibration) sits
+  //    between blueprint and ledger so it shapes follow-up priorities.
   const blocks = [
     renderBlueprintForPrompt(blueprint),
+    (input.organizationRubricPrompt || "").trim(),
     renderLedgerForPrompt(ledger),
     renderClosingDirective(closing),
   ].filter(Boolean);
@@ -195,6 +205,8 @@ export async function runInterviewEngineV3FromTranscript(input: {
   recruiterName?: string | null;
   /** Server-side wrap-up trigger (e.g. question budget reached / max turns). */
   wrapUpRequested?: boolean;
+  /** Optional pre-rendered organization rubric block (B2B calibration). */
+  organizationRubricPrompt?: string | null;
 }): Promise<EngineV3Result> {
   // 1. Blueprint, deterministic, regenerated identically every turn.
   let state: EngineV3State = {
@@ -268,6 +280,7 @@ export async function runInterviewEngineV3FromTranscript(input: {
 
   const blocks = [
     renderBlueprintForPrompt(state.blueprint),
+    (input.organizationRubricPrompt || "").trim(),
     renderLedgerForPrompt(state.ledger),
     renderClosingDirective(state.closing),
   ].filter(Boolean);

@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { FREE_TOOLS } from "@/lib/free-tools";
 
 /**
  * app/sitemap.ts, public, indexable routes only. App/auth/internal routes
@@ -12,6 +13,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const routes: Array<{ path: string; priority: number; changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"] }> = [
     { path: "", priority: 1.0, changeFrequency: "weekly" },
     { path: "/pricing", priority: 0.9, changeFrequency: "weekly" },
+    { path: "/tools", priority: 0.9, changeFrequency: "weekly" },
+    // Free-tool SEO pages, generated from the global registry so new tools
+    // are indexed automatically.
+    ...FREE_TOOLS.map((tool) => ({
+      path: tool.href,
+      priority: 0.8,
+      changeFrequency: "monthly" as MetadataRoute.Sitemap[number]["changeFrequency"],
+    })),
     { path: "/enterprise", priority: 0.9, changeFrequency: "monthly" },
     { path: "/for-education", priority: 0.9, changeFrequency: "monthly" },
     { path: "/demo", priority: 0.8, changeFrequency: "monthly" },

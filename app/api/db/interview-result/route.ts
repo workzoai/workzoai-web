@@ -203,6 +203,51 @@ export async function POST(request: Request) {
       }
     }
 
+    // Shadow Recruiter Calibration: when the session ran under an
+    // organization scoring profile, freeze the exact model used at
+    // interview time. Best-effort and never blocks the result response.
+    // Global WIRI stays untouched; this only adds the org readiness view.
+    try {
+      const snapshotMeta = (body.rawResult?.scoringProfileSnapshot || body.scoringProfileSnapshot) as
+        | { scoringProfileId?: string; scoringProfileVersionId?: string; organizationId?: string; orgSlug?: string; weights?: Record<string, number>; thresholds?: Record<string, number> }
+        | undefined;
+
+      if (data?.id && snapshotMeta && (snapshotMeta.weights || snapshotMeta.scoringProfileId)) {
+        const { extractCompetencyScores, computeCustomRubricScore } = await import("@/lib/scoring/customRubric");
+        const { clampWiriScore } = await import("@/lib/workzoWiri");
+
+        let organizationId: string | null = snapshotMeta.organizationId || null;
+        if (!organizationId && snapshotMeta.orgSlug) {
+          const { ensureOrganization } = await import("@/lib/scoring/orgScoringAuth");
+          organizationId = await ensureOrganization(supabase, snapshotMeta.orgSlug);
+        }
+
+        const competencies = extractCompetencyScores(data);
+        const globalWiri = clampWiriScore(body.rawResult?.wiri_snapshot?.score ?? body.rawResult?.wiriSnapshot?.score, clampWiriScore(data.overall_score, 0));
+        const scored = computeCustomRubricScore({
+          competencies,
+          weights: snapshotMeta.weights || null,
+          thresholds: (snapshotMeta.thresholds as any) || null,
+          globalWiri,
+        });
+
+        await supabase.from("interview_scoring_snapshots").insert({
+          interview_result_id: data.id,
+          organization_id: organizationId,
+          scoring_profile_id: snapshotMeta.scoringProfileId || null,
+          scoring_profile_version_id: snapshotMeta.scoringProfileVersionId || null,
+          global_wiri: scored.globalWiri,
+          organization_readiness_score: scored.organizationReadinessScore,
+          competency_scores: competencies,
+          weighted_breakdown: scored.weightedBreakdown,
+          risk_flags: scored.riskFlags,
+          recommendation: scored.recommendation,
+        });
+      }
+    } catch (snapshotError) {
+      console.warn("interview-result scoring snapshot skipped", snapshotError);
+    }
+
     return NextResponse.json({ ok: true, result: data });
   } catch (error) {
     console.error("POST interview-result db error", error);

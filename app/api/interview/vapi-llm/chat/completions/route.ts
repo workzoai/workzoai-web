@@ -61,6 +61,9 @@ type InterviewMeta = {
   recruiterName?: string;
   candidateName?: string;
   language?: string;
+  // Shadow Recruiter Calibration: pinned organization rubric block,
+  // passed through Vapi assistantOverrides.metadata at call start.
+  organizationRubricPrompt?: string;
 };
 
 function extractMeta(body: Record<string, unknown>): InterviewMeta {
@@ -193,6 +196,9 @@ export async function POST(request: Request) {
     targetRole: meta.targetRole || "the target role",
     recruiterPersonality: meta.recruiterPersonality,
     recruiterName: meta.recruiterName,
+    organizationRubricPrompt: typeof meta.organizationRubricPrompt === "string"
+      ? meta.organizationRubricPrompt.slice(0, 1200)
+      : null,
   });
 
   const systemPrompt = buildVoiceSystemPrompt({

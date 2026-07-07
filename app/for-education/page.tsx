@@ -49,6 +49,15 @@ const pillars = [
   { icon: Languages, title: "Any market, any language", text: "Practice in the language and interview culture of the target market, useful for international students and roles abroad." },
 ];
 
+const capabilities = [
+  { icon: BarChart3, title: "Cohort rejection-risk heatmaps", text: "See where a cohort is weak — communication, evidence, job fit — as a live heatmap, with the top reasons candidates would be rejected." },
+  { icon: GaugeCircle, title: "WorkZo Readiness Index", text: "One comparable readiness score per learner and per cohort, benchmarked against the wider WorkZo network rather than a guess." },
+  { icon: GraduationCap, title: "Curriculum insights", text: "Weak interview patterns become concrete workshop and coaching actions, with the percentage of students affected." },
+  { icon: Handshake, title: "Vetted shortlist portal", text: "Share an opt-in, bias-aware talent pipeline with employer partners: readiness bands, skills, languages, and interview evidence — no public ranking." },
+  { icon: UsersRound, title: "Human-in-the-loop review", text: "Flag exceptional or at-risk candidates for a human read. Your team gets a review queue and an instant Slack, Teams, or ATS alert." },
+  { icon: Layers, title: "Company interview templates", text: "Learners practice the real thing — SAP, Bosch, BMW, Siemens, Amazon, Google and more — with the right rounds and recruiter tone." },
+];
+
 export default function ForEducationOverview() {
   return (
     <MarketingShell>
@@ -126,6 +135,33 @@ export default function ForEducationOverview() {
               );
             })}
           </div>
+        </div>
+      </section>
+
+      {/* Talent intelligence layer */}
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <Reveal>
+          <SectionHeading
+            eyebrow="The intelligence layer"
+            title="Talent intelligence, not just practice"
+            intro="Beyond per-student reports, WorkZo turns every interview into cohort-level signal your team — and your employer partners — can act on."
+          />
+        </Reveal>
+        <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {capabilities.map((c, i) => {
+            const Icon = c.icon;
+            return (
+              <Reveal key={c.title} delay={(i % 3) * 60}>
+                <div className="flex h-full flex-col rounded-2xl border border-line bg-surface/70 p-6">
+                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand/10 text-brand">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <h3 className="mt-5 text-lg font-black tracking-tight">{c.title}</h3>
+                  <p className="mt-2 flex-1 text-sm leading-6 text-muted">{c.text}</p>
+                </div>
+              </Reveal>
+            );
+          })}
         </div>
       </section>
 

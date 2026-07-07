@@ -277,6 +277,36 @@ const SKILL_DICTIONARY = [
   "Product Design",
   "Product Lifecycle Management",
   "Prototyping",
+  // Customer success, IT service management, and business/ops skills.
+  // These are common on CS / project / operations CVs and were being
+  // dropped by the dictionary filter, leaving only technical skills.
+  "Customer Success Management",
+  "Customer Success",
+  "Customer Onboarding",
+  "Customer Retention",
+  "Account Management",
+  "Stakeholder Management",
+  "Change Management",
+  "Escalation Management",
+  "Incident Management",
+  "Project Implementation",
+  "Project Management",
+  "Program Management",
+  "Milestone Tracking",
+  "Process Optimization",
+  "Process Improvement",
+  "Business Analysis",
+  "Requirements Gathering",
+  "Client Relationship Management",
+  "Cross-functional Collaboration",
+  "Vendor Management",
+  "Service Delivery",
+  "ITIL",
+  "ITSM",
+  "Troubleshooting",
+  "Technical Support",
+  "Root Cause Analysis",
+  "SLA Management",
 ];
 
 const SOFT_SKILLS = [
@@ -591,7 +621,7 @@ function decompactKnownPhrases(value = "", wasSpacedCaps = false) {
   // caps, so this gate makes the fallback safe while still being fully
   // generic across languages.
   if (wasSpacedCaps && key.length >= 15 && /^[a-zäöüßàâéèêëïîôûùç]+$/.test(key)) {
-    return "UNKNOWN SECTION HEADER";
+    return "";
   }
 
   // Only canonical section-header remappings belong here.
@@ -2050,10 +2080,20 @@ function wzExtractBetterSkills(text = "") {
   );
 
   const hay = `${skillWindow}\n${source}`;
+  const hayLower = hay.toLowerCase();
   return unique(
     SKILL_DICTIONARY.filter((skill) => new RegExp(`\\b${escapeRegExp(skill).replace(/\\\s+/g, "\\s+")}\\b`, "i").test(hay)),
     (skill) => skill.toLowerCase(),
-  ).slice(0, 24);
+  )
+    // Respect the order the candidate listed skills in, rather than the
+    // fixed dictionary order (which put all technical terms first and
+    // pushed business/soft skills past the cap).
+    .sort((a, b) => {
+      const ia = hayLower.indexOf(a.toLowerCase());
+      const ib = hayLower.indexOf(b.toLowerCase());
+      return (ia < 0 ? Number.MAX_SAFE_INTEGER : ia) - (ib < 0 ? Number.MAX_SAFE_INTEGER : ib);
+    })
+    .slice(0, 30);
 }
 
 function wzExtractBetterLanguages(text = "") {
@@ -2101,7 +2141,17 @@ function wzExtractBetterEducation(text = ""): ResumeEducation[] {
 
     // Peek at next line to combine degree + institution that are on separate lines
     const nextLine = lines[i + 1] || "";
-    const combined = nextLine && (DEGREE_RE.test(nextLine) || EDUCATION_ORG_RE.test(nextLine))
+    // Only combine with the next line when THIS line is a partial entry
+    // (a degree without an institution, or vice versa). If this line
+    // already contains both a degree and an institution (e.g.
+    // "Bachelors In Science | SRM College"), it is self-contained, so
+    // combining would wrongly merge two separate entries and consume
+    // the second one.
+    const lineParts = line.split(/\s*[•|]\s*/).map(cleanLine).filter(Boolean);
+    const lineHasDegree = lineParts.some((part) => DEGREE_RE.test(part) && !EDUCATION_ORG_RE.test(part));
+    const lineHasOrg = lineParts.some((part) => EDUCATION_ORG_RE.test(part));
+    const lineSelfContained = lineHasDegree && lineHasOrg;
+    const combined = !lineSelfContained && nextLine && (DEGREE_RE.test(nextLine) || EDUCATION_ORG_RE.test(nextLine))
       ? `${line} • ${nextLine}`
       : line;
 

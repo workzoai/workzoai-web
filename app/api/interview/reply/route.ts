@@ -275,6 +275,11 @@ type ReplyRequestBody = {
   // V2 persistent memory, enables competency tracking, concern resolution,
   // topic progression, and JD gaps to persist across turns.
   recruiterMemoryV2?: unknown;
+  // Shadow Recruiter Calibration (B2B): pre-rendered organization rubric
+  // block, pinned by the client at interview start. Shapes which
+  // competencies the recruiter probes deeper on. Never shown to the
+  // candidate; global WIRI evaluation is unaffected.
+  organizationRubricPrompt?: string;
 };
 
 function cleanText(value: unknown, maxLength = 6000): string {
@@ -1034,9 +1039,16 @@ export async function POST(request: Request) {
     if (companies.length) lines.push("COMPANIES MENTIONED: " + companies.join(", "));
     if (contradictions.length) lines.push("CONTRADICTIONS DETECTED: " + contradictions.join(" | "));
 
-    const recruiterBrainContext = lines.length
+    const memoryStateBlock = lines.length
       ? "=== RECRUITER MEMORY STATE ===\n" + lines.join("\n") + "\n=== END MEMORY STATE ==="
       : "";
+
+    // Shadow Recruiter Calibration: append the pinned organization rubric
+    // block (if any). Bounded length so it can never blow up the system
+    // prompt on the latency-sensitive path. Empty for consumer users, so
+    // this adds zero overhead in the common case.
+    const rubricBlock = String(body.organizationRubricPrompt || "").trim().slice(0, 1200);
+    const recruiterBrainContext = [memoryStateBlock, rubricBlock].filter(Boolean).join("\n\n");
 
     // ── Step 3: Call GPT-4o with the full context ──────────────────────────
     const decision = await decideUnifiedRecruiterResponse({

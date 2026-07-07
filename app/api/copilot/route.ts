@@ -67,9 +67,9 @@ type CopilotRequest = {
 
 // Actions that require at minimum Premium (not available on Free)
 const PREMIUM_ACTIONS: CopilotAction[] = [
-  "cv_improve",
-  "cv_rewrite_ats",
-  "cover_letter",
+  // cv_improve, cv_rewrite_ats, and cover_letter are FREE for everyone —
+  // Improve CV and Cover Letter are free features, so they're not gated here.
+  // Free usage is still protected by the per-user daily + burst rate limits below.
   "rewrite",
   "star",
   "metrics",
@@ -112,13 +112,13 @@ const PRO_ONLY_ACTIONS: CopilotAction[] = [
 //   Pro      → Claude Sonnet 4.6
 
 const MODELS = {
-  writingPremium:  process.env.OPENROUTER_WRITING_PREMIUM_MODEL  || "anthropic/claude-haiku-4-5-20251001",
-  writingPro:      process.env.OPENROUTER_WRITING_PRO_MODEL      || "anthropic/claude-sonnet-4-6",
-  coachingPro:     process.env.OPENROUTER_COACHING_PRO_MODEL     || "anthropic/claude-sonnet-4-6",
+  writingPremium:  process.env.OPENROUTER_WRITING_PREMIUM_MODEL  || "anthropic/claude-haiku-4.5",
+  writingPro:      process.env.OPENROUTER_WRITING_PRO_MODEL      || "anthropic/claude-sonnet-4.6",
+  coachingPro:     process.env.OPENROUTER_COACHING_PRO_MODEL     || "anthropic/claude-sonnet-4.6",
   analysisPremium: process.env.OPENROUTER_ANALYSIS_PREMIUM_MODEL || "google/gemini-2.5-flash",
   analysisPro:     process.env.OPENROUTER_ANALYSIS_PRO_MODEL     || "google/gemini-2.5-flash",
-  interviewPremium:process.env.OPENROUTER_INTERVIEW_PREMIUM_MODEL|| "anthropic/claude-haiku-4-5-20251001",
-  interviewPro:    process.env.OPENROUTER_INTERVIEW_PRO_MODEL    || "anthropic/claude-sonnet-4-6",
+  interviewPremium:process.env.OPENROUTER_INTERVIEW_PREMIUM_MODEL|| "anthropic/claude-haiku-4.5",
+  interviewPro:    process.env.OPENROUTER_INTERVIEW_PRO_MODEL    || "anthropic/claude-sonnet-4.6",
 };
 
 const WRITING_ACTIONS: CopilotAction[]  = ["cv_improve", "cv_rewrite_ats", "cover_letter", "rewrite", "star", "metrics", "ownership", "concise"];
@@ -1073,7 +1073,14 @@ TARGET MARKET: ${targetMarket}
   } catch (error) {
     console.error("Work-O-Bot API failed:", error);
     return NextResponse.json(
-      { success: true, output: buildFallback("target role"), provider: "local_fallback" },
+      {
+        success: true,
+        output: buildFallback("target role"),
+        provider: "local_fallback",
+        // Surfaced so a silent fallback is diagnosable (e.g. bad model slug,
+        // 402 no-credits, 401 bad key). Safe: model/HTTP errors, no PII.
+        detail: error instanceof Error ? error.message : "ai_unavailable",
+      },
       { status: 200 },
     );
   }

@@ -35,7 +35,8 @@ import {
 import UpgradeModal from "@/components/premium/UpgradeModal";
 import PremiumUsageBadge from "@/components/premium/PremiumUsageBadge";
 import WorkZoPremiumProSuitePanel from "@/components/premium/WorkZoPremiumProSuitePanel";
-import ReadinessScorePanel from "@/components/ReadinessScorePanel";
+import ExecutiveSummary from "./ExecutiveSummary";
+import { computeWorkZoWiri } from "@/lib/workzoWiri";
 import { recordWorkZoReportViewed, getWorkZoUsageSummary } from "@/lib/workzoUsageTracker";
 import { useWorkZoAdvancedReportGate } from "@/lib/workzoAdvancedReportGate";
 import {
@@ -640,11 +641,33 @@ function stemToken(word: string): string {
 
 function extractJdKeywords(jobDescription: string): string[] {
   if (!jobDescription) return [];
+  // Comprehensive stopword set. The previous list was too small, so the
+  // frequency ranker surfaced common function words ("would", "their",
+  // "which", "make", "point") as if they were job requirements. This
+  // list covers English function words plus generic JD filler.
   const STOPWORDS = new Set([
     "the", "and", "for", "with", "you", "are", "this", "that", "will", "have",
-    "from", "your", "our", "role", "job", "work", "team", "ability", "skills",
-    "experience", "years", "strong", "excellent", "including", "etc", "such",
-    "able", "must", "should", "candidate", "responsibilities", "requirements",
+    "from", "your", "our", "their", "they", "them", "there", "then", "than",
+    "which", "what", "when", "where", "whom", "whose", "would", "could",
+    "should", "shall", "might", "must", "into", "onto", "over", "under",
+    "about", "above", "below", "between", "through", "during", "before",
+    "after", "each", "some", "more", "most", "other", "another", "such",
+    "been", "being", "were", "does", "did", "done", "also", "these",
+    "those", "here", "very", "just", "like", "well", "only", "any", "all",
+    "both", "few", "many", "much", "own", "same", "off", "out", "who", "how",
+    "why", "not", "but", "its", "his", "her", "him",
+    "role", "job", "work", "team", "teams", "ability", "skills", "skill",
+    "experience", "years", "year", "strong", "excellent", "including",
+    "etc", "able", "candidate", "candidates", "responsibilities",
+    "requirements", "requirement", "make", "makes", "made", "making",
+    "point", "points", "help", "helps", "using", "use", "used", "need",
+    "needs", "want", "wants", "look", "looking", "join", "joining", "based",
+    "within", "across", "along", "part", "areas", "area", "level", "levels",
+    "days", "week", "month", "time", "times", "position", "opportunity",
+    "company", "companies", "business", "businesses", "provide", "provides",
+    "ensure", "ensures", "support", "working", "include", "includes", "may",
+    "per", "via", "new", "one", "two", "get", "got", "set", "put", "take",
+    "takes", "give", "gives",
   ]);
   const words = jobDescription
     .toLowerCase()
@@ -1661,40 +1684,52 @@ function TranscriptCard({ item, index }: { item: AnswerInsight; index: number })
     if (!question.trim() || coachLoading) return;
     const userMsg = question.trim();
     setCoachInput("");
+    // Snapshot prior turns for the server before we append the new message.
+    const priorHistory = coachMessages.map((m) => ({
+      role: m.role === "user" ? "user" : "assistant",
+      content: m.text,
+    }));
     setCoachMessages((prev) => [...prev, { role: "user", text: userMsg }]);
     setCoachLoading(true);
     try {
-      const systemPrompt = `You are a professional interview coach helping a job seeker improve a specific interview answer.
-
-The recruiter asked: "${item.question}"
-
-The candidate answered: "${item.answer}"
-
-Identified weakness: ${item.weakness}
-Evidence score: ${item.evidenceScore}%
-Trust impact: ${item.trustImpact}%
-Suggested rewrite direction: ${item.rewrite}
-
-Give specific, actionable coaching. Be direct and practical. Keep your response under 120 words. Never repeat the question back.`;
-
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      // Go through the server copilot route, which holds the model key,
+      // enforces plan gates and rate limits, and returns a graceful
+      // fallback on model error. The previous implementation called the
+      // Anthropic API directly from the browser, which can never work in
+      // production (no key, blocked by CORS) and always failed.
+      const res = await fetch("/api/copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 200,
-          system: systemPrompt,
-          messages: [
-            ...coachMessages.map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.text })),
-            { role: "user", content: userMsg },
-          ],
+          mode: "interview",
+          message: `${userMsg}\n\n(Context, diagnosed weakness: ${item.weakness || "not specified"}. Suggested direction: ${item.rewrite || "not specified"}.)`,
+          question: item.question,
+          answer: item.answer,
+          history: priorHistory,
         }),
       });
-      const data = await res.json();
-      const botText = data?.content?.[0]?.text || "I couldn't generate a response. Please try again.";
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || data?.success === false) {
+        const gated = data?.error === "upgrade_required" || data?.error === "upgrade_required_rate_limit";
+        const notSignedIn = res.status === 401;
+        const fallback = gated
+          ? "You have reached today's coaching limit, or this needs an upgrade. Try again later or upgrade your plan."
+          : notSignedIn
+            ? "Please sign in again to use answer coaching."
+            : "Work-O-Bot is unavailable right now. Please try again in a moment.";
+        const botText = typeof data?.output === "string" && data.output.trim() ? data.output : fallback;
+        setCoachMessages((prev) => [...prev, { role: "bot", text: botText }]);
+        return;
+      }
+
+      const botText = typeof data?.output === "string" && data.output.trim()
+        ? data.output
+        : "I couldn't generate a response. Please try again.";
       setCoachMessages((prev) => [...prev, { role: "bot", text: botText }]);
     } catch {
-      setCoachMessages((prev) => [...prev, { role: "bot", text: "Something went wrong. Please try again." }]);
+      setCoachMessages((prev) => [...prev, { role: "bot", text: "Work-O-Bot is unavailable right now. Please try again in a moment." }]);
     } finally {
       setCoachLoading(false);
     }
@@ -2440,6 +2475,7 @@ export default function ResultsPage() {
   // dashboard's "Results viewed" number was reading only stale historical
   // rows from before a past refactor removed whatever used to fire it.
   const resultsViewedTrackedRef = useRef(false);
+  const computedRubricPersistedRef = useRef("");
 
   useEffect(() => {
     let cancelled = false;
@@ -2569,6 +2605,76 @@ export default function ResultsPage() {
     ),
     [result, isPremium, setupContext],
   );
+
+  // Single readiness number for the whole page. The hero ring and the
+  // Executive Summary both read this, so the candidate never sees two
+  // different "how ready am I" scores. WIRI rolls up the component
+  // scores using the shared platform engine.
+  const sessionWiri = useMemo(
+    () => computeWorkZoWiri({
+      jobFit: report.roleCompetencyScore,
+      interviewPerformance: report.overallScore,
+      communication: report.communicationScore,
+      technicalCompetency: report.roleCompetencyScore,
+      confidence: report.confidenceScore,
+      evidenceQuality: report.evidenceQuality,
+    }),
+    [report.roleCompetencyScore, report.overallScore, report.communicationScore, report.confidenceScore, report.evidenceQuality],
+  );
+
+  useEffect(() => {
+    if (!mounted || loadState === "empty") return;
+
+    const localSessionId = String((result as Record<string, unknown>).id || (result as Record<string, unknown>).sessionId || "");
+    // Only update rows we can safely link through interview_sessions.local_id.
+    // Avoid using a DB UUID here, because /api/db/interview-result resolves sessionId
+    // through local_id and would create a duplicate orphan if we pass the wrong id.
+    if (!localSessionId.startsWith("workzo-session-")) return;
+
+    const signature = `${localSessionId}:${report.overallScore}:${report.communicationScore}:${report.relevanceScore}:${report.confidenceScore}:${report.evidenceImpactScore}:${report.roleCompetencyScore}`;
+    if (computedRubricPersistedRef.current === signature) return;
+    computedRubricPersistedRef.current = signature;
+
+    const computedRubric = {
+      communication: report.communicationScore,
+      relevance: report.relevanceScore,
+      experience: report.confidenceScore,
+      evidenceImpact: report.evidenceImpactScore,
+      jobFit: report.roleCompetencyScore,
+      overall: report.overallScore,
+      missingJdRequirements: report.missingJdRequirements || [],
+    };
+
+    fetch("/api/db/interview-result", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        sessionId: localSessionId,
+        overallScore: report.overallScore,
+        trustScore: report.trustScore,
+        evidenceQuality: report.evidenceQuality,
+        contradictionRisk: (result as Record<string, unknown>).contradictionRisk ?? null,
+        strengths: report.strengths || [],
+        improvements: report.improvements || [],
+        weakAnswers: report.answerInsights?.filter((a) => a.weakness).map((a) => a.weakness).slice(0, 5) || [],
+        contradictions: report.contradictions || [],
+        evidenceRequests: report.evidenceRequests || [],
+        durationSeconds: durationToSeconds(result.durationSeconds || result.duration),
+        rawResult: {
+          ...(result as Record<string, unknown>),
+          computedRubric,
+          communicationScore: report.communicationScore,
+          relevanceScore: report.relevanceScore,
+          confidenceScore: report.confidenceScore,
+          evidenceImpactScore: report.evidenceImpactScore,
+          roleCompetencyScore: report.roleCompetencyScore,
+          overallScore: report.overallScore,
+        },
+      }),
+    }).catch(() => undefined);
+  }, [mounted, loadState, result, report]);
+
   const phaseB = useMemo(
     () => buildPhaseBInsights({
       cvText: String(setupContext.cvText || setupContext.uploadedCvText || setupContext.resumeText || setupContext.candidateCv || ""),
@@ -2665,9 +2771,27 @@ export default function ResultsPage() {
               )}
             </div>
 
-            <ScoreRing score={report.overallScore} grade={report.grade} />
+            <ScoreRing score={sessionWiri.score} grade="WIRI" />
           </div>
         </section>
+
+        <ExecutiveSummary
+          wiri={sessionWiri.score}
+          wiriLabel={sessionWiri.userLabel}
+          decision={report.decision}
+          biggestBlocker={report.biggestBlocker}
+          quickWin={report.quickWin}
+          strengths={report.strengths}
+          blockers={report.improvements}
+          feeders={{
+            communication: report.communicationScore,
+            confidence: report.confidenceScore,
+            roleCompetency: report.roleCompetencyScore,
+            trust: report.trustScore,
+            evidence: report.evidenceQuality,
+          }}
+          answersCount={report.answersCount}
+        />
 
         {!isPremium && (
           <div className="mt-4 rounded-2xl border border-brand/20 bg-gradient-to-r from-brand/10 to-brand/10 p-4">
@@ -3094,20 +3218,6 @@ export default function ResultsPage() {
             </section>
           </>
         )}
-
-        {/* ── Readiness Score: Phase 3 ─────────────────────────────────── */}
-        <ReadinessScorePanel
-          isPremium={report.isPremium}
-          interviewScore={report.overallScore}
-          communicationScore={report.communicationScore}
-          confidenceScore={report.confidenceScore}
-          trustScore={report.trustScore}
-          ownershipScore={report.ownershipScore}
-          structureScore={report.structureScore}
-          evidenceScore={report.evidenceQuality}
-          targetRole={report.roleLabel}
-          transcript={result?.transcript}
-        />
 
         <section className="mt-6">
           <WorkZoPremiumProSuitePanel source="results" report={report as unknown as Record<string, unknown>} />

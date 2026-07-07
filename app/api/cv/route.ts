@@ -1129,9 +1129,20 @@ function buildResponse(input: {
     confidence: input.confidence,
   }) as ResumeProfile;
 
-  // The finalizer is the last profile-changing function. Freeze so no later
-  // stage can mutate name, headline, experience, or education.
-  const resumeProfile = Object.freeze(finalizedProfile) as ResumeProfile;
+  // The finalizer is the last profile-changing function. Attach the original
+  // uploaded text to the structured profile before freezing it. This is
+  // critical for Improve CV: if later pages only have a clean rendered profile
+  // text, experience bullets from complex/two-column PDFs can disappear. The
+  // rawText/previewText fields keep the original upload available as evidence
+  // for global recovery, rewriting, and rendering.
+  const resumeProfile = Object.freeze({
+    ...finalizedProfile,
+    rawText: input.rawCvText || (finalizedProfile as any).rawText || "",
+    previewText:
+      input.rawCvText?.slice(0, 1200) ||
+      (finalizedProfile as any).previewText ||
+      "",
+  }) as ResumeProfile;
 
   const finalizerConfidence = (resumeProfile as any).confidence || {};
   debugCvPipeline("api.cv.finalizer.identity_decision", {
@@ -1202,17 +1213,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
   const jd = normalizeResumeText(String(body.jobDescription || ""));
   const existingProfile = body.resumeProfile || body.profile;
 
-  const isImprovementRequest = body.mode === "improve";
-  if (isImprovementRequest && !isPremium) {
-    return NextResponse.json(
-      {
-        error: "upgrade_required",
-        requiredPlan: "premium",
-        message: "CV improvement requires Premium.",
-      },
-      { status: 403 },
-    );
-  }
+  // CV improvement is a free feature — no premium gate here.
 
   if (
     existingProfile &&

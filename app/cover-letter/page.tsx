@@ -10,6 +10,7 @@ import {
   normalizeSetupTargetRole,
   readLatestInterviewSetup,
 } from "@/lib/workzoInterviewSetup";
+import CvSourcePanel from "@/components/CvSourcePanel";
 import { buildPhaseAInsights } from "@/lib/workzoCareerSuitePhaseA";
 import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
 
@@ -101,7 +102,7 @@ export default function CoverLetterWorkspacePage() {
   }
 
   return (
-    <PremiumFeatureGate feature="cover_letter" title="Cover Letter is a Premium feature" description="Role-specific cover letters based on your CV and job description are included in Premium.">
+    <PremiumFeatureGate feature="cover_letter" title="Cover Letter" description="Cover Letter is available on every WorkZo plan.">
       <main className="min-h-screen bg-canvas px-5 py-5 text-fg">
       <div className="mx-auto max-w-6xl">
         <header className="flex items-center justify-between rounded-xl border border-line bg-fg/[0.035] px-4 py-3">
@@ -110,6 +111,24 @@ export default function CoverLetterWorkspacePage() {
           </Link>
           <div className="flex items-center gap-2 text-sm font-black text-muted"><FileText className="h-4 w-4" /> Cover Letter</div>
         </header>
+
+        {!cvText.trim() && (
+          <section className="mt-6">
+            <CvSourcePanel
+              requireJobDescription
+              initialJobDescription={jobDescription}
+              initialTargetRole={targetRole}
+              heading="Add your CV to write a cover letter"
+              subheading="Upload a file or paste your CV, then add the job description so the letter targets the role."
+              onLoaded={(r) => {
+                setCvText(r.cvText);
+                setResumeProfile(r.resumeProfile);
+                setJobDescription(r.jobDescription);
+                setTargetRole(r.targetRole);
+              }}
+            />
+          </section>
+        )}
 
         <section className="mt-8 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="rounded-lg border border-line bg-fg/[0.04] p-6">

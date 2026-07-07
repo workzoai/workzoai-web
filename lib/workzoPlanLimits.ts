@@ -93,8 +93,8 @@ export const WORKZO_PLAN_LIMITS: Record<WorkZoPlanType, WorkZoPlanLimits> = {
     videoMinutesPerMonth: 0,
     advancedReports: false,
     interviewHistory: false,
-    improveCv: false,
-    coverLetter: false,
+    improveCv: true,
+    coverLetter: true,
     jobAssist: false,
     atsOptimization: false,
     careerBrain: false,
@@ -115,6 +115,10 @@ export const WORKZO_PLAN_LIMITS: Record<WorkZoPlanType, WorkZoPlanLimits> = {
       "Basic interview report",
       "Score, pace, and filler word analysis",
       "Standard public recruiter personas",
+      "Free CV Review",
+      "AI Resume Tailor",
+      "Cover Letter Generator",
+      "Interview Question Generator",
     ],
     notIncluded: [
       "Full recruiter debrief (hiring committee memo, shadow scores)",
@@ -122,8 +126,6 @@ export const WORKZO_PLAN_LIMITS: Record<WorkZoPlanType, WorkZoPlanLimits> = {
       "Targeted skill drills",
       "Personalized improvement suggestions",
       "Full session history (unlimited)",
-      "CV diagnostics and ATS optimisation",
-      "Cover letter builder",
       "Job analysis tool",
       "Career Brain",
       "Hiring readiness score",
@@ -288,10 +290,11 @@ export function getWorkZoFeatureRequiredPlan(feature: WorkZoFeatureKey): WorkZoP
     case "follow_up_questions":
     case "basic_reports":
       return "free";
-    case "interview_history":
-    case "advanced_reports":
     case "improve_cv":
     case "cover_letter":
+      return "free";
+    case "interview_history":
+    case "advanced_reports":
     case "job_assist":
     case "ats_optimization":
     case "career_brain":

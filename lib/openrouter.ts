@@ -29,7 +29,7 @@ export async function askOpenRouter(
     throw new Error("OPENROUTER_API_KEY is missing.");
   }
 
-  const model = options.model || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6";
+  const model = options.model || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4.6";
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",

@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import CohortDashboardClient from "./CohortDashboardClient";
 
 export const metadata: Metadata = {
-  title: "Admin Dashboard — WorkZo AI",
-  description: "Track interview readiness, engagement, and early-warning flags across your cohort or program.",
-  // Not indexed: this is a partner/preview surface, not a public marketing page.
+  title: "Talent Intelligence — WorkZo AI",
+  description: "Cohort readiness heatmaps, rejection-risk signals, curriculum insights, recruiter benchmarks, and opt-in employer talent pipeline.",
   robots: { index: false, follow: false },
 };
 
