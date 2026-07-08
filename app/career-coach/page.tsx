@@ -14,7 +14,7 @@ import {
   Sparkles, 
   Send 
 } from "lucide-react";
-import { buildCareerBrain, type PhaseCCareerBrain } from "@/lib/workzoCareerMemory";
+import { buildCareerBrain, hydrateCareerMemoryFromServer, type PhaseCCareerBrain } from "@/lib/workzoCareerMemory";
 import { fetchWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
 import { normalizeWorkZoPlan } from "@/lib/workzoPlanLimits";
 import { readLatestInterviewSetup } from "@/lib/workzoInterviewSetup";
@@ -95,8 +95,10 @@ export default function CareerCoachPage() {
     fetchWorkZoAuthoritativePlan()
       .then((r) => setIsPro(normalizeWorkZoPlan(r.plan) === "premium_pro"))
       .catch(() => {});
-    setBrain(buildCareerBrain());
-    setLoading(false);
+    hydrateCareerMemoryFromServer()
+      .then((memory) => setBrain(buildCareerBrain({}, memory)))
+      .catch(() => setBrain(buildCareerBrain()))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return (

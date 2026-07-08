@@ -175,9 +175,46 @@ export function readCareerMemory(): WorkZoCareerMemory {
 
 export function saveCareerMemory(memory: WorkZoCareerMemory) {
   if (typeof window === "undefined") return;
+  const payload = { ...memory, updatedAt: nowIso() };
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...memory, updatedAt: nowIso() }));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch {}
+  // Fire-and-forget sync so the coach's brain survives across devices. Keyed to
+  // the signed-in user server-side; a no-op for signed-out users.
+  try {
+    void fetch("/api/career-memory", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ memory: payload }),
+    }).catch(() => undefined);
+  } catch {}
+}
+
+// Pull the user's server-persisted career memory and reconcile it with the
+// local cache (last-write-wins by updatedAt). Call on load so the brain is
+// consistent across devices. Best-effort; never throws.
+export async function hydrateCareerMemoryFromServer(): Promise<WorkZoCareerMemory> {
+  if (typeof window === "undefined") return emptyCareerMemory;
+  const local = readCareerMemory();
+  try {
+    const res = await fetch("/api/career-memory", { credentials: "include", cache: "no-store" });
+    if (!res.ok) return local;
+    const data = await res.json();
+    if (!data?.memory || typeof data.memory !== "object") return local;
+    const serverMemory = normalizeMemory(data.memory as Partial<WorkZoCareerMemory>);
+    const serverTime = Date.parse(String((data.memory as { updatedAt?: string }).updatedAt || "")) || 0;
+    const localTime = Date.parse(String(local.updatedAt || "")) || 0;
+    if (serverTime >= localTime) {
+      try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serverMemory)); } catch {}
+      return serverMemory;
+    }
+    // Local is newer → push it up so the server catches up.
+    saveCareerMemory(local);
+    return local;
+  } catch {
+    return local;
+  }
 }
 
 export function recordCareerMemorySignal(memory: WorkZoCareerMemory, signal: CareerMemorySignal): WorkZoCareerMemory {
