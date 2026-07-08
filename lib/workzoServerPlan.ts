@@ -136,6 +136,34 @@ export async function resolveWorkZoServerPlan(): Promise<WorkZoResolvedPlan> {
   }
 
 
+  // Partner trial: if the user isn't already Pro, grant Premium Pro when
+  // they have an active, non-exhausted partner trial grant (by email, or
+  // auto-activated for their domain). Purely additive: this only ever
+  // upgrades, never downgrades a paying subscriber, and fails safe (any
+  // error leaves the normal plan untouched). Real Stripe billing is not
+  // touched here.
+  if (plan !== "premium_pro" && user.email) {
+    try {
+      const { getActivePartnerTrialGrant } = await import("@/lib/workzoPartnerTrial");
+      const trial = await getActivePartnerTrialGrant(user.id, user.email);
+      if (trial) {
+        return {
+          authenticated: true,
+          userId: user.id,
+          email: user.email || null,
+          plan: "premium_pro",
+          billingCycle: "trial",
+          status: "partner_trial",
+          currentPeriodEnd: trial.expiresAt,
+          stripeCustomerId: subscription?.stripe_customer_id || null,
+          stripeSubscriptionId: subscription?.stripe_subscription_id || null,
+        };
+      }
+    } catch (err) {
+      console.warn("[workzoServerPlan] partner trial check failed", err);
+    }
+  }
+
   // Founder/dev account: always unlock Premium Pro server-side for testing.
   // This bypasses Stripe/subscription gates only for the explicit internal email.
   if (isWorkZoFounderDevEmail(user.email)) {

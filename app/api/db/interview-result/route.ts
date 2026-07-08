@@ -143,6 +143,7 @@ export async function POST(request: Request) {
     // insert when no row exists.
     let data: any = null;
     let error: any = null;
+    let didInsert = false;
 
     if (realSessionId) {
       const { data: existing } = await supabase
@@ -171,6 +172,7 @@ export async function POST(request: Request) {
           .single();
         data = inserted.data;
         error = inserted.error;
+        didInsert = !inserted.error;
       }
     } else {
       const inserted = await supabase
@@ -180,9 +182,22 @@ export async function POST(request: Request) {
         .single();
       data = inserted.data;
       error = inserted.error;
+      didInsert = !inserted.error;
     }
 
     if (error) throw error;
+
+    // Partner trial: count this completed interview against the user's
+    // 7-interview trial allowance, but only for a genuinely new result
+    // (never on a re-save / update, which would double-count). Best-effort.
+    if (didInsert && resolved.userId) {
+      try {
+        const { incrementPartnerTrialUsage } = await import("@/lib/workzoPartnerTrial");
+        await incrementPartnerTrialUsage(resolved.userId);
+      } catch {
+        // never block the result response
+      }
+    }
 
     // Patch the session row's duration_seconds if it is 0 or null.
     // This handles the common case where persistInterviewSessionToDb("completed")
