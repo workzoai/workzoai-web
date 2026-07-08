@@ -8,7 +8,7 @@ import {
 } from "@/components/marketing/kit";
 
 export const metadata: Metadata = {
-  title: "About — WorkZo AI",
+  title: "About, WorkZo AI",
   description: "Why WorkZo AI exists: interview practice that shows you why a recruiter's trust rises and falls, not just another question bank.",
 };
 

@@ -103,7 +103,7 @@ export default function CareerPlanPage() {
       }
     } catch { /* fall through to markdown */ }
 
-    // 2. Fallback: parse a markdown 30/60/90 roadmap — group tasks under the
+    // 2. Fallback: parse a markdown 30/60/90 roadmap, group tasks under the
     // nearest heading (### Week / **Phase**) so any prose format still renders.
     const items: PlanItem[] = [];
     let phase = "";
@@ -216,7 +216,7 @@ export default function CareerPlanPage() {
           </Link>
         </div>
       ) : !plan.length ? (
-        /* State 2: Member, no roadmap yet — generate one */
+        /* State 2: Member, no roadmap yet, generate one */
         <div className="rounded-2xl border border-line bg-fg/[0.01] p-10 text-center">
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-fg/[0.05] text-muted mb-4">
             <Calendar className="h-6 w-6" />

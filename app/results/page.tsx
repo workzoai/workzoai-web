@@ -572,7 +572,7 @@ function countFillers(text: string) {
   return (text.match(/\b(um|uh|like|basically|actually|sort of|kind of|you know|i mean|maybe|probably)\b/gi) || []).length;
 }
 
-// Low-certainty / hedging markers — used to score Confidence as genuine
+// Low-certainty / hedging markers, used to score Confidence as genuine
 // assuredness, independent of whether the answer contained ownership or a metric.
 function countHedges(text: string) {
   return (text.match(/\b(maybe|probably|i think|i guess|i'm not sure|not really sure|not sure|sort of|kind of|possibly|might have|i suppose|perhaps|hopefully|i believe so|or something|i'd say|i would say|somewhat|a little bit|to be honest not)\b/gi) || []).length;
@@ -726,7 +726,7 @@ function compute5CategoryScore(input: {
 
   // 3. CONFIDENCE (20%): how assured and decisive the delivery sounded. This is
   // deliberately NOT ownership (that is captured by Ownership Signal and Trust)
-  // — it measures certainty: few hedges/fillers, complete thoughts, steady pace.
+  //, it measures certainty: few hedges/fillers, complete thoughts, steady pace.
   // So a candidate who spoke crisply but modestly still scores well here, and a
   // candidate who rambled with "maybe / I think / kind of" scores lower even if
   // they used the word "I".
@@ -1009,7 +1009,7 @@ function analyzeAnswer(question: string, answer: string, index: number): AnswerI
   );
   // trustImpact: would a recruiter believe/rely on this answer. A plausible,
   // on-topic answer is credible-neutral (~52) and moves up with proof/ownership,
-  // down only for genuine concerns — it floors around 30 for any real answer so
+  // down only for genuine concerns, it floors around 30 for any real answer so
   // an engaged candidate never reads as "0% trustworthy".
   const trustImpact = clamp(
     52

@@ -21,8 +21,6 @@ import {
   Video,
 } from "lucide-react";
 import AuthNavButton from "@/components/auth/AuthNavButton";
-import { FREE_TOOL_LINKS } from "@/lib/free-tools";
-import { getFreeToolIcon } from "@/components/marketing/freeToolIcons";
 import { type WorkZoBillingCycle, type WorkZoPlanType } from "@/lib/workzoPlanLimits";
 import { getWorkZoDisplayPrices, getWorkZoRegionalPriceSet } from "@/lib/workzoLocalizedPricing";
 import {
@@ -74,7 +72,7 @@ const PRICING_CARDS: PricingCard[] = [
     id: "free",
     label: "Free",
     title: "Try WorkZo",
-    subtitle: "Practice one realistic AI interview and explore WorkZo AI's career tools before upgrading.",
+    subtitle: "Perfect for testing one realistic AI interview before upgrading.",
     badge: "Free Forever",
     icon: <Rocket className="h-5 w-5" />,
     features: [
@@ -82,7 +80,7 @@ const PRICING_CARDS: PricingCard[] = [
       "CV-aware recruiter questions",
       "Basic STAR scorecard",
       "Standard interview report",
-      "Improve CV & Cover Letter",
+      "Improve CV & Cover Letter, free",
       "Free CV Review",
       "Interview Question Generator",
       "Standard recruiter personas",
@@ -105,7 +103,7 @@ const PRICING_CARDS: PricingCard[] = [
       "Unlimited resume optimization",
       "Unlimited ATS analysis",
       "Unlimited cover letters",
-      "Full access to all AI career tools",
+      "All free career tools included",
       "Job description analysis",
       "Basic progress tracking",
       "All core recruiter personas",
@@ -126,13 +124,11 @@ const PRICING_CARDS: PricingCard[] = [
       "Everything in Premium",
       "240 AI voice minutes / month (top-ups available)",
       "60 AI video minutes / month (early access)",
-      "Company-specific interview simulations",
-      "Executive recruiter personas",
-      "Face-to-face interview preparation",
       "Detailed interview feedback",
       "Advanced performance analysis",
       "Multi-session interview history",
       "AI improvement suggestions",
+      "Premium recruiter personas",
       "Priority AI processing",
     ],
     cta: "Go Pro",
@@ -140,42 +136,37 @@ const PRICING_CARDS: PricingCard[] = [
   {
     id: "enterprise",
     label: "Enterprise & Education",
-    title: "Career Readiness Platform",
-    subtitle: "For universities, coding bootcamps, training academies, and employers preparing students and candidates for successful hiring outcomes.",
+    title: "Train Cohorts",
+    subtitle: "For universities, bootcamps, and hiring teams scaling interview readiness across groups.",
     badge: "Institutional",
     icon: <Building2 className="h-5 w-5" />,
     enterprise: true,
-    priceNote: "Annual licensing based on cohort size · 14-day Education Evaluation Program",
+    priceNote: "Annual contract · volume pricing",
     features: [
-      "Cohort interview readiness dashboard",
-      "Student progress & engagement analytics",
       "Shared AI voice & video minute pools",
-      "Curriculum insights & skill-gap reporting (coming soon)",
-      "Custom recruiter personas & job templates",
-      "Career team & instructor management",
-      "Dedicated onboarding & training",
+      "Custom JD and recruiter persona mapping",
+      "Team management",
       "Priority support",
+      "Dedicated onboarding",
       "Volume pricing",
     ],
-    cta: "Book Demo",
+    cta: "Request Demo",
   },
 ];
 
 const comparisonRows = [
   { label: "AI Voice Interviews", free: "1 interview", premium: "120 mins / mo + top-ups", pro: "240 mins / mo + top-ups", enterprise: "Custom" },
-  { label: "AI Video Interviews (early access)", free: "—", premium: "—", pro: "60 mins / mo", enterprise: "Shared pool" },
+  { label: "AI Video Interviews (early access)", free: " - ", premium: " - ", pro: "60 mins / mo", enterprise: "Shared pool" },
   { label: "Resume Optimization", free: "Included", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },
   { label: "ATS Analysis", free: "Included", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },
   { label: "Cover Letters", free: "Included", premium: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" },
-  { label: "Job Description Analysis", free: "—", premium: "Included", pro: "Included", enterprise: "Included" },
+  { label: "Job Description Analysis", free: " - ", premium: "Included", pro: "Included", enterprise: "Included" },
   { label: "Recruiter Personas", free: "Standard", premium: "Core", pro: "Premium", enterprise: "Custom" },
-  { label: "Progress Tracking", free: "—", premium: "Basic", pro: "Advanced", enterprise: "Cohort analytics" },
-  { label: "Cohort Readiness Dashboard", free: "—", premium: "—", pro: "—", enterprise: "Included" },
-  { label: "Student Engagement Analytics", free: "—", premium: "—", pro: "—", enterprise: "Included" },
-  { label: "Interview History", free: "—", premium: "Included", pro: "Multi-session", enterprise: "Included" },
+  { label: "Progress Tracking", free: " - ", premium: "Basic", pro: "Advanced", enterprise: "Cohort analytics" },
+  { label: "Interview History", free: " - ", premium: "Included", pro: "Multi-session", enterprise: "Included" },
   { label: "Performance Analysis", free: "Basic", premium: "Standard", pro: "Advanced", enterprise: "Advanced" },
-  { label: "AI Improvement Suggestions", free: "—", premium: "—", pro: "Included", enterprise: "Included" },
-  { label: "Team Management", free: "—", premium: "—", pro: "—", enterprise: "Included" },
+  { label: "AI Improvement Suggestions", free: " - ", premium: " - ", pro: "Included", enterprise: "Included" },
+  { label: "Team Management", free: " - ", premium: " - ", pro: " - ", enterprise: "Included" },
   { label: "Onboarding & Support", free: "Standard", premium: "Standard", pro: "Priority", enterprise: "Dedicated" },
 ];
 
@@ -254,32 +245,6 @@ function PriceLine({ plan, billingCycle }: { plan: WorkZoPlanType | "enterprise"
       {plan !== "free" && billingCycle === "yearly" ? (
         <p className="mt-2 text-xs font-black text-success">{price.savings}</p>
       ) : null}
-    </div>
-  );
-}
-
-function FreeToolsBlock({ label }: { label: string }) {
-  return (
-    <div className="mt-4 rounded-xl border border-brand/20 bg-brand/[0.06] p-3.5">
-      <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-brand">
-        <Tag className="h-3.5 w-3.5" />
-        {label}
-      </p>
-      <div className="mt-2.5 space-y-2">
-        {FREE_TOOL_LINKS.map((tool) => {
-          const Icon = getFreeToolIcon(tool.icon);
-          return (
-            <Link
-              key={tool.id}
-              href={tool.href}
-              className="group flex items-center gap-2.5 text-sm font-bold text-fg transition hover:text-brand"
-            >
-              <Icon className="h-[15px] w-[15px] shrink-0 text-brand" />
-              <span className="leading-[1.4]">{tool.label}</span>
-            </Link>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -507,10 +472,6 @@ export default function PricingPage() {
                         </div>
                       ))}
                     </div>
-                  ) : null}
-
-                  {!card.enterprise ? (
-                    <FreeToolsBlock label={isFree ? "Free Career Tools" : "Free Career Tools Included"} />
                   ) : null}
                 </div>
 

@@ -1884,7 +1884,7 @@ function estimateTotalYearsFromDateRanges(cvText: string): number | null {
   // "06/2016 - 12/2018", etc. Captures the two 4-digit years (or "present"/
   // "current"/"now"/"heute"/"présent"/"aktuell" for the open-ended case).
   const rangePattern =
-    /\b(?:\d{1,2}[/.])?(\d{4})\s*[-–—]\s*(?:\d{1,2}[/.])?(\d{4}|present|current|now|heute|présent|aktuell|actuellement)\b/gi;
+    /\b(?:\d{1,2}[/.])?(\d{4})\s*[-– - ]\s*(?:\d{1,2}[/.])?(\d{4}|present|current|now|heute|présent|aktuell|actuellement)\b/gi;
 
   const ranges: Array<[number, number]> = [];
   let match: RegExpExecArray | null;
@@ -4925,7 +4925,7 @@ function lastTurnLeavesCandidateCutOff(
   // checks missed it, so the app treated the assistant's premature goodbye as a
   // valid ending and sent the user to results. Detect unfinished endings by
   // shape, not by sample names or sample CVs.
-  const endsWithCommaOrDash = /[,–—-]\s*$/.test(raw);
+  const endsWithCommaOrDash = /[,– - -]\s*$/.test(raw);
   const endsWithFiller = /\b(um+|uh+|erm+|hmm+|like|you know|i mean)\s*[.,!?-]*$/i.test(raw);
   const endsWithConnector = /\b(and|but|because|so|when|while|if|then|that|where|which|who|with|for|to|as|or)\s*[.,!?-]*$/i.test(raw);
   const unfinishedPhrase = /\b(what i did was|what happened was|the reason is|because of that|based on that|in that case|when the customer|when the client|so i|then i|and i)\s*[.,!?-]*$/i.test(raw);
@@ -5319,7 +5319,7 @@ function InterviewPageInner() {
       return greeting;
     }
   }, []);
-  // Technical mode: auto-enabled for the technical interviewers — Alex
+  // Technical mode: auto-enabled for the technical interviewers, Alex
   // (free tier) and David Kimura / Principal Engineer (Pro tier).
   const isTechnicalRecruiter = (id: string) =>
     id === "faang_hiring_manager" || id === "alex" || id.includes("faang") ||

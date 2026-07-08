@@ -8,7 +8,7 @@ import {
 import B2BLeadForm from "@/components/marketing/B2BLeadForm";
 
 export const metadata: Metadata = {
-  title: "Enterprise — WorkZo AI",
+  title: "Enterprise, WorkZo AI",
   description: "Standardize interview preparation across every team and location with managed rollout, group-level readiness, and privacy controls.",
 };
 

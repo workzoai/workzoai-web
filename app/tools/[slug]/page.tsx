@@ -59,7 +59,7 @@ export default async function FreeToolPage({
   const Icon = getFreeToolIcon(tool.icon);
   const related = FREE_TOOLS.filter((t) => t.id !== tool.id).slice(0, 3);
 
-  // FAQ structured data — helps these pages earn rich results.
+  // FAQ structured data, helps these pages earn rich results.
   const faqJsonLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -96,7 +96,7 @@ export default async function FreeToolPage({
         </Reveal>
       </section>
 
-      {/* The actual free tool — runs inline, no login required */}
+      {/* The actual free tool, runs inline, no login required */}
       <section id="try-tool" className="mx-auto max-w-3xl px-4 pb-8 sm:px-6 lg:px-8">
         <FreeToolRunner tool={tool} />
       </section>
@@ -146,7 +146,7 @@ export default async function FreeToolPage({
 
       {/* Related free tools */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="More free tools" title="Keep preparing — it's all free." />
+        <SectionHeading eyebrow="More free tools" title="Keep preparing, it's all free." />
         <div className="mt-10 grid gap-4 sm:grid-cols-3">
           {related.map((other) => (
             <FeatureCard

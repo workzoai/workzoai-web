@@ -9,7 +9,7 @@ export const metadata = {
 
 /**
  * Honest accessibility statement. We do NOT claim WCAG conformance we have
- * not audited — "partially conformant, actively improving, tell us about
+ * not audited, "partially conformant, actively improving, tell us about
  * barriers" is both truthful and what the European Accessibility Act era
  * expects from a company this size. Update "Known limitations" as items are
  * fixed; a stale limitation list is better than a false conformance claim.

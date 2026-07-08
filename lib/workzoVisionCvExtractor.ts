@@ -405,7 +405,7 @@ Rules:
 2. Keep all content in its ORIGINAL language. Do not translate.
 3. Do NOT invent data. If a field is absent from the CV, use an empty string or empty array.
 4. "skills" is an array of ATOMIC entries — exactly one tool, technology, or named competency per array element (e.g. "Python", "Tableau", "SLA Management"). NEVER put commas inside a single element, NEVER combine several skills into one string, NEVER output full sentences, and NEVER include the candidate's name. If the CV lists "Python, SQL, Tableau", output three separate elements.
-5. "experience" is actual roles the person held. Include every bullet point present for each role.
+5. "experience" is actual roles the person held. CRITICAL: each entry MUST carry its OWN title, company, location, and dates — read the specific job title and date range printed next to THAT role, matching by vertical position (in multi-column layouts the dates may sit in a different column than the title, but on the same row/line). NEVER copy the first or most prominent role's title or dates onto the other roles: if every role comes out with an identical title or identical dates, that is almost always a mistake — re-read and assign each role its distinct dates and title. Different roles usually have different date ranges (e.g. "AUG 2022 – HEUTE", then "Mar 2018 – Jul 2022", then "May 2017 – Mar 2018"). Include EVERY bullet point present for each role, and keep each bullet attached to the role it physically belongs to.
 6. Output MUST be valid JSON and nothing else.`;
 
 type OpenRouterContentPart =

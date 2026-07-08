@@ -9,7 +9,7 @@ import {
 } from "@/components/marketing/kit";
 
 export const metadata: Metadata = {
-  title: "Resources — WorkZo AI",
+  title: "Resources, WorkZo AI",
   description: "Guides, support, product updates, and legal information for WorkZo AI in one place.",
 };
 

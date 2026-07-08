@@ -1,5 +1,5 @@
 /**
- * WorkZo AI — premium marketing kit.
+ * WorkZo AI, premium marketing kit.
  *
  * Server-renderable, on-brand building blocks so every informational
  * page (For Education, Resources, About, FAQ, Help, Status, Changelog, Roadmap,

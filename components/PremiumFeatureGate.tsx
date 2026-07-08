@@ -13,7 +13,7 @@ export default function PremiumFeatureGate({ feature, title, description, childr
   const required = getWorkZoPlanLimits(requiredPlan);
 
   // Free features (Improve CV, Cover Letter, and every free tool) are public.
-  // No plan check, no login gate — they render for everyone on every plan.
+  // No plan check, no login gate, they render for everyone on every plan.
   // Hooks above stay unconditional so this early return is safe.
   if (requiredPlan === "free") {
     return <>{children}</>;

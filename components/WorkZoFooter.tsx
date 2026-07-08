@@ -6,8 +6,6 @@ import {
   MessageCircle,
   Rocket,
 } from "lucide-react";
-import { FREE_TOOL_LINKS } from "@/lib/free-tools";
-import { getFreeToolIcon } from "@/components/marketing/freeToolIcons";
 
 // lucide-react removed brand icons in recent versions, so LinkedIn is kept as
 // a small inline SVG with the same props shape as a lucide icon.
@@ -31,19 +29,12 @@ const productLinks: FooterLinkItem[] = [
   { label: "Interview Practice", href: "/features/interview-practice" },
   { label: "AI Career Coach", href: "/pricing?plan=premium_pro" },
   { label: "Improve CV", href: "/cv" },
+  { label: "Free CV Review", href: "/tools/cv-review" },
   { label: "Cover Letter", href: "/cover-letter" },
+  { label: "Interview Question Generator", href: "/tools/interview-questions" },
   { label: "Job Assist", href: "/jobs" },
   { label: "Pricing", href: "/pricing" },
 ];
-
-// Career Tools come straight from the global registry, so adding a tool in
-// lib/free-tools.ts adds it here automatically and always points at its
-// dedicated /tools/* SEO page.
-const careerToolLinks: FooterLinkItem[] = FREE_TOOL_LINKS.map((tool) => ({
-  label: tool.label,
-  href: tool.href,
-  icon: getFreeToolIcon(tool.icon),
-}));
 
 const solutionLinks: FooterLinkItem[] = [
   { label: "For Students", href: "/for-education/students" },
@@ -68,6 +59,7 @@ const resourceLinks: FooterLinkItem[] = [
 
 const companyLinks: FooterLinkItem[] = [
   { label: "About", href: "/about" },
+  { label: "Careers", href: "/careers" },
   { label: "Contact", href: "/contact", icon: MessageCircle },
   { label: "LinkedIn", href: "https://www.linkedin.com/company/workzo-ai", external: true, icon: LinkedinIcon },
   { label: "Product Hunt", href: "https://www.producthunt.com/products/workzo-ai", external: true, icon: Rocket },
@@ -177,7 +169,6 @@ export default function WorkZoFooter({ minimal = false }: { minimal?: boolean })
           </div>
 
           <FooterColumn title="Product" links={productLinks} />
-          <FooterColumn title="Career Tools" links={careerToolLinks} />
           <FooterColumn title="Solutions" links={solutionLinks} />
           <FooterColumn title="Resources" links={resourceLinks} />
           <FooterColumn title="Company" links={companyLinks} />

@@ -6,8 +6,8 @@
  * A small, launch-safe reliability net shown once after CV upload and before
  * the interview starts. No parser is correct on every CV layout, so instead of
  * betting the whole interview on the parse, we show the candidate the two
- * fields that matter most for how the recruiter addresses them — name and
- * headline — and let them fix either in ~5 seconds.
+ * fields that matter most for how the recruiter addresses them, name and
+ * headline, and let them fix either in ~5 seconds.
  *
  * This makes identity correct for 100% of users regardless of parser accuracy,
  * while the parser keeps improving in the background. It is deliberately
@@ -32,7 +32,7 @@ export type CvIdentityConfirmProps = {
 };
 
 // Values the finalizer emits when it could not read a real one. We surface a
-// gentle nudge for these rather than blocking — the net should never trap a user.
+// gentle nudge for these rather than blocking, the net should never trap a user.
 const PLACEHOLDER_NAMES = new Set(["", "candidate", "unknown", "n/a"]);
 const PLACEHOLDER_HEADLINES = new Set(["", "professional", "n/a"]);
 
@@ -112,7 +112,7 @@ export default function CvIdentityConfirm({
         </h2>
         <p className="mt-1.5 text-[13px] font-medium leading-5 text-muted">
           Your interviewer uses these to address you. Fix anything that looks off
-          {fileName ? ` — we read them from ${fileName}.` : "."}
+          {fileName ? `, we read them from ${fileName}.` : "."}
         </p>
 
         <div className="mt-4 space-y-3.5">
@@ -163,7 +163,7 @@ export default function CvIdentityConfirm({
             onClick={confirm}
             className="flex-1 rounded-xl bg-brand px-4 py-2.5 text-sm font-black text-on-brand transition active:scale-[0.99]"
           >
-            Looks right — start interview
+            Looks right, start interview
           </button>
           <button
             type="button"

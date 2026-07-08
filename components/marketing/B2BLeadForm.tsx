@@ -49,7 +49,7 @@ export default function B2BLeadForm({ source = "enterprise" }: { source?: string
       <div className="flex items-start gap-3 rounded-xl border border-success/25 bg-success/10 p-6">
         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" />
         <div>
-          <p className="text-sm font-black text-fg">Thanks — we&apos;ve got it.</p>
+          <p className="text-sm font-black text-fg">Thanks, we&apos;ve got it.</p>
           <p className="mt-1 text-sm leading-6 text-muted">
             You&apos;ll hear back within one business day at {form.email}. If it&apos;s urgent, email{" "}
             <a href="mailto:support@workzoai.com" className="underline">support@workzoai.com</a>.
@@ -113,7 +113,7 @@ export default function B2BLeadForm({ source = "enterprise" }: { source?: string
       </div>
       {status === "error" && (
         <p className="mt-3 text-sm text-danger">
-          That didn&apos;t go through — please try again or email{" "}
+          That didn&apos;t go through, please try again or email{" "}
           <a href="mailto:support@workzoai.com" className="underline">support@workzoai.com</a>.
         </p>
       )}

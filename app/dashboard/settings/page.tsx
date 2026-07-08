@@ -25,7 +25,7 @@ export default function DashboardSettingsPage() {
         const res = await fetch("/api/account/plan", { cache: "no-store" });
         const planData = await res.json().catch(() => ({}));
         // Respect an active dev/test override rather than writing the real
-        // DB plan back over it — see workzoUsageTracker.ts for why this
+        // DB plan back over it, see workzoUsageTracker.ts for why this
         // matters for every other page that reads plan via getWorkZoCurrentPlan().
         const devOverride = getWorkZoDevPlanOverride();
         const plan = devOverride || normalizeWorkZoPlan(planData?.plan || "free");

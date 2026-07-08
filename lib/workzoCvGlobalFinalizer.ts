@@ -210,13 +210,24 @@ function formatTitleCase(str: string): string {
 
 function cleanFileNameForName(fileName?: string): string {
   if (!fileName) return "";
-  return compact(
+  const base = compact(
     fileName
       .replace(/\.[^/.]+$/, "")
       .replace(/[_-]+/g, " ")
       .replace(/\([^)]*\)/g, " ")
-      .replace(/\b(copy\s+of|copy|cv|resume|curriculum|vitae|final|updated|ats|modern|template|doc|pdf|data|de|en|german|english|minimalist|professional|workzo|cover\s+letter)\b/gi, " ")
+      .replace(/\b(copy\s+of|copy|cv|resume|curriculum|vitae|final|updated|ats|modern|template|doc|pdf|data|de|en|german|english|minimalist|professional|workzo|cover\s+letter|junior|senior|lead|intern|trainee|scientist|analyst|engineer|developer|designer|manager|supervisor|specialist|technician|consultant|architect|administrator|coordinator|officer|assistant|player|team|profile|portfolio|application|draft)\b/gi, " ")
       .replace(/\+?\d[\d\s().-]{5,}/g, " ")
+  );
+  // Also drop whole tokens that are pure concatenations of role/document words
+  // (e.g. "Juniordata", "Datascientist", "Teamplayer") — a person's name never
+  // is one. The anchored full-match keeps ordinary surnames safe: "Leadbetter"
+  // contains "lead" but isn't made *entirely* of role words, so it survives.
+  const ROLE_CONCAT = /^(?:junior|senior|lead|data|it|hr|qa|scientist|analyst|engineer|engineering|developer|dev|support|player|team|specialist|technician|manager|supervisor|profile|resume|cv|curriculum|vitae|final|draft|copy)+s?$/i;
+  return compact(
+    base
+      .split(/\s+/)
+      .filter((tok) => tok && !ROLE_CONCAT.test(tok))
+      .join(" "),
   );
 }
 

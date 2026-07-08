@@ -3,7 +3,7 @@ import { Activity, CheckCircle2 } from "lucide-react";
 import { MarketingShell, Reveal, BackLink } from "@/components/marketing/kit";
 
 export const metadata: Metadata = {
-  title: "System Status — WorkZo AI",
+  title: "System Status, WorkZo AI",
   description: "Current WorkZo AI service status and uptime overview.",
 };
 

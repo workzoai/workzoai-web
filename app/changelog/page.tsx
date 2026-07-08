@@ -3,7 +3,7 @@ import { CheckCircle2, Sparkles, Zap } from "lucide-react";
 import { MarketingShell, Reveal, Eyebrow, CTASection, BackLink } from "@/components/marketing/kit";
 
 export const metadata: Metadata = {
-  title: "Changelog — WorkZo AI",
+  title: "Changelog, WorkZo AI",
   description: "Product updates, new features, intelligence upgrades, and fixes for WorkZo AI.",
 };
 

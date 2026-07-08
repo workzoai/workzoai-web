@@ -7,7 +7,7 @@ import type { WorkZoAccountScores } from "@/lib/workzoCvScore";
 /**
  * All-time interview score summary for the History (dashboard) page.
  *
- * Consumes /api/account/scores — the route computes the signed-in user's
+ * Consumes /api/account/scores, the route computes the signed-in user's
  * average and best overall_score across every scored session. Before this it
  * had no caller anywhere in the app; the History page only showed per-session
  * rows, never a progress trend.
@@ -38,13 +38,13 @@ export default function HistoryScoreSummary() {
   const cells = [
     {
       label: "Average score",
-      value: scores.avgInterviewScore ?? "—",
+      value: scores.avgInterviewScore ?? " - ",
       icon: TrendingUp,
       accent: "text-brand",
     },
     {
       label: "Best score",
-      value: scores.bestInterviewScore ?? "—",
+      value: scores.bestInterviewScore ?? " - ",
       icon: Award,
       accent: "text-success",
     },

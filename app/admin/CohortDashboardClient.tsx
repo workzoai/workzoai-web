@@ -178,8 +178,8 @@ type EscalationRow = {
   created_at: string;
 };
 const SAMPLE_ESCALATIONS: EscalationRow[] = [
-  { id: "s1", candidate_name: "Aisha Rahman", role: "Data Analyst", severity: "exceptional", status: "open", reason: "exceptional_candidate", wiri: 88, note: "Top of cohort — fast-track for employer intros.", flagged_by: "recruiter", created_at: new Date(Date.now() - 3600_000).toISOString() },
-  { id: "s2", candidate_name: "Jonas Vogel", role: "Cloud Engineer", severity: "high", status: "reviewing", reason: "flagged_for_review", wiri: 44, note: "Strong CV, weak interview evidence — needs a human read.", flagged_by: "system", created_at: new Date(Date.now() - 26 * 3600_000).toISOString() },
+  { id: "s1", candidate_name: "Aisha Rahman", role: "Data Analyst", severity: "exceptional", status: "open", reason: "exceptional_candidate", wiri: 88, note: "Top of cohort, fast-track for employer intros.", flagged_by: "recruiter", created_at: new Date(Date.now() - 3600_000).toISOString() },
+  { id: "s2", candidate_name: "Jonas Vogel", role: "Cloud Engineer", severity: "high", status: "reviewing", reason: "flagged_for_review", wiri: 44, note: "Strong CV, weak interview evidence, needs a human read.", flagged_by: "system", created_at: new Date(Date.now() - 26 * 3600_000).toISOString() },
   { id: "s3", candidate_name: "Priya Nair", role: "Customer Success", severity: "medium", status: "resolved", reason: "flagged_for_review", wiri: 71, note: null, flagged_by: "recruiter", created_at: new Date(Date.now() - 72 * 3600_000).toISOString() },
 ];
 
@@ -359,7 +359,7 @@ export default function CohortDashboardClient() {  const [live, setLive] = useSt
                       <span className={cx("rounded-full px-2 py-0.5 text-[11px] font-black", sev.c)}>{sev.l}</span>
                       <span className={cx("rounded-full border border-line px-2 py-0.5 text-[11px] font-black uppercase tracking-wide", st)}>{e.status}</span>
                     </div>
-                    <p className="mt-1 text-sm font-bold text-muted">{e.role || "—"} · {e.reason.replace(/_/g, " ")}{e.wiri != null ? ` · WIRI ${e.wiri}` : ""}</p>
+                    <p className="mt-1 text-sm font-bold text-muted">{e.role || " - "} · {e.reason.replace(/_/g, " ")}{e.wiri != null ? ` · WIRI ${e.wiri}` : ""}</p>
                     {e.note ? <p className="mt-2 text-sm text-muted">{e.note}</p> : null}
                     <p className="mt-2 text-xs text-subtle">Flagged by {e.flagged_by} · {new Date(e.created_at).toLocaleDateString()}</p>
                   </div>

@@ -137,7 +137,7 @@ export default function CoverLetterWorkspacePage() {
               Paste your CV and the job description, add the role, and generate. That's all you need.
             </p>
 
-            {/* Inputs first — the important part */}
+            {/* Inputs first, the important part */}
             <div className="mt-6 space-y-4">
               <label className="block">
                 <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">Target role</span>
@@ -156,7 +156,7 @@ export default function CoverLetterWorkspacePage() {
               </button>
             </div>
 
-            {/* Application intelligence — collapsed to keep the focus on the inputs above */}
+            {/* Application intelligence, collapsed to keep the focus on the inputs above */}
             <details className="mt-6">
               <summary className="cursor-pointer list-none rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm font-black text-muted hover:text-fg">
                 Application intelligence &amp; letter analysis (optional)
@@ -167,7 +167,7 @@ export default function CoverLetterWorkspacePage() {
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.2em] text-muted">JD keyword signals</p>
                   <h2 className="mt-2 text-xl font-black">Match &amp; risk overview</h2>
-                  <p className="mt-2 text-sm leading-6 text-muted">Keyword-level signals only — not a hiring prediction. Your honest fit assessment is written by the AI at the top of the generated letter.</p>
+                  <p className="mt-2 text-sm leading-6 text-muted">Keyword-level signals only, not a hiring prediction. Your honest fit assessment is written by the AI at the top of the generated letter.</p>
                 </div>
               </div>
 

@@ -361,12 +361,28 @@ export default function CvWorkspacePage() {
       return false;
     }
 
-    if (
-      profile &&
-      typeof profile === "object" &&
-      "basics" in profile &&
-      !isLowQualityResumeProfile(profile)
-    ) {
+    // RESTRUCTURE: reuse the (vision) structured profile whenever it has usable
+    // structure — real experience or education entries. A weak *name* is repaired
+    // below via the name override; it must NOT cause us to discard the entire
+    // structured CV and fall back to the flattening re-parse (/api/cv/structure),
+    // which is exactly what garbled experience, skills, and dates. Only genuinely
+    // structure-less input (nothing but noise) proceeds to the re-parse fallback.
+    const structuredProfile =
+      profile && typeof profile === "object" && "basics" in profile
+        ? (profile as ResumeProfile)
+        : null;
+    const hasUsableStructure =
+      !!structuredProfile &&
+      ((Array.isArray(structuredProfile.experience) &&
+        structuredProfile.experience.some(
+          (e) => (e?.company || "").trim() || (e?.title || "").trim(),
+        )) ||
+        (Array.isArray(structuredProfile.education) &&
+          structuredProfile.education.some((e) =>
+            (e?.institution || e?.degree || "").toString().trim(),
+          )));
+
+    if (structuredProfile && hasUsableStructure) {
       const completed = completeResumeProfile(
         profile as ResumeProfile,
         storedCvText,

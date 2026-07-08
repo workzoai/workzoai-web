@@ -382,7 +382,7 @@ export default function FounderAnalyticsClient() {
       <div className="mx-auto max-w-[1500px] space-y-6 px-5 py-6 sm:px-8">
         {error ? (
           <div className="flex items-center gap-3 rounded-xl border border-danger/25 bg-danger/[0.08] px-5 py-4 text-sm font-bold text-danger">
-            <AlertTriangle className="h-5 w-5 shrink-0" /> {error} — check your founder secret in the URL.
+            <AlertTriangle className="h-5 w-5 shrink-0" /> {error}, check your founder secret in the URL.
           </div>
         ) : null}
 

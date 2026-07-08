@@ -173,7 +173,7 @@ type SidebarNavItem = { label: string; href: string; icon: LucideIcon };
 // Free tools promoted into the main nav (CV Review, Interview Questions).
 // No "FREE" badge: an item with no lock icon already reads as free, which keeps
 // the toolbox clean. Resume Tailor and Cover Letter Generator are intentionally
-// omitted — Improve CV and Cover Letter already cover them. Each links to its
+// omitted, Improve CV and Cover Letter already cover them. Each links to its
 // dedicated, login-free /tools/<id> runner page (distinct from /cv).
 function freeToolNavItem(id: string, label: string): SidebarNavItem {
   const tool = FREE_TOOL_LINKS.find((t) => t.id === id);
@@ -240,7 +240,7 @@ export default function DashboardPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!active || !data) return;
-        // If a dev/test plan override is active, keep showing it — the raw
+        // If a dev/test plan override is active, keep showing it, the raw
         // DB plan here is real but shouldn't win over an explicit override
         // set from /dev-tools (that's the whole point of the override).
         const serverPlan =
@@ -314,7 +314,7 @@ export default function DashboardPage() {
       // This is the same storage layer app/cv/page.tsx reads from
       // (readLatestInterviewSetup checks 8 legacy/current key names across
       // localStorage and sessionStorage and picks the most recent valid
-      // entry) — NOT workzoCanonicalProfile, which nothing outside
+      // entry), NOT workzoCanonicalProfile, which nothing outside
       // onboarding actually writes to in practice.
       const setup = readLatestInterviewSetup();
       const profile =
@@ -477,7 +477,7 @@ export default function DashboardPage() {
             value={
               accountScores?.avgInterviewScore != null
                 ? `${accountScores.avgInterviewScore}`
-                : "—"
+                : " - "
             }
             sub={
               accountScores?.avgInterviewScore != null
@@ -492,7 +492,7 @@ export default function DashboardPage() {
           />
           <MetricCard
             label="CV score"
-            value={cvScoreInfo ? `${cvScoreInfo.score}` : "—"}
+            value={cvScoreInfo ? `${cvScoreInfo.score}` : " - "}
             sub={cvScoreInfo ? cvScoreInfo.label : "Upload your CV to score"}
             icon={FileText}
             color="text-brand"
@@ -500,7 +500,7 @@ export default function DashboardPage() {
           />
           <MetricCard
             label="Readiness"
-            value={readiness ? `${readiness.overall}` : "—"}
+            value={readiness ? `${readiness.overall}` : " - "}
             sub={
               readiness
                 ? readiness.label
@@ -833,7 +833,7 @@ function RecentSessions({ plan }: { plan: WorkZoPlanType }) {
             {s.score !== null && isPremium ? (
               <p className="text-sm font-black text-fg">
                 {typeof s.score === "object"
-                  ? ((s.score as Record<string, number>)?.overall ?? "—")
+                  ? ((s.score as Record<string, number>)?.overall ?? " - ")
                   : s.score}
                 <span className="text-xs text-muted">/100</span>
               </p>
@@ -885,7 +885,7 @@ function Sidebar({ plan }: { plan: WorkZoPlanType }) {
         {planLabel(plan)} plan active
       </div>
 
-      {/* Scrollable middle region — keeps every item reachable on short
+      {/* Scrollable middle region, keeps every item reachable on short
           viewports while the account block below stays pinned to the bottom. */}
       <div className="mt-5 flex-1 overflow-y-auto pr-1 -mr-1">
         {/* Nav */}
@@ -983,7 +983,7 @@ function Sidebar({ plan }: { plan: WorkZoPlanType }) {
         )}
       </div>
 
-      {/* Account — pinned to the bottom, always visible */}
+      {/* Account, pinned to the bottom, always visible */}
       <div className="mt-4 shrink-0 rounded-2xl border border-line bg-fg/[0.025] p-3">
         <div className="flex items-center gap-3">
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-fg/[0.06]">
@@ -1047,7 +1047,7 @@ function MetricCard({
           locked ? "text-muted" : "text-fg",
         )}
       >
-        {locked ? "—" : value}
+        {locked ? " - " : value}
       </p>
       <p
         className={cn("mt-1 text-xs", locked ? "text-subtle/70" : "text-muted")}

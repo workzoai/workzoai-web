@@ -993,7 +993,7 @@ export default function OnboardingPage() {
 
   function startInterview() {
     // Global reliability gate: never start an interview on an unverified
-    // identity. Only gates real uploaded profiles — manual-paste users (no
+    // identity. Only gates real uploaded profiles, manual-paste users (no
     // structured profile) proceed unchanged.
     if (aiResumeProfile && !identityConfirmed) {
       setShowIdentityConfirm(true);
@@ -1300,7 +1300,7 @@ export default function OnboardingPage() {
                 <p className="mt-1 text-[11px] text-muted">
                   Based on your {effectiveCvText.trim() ? "CV" : "target role"}{jobDescription.trim() ? " and job description" : ""}:{" "}
                   <span className="font-black text-emerald-400">{recommendedPersona.name} · {recommendedPersona.role}</span>
-                  {" "}looks like the best fit — {recruiterRecommendation.reason}.
+                  {" "}looks like the best fit, {recruiterRecommendation.reason}.
                   {!isProUser && recruiterRecommendation.primaryIsPro && recruiterRecommendation.freeAlternative !== recruiterRecommendation.primary && (
                     <> On your current plan, <span className="font-black text-fg">{(recruiters.find((r) => r.key === recruiterRecommendation.freeAlternative) || recruiters[1]).name}</span> is the closest match.</>
                   )}

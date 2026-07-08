@@ -1,7 +1,7 @@
 "use client";
 
 /*
- * FreeToolRunner — runs a free career tool inline, with no login required.
+ * FreeToolRunner, runs a free career tool inline, with no login required.
  *
  * It POSTs to the tool's public /api/free-tools/<slug> endpoint (deterministic,
  * unauthenticated) and renders the result in place. The full, premium version
@@ -212,7 +212,7 @@ export default function FreeToolRunner({ tool }: { tool: FreeTool }) {
   return (
     <div className="rounded-[1.75rem] border border-line bg-surface/70 p-5 shadow-2xl shadow-black/10 sm:p-7">
       <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-brand">
-        <Sparkles className="h-4 w-4" /> Try it free — no signup
+        <Sparkles className="h-4 w-4" /> Try it free, no signup
       </div>
 
       {!result ? (

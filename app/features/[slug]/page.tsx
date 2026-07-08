@@ -73,7 +73,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const feature = features[slug];
   return {
-    title: feature ? `${feature.eyebrow} — WorkZo AI` : "Features — WorkZo AI",
+    title: feature ? `${feature.eyebrow}, WorkZo AI` : "Features, WorkZo AI",
     description: feature?.description || "Explore WorkZo AI features.",
   };
 }

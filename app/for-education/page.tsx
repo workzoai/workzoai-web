@@ -50,12 +50,12 @@ const pillars = [
 ];
 
 const capabilities = [
-  { icon: BarChart3, title: "Cohort rejection-risk heatmaps", text: "See where a cohort is weak — communication, evidence, job fit — as a live heatmap, with the top reasons candidates would be rejected." },
+  { icon: BarChart3, title: "Cohort rejection-risk heatmaps", text: "See where a cohort is weak, communication, evidence, job fit, as a live heatmap, with the top reasons candidates would be rejected." },
   { icon: GaugeCircle, title: "WorkZo Readiness Index", text: "One comparable readiness score per learner and per cohort, benchmarked against the wider WorkZo network rather than a guess." },
   { icon: GraduationCap, title: "Curriculum insights", text: "Weak interview patterns become concrete workshop and coaching actions, with the percentage of students affected." },
-  { icon: Handshake, title: "Vetted shortlist portal", text: "Share an opt-in, bias-aware talent pipeline with employer partners: readiness bands, skills, languages, and interview evidence — no public ranking." },
+  { icon: Handshake, title: "Vetted shortlist portal", text: "Share an opt-in, bias-aware talent pipeline with employer partners: readiness bands, skills, languages, and interview evidence, no public ranking." },
   { icon: UsersRound, title: "Human-in-the-loop review", text: "Flag exceptional or at-risk candidates for a human read. Your team gets a review queue and an instant Slack, Teams, or ATS alert." },
-  { icon: Layers, title: "Company interview templates", text: "Learners practice the real thing — SAP, Bosch, BMW, Siemens, Amazon, Google and more — with the right rounds and recruiter tone." },
+  { icon: Layers, title: "Company interview templates", text: "Learners practice the real thing, SAP, Bosch, BMW, Siemens, Amazon, Google and more, with the right rounds and recruiter tone." },
 ];
 
 export default function ForEducationOverview() {
@@ -144,7 +144,7 @@ export default function ForEducationOverview() {
           <SectionHeading
             eyebrow="The intelligence layer"
             title="Talent intelligence, not just practice"
-            intro="Beyond per-student reports, WorkZo turns every interview into cohort-level signal your team — and your employer partners — can act on."
+            intro="Beyond per-student reports, WorkZo turns every interview into cohort-level signal your team, and your employer partners, can act on."
           />
         </Reveal>
         <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">

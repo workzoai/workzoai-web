@@ -13,13 +13,13 @@ import { FREE_TOOLS } from "@/lib/free-tools";
 import { getFreeToolIcon } from "@/components/marketing/freeToolIcons";
 
 export const metadata: Metadata = {
-  title: "Free AI Career Tools — CV Review, Resume Tailor & More | WorkZo AI",
+  title: "Free AI Career Tools, CV Review, Resume Tailor & More | WorkZo AI",
   description:
     "Free AI career tools from WorkZo AI: review your CV, tailor your resume to any job, generate cover letters, and create realistic interview questions. No signup required.",
   openGraph: {
     title: "Free AI Career Tools | WorkZo AI",
     description:
-      "Review your CV, tailor your resume, generate cover letters, and create interview questions — free.",
+      "Review your CV, tailor your resume, generate cover letters, and create interview questions, free.",
   },
 };
 
@@ -34,7 +34,7 @@ export default function FreeToolsIndexPage() {
             Practice and prepare before you upgrade.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
-            Every WorkZo AI free tool is built to move your job search forward today — no signup, no
+            Every WorkZo AI free tool is built to move your job search forward today, no signup, no
             cost. Review your CV, tailor your resume, write a cover letter, and rehearse the questions
             you'll actually be asked.
           </p>

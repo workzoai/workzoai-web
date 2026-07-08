@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Scroll reveal — the only piece of the marketing kit that needs to run on the
+ * Scroll reveal, the only piece of the marketing kit that needs to run on the
  * client (IntersectionObserver + hooks). Kept in its own "use client" module so
  * the rest of the kit stays server-renderable and can accept Lucide icon
  * components as props without crossing the server→client boundary.

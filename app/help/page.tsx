@@ -3,7 +3,7 @@ import { BookOpen, Mail, Mic, Settings, Upload, Wand2 } from "lucide-react";
 import { MarketingShell, Reveal, Eyebrow, SectionHeading, CTASection, BackLink } from "@/components/marketing/kit";
 
 export const metadata: Metadata = {
-  title: "Help Center — WorkZo AI",
+  title: "Help Center, WorkZo AI",
   description: "Step-by-step help with onboarding, CV uploads, interviews, results, and billing.",
 };
 

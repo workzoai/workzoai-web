@@ -3,7 +3,7 @@ import { Check, CheckCircle2, Clock3, Rocket } from "lucide-react";
 import { MarketingShell, Reveal, Eyebrow, CTASection, BackLink } from "@/components/marketing/kit";
 
 export const metadata: Metadata = {
-  title: "Roadmap — WorkZo AI",
+  title: "Roadmap, WorkZo AI",
   description: "What WorkZo AI has shipped, what is being built now, and what comes next.",
 };
 

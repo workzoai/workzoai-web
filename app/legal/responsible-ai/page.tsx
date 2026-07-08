@@ -10,7 +10,7 @@ export const metadata = {
 /**
  * Honest one-pager. Rule: every statement here must be true today. This page
  * exists because education and enterprise buyers in the EU increasingly ask
- * "what does your AI actually do and decide?" — and because being able to
+ * "what does your AI actually do and decide?", and because being able to
  * answer plainly is a competitive advantage for a practice tool that makes
  * NO hiring decisions.
  */
