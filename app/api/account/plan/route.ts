@@ -69,7 +69,29 @@ export async function GET() {
     console.warn("[account/plan] usage count failed", error);
   }
 
-  const response = NextResponse.json({ ...resolved, usage });
+  // Partner trial: surface the remaining interview count and expiry so the
+  // dashboard can show "X of 7 interviews left" instead of unlimited-Pro
+  // minutes, and cap the interview usage numbers to the trial allowance.
+  let trial: Awaited<ReturnType<typeof import("@/lib/workzoPartnerTrial").readActiveTrialStatus>> = null;
+  if (resolved.authenticated && resolved.userId && resolved.status === "partner_trial") {
+    try {
+      const { readActiveTrialStatus } = await import("@/lib/workzoPartnerTrial");
+      trial = await readActiveTrialStatus(resolved.userId);
+      if (trial) {
+        usage = {
+          ...usage,
+          interviewLimit: trial.interviewsLimit,
+          interviewsStarted: trial.interviewsUsed,
+          interviewsRemaining: trial.interviewsLeft,
+          canStartInterview: trial.interviewsLeft > 0,
+        };
+      }
+    } catch (err) {
+      console.warn("[account/plan] trial status failed", err);
+    }
+  }
+
+  const response = NextResponse.json({ ...resolved, usage, trial });
   response.cookies.set("workzo_plan", resolved.plan, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 30 });
   response.cookies.set("workzo_plan_type", resolved.plan, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 30 });
   return response;

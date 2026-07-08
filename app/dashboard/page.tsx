@@ -219,6 +219,7 @@ const proNavItems = [
 export default function DashboardPage() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [plan, setPlan] = useState<WorkZoPlanType>("free");
+  const [trial, setTrial] = useState<{ active: boolean; interviewsLeft: number; interviewsLimit: number; expiresAt: string } | null>(null);
   const [firstName, setFirstName] = useState("");
   const [greetingText, setGreetingText] = useState("Welcome");
   const [usage, setUsage] = useState<ReturnType<
@@ -246,6 +247,7 @@ export default function DashboardPage() {
           getWorkZoDevPlanOverride() || normalizeWorkZoPlan(data.plan || p);
         const serverUsage = data.usage;
         setPlan(serverPlan);
+        setTrial(data.trial && data.trial.active ? data.trial : null);
         if (serverUsage) {
           const localSummary = getWorkZoUsageSummary(serverPlan);
           setUsage({
@@ -362,7 +364,9 @@ export default function DashboardPage() {
   const interviewsRemaining =
     usage?.interviewsRemaining ??
     Math.max(0, limits.interviewsPerMonth - interviewsUsed);
-  const interviewsLeft = isPremium
+  const interviewsLeft = trial?.active
+    ? `${Math.max(0, trial.interviewsLeft)} of ${trial.interviewsLimit} interviews left`
+    : isPremium
     ? `${Math.max(0, voiceMinutesRemaining)} voice min left`
     : `${Math.max(0, interviewsRemaining)} interview left`;
 
@@ -440,6 +444,23 @@ export default function DashboardPage() {
             </Link>
           </div>
         </header>
+
+        {trial?.active && (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-brand/[0.08] px-5 py-3">
+            <p className="text-sm font-bold text-fg">
+              <span className="text-brand">Partner trial active.</span>{" "}
+              {trial.interviewsLeft > 0
+                ? `${trial.interviewsLeft} of ${trial.interviewsLimit} interviews left`
+                : "You have used all your trial interviews"}
+              {" · "}expires {new Date(trial.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.
+            </p>
+            {trial.interviewsLeft <= 0 && (
+              <Link href="/pricing" className="rounded-xl bg-brand px-4 py-2 text-xs font-black text-on-brand hover:bg-brand">
+                Upgrade to keep going
+              </Link>
+            )}
+          </div>
+        )}
 
         {/* ── Score metric cards ── */}
         <section className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

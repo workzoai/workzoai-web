@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 import { askOpenRouter } from "@/lib/openrouter";
+import { createWorkZoSupabaseServiceClient } from "@/lib/workzoSupabaseService";
 import { checkWorkZoRateLimit } from "@/lib/workzoRateLimit";
 import { completeResumeProfile, mergePreservingOriginalStructure, profileScore } from "@/lib/workzoResumeProfileManager";
 import { extractResumeProfileComplex } from "@/lib/workzoResumeParser";
@@ -131,6 +132,82 @@ function selectModel(action: CopilotAction, isPro: boolean): string {
   if (COACHING_ACTIONS.includes(action)) return MODELS.coachingPro; // pro-only, always Sonnet
   if (ANALYSIS_ACTIONS.includes(action)) return isPro ? MODELS.analysisPro     : MODELS.analysisPremium;
   return isPro ? MODELS.interviewPro : MODELS.interviewPremium; // magic, score, etc.
+}
+
+// Actions where the candidate's real interview performance meaningfully sharpens
+// the answer (coaching / chat / interview review). CV rewrites deliberately stay
+// out — they must reflect the CV, not interview scores.
+const PERFORMANCE_AWARE_ACTIONS = new Set<CopilotAction>([
+  "career_chat",
+  "career_plan",
+  "interview_coach",
+  "salary_negotiation",
+  "expectation",
+  "score",
+]);
+
+/**
+ * Pull the signed-in user's most recent real interview_results and distill them
+ * into a compact context block. This is what lets Work-O-Bot say "your last
+ * interview scored 52 on communication" instead of reasoning from a localStorage
+ * snapshot. Best-effort: returns "" on any error or when there's no history.
+ */
+async function buildPerformanceContext(userId: string): Promise<string> {
+  try {
+    const db = createWorkZoSupabaseServiceClient();
+    const { data } = await db
+      .from("interview_results")
+      .select("overall_score, trust_score, evidence_quality, improvements, weak_answers, raw_result, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    const rows = (data || []) as Array<Record<string, unknown>>;
+    if (rows.length === 0) return "";
+
+    const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? Math.round(n) : null; };
+    const latest = rows[0];
+    const sig = (latest.raw_result && typeof latest.raw_result === "object"
+      ? ((latest.raw_result as Record<string, unknown>).score || {})
+      : {}) as Record<string, unknown>;
+
+    const scores = rows.map((r) => num(r.overall_score)).filter((n): n is number => n != null);
+    const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+    const trend = scores.length >= 2 ? scores[0] - scores[scores.length - 1] : null;
+
+    const weak: string[] = [];
+    for (const r of rows) {
+      const items = [
+        ...(Array.isArray(r.improvements) ? r.improvements : []),
+        ...(Array.isArray(r.weak_answers) ? r.weak_answers : []),
+      ];
+      for (const w of items) {
+        const t = typeof w === "string"
+          ? w
+          : (w && typeof w === "object"
+            ? String((w as Record<string, unknown>).text ?? (w as Record<string, unknown>).title ?? (w as Record<string, unknown>).summary ?? "")
+            : "");
+        if (t) weak.push(t);
+      }
+    }
+
+    const lines: string[] = [];
+    lines.push(`Interviews completed on WorkZo: ${rows.length}${rows.length >= 5 ? "+" : ""}.`);
+    if (num(latest.overall_score) != null) {
+      lines.push(`Latest overall score: ${num(latest.overall_score)}/100${avg != null ? ` (recent average ${avg})` : ""}${trend != null ? `, trend ${trend >= 0 ? "+" : ""}${trend} across sessions` : ""}.`);
+    }
+    const comp: string[] = [];
+    for (const [k, label] of [["communication", "Communication"], ["confidence", "Confidence"], ["clarity", "Clarity"], ["relevance", "Relevance"]] as const) {
+      const v = num(sig[k]);
+      if (v != null) comp.push(`${label} ${v}`);
+    }
+    if (num(latest.evidence_quality) != null) comp.push(`Evidence ${num(latest.evidence_quality)}`);
+    if (comp.length) lines.push(`Latest competency signals (0-100): ${comp.join(", ")}.`);
+    const topWeak = weak.slice(0, 5);
+    if (topWeak.length) lines.push(`Recurring gaps the recruiter engine flagged: ${topWeak.map((s) => `"${s.slice(0, 140)}"`).join("; ")}.`);
+    return lines.join("\n");
+  } catch {
+    return "";
+  }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1054,9 +1131,17 @@ TARGET MARKET: ${targetMarket}
       }
     }
 
+    let effectiveSystemPrompt = systemPrompt;
+    if (PERFORMANCE_AWARE_ACTIONS.has(action)) {
+      const performance = await buildPerformanceContext(account.userId);
+      if (performance) {
+        effectiveSystemPrompt += `\n\nCANDIDATE PERFORMANCE (from their real completed WorkZo interviews — personalise your coaching to this; reference specific scores/gaps where useful; never invent beyond it):\n${performance}`;
+      }
+    }
+
     const output = await askOpenRouter(
       [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: effectiveSystemPrompt },
         ...history,
         { role: "user", content: userPrompt },
       ],

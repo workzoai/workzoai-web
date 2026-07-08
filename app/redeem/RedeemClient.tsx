@@ -96,8 +96,8 @@ export default function RedeemClient() {
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>{state.already ? "Your trial is already active." : "Trial activated!"} You have {state.interviewsLimit} interviews through {expiryLabel}.</span>
                 </div>
-                <a href="/interview" className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-black text-on-brand hover:bg-brand-strong">
-                  Start your first interview <ArrowRight className="h-4 w-4" />
+                <a href="/onboarding" className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-black text-on-brand hover:bg-brand-strong">
+                  Set up and start your first interview <ArrowRight className="h-4 w-4" />
                 </a>
               </div>
             )}

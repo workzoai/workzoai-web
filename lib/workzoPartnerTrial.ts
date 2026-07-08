@@ -278,6 +278,46 @@ export async function getActivePartnerTrialGrant(userId: string, email: string |
   }
 }
 
+export type TrialStatus = {
+  active: boolean;
+  interviewsLeft: number;
+  interviewsLimit: number;
+  interviewsUsed: number;
+  expiresAt: string;
+};
+
+/**
+ * Read-only trial status for display (dashboard, banners). Does NOT
+ * auto-create a domain grant; that happens in plan resolution. Returns
+ * null if the user has no grant row at all. Fail-safe.
+ */
+export async function readActiveTrialStatus(userId: string): Promise<TrialStatus | null> {
+  try {
+    const db = serviceClient();
+    if (!db || !userId) return null;
+    const { data: grant } = await db
+      .from(PARTNER_TRIAL_GRANTS_TABLE)
+      .select("interviews_used,interviews_limit,expires_at")
+      .eq("user_id", userId)
+      .order("expires_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!grant) return null;
+    const notExpired = new Date(grant.expires_at).getTime() > Date.now();
+    const left = Math.max(0, grant.interviews_limit - grant.interviews_used);
+    return {
+      active: notExpired && left > 0,
+      interviewsLeft: left,
+      interviewsLimit: grant.interviews_limit,
+      interviewsUsed: grant.interviews_used,
+      expiresAt: grant.expires_at,
+    };
+  } catch (err) {
+    console.warn("[partnerTrial] readActiveTrialStatus failed", err);
+    return null;
+  }
+}
+
 /** Increment a user's trial interview usage (called server-side on result save). */
 export async function incrementPartnerTrialUsage(userId: string): Promise<void> {
   try {

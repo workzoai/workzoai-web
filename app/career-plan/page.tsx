@@ -27,6 +27,8 @@ export default function CareerPlanPage() {
   const [plan, setPlan] = useState<PlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState("");
 
   useEffect(() => {
     fetchWorkZoAuthoritativePlan()
@@ -35,6 +37,20 @@ export default function CareerPlanPage() {
         setIsPro(p === "premium_pro");
       })
       .catch(() => {});
+
+    // Prefer a previously generated roadmap; fall back to the last interview's
+    // 30-day plan so the page is never empty when data exists.
+    try {
+      const savedRoadmap = localStorage.getItem("workzo_career_roadmap");
+      if (savedRoadmap) {
+        const parsed = JSON.parse(savedRoadmap);
+        if (Array.isArray(parsed) && parsed.length) {
+          setPlan(parsed);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch { /* ignore */ }
 
     // Read 30-day plan from the latest stored result
     try {
@@ -57,6 +73,98 @@ export default function CareerPlanPage() {
 
     setLoading(false);
   }, []);
+
+  function readSetup(): Record<string, unknown> {
+    for (const key of ["workzo-latest-interview-setup", "workzo-interview-setup-v4", "workzo-interview-setup-latest", "workzoInterviewSetup"]) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const p = JSON.parse(raw);
+        if (p && (p.resumeProfile || p.targetRole)) return p;
+      } catch { /* ignore */ }
+    }
+    return {};
+  }
+
+  function parsePlan(text: string): PlanItem[] {
+    // 1. Preferred: a JSON array of {week, focus, action}.
+    try {
+      const start = text.indexOf("[");
+      const end = text.lastIndexOf("]");
+      if (start !== -1 && end > start) {
+        const arr = JSON.parse(text.slice(start, end + 1));
+        if (Array.isArray(arr)) {
+          const items = arr
+            .map((x) => ({ week: String(x?.week || "").trim(), focus: String(x?.focus || "").trim(), action: String(x?.action || "").trim() }))
+            .filter((x) => x.focus || x.action)
+            .slice(0, 12);
+          if (items.length) return items;
+        }
+      }
+    } catch { /* fall through to markdown */ }
+
+    // 2. Fallback: parse a markdown 30/60/90 roadmap — group tasks under the
+    // nearest heading (### Week / **Phase**) so any prose format still renders.
+    const items: PlanItem[] = [];
+    let phase = "";
+    for (const rawLine of text.split("\n")) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      const head = line.match(/^#{1,4}\s+(.*)$/) || line.match(/^\*\*(.+?)\*\*$/);
+      if (head) { phase = head[1].replace(/[:*]+$/, "").trim(); continue; }
+      const task = line.match(/^[-*]\s*(?:\[[ xX]?\]\s*)?(.+)$/) || line.match(/^\d+[.)]\s+(.+)$/);
+      if (task) {
+        const action = task[1].replace(/^\*\*|\*\*$/g, "").trim();
+        if (action.length < 3) continue;
+        const focus = action.length > 60 ? `${action.slice(0, 57).replace(/\s\S*$/, "")}…` : action;
+        items.push({ week: phase || `Phase ${items.length + 1}`, focus, action });
+        if (items.length >= 12) break;
+      }
+    }
+    return items;
+  }
+
+  async function generatePlan() {
+    setGenerating(true);
+    setGenError("");
+    try {
+      const setup = readSetup();
+      const res = await fetch("/api/copilot", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "career_plan",
+          resumeProfile: setup.resumeProfile,
+          targetRole: setup.targetRole,
+          jobDescription: setup.jobDescription,
+          message:
+            "Generate my career roadmap. Return ONLY a JSON array (no prose, no markdown fences) of 6-8 milestones, each object exactly: {\"week\":\"e.g. Days 1-15\",\"focus\":\"short milestone title\",\"action\":\"1-2 sentence concrete action\"}. Order chronologically across a 90-day horizon and target my real interview gaps.",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data?.error) {
+        setGenError(
+          data?.error === "upgrade_required"
+            ? "Premium Pro is required to generate a roadmap."
+            : "Could not generate the roadmap. Please try again.",
+        );
+        return;
+      }
+      const items = parsePlan(String(data.output || ""));
+      if (items.length) {
+        setPlan(items);
+        setCompletedSteps({});
+        try { localStorage.setItem("workzo_career_roadmap", JSON.stringify(items)); } catch { /* ignore */ }
+      } else {
+        setGenError("The roadmap came back in an unexpected format. Please try again.");
+      }
+    } catch {
+      setGenError("Something went wrong generating your roadmap.");
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   const toggleStep = (index: number) => {
     setCompletedSteps(prev => ({ ...prev, [index]: !prev[index] }));
@@ -108,23 +216,51 @@ export default function CareerPlanPage() {
           </Link>
         </div>
       ) : !plan.length ? (
-        /* State 2: Member but Empty State */
+        /* State 2: Member, no roadmap yet — generate one */
         <div className="rounded-2xl border border-line bg-fg/[0.01] p-10 text-center">
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-fg/[0.05] text-muted mb-4">
             <Calendar className="h-6 w-6" />
           </div>
-          <h2 className="text-xl font-black tracking-tight">Timeline Engine Dormant</h2>
+          <h2 className="text-xl font-black tracking-tight">Build your career roadmap</h2>
           <p className="mt-2 text-sm text-muted max-w-md mx-auto mb-6 leading-relaxed">
-            We haven't parsed an active roadmap data block yet. Run an operational simulation pass to auto-build your first chronological sprint.
+            Generate a personalized 90-day roadmap calibrated to your CV, target role, and your real interview performance so far.
           </p>
-          <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-sm font-black text-white hover:opacity-95 shadow-md transition-all">
-            Initiate Interview
-          </Link>
+          <button
+            onClick={generatePlan}
+            disabled={generating}
+            className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-sm font-black text-white hover:opacity-95 shadow-md transition-all disabled:opacity-60"
+          >
+            {generating ? (
+              <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Generating…</>
+            ) : (
+              <><Sparkles className="h-4 w-4" /> Generate my roadmap</>
+            )}
+          </button>
+          {genError ? <p className="mt-4 text-xs text-red-500">{genError}</p> : null}
+          <p className="mt-4 text-[11px] text-muted">
+            Or <Link href="/onboarding" className="text-brand font-bold">run an interview</Link> first for an even sharper plan.
+          </p>
         </div>
       ) : (
         /* State 3: Active Premium Pro Roadmap Layout */
         <div className="space-y-6">
-          
+
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-muted">{plan.length} milestones · calibrated to your interview performance</p>
+            <button
+              onClick={generatePlan}
+              disabled={generating}
+              className="inline-flex items-center gap-2 rounded-xl border border-brand/30 bg-brand/5 px-3 py-2 text-xs font-black text-brand hover:bg-brand/10 disabled:opacity-60 transition-colors"
+            >
+              {generating ? (
+                <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand border-t-transparent" /> Regenerating…</>
+              ) : (
+                <><Sparkles className="h-3.5 w-3.5" /> Regenerate</>
+              )}
+            </button>
+          </div>
+          {genError ? <p className="text-xs text-red-500">{genError}</p> : null}
+
           {/* Interactive Sprint Timeline Tracker */}
           <div className="relative space-y-4 before:absolute before:inset-y-2 before:left-[19px] before:w-[2px] before:bg-gradient-to-b before:from-brand/40 before:to-line">
             {plan.map((item, i) => {
