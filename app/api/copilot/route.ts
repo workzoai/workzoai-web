@@ -1132,7 +1132,7 @@ TARGET MARKET: ${targetMarket}
     }
 
     let effectiveSystemPrompt = systemPrompt;
-    if (PERFORMANCE_AWARE_ACTIONS.has(action)) {
+    if (PERFORMANCE_AWARE_ACTIONS.has(action) && account.userId) {
       const performance = await buildPerformanceContext(account.userId);
       if (performance) {
         effectiveSystemPrompt += `\n\nCANDIDATE PERFORMANCE (from their real completed WorkZo interviews — personalise your coaching to this; reference specific scores/gaps where useful; never invent beyond it):\n${performance}`;

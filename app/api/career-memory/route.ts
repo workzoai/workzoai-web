@@ -11,16 +11,15 @@
  */
 
 import { NextResponse } from "next/server";
-import {
-  createWorkZoSupabaseServiceClient,
-  getWorkZoUserIdFromRequest,
-} from "@/lib/workzoSupabaseService";
+import { createWorkZoSupabaseServiceClient } from "@/lib/workzoSupabaseService";
+import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
-  const userId = await getWorkZoUserIdFromRequest(request);
+export async function GET() {
+  const account = await resolveWorkZoServerPlan();
+  const userId = account.authenticated ? account.userId : null;
   if (!userId) return NextResponse.json({ ok: false, memory: null }, { status: 200 });
   try {
     const db = createWorkZoSupabaseServiceClient();
@@ -40,7 +39,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const userId = await getWorkZoUserIdFromRequest(request);
+  const account = await resolveWorkZoServerPlan();
+  const userId = account.authenticated ? account.userId : null;
   if (!userId) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
   let body: Record<string, unknown> = {};
