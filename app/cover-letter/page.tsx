@@ -134,9 +134,33 @@ export default function CoverLetterWorkspacePage() {
           <div className="rounded-lg border border-line bg-fg/[0.04] p-6">
             <h1 className="text-3xl font-black tracking-tight">Generate a cover letter</h1>
             <p className="mt-2 text-sm leading-6 text-muted">
-              The generator is lazy-loaded only when you click Generate, keeping the page light.
+              Paste your CV and the job description, add the role, and generate. That's all you need.
             </p>
 
+            {/* Inputs first — the important part */}
+            <div className="mt-6 space-y-4">
+              <label className="block">
+                <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">Target role</span>
+                <input value={targetRole} onChange={(e) => setTargetRole(e.target.value)} placeholder="e.g. Customer Success Manager" className="w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm outline-none focus:border-brand" />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">CV context</span>
+                <textarea value={cvText} onChange={(e) => setCvText(e.target.value)} rows={7} placeholder="Paste your CV text here. It's pre-filled automatically if you've already uploaded one." className="w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm outline-none focus:border-brand" />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">Job description</span>
+                <textarea value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} rows={7} placeholder="Paste the job description you're applying to." className="w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm outline-none focus:border-brand" />
+              </label>
+              <button onClick={handleGenerate} disabled={loading} className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-3 text-sm font-black text-on-brand hover:bg-brand disabled:opacity-60">
+                <Wand2 className="h-4 w-4" /> {loading ? "Generating…" : "Generate cover letter"}
+              </button>
+            </div>
+
+            {/* Application intelligence — collapsed to keep the focus on the inputs above */}
+            <details className="mt-6">
+              <summary className="cursor-pointer list-none rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm font-black text-muted hover:text-fg">
+                Application intelligence &amp; letter analysis (optional)
+              </summary>
 
             <div className="mt-6 rounded-xl border border-brand/15 bg-brand/[0.045] p-5">
               <div className="flex items-start justify-between gap-4">
@@ -232,24 +256,7 @@ export default function CoverLetterWorkspacePage() {
                 </div>
               </div>
             </div>
-
-            <div className="mt-6 space-y-4">
-              <label className="block">
-                <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">Target role</span>
-                <input value={targetRole} onChange={(e) => setTargetRole(e.target.value)} className="w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm outline-none focus:border-brand" />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">CV context</span>
-                <textarea value={cvText} onChange={(e) => setCvText(e.target.value)} rows={8} className="w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm outline-none focus:border-brand" />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">Job description</span>
-                <textarea value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} rows={8} className="w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm outline-none focus:border-brand" />
-              </label>
-              <button onClick={handleGenerate} disabled={loading} className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-3 text-sm font-black text-on-brand hover:bg-brand disabled:opacity-60">
-                <Wand2 className="h-4 w-4" /> {loading ? "Generating…" : "Generate"}
-              </button>
-            </div>
+            </details>
           </div>
 
           <div className="rounded-lg border border-line bg-fg/[0.035] p-6">
