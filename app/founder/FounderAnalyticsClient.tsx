@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft, RefreshCw, Users, UserCheck, CreditCard, Eye, Upload, Mic,
-  PlayCircle, CheckCircle2, AlertTriangle, Radio,
+  PlayCircle, CheckCircle2, AlertTriangle, Radio, GraduationCap,
 } from "lucide-react";
 
 type AnyRecord = Record<string, unknown>;
@@ -155,6 +155,136 @@ function BreakdownCard({ title, data }: { title: string; data: [string, number][
   );
 }
 
+
+
+type PartnerTrialActivity = {
+  status?: string;
+  label?: string;
+  target?: string;
+  scope?: string;
+  email?: string;
+  code?: string;
+  interviewsUsed?: number;
+  interviewsLimit?: number;
+  daysRemaining?: number;
+  timestamp?: string;
+};
+
+type PartnerTrialSummaryClient = {
+  configured?: boolean;
+  activeOffers?: number;
+  totalOffers?: number;
+  invitationsSent?: number;
+  activatedTrials?: number;
+  activeTrials?: number;
+  completedTrials?: number;
+  expiredTrials?: number;
+  interviewsUsed?: number;
+  interviewsLimit?: number;
+  recentActivity?: PartnerTrialActivity[];
+  reason?: string;
+};
+
+function statusTone(status: string) {
+  if (status === "completed") return "border-success/30 bg-success/10 text-success";
+  if (status === "expired") return "border-danger/30 bg-danger/10 text-danger";
+  if (status === "used") return "border-brand/30 bg-brand/10 text-brand";
+  return "border-warning/30 bg-warning/10 text-warning";
+}
+
+function EducationTrialsCard({ trials }: { trials: PartnerTrialSummaryClient }) {
+  const recent = Array.isArray(trials.recentActivity) ? trials.recentActivity : [];
+  const used = num(trials.interviewsUsed);
+  const limit = num(trials.interviewsLimit);
+  const usagePct = limit > 0 ? Math.round((used / limit) * 100) : 0;
+
+  return (
+    <section className="rounded-2xl border border-line bg-surface/70 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-brand">
+            <GraduationCap className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-muted">Education trials</p>
+            <h2 className="mt-1 text-xl font-black tracking-tight">Partner trial link activity</h2>
+            <p className="mt-1 text-sm text-subtle">See which institutes activated your 14-day Premium Pro trial links and how many interviews they used.</p>
+          </div>
+        </div>
+        <div className="rounded-lg border border-brand/25 bg-brand/10 px-3 py-1.5 text-xs font-black text-brand">
+          Education Evaluation Program
+        </div>
+      </div>
+
+      {!trials.configured && trials.reason ? (
+        <div className="mt-4 rounded-xl border border-warning/25 bg-warning/10 px-4 py-3 text-sm font-bold text-warning">
+          Partner trial tracking is not fully configured yet: {trials.reason}
+        </div>
+      ) : null}
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-xl border border-line bg-canvas p-4">
+          <p className="text-2xl font-black tabular-nums">{fmt(trials.invitationsSent)}</p>
+          <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-muted">Trial links created</p>
+        </div>
+        <div className="rounded-xl border border-line bg-canvas p-4">
+          <p className="text-2xl font-black tabular-nums">{fmt(trials.activatedTrials)}</p>
+          <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-muted">Activated by users</p>
+        </div>
+        <div className="rounded-xl border border-line bg-canvas p-4">
+          <p className="text-2xl font-black tabular-nums">{fmt(trials.activeTrials)}</p>
+          <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-muted">Active now</p>
+        </div>
+        <div className="rounded-xl border border-line bg-canvas p-4">
+          <p className="text-2xl font-black tabular-nums">{fmt(trials.completedTrials)}</p>
+          <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-muted">Completed allowance</p>
+        </div>
+        <div className="rounded-xl border border-line bg-canvas p-4">
+          <p className="text-2xl font-black tabular-nums">{fmt(used)} / {fmt(limit)}</p>
+          <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-muted">Interviews used</p>
+        </div>
+      </div>
+
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-line">
+        <div className="h-full rounded-full bg-brand" style={{ width: `${Math.min(100, Math.max(0, usagePct))}%` }} />
+      </div>
+
+      <div className="mt-5">
+        <h3 className="text-sm font-black uppercase tracking-[0.14em] text-muted">Recent institute trial activity</h3>
+        {recent.length === 0 ? (
+          <p className="mt-3 text-sm text-subtle">No trial link activations yet. Once a school uses a trial link, it will appear here.</p>
+        ) : (
+          <div className="mt-3 grid gap-2 lg:grid-cols-2">
+            {recent.slice(0, 8).map((item, index) => {
+              const status = String(item.status || "activated");
+              return (
+                <div key={`${item.email || item.target || index}-${item.timestamp || index}`} className="rounded-xl border border-line bg-canvas px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-fg">{String(item.label || item.target || "Partner trial")}</p>
+                      <p className="mt-0.5 truncate text-xs text-subtle">
+                        {item.email ? String(item.email) : `${String(item.scope || "email")} · ${String(item.target || "")}`}
+                      </p>
+                    </div>
+                    <span className={`shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-black uppercase ${statusTone(status)}`}>
+                      {status}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+                    <span className="font-bold tabular-nums">{fmt(item.interviewsUsed)} / {fmt(item.interviewsLimit)} interviews</span>
+                    <span>{fmt(item.daysRemaining)} days left</span>
+                    {item.timestamp ? <span>{new Date(String(item.timestamp)).toLocaleString()}</span> : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function FounderAnalyticsClient() {
   const [data, setData] = useState<AnalyticsResponse>(empty);
   const [loading, setLoading] = useState(true);
@@ -190,6 +320,7 @@ export default function FounderAnalyticsClient() {
 
   const s = (data.summary || {}) as AnyRecord;
   const events = Array.isArray(data.events) ? data.events : [];
+  const partnerTrials = ((s.partnerTrials || {}) as PartnerTrialSummaryClient);
 
   const uploadSpark = useMemo(() => dailyBuckets(events, "cv_uploaded"), [events]);
   const startSpark = useMemo(() => dailyBuckets(events, "interview_started"), [events]);
@@ -254,6 +385,8 @@ export default function FounderAnalyticsClient() {
             <AlertTriangle className="h-5 w-5 shrink-0" /> {error} — check your founder secret in the URL.
           </div>
         ) : null}
+
+        <EducationTrialsCard trials={partnerTrials} />
 
         {/* Acquisition */}
         <section>

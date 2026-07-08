@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import PremiumFeatureGate from "@/components/PremiumFeatureGate";
-import { AlertTriangle, ArrowLeft, CheckCircle2, Copy, FileText, Gauge, Target, Wand2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Copy, FileText, Wand2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   normalizeSetupCvText,
@@ -165,13 +165,9 @@ export default function CoverLetterWorkspacePage() {
             <div className="mt-6 rounded-xl border border-brand/15 bg-brand/[0.045] p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-muted">Application intelligence</p>
-                  <h2 className="mt-2 text-xl font-black">{phaseA.hiringRecommendation}</h2>
-                  <p className="mt-2 text-sm leading-6 text-muted">{phaseA.recruiterScan.firstImpression}</p>
-                </div>
-                <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-brand/20 bg-canvas-soft text-center">
-                  <p className="text-xl font-black text-muted">{phaseA.readinessScore}</p>
-                  <p className="-mt-2 text-[9px] font-black text-subtle">READY</p>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-muted">JD keyword signals</p>
+                  <h2 className="mt-2 text-xl font-black">Match &amp; risk overview</h2>
+                  <p className="mt-2 text-sm leading-6 text-muted">Keyword-level signals only — not a hiring prediction. Your honest fit assessment is written by the AI at the top of the generated letter.</p>
                 </div>
               </div>
 
@@ -193,25 +189,15 @@ export default function CoverLetterWorkspacePage() {
                   </div>
                 </div>
               </div>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-line bg-canvas-soft p-3"><Gauge className="mb-2 h-4 w-4 text-brand" /><p className="text-xs text-muted">Current chance</p><p className="text-xl font-black">{phaseA.interviewProbability.current}%</p></div>
-                <div className="rounded-lg border border-line bg-canvas-soft p-3"><Target className="mb-2 h-4 w-4 text-brand" /><p className="text-xs text-muted">After CV fix</p><p className="text-xl font-black">{phaseA.interviewProbability.afterCvFix}%</p></div>
-                <div className="rounded-lg border border-line bg-canvas-soft p-3"><FileText className="mb-2 h-4 w-4 text-brand" /><p className="text-xs text-muted">After prep</p><p className="text-xl font-black">{phaseA.interviewProbability.afterInterviewPrep}%</p></div>
-              </div>
             </div>
 
 
             <div className="mt-6 rounded-xl border border-brand/15 bg-brand/[0.045] p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-muted">Phase 2 letter intelligence</p>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-muted">Letter guidance</p>
                   <h2 className="mt-2 text-xl font-black">{phaseB.companyDNA.label}</h2>
                   <p className="mt-2 text-sm leading-6 text-muted">{phaseB.companyDNA.coverLetterRule}</p>
-                </div>
-                <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-brand/20 bg-canvas-soft text-center">
-                  <p className="text-xl font-black text-muted">{phaseB.coverLetter.riskScore}</p>
-                  <p className="-mt-2 text-[9px] font-black text-subtle">SAFE</p>
                 </div>
               </div>
 

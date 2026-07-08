@@ -267,24 +267,119 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// Escape raw control characters (newlines, tabs, etc.) that a model left
+// unescaped INSIDE string values, without touching the whitespace between JSON
+// tokens. This is the single most common reason vision JSON fails to parse:
+// multi-line CV bullet text with literal newlines inside a "..." value.
+function escapeControlCharsInJsonStrings(s: string): string {
+  let out = "";
+  let inStr = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (ch === "\\") { out += ch + (s[i + 1] ?? ""); i++; continue; }
+      if (ch === '"') { inStr = false; out += ch; continue; }
+      const code = ch.charCodeAt(0);
+      if (code < 0x20) {
+        out += ch === "\n" ? "\\n" : ch === "\t" ? "\\t" : ch === "\r" ? "\\r" : " ";
+        continue;
+      }
+      out += ch;
+    } else {
+      if (ch === '"') inStr = true;
+      out += ch;
+    }
+  }
+  return out;
+}
+
+// Recover JSON that the model truncated mid-output (the #1 cause of vision
+// fallback on data-rich CVs). Trims any dangling partial token, closes an open
+// string, drops a trailing comma, and appends the missing closing brackets in
+// the right order. Best-effort: it salvages a valid prefix rather than losing
+// the whole extraction to the garbled local parser.
+function repairTruncatedJson(s: string): string {
+  let out = s;
+  let inStr = false;
+  let esc = false;
+  const stack: string[] = [];
+  let lastComplete = -1; // index just after a closed bracket or string at depth
+  for (let i = 0; i < out.length; i++) {
+    const ch = out[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') { inStr = false; lastComplete = i; }
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === "{" || ch === "[") stack.push(ch === "{" ? "}" : "]");
+    else if (ch === "}" || ch === "]") { stack.pop(); lastComplete = i; }
+  }
+  // If we ended mid-string or mid-token, cut back to the last complete value.
+  if (inStr && lastComplete >= 0) {
+    out = out.slice(0, lastComplete + 1);
+    // Recompute the open-bracket stack for the trimmed prefix.
+    stack.length = 0;
+    let is = false;
+    let es = false;
+    for (let i = 0; i < out.length; i++) {
+      const ch = out[i];
+      if (is) {
+        if (es) es = false;
+        else if (ch === "\\") es = true;
+        else if (ch === '"') is = false;
+        continue;
+      }
+      if (ch === '"') is = true;
+      else if (ch === "{" || ch === "[") stack.push(ch === "{" ? "}" : "]");
+      else if (ch === "}" || ch === "]") stack.pop();
+    }
+  }
+  // Drop dangling trailing partials before closing: a lone comma/colon, or a
+  // key that was truncated before its value arrived.
+  out = out
+    .replace(/[:,]\s*$/, "")
+    .replace(/,\s*"(?:[^"\\]|\\.)*"\s*$/, "")
+    .replace(/[:,]\s*$/, "");
+  while (stack.length) out += stack.pop();
+  return out;
+}
+
 // ── JSON extraction from a possibly-noisy model response ────────────────────
 export function parseModelJson(raw: string): AiResumeJson | null {
   if (!raw) return null;
   let text = raw.trim();
-  // Strip ```json fences if the model added them despite instructions.
-  text = text.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
-  // If there's leading/trailing prose, grab the outermost JSON object.
+  // Strip code fences anywhere (in case the model added them despite instructions).
+  text = text.replace(/```(?:json)?/gi, "").trim();
+  // Grab the outermost JSON object if there's leading/trailing prose.
   const first = text.indexOf("{");
   const last = text.lastIndexOf("}");
-  if (first === -1 || last === -1 || last <= first) return null;
-  const slice = text.slice(first, last + 1);
-  try {
-    const parsed = JSON.parse(slice);
-    if (parsed && typeof parsed === "object") return parsed as AiResumeJson;
-    return null;
-  } catch {
-    return null;
+  if (first === -1) return null;
+  // For truncated output there may be no closing brace at all — slice to the end.
+  const slice = last > first ? text.slice(first, last + 1) : text.slice(first);
+
+  // Vision models routinely emit JSON that JSON.parse rejects — trailing commas,
+  // literal newlines/tabs inside strings, or (most often on long CVs) truncation.
+  // Try progressively more forgiving repairs before giving up to the fallback.
+  const noTrailingCommas = slice.replace(/,(\s*[}\]])/g, "$1");
+  const escaped = escapeControlCharsInJsonStrings(noTrailingCommas);
+  const attempts = [
+    slice,
+    noTrailingCommas,
+    escaped,
+    repairTruncatedJson(escaped),
+    repairTruncatedJson(escapeControlCharsInJsonStrings(text.slice(first))),
+  ];
+  for (const candidate of attempts) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === "object") return parsed as AiResumeJson;
+    } catch {
+      /* try the next, more forgiving, repair */
+    }
   }
+  return null;
 }
 
 // ── The extraction prompt ───────────────────────────────────────────────────
@@ -367,7 +462,7 @@ async function callVisionModel(input: VisionCvInput): Promise<string> {
         { role: "user", content: parts },
       ],
       temperature: 0,
-      max_tokens: input.maxTokens ?? 8000,
+      max_tokens: input.maxTokens ?? 16000,
       response_format: { type: "json_object" },
       // When sending a PDF, tell OpenRouter to let the MODEL read the file
       // natively (i.e. visually, page by page) rather than running a text

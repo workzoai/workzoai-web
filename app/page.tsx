@@ -25,7 +25,7 @@ import { getWorkZoDisplayPrices } from "@/lib/workzoLocalizedPricing";
 const trustItems = [
   "Reads the CV. Knows the role.",
   "Pressure. Follow-ups. Real feedback.",
-  "Used in 10+ countries",
+  "Interviews in 15 languages",
 ];
 
 const quickFeatures = [
@@ -47,7 +47,7 @@ const TESTIMONIALS = [
 ];
 
 // Real, verifiable product facts shown alongside the testimonial. As more
-// genuine user quotes arrive (with permission), add them to TESTIMONIALS —
+// genuine user quotes arrive (with permission), add them to TESTIMONIALS,
 // never add invented names or AI-generated faces: fabricated reviews are
 // illegal under German UWG / the EU Omnibus Directive and would end any
 // university or B2B procurement conversation instantly.
@@ -55,7 +55,7 @@ const PRODUCT_FACTS = [
   { value: "11", label: "recruiter personas, from friendly HR screens to principal-engineer system design" },
   { value: "15", label: "interview languages with native question generation" },
   { value: "CV + JD", label: "every question grounded in your real background and the actual job posting" },
-  { value: "0", label: "generic question banks — interviews are generated per session" },
+  { value: "0", label: "generic question banks. Every interview is generated per session" },
 ];
 
 const RECRUITER_PERSONAS = [
@@ -94,7 +94,7 @@ const RECRUITER_PERSONAS = [
     image: "/recruiters/priya.png",
     emoji: null,
     style: "Fast-paced · Impact-driven",
-    description: "Cares about ownership, speed, and execution. Cut the buzzwords — show what you personally shipped and how fast.",
+    description: "Cares about ownership, speed, and execution. Cut the buzzwords. Show what you personally shipped and how fast.",
     difficulty: 4,
     tag: "Free",
     tagStyle: "border-fg/20 bg-fg/5 text-muted",
@@ -568,7 +568,7 @@ function DemoSection() {
                       : "rounded-tr-sm bg-brand text-white"
                   }`}>
                     {s.role === "recruiter" && (
-                      <p className="mb-1 text-[10px] font-black uppercase tracking-wide text-muted">Sarah Chen</p>
+                      <p className="mb-1 text-[10px] font-black uppercase tracking-wide text-muted">Alex Chen</p>
                     )}
                     {s.text}
                   </div>
@@ -699,7 +699,7 @@ function TestimonialsSection() {
       <div className="mx-auto max-w-7xl">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>What candidates say</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
             What changes after the first session
           </h2>
           <p className="mt-4 text-lg leading-8 text-muted">
@@ -709,7 +709,7 @@ function TestimonialsSection() {
 
         <div className="mt-12 grid gap-5 md:grid-cols-3">
           {/* Verifiable product facts shown alongside the real testimonial.
-              These replaced two previously fabricated quotes — real quotes
+              These replaced two previously fabricated quotes. Real quotes
               get added to TESTIMONIALS as users grant permission. */}
           <div className="flex flex-col justify-center gap-5 rounded-xl border border-line bg-canvas-soft p-6 backdrop-blur-sm">
             {PRODUCT_FACTS.slice(0, 2).map((f) => (
@@ -827,7 +827,7 @@ function RecruiterPersonasSection() {
       <div className="mx-auto max-w-7xl">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>Meet your interviewers</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
             11 AI recruiters. Each one built to expose something different.
           </h2>
           <p className="mt-4 text-lg leading-8 text-muted">
@@ -844,7 +844,7 @@ function RecruiterPersonasSection() {
 
         {!expanded && (
           <div className="mt-6 flex flex-col items-center gap-3">
-            {/* Peek row — avatar stack of hidden personas */}
+            {/* Peek row: avatar stack of hidden personas */}
             <div className="flex items-center gap-2">
               <div className="flex -space-x-2">
                 {RECRUITER_PERSONAS.slice(4).map((p) => (
@@ -1099,8 +1099,8 @@ export default function LandingPage() {
 
         <div className="mx-auto max-w-7xl px-4 pb-20 pt-14 sm:px-6 lg:px-8 lg:pb-24 lg:pt-20">
           <div className="flex flex-col items-center text-center">
-            <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.02] tracking-tight sm:text-4xl lg:text-[68px]">
-              Find out why the offer went to someone else.<br className="hidden sm:block" /> Before a real recruiter shows you.
+            <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.03] tracking-tight sm:text-5xl lg:text-[68px]">
+              Find out why the offer went to someone else.<br className="hidden sm:block" /> Before a real recruiter does.
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted sm:text-xl">
@@ -1109,7 +1109,7 @@ export default function LandingPage() {
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link href="/onboarding" className="inline-flex items-center justify-center gap-2 rounded-lg bg-fg px-7 py-4 text-base font-black text-canvas shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-brand hover:text-on-brand">
-                See Where Offers Are Lost
+                Start a free interview
                 <ArrowRight className="h-5 w-5" />
               </Link>
               <Link href="/demo" className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-fg/10 px-7 py-4 text-base font-black text-fg backdrop-blur transition hover:bg-fg/20">
@@ -1161,11 +1161,11 @@ export default function LandingPage() {
         <div className="mx-auto max-w-2xl">
           <div className="text-center">
             <SectionLabel>How it works</SectionLabel>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
-              How the flight simulator works
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+              What happens in a WorkZo interview
             </h2>
             <p className="mt-4 text-lg leading-8 text-muted">
-              A company-aware interview simulation with pressure, follow-ups, and hiring-signal analysis.
+              A company-aware interview with real pressure, follow-ups, and hiring-signal analysis after every answer.
             </p>
           </div>
 
@@ -1233,7 +1233,7 @@ export default function LandingPage() {
       <section className="px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>The problem</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
             Why strong candidates still get rejected
           </h2>
           <p className="mt-4 text-lg leading-8 text-muted">
@@ -1289,7 +1289,7 @@ export default function LandingPage() {
       <section className="px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>Your report</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
             What your report shows after every interview
           </h2>
           <p className="mt-4 text-lg leading-8 text-muted">
@@ -1400,7 +1400,7 @@ export default function LandingPage() {
       <section id="features" className="px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>Why WorkZo</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">More than interview questions.</h2>
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">More than interview questions.</h2>
           <p className="mt-4 text-lg leading-8 text-muted">
             WorkZo focuses on recruiter realism: follow-ups, proof, ownership, metrics, and confidence under pressure.
           </p>
@@ -1426,7 +1426,7 @@ export default function LandingPage() {
       <section className="px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>The difference</SectionLabel>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
+          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
             Built for real interviews
           </h2>
         </div>
@@ -1466,16 +1466,64 @@ export default function LandingPage() {
       {/* ── Testimonials ── */}
       <TestimonialsSection />
 
+      {/* ── For teams and institutions (B2B) ── */}
+      <section className="px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="overflow-hidden rounded-2xl border border-brand/20 bg-canvas-soft shadow-[0_0_60px_rgba(59,130,246,0.06)] backdrop-blur-sm">
+            <div className="grid gap-8 p-8 lg:grid-cols-[1.1fr_1fr] lg:gap-12 lg:p-12">
+              {/* Left: pitch */}
+              <div>
+                <SectionLabel>For teams and institutions</SectionLabel>
+                <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+                  Get a whole cohort interview-ready
+                </h2>
+                <p className="mt-4 text-lg leading-8 text-muted">
+                  Universities, bootcamps, and hiring teams use WorkZo to standardize interview preparation and watch readiness improve across a group, not one candidate at a time.
+                </p>
+                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                  <Link
+                    href="/request-demo"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-fg px-6 py-3.5 text-sm font-black text-canvas transition hover:bg-brand hover:text-on-brand"
+                  >
+                    Request a demo
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <Link
+                    href="/for-education"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-fg/10 px-6 py-3.5 text-sm font-black text-fg transition hover:bg-fg/20"
+                  >
+                    Explore for education
+                  </Link>
+                </div>
+              </div>
+              {/* Right: what teams get */}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                {[
+                  { title: "Readiness dashboard", text: "Track engagement, usage, and readiness trends across every group." },
+                  { title: "Custom recruiter personas", text: "Calibrate interviewers to the roles and companies your people are targeting." },
+                  { title: "GDPR-friendly by design", text: "Clear data handling, privacy controls, and no CV data sold." },
+                ].map((f) => (
+                  <div key={f.title} className="rounded-xl border border-line bg-fg/[0.03] p-5">
+                    <p className="text-sm font-black text-fg">{f.title}</p>
+                    <p className="mt-1.5 text-sm leading-6 text-muted">{f.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Pricing ── */}
       <section className="px-4 py-20 sm:px-6 lg:px-8" id="pricing">
         <div className="mx-auto max-w-7xl">
           <div className="mx-auto max-w-3xl text-center">
             <SectionLabel>Pricing</SectionLabel>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
               Choose the interview preparation plan that fits your career journey.
             </h2>
             <p className="mt-4 text-base leading-7 text-muted">
-              Free helps you try WorkZo. Premium is for daily audio practice. Pro adds video and coaching. Enterprise scales interview readiness for cohorts.
+              Free helps you try WorkZo. Premium is for daily audio practice. Pro adds video, executive personas, and deeper coaching. Enterprise gives schools and teams a career readiness platform for cohorts.
             </p>
           </div>
 
@@ -1487,8 +1535,8 @@ export default function LandingPage() {
                 title: "Try WorkZo",
                 price: localizedPlans.free.amount,
                 suffix: "",
-                text: "Perfect for trying one realistic AI interview before committing.",
-                features: ["1 complete AI voice interview", "CV-aware recruiter questions", "Basic interview report", "Basic STAR scorecard", "Improve CV & Cover Letter — free", "Free CV Review & Interview Question Generator", "Standard recruiter personas"],
+                text: "Practice one realistic AI interview and explore WorkZo AI career tools before upgrading.",
+                features: ["1 complete AI voice interview", "CV-aware recruiter questions", "Basic interview report", "Basic STAR scorecard", "Improve CV & Cover Letter", "Free CV Review", "Interview Question Generator", "Standard recruiter personas"],
                 cta: "Get Started",
                 href: "/onboarding",
                 featured: false,
@@ -1501,7 +1549,7 @@ export default function LandingPage() {
                 regular: localizedPlans.premium.regular,
                 suffix: "/month",
                 text: "For active job seekers who want daily interview practice and full application tools.",
-                features: ["120 AI voice minutes / month (top-ups available)", "Unlimited Resume / CV optimization", "Unlimited ATS analysis", "Unlimited cover letters", "Basic progress tracking", "All languages"],
+                features: ["120 AI voice minutes / month (top-ups available)", "Unlimited sessions within your minutes", "Unlimited resume optimization", "Unlimited ATS analysis", "Unlimited cover letters", "Full access to all AI career tools", "Basic progress tracking", "All languages"],
                 cta: "Upgrade Now",
                 href: "/pricing?plan=premium",
                 featured: true,
@@ -1514,7 +1562,7 @@ export default function LandingPage() {
                 regular: localizedPlans.premiumPro.regular,
                 suffix: "/month",
                 text: "For high-stakes interviews where face-to-face delivery and coaching matter.",
-                features: ["240 AI voice minutes / month (top-ups available)", "60 AI video minutes / month (early access)", "Detailed interview feedback", "Advanced performance analysis", "Multi-session interview history", "AI improvement suggestions"],
+                features: ["Everything in Premium", "240 AI voice minutes / month (top-ups available)", "60 AI video minutes / month (early access)", "Company-specific interview simulations", "Executive recruiter personas", "Face-to-face interview preparation", "Advanced performance analysis", "Multi-session interview history"],
                 cta: "Go Pro",
                 href: "/pricing?plan=premium_pro",
                 featured: false,
@@ -1522,12 +1570,12 @@ export default function LandingPage() {
               {
                 badge: "Institutional",
                 tier: "Enterprise & Education",
-                title: "Train Cohorts",
+                title: "Career Readiness Platform",
                 price: "Custom",
                 suffix: "/annual",
-                text: "For universities, bootcamps, and hiring teams managing interview readiness at scale.",
-                features: ["Shared voice & video minute pools", "Custom recruiter personas", "Team management", "Dedicated onboarding", "Priority support", "Volume pricing"],
-                cta: "Request Demo",
+                text: "Annual licensing based on cohort size for universities, bootcamps, training academies, and employers.",
+                features: ["14-day Education Evaluation Program", "Cohort interview readiness dashboard", "Student progress & engagement analytics", "Shared AI voice & video minute pools", "Custom recruiter personas & job templates", "Career team & instructor management", "Dedicated onboarding & training", "Volume pricing"],
+                cta: "Book Demo",
                 href: "/request-demo",
                 featured: false,
                 enterprise: true,
@@ -1603,7 +1651,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-3xl">
           <div className="mb-10 text-center">
             <SectionLabel>FAQ</SectionLabel>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
               Common questions
             </h2>
           </div>

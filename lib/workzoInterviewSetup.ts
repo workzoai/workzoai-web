@@ -516,6 +516,28 @@ export function clearLatestInterviewSetup(): void {
   }
 }
 
+// Repair the most common PDF-extraction artifacts in raw CV text so downstream
+// features (cover letter, CV improve, CV review) get readable input. Deliberately
+// conservative: it only collapses letter-spaced runs (5+ single-char tokens in a
+// row, which never occur in normal prose) and splits a few known merged section
+// headers. It does NOT try to fix arbitrary merged words ("Specialistandaspiring")
+// or scrambled two-column order — those need the extraction pipeline fixed, not a
+// display-time cleanup, so we leave them rather than risk corrupting good CVs.
+function repairExtractedCvText(text: string): string {
+  if (!text) return text;
+  let out = text;
+  // 1. De-letter-space runs like "H A R I T H A V I J A Y A K U M A R".
+  out = out.replace(/(?:[A-Za-z0-9] ){4,}[A-Za-z0-9]/g, (m) => m.replace(/ /g, ""));
+  // 2. Split common merged section headers.
+  out = out
+    .replace(/PROFILESUMMARY/gi, "PROFILE SUMMARY")
+    .replace(/WORKEXPERIENCE/gi, "WORK EXPERIENCE")
+    .replace(/CONTACTSKILLS/gi, "CONTACT SKILLS");
+  // 3. Tidy runaway whitespace.
+  out = out.replace(/[ \t]{3,}/g, "  ").replace(/\n{3,}/g, "\n\n");
+  return out;
+}
+
 export function normalizeSetupCvText(setup: WorkZoInterviewSetup | null | undefined): string {
   if (!setup) return "";
 
@@ -523,15 +545,17 @@ export function normalizeSetupCvText(setup: WorkZoInterviewSetup | null | undefi
   // setup.cvText is the built context ("Candidate name: X\nHeadline: Y\n...")
   // which is useful for the interview but not for CV improve / cover letter.
   // setup.rawCvText and setup.uploadedCvText are the original extracted text.
-  return cleanString(
-    (setup as any).rawCvText ||
-      (setup as any).uploadedCvText ||
-      setup.cvText ||
-      setup.uploadedCvText ||
-      setup.resumeText ||
-      setup.candidateCv ||
-      "",
-    50000,
+  return repairExtractedCvText(
+    cleanString(
+      (setup as any).rawCvText ||
+        (setup as any).uploadedCvText ||
+        setup.cvText ||
+        setup.uploadedCvText ||
+        setup.resumeText ||
+        setup.candidateCv ||
+        "",
+      50000,
+    ),
   );
 }
 

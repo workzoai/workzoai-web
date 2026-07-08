@@ -117,6 +117,14 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Visible keyboard focus for all interactive elements. Mouse clicks stay
+   clean (focus-visible only), keyboard users get a clear brand ring. */
+:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--wz-brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 .wz-page {
   min-height: 100vh;
   background: var(--wz-gradient-bg);
