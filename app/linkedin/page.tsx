@@ -15,7 +15,7 @@
  * LinkedIn disagrees with a CV we mis-read.
  */
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -32,6 +32,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import CvSourcePanel from "@/components/CvSourcePanel";
 import { resolveCvSource } from "@/lib/workzoCvSource";
 import { useWorkZoAuthoritativePlan } from "@/lib/workzoClientPlan";
@@ -297,7 +298,11 @@ function CorpusKeywordGroups({ items }: { items: NonNullable<LinkedInAnalysis["c
   );
 }
 
-export default function LinkedInOptimizerPage() {
+function LinkedInOptimizerContent() {
+  const searchParams = useSearchParams();
+  const openedFromLanding = searchParams.get("from") === "landing";
+  const backHref = openedFromLanding ? "/" : "/dashboard";
+  const backLabel = openedFromLanding ? "Back to home" : "Back to dashboard";
   const [profile, setProfile] = useState<ResumeProfile | null>(null);
   const [cvText, setCvText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -437,10 +442,10 @@ export default function LinkedInOptimizerPage() {
     <main className={`mx-auto max-w-6xl px-4 py-10 sm:px-6 ${analysis ? "pb-28" : ""}`}>
       <header className="mb-8">
         <Link
-          href="/dashboard"
+          href={backHref}
           className="mb-4 inline-flex items-center gap-2 rounded-xl border border-line bg-canvas px-3 py-2 text-xs font-black text-fg hover:border-brand"
         >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to dashboard
+          <ArrowLeft className="h-3.5 w-3.5" /> {backLabel}
         </Link>
         <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-brand">
           <Sparkles className="h-4 w-4" /> LinkedIn Optimizer
@@ -976,5 +981,13 @@ export default function LinkedInOptimizerPage() {
         </>
       ) : null}
     </main>
+  );
+}
+
+export default function LinkedInOptimizerPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <LinkedInOptimizerContent />
+    </Suspense>
   );
 }

@@ -15,6 +15,7 @@ type Feature = {
   premium: string[];
   example: string;
   cta: string;
+  destination: string;
 };
 
 const features: Record<string, Feature> = {
@@ -26,6 +27,7 @@ const features: Record<string, Feature> = {
     premium: ["Company-specific recruiter styles", "Trust score and contradiction audit", "Full transcript timeline and answer rewrites", "Saved interview history and progress tracking"],
     example: "Instead of a generic question, WorkZo can ask: \u2018You mentioned customer escalations in your CV. How would you handle a similar stakeholder conflict in this target role?\u2019",
     cta: "Start interview practice",
+    destination: "/onboarding",
   },
   "improve-cv": {
     eyebrow: "Improve CV",
@@ -34,7 +36,8 @@ const features: Record<string, Feature> = {
     freePreview: ["CV parsing and role context preview", "High-level improvement guidance", "Basic ATS-style signal check"],
     premium: ["Recruiter 6-second scan simulation", "Evidence detector for every major bullet", "Top 10% rewrite suggestions", "Company DNA optimization for your target role"],
     example: "Current: \u2018Handled support tickets.\u2019 Improved: \u2018Resolved 40+ technical support tickets weekly while improving first-response quality and customer satisfaction.\u2019",
-    cta: "Unlock CV intelligence",
+    cta: "Improve my CV",
+    destination: "/cv",
   },
   "linkedin-optimizer": {
     eyebrow: "AI LinkedIn Career Optimizer",
@@ -44,6 +47,7 @@ const features: Record<string, Feature> = {
     premium: ["AI rewrite of your headline and About section", "Built only from keywords your CV can prove", "Every unprovable claim removed before you see it"],
     example: "Power BI is missing from your profile. So is Tableau. Only one of those is a gap: your CV proves Tableau, so add it today. Nothing in your CV supports Power BI, so WorkZo will not write it for you.",
     cta: "Check my LinkedIn",
+    destination: "/linkedin",
   },
   "cover-letter": {
     eyebrow: "Cover Letter",
@@ -52,7 +56,8 @@ const features: Record<string, Feature> = {
     freePreview: ["Cover letter structure preview", "Role and company context guidance", "Basic readability check"],
     premium: ["Professional, confident, story-driven, and executive versions", "Hiring manager hook generator", "Red-flag scanner for generic wording", "JD requirement vs candidate evidence match matrix"],
     example: "WorkZo doesn't only write a letter. It shows why your experience matches the job and where the letter may sound weak to a hiring manager.",
-    cta: "Unlock cover letter tools",
+    cta: "Generate my cover letter",
+    destination: "/cover-letter",
   },
   "job-assist": {
     eyebrow: "Job Assist",
@@ -61,7 +66,28 @@ const features: Record<string, Feature> = {
     freePreview: ["Job description breakdown", "Role summary and basic match view", "Preparation checklist preview"],
     premium: ["Interview readiness percentage", "Missing requirements detector", "Recruiter question forecast", "Objection predictor and application risk scanner"],
     example: "For a role asking for SQL, stakeholder communication, and Power BI, WorkZo can show what your CV proves, what is missing, and what the recruiter will likely ask.",
-    cta: "Unlock job preparation",
+    cta: "Find live jobs",
+    destination: "/jobs",
+  },
+  "ats-checker": {
+    eyebrow: "ATS Resume Checker",
+    title: "See what an ATS can read before you apply.",
+    description: "WorkZo checks structure, keyword coverage, role relevance, and missing evidence against a real job description.",
+    freePreview: ["Resume structure and parsing preview", "Keyword coverage summary", "Basic improvement priorities"],
+    premium: ["Job-specific match analysis", "Missing requirement breakdown", "Evidence-backed rewrite suggestions", "Application risk signals"],
+    example: "Instead of only giving a score, WorkZo explains which requirements are proven, partially proven, or missing from your CV.",
+    cta: "Check my resume",
+    destination: "/tools/ats-checker",
+  },
+  "resume-templates": {
+    eyebrow: "Resume Templates",
+    title: "Start from a real resume layout, not a wall of raw text.",
+    description: "Choose a polished, ATS-safe visual template for professional, graduate, career-change, or technical profiles, then customize it with your own verified information.",
+    freePreview: ["Visual template gallery", "Professional section hierarchy", "ATS-safe single-column layouts"],
+    premium: ["Populate from your saved CV", "Role-specific tailoring", "PDF-ready formatting", "Integrated ATS checking"],
+    example: "You see a real resume page with typography, spacing, headings, and bullet hierarchy before selecting it.",
+    cta: "Choose a resume template",
+    destination: "/resume-templates",
   },
   "results-intelligence": {
     eyebrow: "Results Intelligence",
@@ -70,7 +96,8 @@ const features: Record<string, Feature> = {
     freePreview: ["Overall score and quick win", "Basic communication and confidence feedback", "Premium report preview"],
     premium: ["Full question-by-question timeline", "What the recruiter heard translation layer", "Top 10% answer rewrites", "Trust audit, contradictions, and company DNA benchmark"],
     example: "You say: \u2018I usually do what my manager asks.\u2019 The recruiter hears: \u2018May lack autonomy unless they clarify ownership and decision-making.\u2019",
-    cta: "Unlock full report",
+    cta: "View results intelligence",
+    destination: "/results",
   },
 };
 
@@ -107,8 +134,8 @@ export default async function FeaturePage({ params }: { params: Promise<{ slug: 
             <h1 className="mt-5 max-w-3xl text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl">{feature.title}</h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">{feature.description}</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <PrimaryButton href="/pricing?intent=upgrade">{feature.cta}</PrimaryButton>
-              <GhostButton href="/onboarding">Try a free interview</GhostButton>
+              <PrimaryButton href={`/login?redirect=${encodeURIComponent(`${feature.destination}?from=landing`)}`}>{feature.cta}</PrimaryButton>
+              <GhostButton href="/">Back to home</GhostButton>
             </div>
           </div>
         </Reveal>
@@ -166,7 +193,7 @@ export default async function FeaturePage({ params }: { params: Promise<{ slug: 
       <CTASection
         title="Ready to try it?"
         intro="Run a realistic interview and see the difference for yourself."
-        primary={{ href: "/pricing?intent=upgrade", label: feature.cta }}
+        primary={{ href: `/login?redirect=${encodeURIComponent(`${feature.destination}?from=landing`)}`, label: feature.cta }}
         secondary={{ href: "/onboarding", label: "Start free" }}
       />
     </MarketingShell>

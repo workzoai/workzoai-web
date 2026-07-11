@@ -294,7 +294,7 @@ function buildCanonicalCvSetup(input: {
   const profile = input.profile || extractResumeProfileComplex(input.rawCvText);
   const companyBlueprint = buildWorkZoCompanyBlueprint({
     companyName: String(input.setup.companyName || input.setup.targetCompany || "Target company"),
-    targetRole: input.role || profile.basics.headline || "General Role",
+    targetRole: input.role || "General Role",
     jobDescription: input.jobDescription,
     cvText: input.rawCvText,
     market: input.market,
@@ -314,8 +314,8 @@ function buildCanonicalCvSetup(input: {
     previewText: profile.previewText,
     jobDescription: input.jobDescription,
     jdText: input.jobDescription,
-    targetRole: input.role || profile.basics.headline || "General Role",
-    role: input.role || profile.basics.headline || "General Role",
+    targetRole: input.role || "General Role",
+    role: input.role || "General Role",
     targetMarket: input.market || "global",
     country: input.market || "global",
     companyStyle: input.companyStyle,
@@ -738,7 +738,7 @@ export default function OnboardingPage() {
     const profile = (canonicalStored?.profile ?? null) || extractResumeProfileComplex(rawCvText);
     const fastBlueprint = buildWorkZoCompanyBlueprint({
       companyName: companyName || String(draft.companyName || draft.targetCompany || "Target company"),
-      targetRole: role || profile.basics.headline || "General Role",
+      targetRole: role || setup.targetRole || "General Role",
       jobDescription: jobDescription.trim(), cvText: rawCvText, market, companyStyle,
     });
     const canonicalSetup = {
@@ -751,8 +751,8 @@ export default function OnboardingPage() {
       cvContextText: buildInterviewCvContext(profile, rawCvText),
       previewText: profile.previewText, jobDescription: jobDescription.trim(),
       jdText: jobDescription.trim(),
-      targetRole: role || profile.basics.headline || "General Role",
-      role: role || profile.basics.headline || "General Role",
+      targetRole: role || setup.targetRole || "General Role",
+      role: role || setup.targetRole || "General Role",
       companyName: fastBlueprint.companyName, targetCompany: fastBlueprint.companyName,
       companyBlueprint: fastBlueprint, targetMarket: market, country: market,
       candidateName: profile.basics.name, candidateHeadline: profile.basics.headline,
@@ -918,13 +918,13 @@ export default function OnboardingPage() {
       }
 
       setManualCv(rawCvText);
-      const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || profile.basics.headline || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
+      const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || setup.targetRole || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
       saveCanonicalCvSetup(canonicalSetup, store);
       debugCvProfile("onboarding.upload.canonical_saved", canonicalSetup.resumeProfile, { setupId: canonicalSetup.setupId });
       void buildAndSaveInterviewSetup({
         cvText: rawCvText,
         jobDescription: jobDescription.trim(),
-        targetRole: role || profile.basics.headline || "General Role",
+        targetRole: role || setup.targetRole || "General Role",
         targetMarket: market,
         companyStyle,
         recruiterPersonality: normalizeRecruiterKey(recruiter),
@@ -1432,7 +1432,7 @@ export default function OnboardingPage() {
                   const rawCvText = normalizeResumeText(nextCv);
                   if (!rawCvText.trim()) return;
                   const profile = extractResumeProfileComplex(rawCvText);
-                  const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || profile.basics.headline || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
+                  const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || setup.targetRole || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
                   saveCanonicalCvSetup(canonicalSetup, store);
                 }}
                 placeholder="Or paste your CV text here..."

@@ -1087,11 +1087,11 @@ export default function LandingPage() {
               <div className="invisible absolute left-0 top-full z-50 mt-1 w-[760px] translate-y-1 rounded-2xl border border-line bg-canvas/95 p-6 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
                 <div className="grid gap-3 md:grid-cols-2">
                   {[
-                    ["Improve CV", "/cv", "Rewrite and optimize your CV now.", PenLine, "Free"],
-                    ["ATS Resume Checker", "/tools/ats-checker", "Score your resume against ATS and job keywords.", ShieldCheck, "Free"],
-                    ["Cover Letter", "/cover-letter", "Generate a tailored letter for any role.", Mail, "Free"],
-                    ["LinkedIn Optimizer", "/linkedin", "Check your LinkedIn against your CV and the job.", LinkedinIcon, "New"],
-                    ["Resume Templates", "/resume-templates", "Clean, ATS-friendly resume templates.", LayoutTemplate, "Free"],
+                    ["Improve CV", "/features/improve-cv", "Rewrite and optimize your CV now.", PenLine, "Free"],
+                    ["ATS Resume Checker", "/features/ats-checker", "Score your resume against ATS and job keywords.", ShieldCheck, "Free"],
+                    ["Cover Letter", "/features/cover-letter", "Generate a tailored letter for any role.", Mail, "Free"],
+                    ["LinkedIn Optimizer", "/features/linkedin-optimizer", "Check your LinkedIn against your CV and the job.", LinkedinIcon, "New"],
+                    ["Resume Templates", "/features/resume-templates", "Clean, ATS-friendly resume templates.", LayoutTemplate, "Free"],
                   ].map(([title, href, text, Icon, badge]) => {
                     const FeatureIcon = Icon as typeof Compass;
                     const badgeLabel = badge as string;

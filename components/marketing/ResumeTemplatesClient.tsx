@@ -12,7 +12,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, Copy, Download } from "lucide-react";
+import { ArrowRight, Check, Copy, Download, FileText } from "lucide-react";
 
 type Template = {
   id: string;
@@ -186,15 +186,28 @@ export default function ResumeTemplatesClient() {
   }
 
   function download() {
-    const blob = new Blob([active.body], { type: "text/plain;charset=utf-8" });
+    const escaped = active.body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;color:#172033;max-width:760px;margin:42px auto;line-height:1.45}pre{white-space:pre-wrap;font-family:Arial,sans-serif;font-size:11pt}h1{font-size:22pt}</style></head><body><pre>${escaped}</pre></body></html>`;
+    const blob = new Blob([html], { type: "application/msword;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `workzo-resume-${active.id}.txt`;
+    a.download = `workzo-resume-${active.id}.doc`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  function renderLine(line: string, index: number) {
+    const trimmed = line.trim();
+    if (!trimmed) return <div key={index} className="h-3" />;
+    if (index === 0) return <div key={index} className="text-center text-2xl font-black tracking-tight text-slate-950">{line}</div>;
+    if (/^[A-Z][A-Z &/()-]{2,}$/.test(trimmed)) return <div key={index} className="mt-5 border-b border-slate-300 pb-1 text-xs font-black uppercase tracking-[0.16em] text-slate-800">{line}</div>;
+    if (/^[-•]/.test(trimmed)) return <div key={index} className="ml-4 flex gap-2 text-[13px] leading-6 text-slate-700"><span>•</span><span>{trimmed.replace(/^[-•]\s*/, "")}</span></div>;
+    if (index === 1) return <div key={index} className="mt-1 text-center text-xs text-slate-500">{line}</div>;
+    if (/\[[^\]]+\].*[-–].*\[[^\]]+\]/.test(trimmed)) return <div key={index} className="mt-3 text-[13px] font-bold text-slate-900">{line}</div>;
+    return <div key={index} className="text-[13px] leading-6 text-slate-700">{line}</div>;
   }
 
   return (
@@ -249,14 +262,19 @@ export default function ResumeTemplatesClient() {
               onClick={download}
               className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-fg/5 px-3 py-2 text-xs font-black text-fg transition hover:bg-fg/10"
             >
-              <Download className="h-3.5 w-3.5" /> .txt
+              <Download className="h-3.5 w-3.5" /> Word
             </button>
           </div>
         </div>
 
-        <pre className="mt-5 overflow-x-auto whitespace-pre-wrap rounded-xl border border-line bg-canvas p-4 font-mono text-[12.5px] leading-6 text-fg">
-{active.body}
-        </pre>
+        <div className="mt-6 rounded-2xl bg-slate-200/70 p-3 sm:p-6">
+          <div className="mx-auto min-h-[760px] max-w-[760px] bg-white px-8 py-10 shadow-xl sm:px-14 sm:py-12">
+            <div className="mb-5 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+              <FileText className="h-3.5 w-3.5" /> Visual resume preview
+            </div>
+            {active.body.split("\n").map(renderLine)}
+          </div>
+        </div>
 
         <div className="mt-5 flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-subtle">

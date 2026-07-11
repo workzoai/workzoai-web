@@ -266,9 +266,21 @@ function profileHasRawTextLeak(profile: any): boolean {
   const exp = Array.isArray(profile?.experience) ? profile.experience : [];
   const edu = Array.isArray(profile?.education) ? profile.education : [];
   const projects = Array.isArray(profile?.projects) ? profile.projects : [];
+  // The candidate's own name leaking into a title/company/degree is a raw-text
+  // leak, but it must be detected STRUCTURALLY. This previously hardcoded one
+  // specific person's name, which only ever worked for that one CV.
+  const candidateName = String(profile?.basics?.name || "").trim();
+  const nameRe = candidateName.length >= 4
+    ? new RegExp(`\\b${candidateName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i")
+    : null;
   const badLine = (value: unknown) => {
     const s = String(value || "").trim();
-    return /^-\s+/.test(s) || /^(skills|languages|professional experience)\s*:/i.test(s) || /\bHARITHA VIJAYAKUMAR\b/.test(s);
+    if (!s) return false;
+    if (/^-\s+/.test(s)) return true;
+    if (/^(skills|languages|professional experience|education|summary|profile)\s*:/i.test(s)) return true;
+    // A section header on its own line is raw text, not a parsed field.
+    if (/^(skills|languages|professional experience|education|core skills)$/i.test(s)) return true;
+    return nameRe ? nameRe.test(s) : false;
   };
   return exp.some((j: any) => badLine(j?.title) || badLine(j?.company) || (j?.bullets || []).some(badLine)) ||
     edu.some((e: any) => badLine(e?.degree) || badLine(e?.institution)) ||
@@ -588,17 +600,27 @@ function actionInstruction(action: CopilotAction) {
   if (action === "find_jobs_strategy") return "Create a practical job-search strategy: target titles, keywords, platforms, filters, outreach ideas, and a 7-day application plan.";
   if (action === "linkedin_message") return "Write a concise LinkedIn outreach message or recruiter reply. Keep it natural, specific, and not desperate.";
   if (action === "magic") return "Do a complete recruiter-aware improvement: diagnose, rewrite, score, predict follow-ups, and give the next practice step.";
-  if (action === "job_fit") return "Evaluate job fit honestly. Compare CV evidence with the job description. Show strengths, gaps, and apply/tailor/skip verdict.";
+  if (action === "job_fit") return "Evaluate job fit honestly using only the candidate CV and the selected job description. Do not infer skills from the job description as candidate skills. Keep the result concise and practical.";
   if (action === "career_plan") return "Create a detailed, actionable career development plan personalised to the candidate's background, target role, and market. Include a 30/60/90 day roadmap with concrete milestones.";
   if (action === "salary_negotiation") return "Coach the candidate on salary negotiation for their target role and market. Give specific numbers, scripts, and tactics.";
   if (action === "interview_coach") return "Coach the candidate on their interview answer. Diagnose weakness, provide a stronger version, and explain the recruiter's likely reaction.";
   return "Act as a senior career guidance coach. Give practical, honest, context-aware advice using the user's CV, target role, job description, market, and recent conversation.";
 }
 
-function outputFormat(action: CopilotAction) {
+function outputFormat(action: CopilotAction, outputLanguage = "English") {
   if (action === "cv_improve") return "OUTPUT FORMAT:\n1. Positioning diagnosis (how the CV currently reads vs the JD)\n2. Cross-domain transferable strengths (what maps well with abstracted framing)\n3. Bullets to rewrite (show original → rewritten version)\n4. Missing proof or gaps (JD requirements with no CV evidence, be honest)\n5. Recommended headline and summary for this target role\n6. One action to take today";
-  if (action === "cv_rewrite_ats") return `OUTPUT FORMAT:\nReturn ONLY the rewritten CV as plain text, in the EXACT same structure as the input ATS CV:\n- Same section order and section headers. IMPORTANT: keep section headers in English exactly as given (e.g. "PROFESSIONAL SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS", "LANGUAGES") even when the body content is translated into another output language, this keeps the document machine-parseable.\n- Same number of jobs, order, company names, job titles, and dates, do not add, remove, or reorder jobs.\n- Same number of bullets per job, but you MAY reorder bullets within a single job so the most JD-relevant ones come first, rewrite the wording of every bullet to target the JD.\n- Same skills list, reordered so JD-relevant skills the candidate genuinely has come first, in the JD's own terminology where applicable.\nDo NOT include any preamble, explanation, markdown fences, or commentary. Output the CV text only.`;
+  if (action === "cv_rewrite_ats") {
+    const translating = outputLanguage.trim().toLowerCase() !== "english";
+    // The language rule must live INSIDE the output format. Placed far away
+    // in the context, "same structure as the input" made the model anchor to
+    // the English input and skip translating the body entirely.
+    const languageRule = translating
+      ? `\n\nLANGUAGE (MANDATORY): The input CV is in its original language. You MUST write EVERY body value in ${outputLanguage}: the summary, the headline, every job bullet, every project description, and every degree name. Do NOT copy the input wording. Do NOT leave any sentence in the input language. Only these stay unchanged: the candidate name, company names, institution names, certifications, proper nouns, dates, and the section headers listed above. If you output body text that is not in ${outputLanguage}, the response is invalid.`
+      : "";
+    return `OUTPUT FORMAT:\nReturn ONLY the rewritten CV as plain text, in the EXACT same structure as the input ATS CV:\n- Same section order and section headers. IMPORTANT: keep section headers in English exactly as given (e.g. "PROFESSIONAL SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS", "LANGUAGES") even when the body content is translated into another output language, this keeps the document machine-parseable.\n- Same number of jobs, order, company names, job titles, and dates, do not add, remove, or reorder jobs.\n- Same number of bullets per job, but you MAY reorder bullets within a single job so the most JD-relevant ones come first, rewrite the wording of every bullet to target the JD.\n- Same skills list, reordered so JD-relevant skills the candidate genuinely has come first, in the JD's own terminology where applicable.\nDo NOT include any preamble, explanation, markdown fences, or commentary. Output the CV text only.${languageRule}`;
+  }
   if (action === "cover_letter") return "OUTPUT FORMAT:\n1. Quick fit note\n2. Cover letter draft\n3. What to personalise before sending\n4. One stronger alternative opening";
+  if (action === "job_fit") return "OUTPUT FORMAT:\nReturn plain text only. Do not use markdown, headings with #, tables, bullets, checkboxes, blockquotes, emojis, stars, symbols, or decorative separators. Use these short labels on separate lines: Fit score, Match reasons, Gaps, Interview tip, Verdict. Write normal sentences under each label.";
   if (action === "find_jobs_strategy") return "OUTPUT FORMAT:\n1. Best target job titles\n2. Search keywords\n3. Where to search (global job boards)\n4. Filters to use\n5. 7-day application plan";
   if (action === "magic") return "OUTPUT FORMAT:\n1. Recruiter diagnosis\n2. Stronger answer\n3. Trust score /100\n4. What is still missing\n5. Likely follow-up questions\n6. Next practice step";
   if (action === "career_plan") return "OUTPUT FORMAT:\n1. Current positioning assessment, strengths vs gaps table\n2. 30-day plan, use ### Week headers and - [ ] checkbox items for each task. Put a blank line before any > blockquote example.\n3. 60-day plan, skill building and applications\n4. 90-day plan, target outcomes and milestones\n5. Key risks and mitigation strategies\n\nIMPORTANT: Always put a blank line before and after > blockquotes. Never put a blockquote directly after a - [ ] item with no blank line.";
@@ -675,7 +697,13 @@ export async function POST(request: Request) {
     );
     if (!freeDailyAllowed) {
       return NextResponse.json(
-        { success: false, error: "upgrade_required_rate_limit", requiredPlan: "premium", dailyLimit: freeDailyLimit },
+        {
+          success: false,
+          error: "upgrade_required_rate_limit",
+          message: `You have reached the free daily limit of ${freeDailyLimit} AI actions. Upgrade to continue today.`,
+          requiredPlan: "premium",
+          dailyLimit: freeDailyLimit,
+        },
         { status: 429 },
       );
     }
@@ -689,7 +717,12 @@ export async function POST(request: Request) {
   if (!rateLimitAllowed) {
     const requiredPlan = isPro ? "premium_pro" : isPremium ? "premium" : "premium";
     return NextResponse.json(
-      { success: false, error: "upgrade_required_rate_limit", requiredPlan },
+      {
+        success: false,
+        error: "upgrade_required_rate_limit",
+        message: "You have reached your plan's AI usage limit. Please upgrade or try again later.",
+        requiredPlan,
+      },
       { status: 429 },
     );
   }
@@ -761,7 +794,7 @@ ${(action === "cv_rewrite_ats" || action === "cover_letter") && outputLanguage !
 TASK:
 ${actionInstruction(action)}
 
-${outputFormat(action)}
+${outputFormat(action, outputLanguage)}
 `.trim();
 
     // For CV rewrite actions, build a clean structured representation from the
@@ -811,8 +844,8 @@ ${outputFormat(action)}
     }
 
     // Use structured profile for CV actions if available; fall back to raw cvText
-    const cvIsForRewrite = action === "cv_rewrite_ats" || action === "cv_improve";
-    const structuredCv = cvIsForRewrite && resumeProfileRaw
+    const shouldUseStructuredCv = action === "cv_rewrite_ats" || action === "cv_improve" || action === "cover_letter" || action === "job_fit";
+    const structuredCv = shouldUseStructuredCv && resumeProfileRaw
       ? buildStructuredCvBlock(resumeProfileRaw)
       : null;
     const cvContextBlock = structuredCv || cvText || "No CV context provided.";
@@ -899,15 +932,16 @@ ROLE-SPECIFIC JD DOMAIN FOCUS (apply based on what the JD asks for):
 
 ABSOLUTE STRUCTURAL RULES, THESE ARE NEVER OPTIONAL:
 1. basics.name MUST be copied EXACTLY, character-for-character, from the input profile's basics.name field. Do not paraphrase it, shorten it, replace it with a project name, company name, job title, or the word "Candidate"/"Professional" under any circumstance.
-2. basics.email, basics.phone, basics.location, basics.linkedin MUST be copied EXACTLY from the input profile's corresponding fields, ONCE each. These are contact details only, NEVER insert education info, dates, school names, or any other fragment into these fields, and NEVER repeat the same value twice in one field (e.g. the linkedin URL must appear once, not twice). If the input value for one of these fields is empty, leave it empty in the output, do not fill it with unrelated text.
+2. basics.headline MUST be exactly the TARGET ROLE supplied by the user, not the candidate's current CV headline, education, latest job title, or a JD-inferred title. If TARGET ROLE is empty, keep the original headline. basics.email, basics.phone, basics.location, basics.linkedin MUST be copied EXACTLY from the input profile's corresponding fields, ONCE each. These are contact details only, NEVER insert education info, dates, school names, or any other fragment into these fields, and NEVER repeat the same value twice in one field (e.g. the linkedin URL must appear once, not twice). If the input value for one of these fields is empty, leave it empty in the output, do not fill it with unrelated text.
 3. Copy the input "experience" array's job count, company names, and dates EXACTLY, every job that exists in the input MUST exist in the output, in the same order. Only the bullet text inside each job may be rewritten.
 4. job.title must contain ONLY the job title (e.g. "Technical Support Engineer"), never the company name, never a trailing period, never a newline character, never any text duplicated from job.company. job.company must contain ONLY the company name, exactly once. If you find yourself wanting to write the company name twice or inside the title field, stop, put it only in job.company.
 5. Copy the input "projects" array's project count and EXACT ORIGINAL NAMES, character-for-character, every project that exists in the input MUST exist in the output as a SEPARATE entry with its own original name unchanged, even short or single-word names. NEVER merge two input projects into one output entry. NEVER replace any project's name with "Candidate", "Selected Project", "Professional", or any other placeholder, use the exact name from the input, character for character, never invent a substitute.
 6. Copy the input "education" array EXACTLY, unchanged, degree, institution, location, dates, with each field containing only its own content (degree field contains only the degree, institution field contains only the institution, never duplicate one into the other, never copy one education entry's degree into a different entry). Education entries are factual records, never rewritten, never omitted, never merged into other fields.
 7. Every string field in the JSON must be a single clean line of text with NO embedded newline characters and NO internal duplication of the same phrase or word sequence repeated back-to-back.
-8. "summary" must be a fresh 2-4 sentence overview of the candidate as a whole professional, written by you, never a copy-paste of a single job bullet, project description, or education entry.
-9. Do NOT invent companies, titles, dates, employers, degrees, metrics, or achievements not present in the input. Only reframing and emphasis change, never the underlying facts.
-10. Before returning, verify your own output: count the jobs, projects, and education entries in your JSON and confirm each count matches the input exactly, with no two input projects merged into one. Check that no field contains a newline or a repeated phrase. If anything is wrong, fix it before responding.
+8. "summary" must be a fresh 2-4 sentence overview written specifically for the TARGET ROLE and JOB DESCRIPTION. Lead with the target positioning, then connect only genuine evidence from the CV to the JD's priorities. It must be materially different from the input summary, never generic, and never a copy-paste of a single job bullet, project description, or education entry.
+9. Copy the input languages array completely and preserve every language and proficiency level. Never infer a language from the JD and never omit a language from the source profile.
+10. Do NOT invent companies, titles, dates, employers, degrees, metrics, or achievements not present in the input. Only reframing and emphasis change, never the underlying facts.
+11. Before returning, verify your own output: count the jobs, projects, and education entries in your JSON and confirm each count matches the input exactly, with no two input projects merged into one. Check that no field contains a newline or a repeated phrase. If anything is wrong, fix it before responding.
 
 Return ONLY valid JSON, no markdown fences, no commentary, matching exactly this shape:
 {"basics":{"name":"","headline":"","email":"","phone":"","location":"","linkedin":""},"summary":"","experience":[{"title":"","company":"","location":"","dates":"","bullets":[""]}],"education":[{"degree":"","institution":"","location":"","dates":""}],"skills":[""],"projects":[{"name":"","bullets":[""]}],"languages":[""],"certifications":[""]}

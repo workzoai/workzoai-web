@@ -124,14 +124,34 @@ function looksLikeSectionOrNoise(value: string): boolean {
   if (v.length > 60 || v.length < 2) return true;
   if (/\d/.test(v)) return true;
   if (COMPANY_HINTS.test(v)) return true;
+  // A name never contains a slash; a letter-spaced headline that got healed into
+  // a blob ("IT Support Specialist / Data Analyst" -> "Itsupportspecialist/dataanalyst") does.
+  if (/[\/\\]/.test(v)) return true;
   if (ws.every((w) => SECTION_WORDS.has(w))) return true;
   if (ws.some((w) => SECTION_WORDS.has(w)) && ws.length <= 4) return true;
   if (ws.every((w) => SKILL_WORDS.has(w))) return true;
   if (ws.filter((w) => SKILL_WORDS.has(w)).length >= Math.max(1, ws.length - 1)) return true;
   if (ws.some((w) => ROLE_WORDS.has(w)) && ws.length <= 4) return true;
   if (/^[A-Z\s]{2,}$/.test(v) && ws.length === 1 && v.length > 18) return true;
-  // concatenated section-heading / OCR merged terms, e.g. Niveau Ausbildungberufserfahrung
-  if (/[a-z][A-Z]/.test(v.replace(/\s/g, "")) && ws.length <= 3) return true;
+  // Concatenated OCR/section merges look like a SINGLE long token with an
+  // internal lowercase->UPPERCASE transition (e.g. "NiveauAusbildung",
+  // "ProfilBerufserfahrung"). The previous version stripped ALL whitespace
+  // first, so every ordinary "Firstname Lastname" collapsed to
+  // "FirstnameLastname" and its word boundary was mis-read as a merge — which
+  // rejected essentially every real human name and forced identity
+  // confirmation on almost every CV. Test each token individually instead, and
+  // require length >= 12 so genuine mixed-case surnames (McDonald, MacArthur,
+  // DeAngelo) are never flagged.
+  if (
+    ws.length <= 3 &&
+    normalizeCandidate(v)
+      .split(/\s+/)
+      .some(
+        (tok) =>
+          tok.replace(/[^\p{L}]/gu, "").length >= 12 && /\p{Ll}\p{Lu}/u.test(tok),
+      )
+  )
+    return true;
   if (/ausbildung|berufserfahrung|profil|kontakt|skills|experience|education|summary/i.test(v) && ws.length <= 4) return true;
   return false;
 }
@@ -260,10 +280,52 @@ export function resolveTargetHeadline(input: { aiHeadline?: string | null; rawTe
   const selectedKey = canonicalNameKey(input.selectedName || "");
   for (const line of lines) {
     if (!line || canonicalNameKey(line) === selectedKey) continue;
-    if (looksLikeSectionOrNoise(line)) continue;
+
+    // NOTE: do NOT use looksLikeSectionOrNoise() here. That filter exists to
+    // reject NAME candidates, and it deliberately rejects role-shaped lines
+    // ("if the line contains a role word and is short -> noise"). Using it here
+    // discarded the very line we are hunting for, so a real headline such as
+    // "JUNIOR CUSTOMER SUCCESS MANAGER" was thrown away and the placeholder
+    // "Professional" was returned, which then propagated into the target role.
+    //
+    // A headline must instead only reject: contact lines, section headers, and
+    // pure skill lines.
+    if (/[@\d]|https?:|www\./.test(line)) continue;              // contact details
     const ws = words(line);
+    if (ws.every((w) => SECTION_WORDS.has(w))) continue;          // "PROFILE SUMMARY"
+    if (ws.every((w) => SKILL_WORDS.has(w))) continue;            // a skills line
+
+    // PASS 1: a known role word is the strongest signal, so prefer it.
     if (ws.some((w) => ROLE_WORDS.has(w)) && line.length <= 75) return line;
   }
+
+  // PASS 2: STRUCTURAL fallback, no role vocabulary at all.
+  //
+  // ROLE_WORDS can never enumerate every job on earth: Sommelier, Paramedic,
+  // Actuary, Midwife, Welder, Elektriker, Infirmiere are all real headlines that
+  // no word list will contain. So instead of asking "is this a known job title?"
+  // we ask "does this line have the SHAPE of a headline?", which holds for any
+  // role in any language:
+  //   - sits in the first few lines, directly under the name
+  //   - short (2 to 8 words), a label rather than a sentence
+  //   - no contact details, no sentence punctuation, not first person
+  //   - not a section header, not a list of skills
+  for (const line of lines) {
+    if (!line || canonicalNameKey(line) === selectedKey) continue;
+    if (/[@\d]|https?:|www\./.test(line)) continue;
+    if (/[.!?]/.test(line)) continue;                       // a sentence, not a title
+    if (/\b(i|my|we|our|ich|mein|je|yo|eu)\b/i.test(line)) continue; // prose
+    if (line.length > 75) continue;
+    const ws2 = words(line);
+    if (ws2.length < 1 || ws2.length > 8) continue;
+    if (ws2.every((w) => SECTION_WORDS.has(w))) continue;
+    if (ws2.some((w) => SECTION_WORDS.has(w)) && ws2.length <= 2) continue;
+    if (ws2.every((w) => SKILL_WORDS.has(w))) continue;
+    // A skills line is usually comma separated with several entries.
+    if ((line.match(/,/g) || []).length >= 2) continue;
+    return line;
+  }
+
   return ai && ai.length <= 75 ? ai : "Professional";
 }
 

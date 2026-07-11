@@ -7,6 +7,31 @@ import { isExpired, isLikelySpam, isStale } from "@/lib/jobs/normalize";
 
 export type RankedJobWithFlags = RankedJob & { stale: boolean };
 
+
+function normalized(value: string | undefined): string {
+  return (value || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+function roleRelevance(job: WorkZoJob, role: string): number {
+  const roleWords = normalized(role).split(/\s+/).filter((w) => w.length > 2);
+  const title = normalized(job.title);
+  if (!roleWords.length) return 0.5;
+  return roleWords.filter((w) => title.includes(w)).length / roleWords.length;
+}
+
+function locationRelevance(job: WorkZoJob, input: JobSearchInput): number {
+  const wanted = normalized(input.location);
+  if (!wanted || wanted === "remote") return 1;
+  const actual = normalized(`${job.location} ${job.country || ""}`);
+  if (actual.includes(wanted) || wanted.includes(actual)) return 1;
+  // Country-level searches should still accept cities inside that country.
+  const country = (input.countryCode || "").toLowerCase();
+  if (country && (job.country || "").toLowerCase() === country) return 0.95;
+  if (/^(germany|deutschland)$/.test(wanted) && (job.country === "DE" || /germany|deutschland/.test(actual))) return 0.95;
+  if (job.remoteType === "remote") return input.remote === "remote" ? 1 : 0.55;
+  return 0.25;
+}
+
 export type JobSearchOutcome = {
   jobs: RankedJobWithFlags[];
   providersUsed: string[];
@@ -61,9 +86,23 @@ export async function searchJobs(
   const deduped = dedupeJobs(cleaned);
 
   const ranked: RankedJobWithFlags[] = deduped
-    .map((job) => ({ ...job, match: rankJob(job, candidate), stale: isStale(job.postedAt) }))
-    .sort((a, b) => b.match.score - a.match.score)
-    .slice(0, input.resultsPerPage || 20);
+    .map((job) => {
+      const match = rankJob(job, candidate);
+      const titleFit = roleRelevance(job, input.role);
+      const placeFit = locationRelevance(job, input);
+      return { ...job, match, stale: isStale(job.postedAt), _titleFit: titleFit, _placeFit: placeFit };
+    })
+    // Remove obvious unrelated noise, but keep remote jobs as a secondary option.
+    .filter((job) => job._titleFit >= 0.34 && job._placeFit >= 0.5)
+    // Search relevance comes first. CV match is a useful explanation, not the
+    // only reason a listing should appear.
+    .sort((a, b) => {
+      const relevanceA = a._titleFit * 45 + a._placeFit * 30 + a.match.score * 0.25;
+      const relevanceB = b._titleFit * 45 + b._placeFit * 30 + b.match.score * 0.25;
+      return relevanceB - relevanceA;
+    })
+    .slice(0, input.resultsPerPage || 20)
+    .map(({ _titleFit, _placeFit, ...job }) => job);
 
   return {
     jobs: ranked,

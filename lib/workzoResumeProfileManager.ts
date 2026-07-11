@@ -1,5 +1,5 @@
 import type { ResumeProfile } from "@/lib/workzoResumeParser";
-import { guardProfileIntegrity, isCrossFieldContaminatedName } from "@/lib/workzoProfileIntegrityGuard";
+import { guardProfileIntegrity, isCrossFieldContaminatedName, recoverNameFromRawText } from "@/lib/workzoProfileIntegrityGuard";
 
 function cleanText(value: unknown, max = 50000) {
   if (typeof value !== "string") return "";
@@ -493,8 +493,14 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
   );
   const safeDerivedName = isCrossFieldContaminatedName(derivedName, nameFields) ? "" : derivedName;
 
-  const resolvedName = existingValidName ||
+  let resolvedName = existingValidName ||
     chooseSaferName(incomingContaminated ? "" : basics.name, safeDerivedName, p);
+
+  // Last resort: read the name off the top of the CV, rather than leaving it
+  // empty when the address/skill candidates are all rejected.
+  if (!resolvedName) {
+    resolvedName = recoverNameFromRawText(rawText || p.rawText || "", nameFields);
+  }
 
   if (incomingContaminated) {
     try {

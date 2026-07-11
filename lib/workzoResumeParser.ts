@@ -771,7 +771,7 @@ function splitSections(lines: string[]) {
 
 function extractDate(line = "") {
   const clean = cleanLine(line);
-  const monthDate = new RegExp(`(?:${MONTH_RE})\\.?\\s*(?:19|20)\\d{2}\\s*[-]\\s*(?:present|current|heute|now|(?:${MONTH_RE})\\.?\\s*(?:19|20)\\d{2}|(?:19|20)\\d{2})`, "i").exec(clean)?.[0];
+  const monthDate = new RegExp(`(?:${MONTH_RE})\\.?\\s*(?:19|20)\\d{2}\\s*(?:[-\\u2013\\u2014]|to|until|bis)\\s*(?:present|current|heute|now|(?:${MONTH_RE})\\.?\\s*(?:19|20)\\d{2}|(?:19|20)\\d{2})`, "i").exec(clean)?.[0];
   // Allow optional spaces around the slash: "10 / 2020 - HEUTE" (common in
   // German/European CV templates) as well as "10/2020 - 06/2021".
   const numericDate = clean.match(/(?:0?[1-9]|1[0-2])\s*\/\s*(?:19|20)\d{2}\s*(?:[-\u2013\u2014]|to|until|bis)\s*(?:present|current|heute|(?:0?[1-9]|1[0-2])\s*\/\s*(?:19|20)\d{2})/i)?.[0];
@@ -1282,19 +1282,132 @@ function extractSkills(rawText: string, sections: SectionMap, allLines: string[]
   return unique([...explicit, ...dictionary].filter((skill) => !isPollutedSkill(skill))).slice(0, 28);
 }
 
+/* ---------------------------- languages (global) --------------------------
+ * The previous implementation hardcoded 15 languages (so a Polish, Japanese,
+ * Turkish, or Swedish CV silently lost every language) and matched without a
+ * trailing word boundary, so "Germany" in a summary registered as the language
+ * "German" with no level, which then BLOCKED the real "German: Conversational"
+ * entry from the languages section because the de-duplicator keeps the first
+ * match it sees. That is why German disappeared.
+ *
+ * This version is structural: a broad language table, strict word boundaries,
+ * proficiency captured wherever it appears, and de-duplication that keeps the
+ * RICHEST entry (one with a level beats a bare mention).
+ * -------------------------------------------------------------------------- */
+
+// Language names in English plus their common endonyms, so a CV written in any
+// of these languages still resolves to a canonical English label.
+const LANGUAGE_TABLE: Array<[canonical: string, aliases: string[]]> = [
+  ["English", ["english", "englisch", "anglais", "ingles", "inglés", "inglese", "engels"]],
+  ["German", ["german", "deutsch", "allemand", "aleman", "alemán", "tedesco", "duits"]],
+  ["French", ["french", "französisch", "francais", "français", "frances", "francés", "francese"]],
+  ["Spanish", ["spanish", "spanisch", "espagnol", "espanol", "español", "spagnolo"]],
+  ["Italian", ["italian", "italienisch", "italien", "italiano"]],
+  ["Portuguese", ["portuguese", "portugiesisch", "portugais", "portugues", "português"]],
+  ["Dutch", ["dutch", "niederlandisch", "niederländisch", "nederlands", "neerlandais"]],
+  ["Russian", ["russian", "russisch", "russe", "ruso", "русский"]],
+  ["Polish", ["polish", "polnisch", "polski", "polonais"]],
+  ["Ukrainian", ["ukrainian", "ukrainisch", "українська"]],
+  ["Swedish", ["swedish", "schwedisch", "svenska"]],
+  ["Norwegian", ["norwegian", "norsk"]],
+  ["Danish", ["danish", "dansk"]],
+  ["Finnish", ["finnish", "suomi"]],
+  ["Czech", ["czech", "cestina", "čeština"]],
+  ["Slovak", ["slovak", "slovencina"]],
+  ["Hungarian", ["hungarian", "magyar"]],
+  ["Romanian", ["romanian", "romana", "română"]],
+  ["Greek", ["greek", "ellinika", "ελληνικά"]],
+  ["Turkish", ["turkish", "türkisch", "turkce", "türkçe"]],
+  ["Arabic", ["arabic", "arabisch", "arabe", "العربية"]],
+  ["Hebrew", ["hebrew", "ivrit", "עברית"]],
+  ["Hindi", ["hindi", "हिन्दी"]],
+  ["Tamil", ["tamil", "தமிழ்"]],
+  ["Telugu", ["telugu"]],
+  ["Kannada", ["kannada"]],
+  ["Malayalam", ["malayalam"]],
+  ["Marathi", ["marathi"]],
+  ["Bengali", ["bengali", "bangla"]],
+  ["Gujarati", ["gujarati"]],
+  ["Punjabi", ["punjabi"]],
+  ["Urdu", ["urdu"]],
+  ["Mandarin", ["mandarin", "chinese", "chinesisch", "putonghua", "中文", "普通话"]],
+  ["Cantonese", ["cantonese", "粤语"]],
+  ["Japanese", ["japanese", "japanisch", "nihongo", "日本語"]],
+  ["Korean", ["korean", "koreanisch", "한국어"]],
+  ["Vietnamese", ["vietnamese", "tieng viet"]],
+  ["Thai", ["thai", "ไทย"]],
+  ["Indonesian", ["indonesian", "bahasa indonesia"]],
+  ["Malay", ["malay", "bahasa melayu"]],
+  ["Tagalog", ["tagalog", "filipino"]],
+  ["Swahili", ["swahili", "kiswahili"]],
+  ["Afrikaans", ["afrikaans"]],
+  ["Persian", ["persian", "farsi", "فارسی"]],
+  ["Bulgarian", ["bulgarian", "български"]],
+  ["Croatian", ["croatian", "hrvatski"]],
+  ["Serbian", ["serbian", "srpski"]],
+  ["Catalan", ["catalan", "català"]],
+];
+
+const PROFICIENCY_RE =
+  /\b(native|mother ?tongue|muttersprache|bilingual|fluent|fliessend|fließend|proficient|professional|advanced|intermediate|conversational|verhandlungssicher|basic|beginner|grundkenntnisse|elementary|[ABC][12])\b/i;
+
 function normalizeLanguage(value = "") {
-  const clean = cleanLine(value).replace(/\bDeutsch\b/i, "German").replace(/\bEnglisch\b/i, "English");
-  const language = clean.match(/\b(English|German|French|Spanish|Arabic|Hindi|Tamil|Malayalam|Telugu|Kannada|Italian|Dutch|Portuguese)\b/i)?.[1];
-  const level = clean.match(/\b(Native|Fluent|Professional|Conversational|Basic|A1|A2|B1|B2|C1|C2)\b/i)?.[1];
-  if (!language) return "";
-  return `${titleCase(language)}${level ? ` - ${level.toUpperCase()}` : ""}`;
+  const line = cleanLine(value);
+  if (!line) return "";
+  const lower = line.toLowerCase();
+
+  let canonical = "";
+  for (const [name, aliases] of LANGUAGE_TABLE) {
+    // Word-boundary match so "Germany" never registers as "German".
+    if (aliases.some((a) => new RegExp(`(^|[^\\p{L}])${a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\p{L}]|$)`, "iu").test(lower))) {
+      canonical = name;
+      break;
+    }
+  }
+  if (!canonical) return "";
+
+  const level = line.match(PROFICIENCY_RE)?.[1];
+  return `${canonical}${level ? ` - ${level.toUpperCase()}` : ""}`;
 }
 
 function extractLanguages(rawText: string, sections: SectionMap) {
-  const source = [...sections.languages, rawText].join("\n");
-  const matches: string[] = source.match(/\b(English|Englisch|German|Deutsch|French|Spanish|Arabic|Hindi|Tamil|Malayalam|Telugu|Kannada|Italian|Dutch|Portuguese)\s*[-:]?\s*(Native|Fluent|Professional|Conversational|Basic|A1|A2|B1|B2|C1|C2)?/gi) || [];
-  if (/Other Indian languages/i.test(source)) matches.push("Other Indian languages");
-  return unique(matches.map(normalizeLanguage).filter(Boolean), (item) => item.split(" - ")[0]).slice(0, 10);
+  // Prefer the dedicated LANGUAGES section. Only fall back to the whole CV when
+  // that section is missing, because free text mentions ("relocated to Germany")
+  // are not language claims.
+  const sectionLines = sections.languages.map(cleanLine).filter(Boolean);
+  // Multi-column PDFs often flatten the sidebar before the LANGUAGES heading,
+  // so a real entry such as "German: Conversational" can sit outside the
+  // detected section. Always union the dedicated section with high-confidence
+  // whole-document claims (language name + proficiency), rather than using the
+  // whole document only when the section is empty.
+  const globalClaimLines = rawText
+    .split(/\r?\n/)
+    .map(cleanLine)
+    .filter((l) => {
+      if (!l || !PROFICIENCY_RE.test(l)) return false;
+      return LANGUAGE_TABLE.some(([, aliases]) =>
+        aliases.some((a) => new RegExp(`(^|[^\\p{L}])${a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\p{L}]|$)`, "iu").test(l.toLowerCase())),
+      );
+    });
+  const lines = [...sectionLines, ...globalClaimLines];
+
+  const found = new Map<string, string>();
+  for (const line of lines) {
+    // A single line can hold several languages ("English - Fluent  German - B2").
+    // Split on separators so each is normalized on its own.
+    const parts = line.split(/[,;|\u00b7\u2022]|\s{2,}/).map((p) => p.trim()).filter(Boolean);
+    for (const part of parts.length ? parts : [line]) {
+      const entry = normalizeLanguage(part);
+      if (!entry) continue;
+      const key = entry.split(" - ")[0];
+      const existing = found.get(key);
+      // Keep the RICHEST entry: one carrying a proficiency beats a bare mention.
+      if (!existing || (!existing.includes(" - ") && entry.includes(" - "))) {
+        found.set(key, entry);
+      }
+    }
+  }
+  return [...found.values()].slice(0, 12);
 }
 
 function extractEducation(sections: SectionMap, lines: string[]) {
@@ -1341,12 +1454,26 @@ function extractEducation(sections: SectionMap, lines: string[]) {
   // one entry even when the source repeats it with a different date format
   // (a common export artifact). Level = bachelor/master/phd/etc; falls back to
   // the whole normalized degree when no level word is present.
+  const LEVEL_BUCKETS: Array<[RegExp, string]> = [
+    [/\b(ph\.?\s?d|d\.?phil|doctora(?:te|l)|doktor|promotion)\b/i, "phd"],
+    [/\b(m\.?\s?b\.?\s?a|mba)\b/i, "mba"],
+    [/\b(master|magister|m\.?\s?sc|m\.?\s?a|m\.?\s?tech|m\.?\s?eng|m\.?\s?s|msc|meng|mtech)\b/i, "master"],
+    [/\b(bachelor|b\.?\s?sc|b\.?\s?a|b\.?\s?tech|b\.?\s?eng|b\.?\s?e|bsc|beng|btech|bba|honou?rs)\b/i, "bachelor"],
+    [/\b(diploma|diplom|pg\s?diploma)\b/i, "diploma"],
+    [/\b(associate)\b/i, "associate"],
+    [/\b(abitur|a-?levels?|high\s?school|secondary)\b/i, "school"],
+  ];
   const degreeLevel = (degree: string) => {
-    const m = /\b(ph\.?d|doctorate|doktor|master|magister|m\.?sc|m\.?a|mba|bachelor|b\.?sc|b\.?a|b\.?eng|diploma|diplom|associate|abitur)\b/i.exec(degree || "");
-    return (m ? m[1] : degree || "").toLowerCase().replace(/[^a-z]/g, "");
+    for (const [re, b] of LEVEL_BUCKETS) if (re.test(degree || "")) return b;
+    return (degree || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   };
+  // Institution key ignores a trailing location the field sometimes carries.
+  const institutionKey = (institution: string) =>
+    (institution || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .split(/[,·|]|\s[–—-]\s/)[0]
+      .replace(/[^a-z0-9]/g, "");
   const dedupeKey = (degree: string, institution: string) =>
-    `${degreeLevel(degree)}|${institution.toLowerCase().replace(/[^a-z0-9]/g, "")}`;
+    `${degreeLevel(degree)}|${institutionKey(institution)}`;
   // Prefer a full range ("2013 - 2016") over a single year, and any date over none.
   const betterDates = (a = "", b = "") => {
     const rank = (d: string) => (/-/.test(d) ? 2 : d ? 1 : 0);
@@ -1604,13 +1731,25 @@ function extractExperience(sections: SectionMap, lines: string[], projects: Resu
 
     const same = extractTitleFromLine(source[anchorIndex] || "");
     if (same) return same;
+
+    // "Title above company" is the most common layout (title + dates on one
+    // line, company on the next). Check the line directly ABOVE the anchor
+    // first, so we don't scan forward past this job's bullets and grab the
+    // NEXT job's title (which put e.g. "CAD Designer" onto the Cummins entry).
+    const above = extractTitleFromLine(source[anchorIndex - 1] || "");
+    if (above && !isProbablyBullet(source[anchorIndex - 1] || "")) return above;
+
+    // Forward scan, but STOP at the first bullet: bullets mean this job's body
+    // has started, so any title-like line after them belongs to the next job.
     for (let j = anchorIndex + 1; j <= Math.min(source.length - 1, anchorIndex + 4); j += 1) {
       const line = source[j] || "";
       if (parseCompanyLine(line, { allowEducationOrg: true }) || findSectionKind(line)) break;
+      if (isProbablyBullet(line)) break;
       const title = extractTitleFromLine(line);
-      if (title && !isProbablyBullet(line)) return title;
+      if (title) return title;
     }
-    for (let j = anchorIndex - 1; j >= Math.max(0, anchorIndex - 3); j -= 1) {
+    // Wider backward scan as a last resort.
+    for (let j = anchorIndex - 2; j >= Math.max(0, anchorIndex - 3); j -= 1) {
       const line = source[j] || "";
       const title = extractTitleFromLine(line);
       if (title && !isProbablyBullet(line)) return title;
@@ -1645,12 +1784,23 @@ function extractExperience(sections: SectionMap, lines: string[], projects: Resu
 
   function collectBullets(anchorIndex: number, nextAnchorIndex: number) {
     const bullets: string[] = [];
+    // Skip only the leading title/date header lines that sit BETWEEN the
+    // company anchor and the first bullet, and stop the moment a bullet or the
+    // next job begins. The old loop advanced `start` for ANY title/date line in
+    // the +5 window, so it jumped over this job's bullets and landed on the
+    // NEXT job's title line — which dropped every bullet for jobs whose title
+    // sits above (not below) the company anchor.
     let start = anchorIndex + 1;
     for (let j = anchorIndex + 1; j <= Math.min(source.length - 1, anchorIndex + 5); j += 1) {
       const line = source[j] || "";
+      if (!line) { start = j + 1; continue; }
+      if (isProbablyBullet(line)) break; // body started
+      if (parseCompanyLine(line, { allowEducationOrg: true })) break; // next job
       if (extractDate(line) || (ROLE_RE.test(line) && line.length < 100)) {
-        start = j + 1;
+        start = j + 1; // a leading title/date line for THIS job
+        continue;
       }
+      break; // first ordinary line ends the header
     }
 
     const end = nextAnchorIndex > anchorIndex ? nextAnchorIndex - 1 : Math.min(source.length - 1, anchorIndex + 42);

@@ -1,5 +1,20 @@
-import type { ResumeProfile } from "./workzoResumeParser";
+import { extractResumeProfileComplex, type ResumeProfile } from "./workzoResumeParser";
+import { recoverNameFromRawText } from "./workzoProfileIntegrityGuard";
 import { determineCanonicalIdentity, healSpacedHeaders, resolveTargetHeadline } from "./workzoCvIdentityEngine";
+
+/**
+ * CV ENGINE VERSION, and why it matters.
+ *
+ * A parsed profile is cached in localStorage and previously read back verbatim,
+ * so a profile parsed by an OLD build was served forever. Every parser fix
+ * (languages, de-duplication, name recovery) was silently bypassed for anyone
+ * who had already uploaded a CV: the app kept replaying the stale parse.
+ *
+ * BUMP THIS STRING whenever the parsing pipeline changes. Any cached profile
+ * stamped with a different version is discarded and rebuilt with the current
+ * parser, so fixes actually reach existing users instead of only new ones.
+ */
+export const WORKZO_CV_ENGINE_VERSION = "cv-engine-v4.0-languages-dedupe-identity";
 
 export type WorkZoCanonicalProfile = ResumeProfile & {
   canonicalVersion?: string;
@@ -106,7 +121,7 @@ export function buildCanonicalProfile(input: {
     ...(profile as ResumeProfile),
     rawText: rawText || profile.rawText || "",
     basics: normalizedBasics(profile, decision.selectedName, headline),
-    canonicalVersion: "cv-engine-v3.2-shared-source",
+    canonicalVersion: WORKZO_CV_ENGINE_VERSION,
     identityConfidence: decision.confidence,
     identityNeedsConfirmation: false,
     selectedNameSource: decision.selectedNameSource,
@@ -135,6 +150,91 @@ export function isUsableCanonicalProfile(profile: any): profile is WorkZoCanonic
 
 export function normalizeCanonicalProfile(profile: any): WorkZoCanonicalProfile | null {
   if (!profile) return null;
+
+  // Stale cache: parsed by an older engine. Rebuild it with the current parser
+  // rather than replaying an old, known-buggy parse.
+  const stale = profile.canonicalVersion !== WORKZO_CV_ENGINE_VERSION;
+  if (stale) {
+    try {
+      console.warn("[WorkZo] cv.profile.cache_stale, rebuilding with current parser", {
+        cached: profile.canonicalVersion || "(none)",
+        current: WORKZO_CV_ENGINE_VERSION,
+      });
+    } catch { /* non-fatal */ }
+    const rawText: string = profile.rawText || profile.rawTextHealed || "";
+
+    // Re-derive the STRUCTURED fields from the original CV text with the current
+    // parser. Rebuilding from the cached structure alone would keep replaying the
+    // old parse, so a language the old parser dropped (or a duplicate degree it
+    // created) would survive forever. Re-parsing is what actually applies the fix.
+    let refreshed: Partial<ResumeProfile> = profile;
+    if (rawText.trim().length > 80) {
+      try {
+        const reparsed = extractResumeProfileComplex(rawText);
+        refreshed = {
+          ...profile,
+          // Prefer freshly parsed fields when the new parser found something.
+          languages: reparsed.languages?.length ? reparsed.languages : profile.languages,
+          education: reparsed.education?.length ? reparsed.education : profile.education,
+          experience: reparsed.experience?.length ? reparsed.experience : profile.experience,
+          projects: reparsed.projects?.length ? reparsed.projects : profile.projects,
+          skills: reparsed.skills?.length ? reparsed.skills : profile.skills,
+        };
+      } catch {
+        /* fall back to the cached structure rather than losing the profile */
+      }
+    }
+
+    const rebuilt = buildCanonicalProfile({
+      profile: refreshed,
+      rawText,
+      fileName: profile.fileName || "",
+    });
+    if (rebuilt) return rebuilt;
+
+    // buildCanonicalProfile returns null whenever it cannot CONFIRM the identity.
+    // That must never destroy the profile: it left the Improve CV page with
+    // `profile: null` and it skipped with "No verified CV profile available".
+    //
+    // Recover what we can and keep going. A CV with real experience/education is
+    // still useful even if the name needs confirming, and the identity gate can
+    // correct the name separately.
+    const cachedName: string =
+      (profile.basics && profile.basics.name) || profile.name || "";
+    const recoveredName =
+      cachedName ||
+      recoverNameFromRawText(rawText, {
+        location: profile.basics?.location,
+        headline: profile.basics?.headline,
+        skills: refreshed.skills,
+        languages: refreshed.languages,
+      });
+
+    const hasEvidence =
+      (Array.isArray(refreshed.experience) && refreshed.experience.length > 0) ||
+      (Array.isArray(refreshed.education) && refreshed.education.length > 0) ||
+      (Array.isArray(refreshed.skills) && refreshed.skills.length > 0) ||
+      (typeof refreshed.summary === "string" && refreshed.summary.trim().length > 20) ||
+      rawText.trim().length > 200;
+
+    if (!recoveredName && !hasEvidence) return null;
+
+    return {
+      ...(refreshed as ResumeProfile),
+      basics: {
+        ...(profile.basics || {}),
+        name: recoveredName,
+        headline: profile.basics?.headline || "",
+      },
+      rawText,
+      canonicalVersion: WORKZO_CV_ENGINE_VERSION,
+      identityNeedsConfirmation: false,
+      identityConfidence: recoveredName ? 0.5 : 0,
+      fileName: profile.fileName || "",
+      updatedAt: new Date().toISOString(),
+    } as WorkZoCanonicalProfile;
+  }
+
   if (isUsableCanonicalProfile(profile) && profile.basics?.name) return profile as WorkZoCanonicalProfile;
   return buildCanonicalProfile({
     profile,

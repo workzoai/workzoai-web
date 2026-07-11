@@ -499,6 +499,43 @@ export function saveLatestInterviewSetup(setup: WorkZoInterviewSetup): WorkZoInt
 
   window.sessionStorage.setItem("workzoInterviewSetup", JSON.stringify(payload));
 
+  // Mirror the chosen TARGET ROLE to the shared key every other feature reads
+  // (Improve CV, LinkedIn Optimizer, Cover Letter). Without this, onboarding and
+  // the rest of the app could disagree, and Improve CV fell back to the CV's own
+  // headline instead of the role the user is actually applying for.
+  try {
+    const chosenRole = cleanString(
+      (payload as Record<string, unknown>).targetRole ||
+        (payload as Record<string, unknown>).role ||
+        (payload as Record<string, unknown>).jobTitle ||
+        "",
+      180,
+    );
+    if (chosenRole) {
+      window.localStorage.setItem("workzo_target_role", chosenRole);
+      window.sessionStorage.setItem("workzo_target_role", chosenRole);
+
+      // Keep the shared CV-source package aligned as well. Older builds wrote
+      // the CV headline into this object, and Improve CV then preferred that
+      // stale value over the user's chosen target role. Update only the role;
+      // preserve the stored CV/profile/JD untouched.
+      for (const storage of [window.localStorage, window.sessionStorage]) {
+        try {
+          const raw = storage.getItem("workzo_cv_source");
+          const current = raw ? JSON.parse(raw) : {};
+          storage.setItem(
+            "workzo_cv_source",
+            JSON.stringify({
+              ...(current && typeof current === "object" ? current : {}),
+              targetRole: chosenRole,
+              updatedAt: new Date().toISOString(),
+            }),
+          );
+        } catch { /* non-fatal */ }
+      }
+    }
+  } catch { /* non-fatal */ }
+
   for (const key of LEGACY_KEYS_TO_CLEAR) {
     window.localStorage.removeItem(key);
     window.sessionStorage.removeItem(key);
@@ -568,11 +605,17 @@ export function normalizeSetupJobDescription(setup: WorkZoInterviewSetup | null 
 export function normalizeSetupTargetRole(setup: WorkZoInterviewSetup | null | undefined): string {
   if (!setup) return "";
 
+  // TARGET ROLE is the role the candidate is APPLYING FOR. It is NOT the headline
+  // on their CV, which describes what they did BEFORE. Falling back to the CV
+  // headline silently replaced the user's chosen target role with their old job
+  // title (or the "Professional" placeholder), so every downstream feature
+  // tailored to the wrong role. For a career changer these are opposites.
+  //
+  // If no target role was explicitly chosen, return EMPTY and let the UI ask.
   return cleanString(
     setup.targetRole ||
       setup.role ||
       setup.jobTitle ||
-      setup.resumeProfile?.basics?.headline ||
       "",
     200,
   );

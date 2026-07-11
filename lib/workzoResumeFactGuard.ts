@@ -43,6 +43,10 @@ export type FactGuardOptions = {
    *  lexical (token-overlap) matching to language-invariant matching so a
    *  legitimate translation is not silently reverted to the source language. */
   outputLanguage?: string;
+  /** Lower bound for accepting a heavily reworded (JD-targeted) bullet. */
+  bulletRewriteFloor?: number;
+  /** Full source CV text, used to verify tools/technologies are real. */
+  sourceText?: string;
 };
 
 /** Language-invariant anti-fabrication for translated output. Binds the
@@ -91,6 +95,43 @@ function clean(value: unknown, max = 600): string {
     .replace(/\s+([.,;:])/g, "$1")
     .trim()
     .slice(0, max);
+}
+
+const GUARD_LEVEL_BUCKETS: Array<[RegExp, string]> = [
+  [/\b(ph\.?\s?d|d\.?phil|doctora(?:te|l)|doktor|promotion)\b/i, "phd"],
+  [/\b(m\.?\s?b\.?\s?a|mba)\b/i, "mba"],
+  [/\b(master|magister|m\.?\s?sc|m\.?\s?a|m\.?\s?tech|m\.?\s?eng|m\.?\s?s|msc|meng|mtech)\b/i, "master"],
+  [/\b(bachelor|b\.?\s?sc|b\.?\s?a|b\.?\s?tech|b\.?\s?eng|b\.?\s?e|bsc|beng|btech|bba|honou?rs)\b/i, "bachelor"],
+  [/\b(diploma|diplom|pg\s?diploma)\b/i, "diploma"],
+  [/\b(associate)\b/i, "associate"],
+  [/\b(abitur|a-?levels?|high\s?school|secondary)\b/i, "school"],
+];
+function guardEduDegreeLevel(degree = ""): string {
+  for (const [re, b] of GUARD_LEVEL_BUCKETS) if (re.test(degree)) return b;
+  return norm(degree).replace(/[^a-z0-9]/g, "");
+}
+function guardEduInstitutionKey(institution = ""): string {
+  return norm(institution).split(/[,·|]|\s[–—-]\s/)[0].replace(/[^a-z0-9]/g, "");
+}
+// Clear a location that is already contained in the institution string, so the
+// render never shows "University of Würzburg, Germany · Germany".
+function dropRedundantLocation(institution = "", location = ""): string {
+  if (!location) return "";
+  const k = (v: string) => norm(v).replace(/[^a-z0-9]/g, "");
+  return k(institution).includes(k(location)) ? "" : location;
+}
+// Drop a skill whose words are a subset of a longer skill ("Change Management"
+// inside "Engineering Change Management"), plus exact dups. Removes redundant,
+// keyword-stuffed near-duplicates from the rewritten skills list.
+function dropSubsetSkills(list: string[]): string[] {
+  const wordSet = (v: string) =>
+    new Set(v.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length > 2));
+  const sets = list.map(wordSet);
+  return list.filter((a, ai) => {
+    const A = sets[ai];
+    if (A.size === 0) return true;
+    return !list.some((_b, bi) => bi !== ai && sets[bi].size > A.size && [...A].every((w) => sets[bi].has(w)));
+  });
 }
 
 /** Crude, general English stemmer: folds plurals and simple tenses so
@@ -258,12 +299,22 @@ function repairEducation(education: EduRow[]): EduRow[] {
   // date format (e.g. Luleå "2014" vs Luleå "2013 - 2016") — the visible
   // "duplicate education" in the rendered CV. Prefer a full range over a single
   // year when merging.
+  const LEVEL_BUCKETS: Array<[RegExp, string]> = [
+    [/\b(ph\.?\s?d|d\.?phil|doctora(?:te|l)|doktor|promotion)\b/i, "phd"],
+    [/\b(m\.?\s?b\.?\s?a|mba)\b/i, "mba"],
+    [/\b(master|magister|m\.?\s?sc|m\.?\s?a|m\.?\s?tech|m\.?\s?eng|m\.?\s?s|msc|meng|mtech)\b/i, "master"],
+    [/\b(bachelor|b\.?\s?sc|b\.?\s?a|b\.?\s?tech|b\.?\s?eng|b\.?\s?e|bsc|beng|btech|bba|honou?rs)\b/i, "bachelor"],
+    [/\b(diploma|diplom|pg\s?diploma)\b/i, "diploma"],
+    [/\b(associate)\b/i, "associate"],
+    [/\b(abitur|a-?levels?|high\s?school|secondary)\b/i, "school"],
+  ];
   const degreeLevel = (degree = "") => {
-    const m = /\b(ph\.?d|doctorate|doktor|master|magister|m\.?sc|m\.?a|mba|bachelor|b\.?sc|b\.?a|b\.?eng|diploma|diplom|associate|abitur)\b/i.exec(degree);
-    return (m ? m[1] : degree).toLowerCase().replace(/[^a-z]/g, "");
+    for (const [re, b] of LEVEL_BUCKETS) if (re.test(degree)) return b;
+    return norm(degree).replace(/[^a-z0-9]/g, "");
   };
-  const eduKey = (e: EduRow) =>
-    `${degreeLevel(e.degree)}|${norm(e.institution).replace(/[^a-z0-9]/g, "")}`;
+  const institutionKey = (institution = "") =>
+    norm(institution).split(/[,·|]|\s[–—-]\s/)[0].replace(/[^a-z0-9]/g, "");
+  const eduKey = (e: EduRow) => `${degreeLevel(e.degree)}|${institutionKey(e.institution)}`;
   const rank = (d = "") => (/[-\u2013\u2014]/.test(d) ? 2 : d ? 1 : 0);
   const byKey = new Map<string, EduRow>();
   for (const e of merged) {
@@ -306,6 +357,39 @@ function repairExperienceDates<T extends { dates?: string }>(
   return experience.map((e, i) => (e.dates ? e : { ...e, dates: ranges[i] }));
 }
 
+/** Recover language entries that multi-column PDF extraction often places
+ *  outside the parsed Languages array. This is intentionally generic: it looks
+ *  only inside a LANGUAGES section and requires a proficiency marker, so it does
+ *  not maintain a hardcoded list of languages or infer languages from the JD. */
+function recoverLanguagesFromText(sourceText: string): string[] {
+  const text = String(sourceText || "").replace(/\r/g, "\n");
+  if (!text.trim()) return [];
+
+  const heading = /(?:^|\n)\s*(?:languages?|language skills?|sprachkenntnisse|sprachen)\s*[:\-]?\s*(?:\n|$)/im;
+  const match = heading.exec(text);
+  if (!match) return [];
+
+  const tail = text.slice((match.index || 0) + match[0].length);
+  const nextHeading = /\n\s*(?:professional experience|work experience|experience|education|projects?|skills?|certifications?|profile|summary|contact|expertise)\s*[:\-]?\s*(?:\n|$)/im;
+  const block = tail.split(nextHeading)[0].slice(0, 1200);
+  const proficiency = /(?:native|mother tongue|fluent|business fluent|professional(?: working)? proficiency|full professional proficiency|conversational|intermediate|beginner|basic|elementary|advanced|working proficiency|a1|a2|b1|b2|c1|c2)/i;
+  const candidates = block
+    .split(/\n|[•▪◦]/g)
+    .flatMap((line) => line.split(/(?=\b[A-Z][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,30}\s*(?:[:\-–—]|\())/g))
+    .map((line) => clean(line, 120).replace(/^[-•*]\s*/, ""))
+    .filter((line) => line && proficiency.test(line))
+    .map((line) => {
+      const m = line.match(/^([A-Z][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,35})\s*(?:[:\-–—]|\()\s*([^)]{1,60})\)?/);
+      if (!m) return "";
+      const language = clean(m[1], 45);
+      const level = clean(m[2], 65);
+      return language && level ? `${language} - ${level}` : "";
+    })
+    .filter(Boolean);
+
+  return dedupe(candidates, (value) => norm(value).split(/[-:]/)[0]);
+}
+
 /** Public entry point: repair a parsed profile's structural defects. Safe to
  *  run on any profile from any parser, and used on both the rewrite source
  *  (below) and, if wired in, the baseline improve-CV path. */
@@ -319,6 +403,12 @@ export function repairParsedResume(
     skills: repairSkills(p.skills || []),
     education: repairEducation((p.education || []) as EduRow[]) as ResumeProfile["education"],
     experience: repairExperienceDates(p.experience || [], sourceText),
+    languages: dedupe(
+      [...(p.languages || []), ...recoverLanguagesFromText(sourceText)]
+        .map((language) => clean(language, 100))
+        .filter(Boolean),
+      (language) => norm(language).split(/[-:]/)[0],
+    ).slice(0, 12),
   };
 }
 
@@ -337,10 +427,25 @@ function pickSource(
       ? completeResumeProfile(extractResumeProfile(sourceText), sourceText)
       : null;
 
-  const expCount = (p: ResumeProfile | null) => p?.experience?.length || 0;
-  // Prefer whichever source preserves more real work history. No entity rules.
+  const sourceCompletenessScore = (p: ResumeProfile | null): number => {
+    if (!p) return 0;
+    const experienceBullets = (p.experience || []).reduce((sum, job) => sum + (job.bullets?.length || 0), 0);
+    const projectBullets = (p.projects || []).reduce((sum, project) => sum + (project.bullets?.length || 0), 0);
+    return (p.experience?.length || 0) * 120
+      + experienceBullets * 16
+      + (p.projects?.length || 0) * 28
+      + projectBullets * 8
+      + (p.education?.length || 0) * 24
+      + (p.languages?.length || 0) * 22
+      + Math.min(40, p.skills?.length || 0)
+      + Math.min(30, Math.floor((p.summary?.length || 0) / 20));
+  };
+
+  // Do not choose by job count alone. Two parses can contain the same employers
+  // while one has lost every bullet, language, or project detail. Prefer the
+  // structurally richer source so Improve CV never starts from a stripped CV.
   const best =
-    expCount(fromText) > expCount(fromProvided)
+    sourceCompletenessScore(fromText) > sourceCompletenessScore(fromProvided)
       ? fromText
       : fromProvided || fromText;
   return best || candidate;
@@ -375,9 +480,27 @@ function homeBullets(
         best = cand;
       }
     }
-    if (best && bestSim >= threshold) {
+    if (
+      best &&
+      bestSim >= threshold &&
+      numbersSupported(best.text, opts.sourceText || srcText) &&
+      entitiesSupported(best.text, opts.sourceText || srcText)
+    ) {
       best.used = true;
       out.push(best.text); // reworded, but proven to be this source bullet
+    } else if (
+      best &&
+      bestSim >= (opts.bulletRewriteFloor ?? 0.18) &&
+      numbersSupported(best.text, srcText) &&
+      entitiesSupported(best.text, opts.sourceText || srcText)
+    ) {
+      // A genuinely JD-targeted rewrite changes a lot of wording, so it can fall
+      // under the strict similarity threshold and was being REVERTED to the
+      // original bullet, which is why "Improve CV" appeared to do nothing.
+      // Accept the heavier rewrite, but only when it invents no numbers the
+      // source bullet cannot support.
+      best.used = true;
+      out.push(best.text);
     } else {
       out.push(srcText); // keep the real bullet rather than lose it
     }
@@ -405,8 +528,63 @@ function guardHeadline(
   return base;
 }
 
-function guardSummary(source: ResumeProfile, headline: string): string {
+/** Every number in `text` must also appear in `source`. This is what stops the
+ *  model inventing metrics ("reduced costs by 30%") while still allowing it to
+ *  genuinely reword a bullet toward the JD. */
+/** Distinctive terms: acronyms (SQL, CAD, EDR, HACCP, ITIL) and product/proper
+ *  names (VMware, ManageEngine, HubSpot). Detected by SHAPE, so this works for
+ *  any profession and any language, with no curated vocabulary list. */
+function distinctiveEntities(text: string): string[] {
+  const matches =
+    text.match(/\b(\p{Lu}{2,}[\p{L}\p{N}+#.-]*|\p{Ll}?\p{Lu}\p{Ll}+\p{Lu}[\p{L}]*)\b/gu) || [];
+  return matches.map((m) => m.toLowerCase().replace(/[.,;:]+$/, "")).filter((m) => m.length > 1);
+}
+
+/** Every distinctive entity in `text` must also appear somewhere in the real CV.
+ *
+ *  Numbers alone are not enough: a model can fabricate without any digits, e.g.
+ *  rewriting a CAD designer's bullet as "configured hardware and troubleshooting
+ *  for endpoint security" to chase an IT job description. Requiring each tool,
+ *  technology, and acronym to exist in the source CV blocks that class of
+ *  invention while still allowing genuine rewording. */
+function entitiesSupported(text: string, source: string): boolean {
+  const src = source.toLowerCase();
+  return distinctiveEntities(text).every((e) => src.includes(e));
+}
+
+function numbersSupported(text: string, source: string): boolean {
+  const nums = (text.match(/\d+(?:[.,]\d+)?/g) || []).map((n) => n.replace(",", "."));
+  if (!nums.length) return true;
+  const src = source.replace(/,/g, ".");
+  return nums.every((n) => src.includes(n));
+}
+
+function guardSummary(
+  source: ResumeProfile,
+  headline: string,
+  modelSummary = "",
+  sourceText = "",
+): string {
   const original = clean(source.summary, 900);
+
+  // Prefer the model's rewritten, JD-targeted summary. Previously this function
+  // ALWAYS returned the original summary (any real summary clears 60 chars), so
+  // the whole point of "Improve CV" was silently discarded. We accept the
+  // rewrite only if it invents no numbers that the CV cannot back up.
+  const rewritten = clean(modelSummary, 900);
+  const evidence = `${sourceText} ${original} ${headline}`;
+  if (
+    rewritten.length >= 60 &&
+    numbersSupported(rewritten, evidence)
+  ) {
+    // A role-targeted summary naturally contains positioning language that may
+    // not appear verbatim in the source CV. Rejecting the entire summary because
+    // of one new title/acronym caused the original generic summary to overwrite
+    // every successful AI rewrite. Numeric facts remain strictly source-backed;
+    // hard identity, employment, education, and skills are protected elsewhere.
+    return rewritten;
+  }
+
   if (original.length >= 60) return original;
   const years =
     (headline + " " + original).match(/\b(\d+)\+?\s*years?\b/i)?.[0] || "";
@@ -425,6 +603,9 @@ export function guardResumeAgainstSource(
   opts: FactGuardOptions = {},
 ): ResumeProfile {
   const sourceText = clean(source.text, 40000);
+  // Carry the full CV text in opts so bullet-level guards can verify that every
+  // tool/technology in a rewritten bullet actually exists somewhere in this CV.
+  opts = { ...opts, sourceText };
   const candidate = completeResumeProfile(
     candidateInput as ResumeProfile,
     sourceText,
@@ -486,9 +667,14 @@ export function guardResumeAgainstSource(
       company: clean(job.company, 160),
       location: clean(job.location, 160),
       dates: clean(job.dates, 90),
+      // A CV improvement must visibly improve wording, not merely copy the
+      // uploaded CV. For same-language rewrites, adopt the best matching model
+      // bullet only when its numbers and named tools/entities are supported by
+      // the source CV; otherwise retain the original bullet. This preserves all
+      // experience while still allowing JD-targeted phrasing.
       bullets: translated
         ? homeBulletsPositional(job.bullets || [], m?.bullets || [], opts)
-        : homeBullets(job.bullets || [], pool, opts),
+        : homeBullets(job.bullets || [], pool, { ...opts, maxBulletsPerEntry: opts.maxBulletsPerEntry ?? 8 }),
     };
   });
 
@@ -498,7 +684,7 @@ export function guardResumeAgainstSource(
     name: clean(project.name, 160),
     bullets: translated
       ? homeBulletsPositional(project.bullets || [], modelProj[i]?.bullets || [], opts)
-      : homeBullets(project.bullets || [], pool, opts),
+      : homeBullets(project.bullets || [], pool, { ...opts, maxBulletsPerEntry: opts.maxBulletsPerEntry ?? 8 }),
   }));
 
   // Skills: every real source skill, plus any model skill the CV evidences.
@@ -513,22 +699,27 @@ export function guardResumeAgainstSource(
     // count to the real skill count so the list cannot be inflated with
     // invented skills.
     const cap = Math.max(sourceSkills.length, 8);
-    skills = dedupe(modelSkills.length ? modelSkills : sourceSkills, (v) => norm(v)).slice(0, cap);
+    skills = dropSubsetSkills(dedupe(modelSkills.length ? modelSkills : sourceSkills, (v) => norm(v))).slice(0, cap);
   } else {
     const candidateSkills = modelSkills.filter((v) => v && isEvidenced(v, ev));
-    skills = dedupe([...sourceSkills, ...candidateSkills], (v) => norm(v))
+    skills = dropSubsetSkills(dedupe([...sourceSkills, ...candidateSkills], (v) => norm(v)))
       .map((skill) => ({ skill, score: relevance(skill, jd, target) }))
       .sort((a, b) => b.score - a.score)
       .map((x) => x.skill)
       .slice(0, 30);
   }
 
-  const headline = translated
-    ? clean(candidate.basics?.headline || src.basics?.headline, 120)
-    : guardHeadline(src, ev, opts);
+  // In Improve CV, the user's explicit target role is the requested CV
+  // positioning. It is intentionally separate from the current CV headline and
+  // must be the single source of truth for the rewritten headline.
+  const explicitTargetRole = clean(opts.targetRole, 120);
+  const headline = explicitTargetRole
+    || (translated
+      ? clean(candidate.basics?.headline || src.basics?.headline, 120)
+      : guardHeadline(src, ev, opts));
   const summary = translated
     ? clean(candidate.summary || src.summary, 900)
-    : guardSummary(src, headline);
+    : guardSummary(src, headline, clean(candidate.summary, 900), sourceText);
 
   return completeResumeProfile(
     {
@@ -554,13 +745,17 @@ export function guardResumeAgainstSource(
             180,
           ),
           institution: clean(e.institution, 180),
-          location: clean(e.location, 160),
+          location: dropRedundantLocation(clean(e.institution, 180), clean(e.location, 160)),
           dates: clean(e.dates, 80),
         })),
-        (e) => `${norm(e.degree)}|${norm(e.institution)}|${norm(e.dates)}`,
+        (e) => `${guardEduDegreeLevel(e.degree)}|${guardEduInstitutionKey(e.institution)}`,
       ).slice(0, 8),
       languages: dedupe(
-        (src.languages || []).map((l) => clean(l, 80)).filter(Boolean),
+        // Union of source and model languages. Taking source-only meant a CV
+        // whose languages were dropped upstream ended up showing just one.
+        [...(src.languages || []), ...(candidate.languages || [])]
+          .map((l) => clean(l, 80))
+          .filter(Boolean),
         (l) => norm(l).split(/[-:]/)[0],
       ).slice(0, 6),
       rawText: "",

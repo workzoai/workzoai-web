@@ -34,7 +34,7 @@ function resolveCountry(input: JobSearchInput): string {
   if (SUPPORTED_COUNTRIES.has(code)) return code;
   // Light inference from a location string; default to gb.
   const loc = (input.location || "").toLowerCase();
-  if (/germany|deutschland|berlin|munich|münchen/.test(loc)) return "de";
+  if (/germany|deutschland|berlin|munich|münchen|würzburg|wuerzburg|frankfurt|nuremberg|nürnberg|hamburg|cologne|köln|stuttgart|düsseldorf|duesseldorf/.test(loc)) return "de";
   if (/united states|usa|u\.s\.|new york|san francisco|remote us/.test(loc)) return "us";
   if (/united kingdom|london|england|uk\b/.test(loc)) return "gb";
   if (/india|bangalore|mumbai|delhi|hyderabad/.test(loc)) return "in";
@@ -55,23 +55,53 @@ export class AdzunaProvider implements JobProvider {
 
     const country = resolveCountry(input);
     const page = Math.max(1, input.page || 1);
-    const what = [input.role, ...(input.keywords || [])].filter(Boolean).join(" ").trim();
+    const role = cleanStr(input.role);
+    const keywords = (input.keywords || []).map((value) => cleanStr(value)).filter(Boolean).slice(0, 5);
 
-    const url = new URL(`https://api.adzuna.com/v1/api/jobs/${country}/search/${page}`);
-    url.searchParams.set("app_id", process.env.ADZUNA_APP_ID as string);
-    url.searchParams.set("app_key", process.env.ADZUNA_APP_KEY as string);
-    url.searchParams.set("results_per_page", String(input.resultsPerPage || 20));
-    if (what) url.searchParams.set("what", what);
-    if (input.location) url.searchParams.set("where", input.location);
-    if (input.remote === "remote") url.searchParams.set("what_or", "remote");
-    url.searchParams.set("content-type", "application/json");
+    const rawLocation = cleanStr(input.location);
+    const countryOnly = /^(germany|deutschland|united kingdom|uk|united states|usa|india|canada|australia|remote)$/i.test(rawLocation);
+    const where = countryOnly ? "" : rawLocation;
 
-    const res = await fetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) {
-      throw new Error(`Adzuna ${res.status}`);
-    }
-    const data = (await res.json()) as AdzunaResponse;
-    const results = Array.isArray(data.results) ? data.results : [];
+    const fetchPage = async (what: string, keywordBoost: string[] = []): Promise<AdzunaResult[]> => {
+      const url = new URL(`https://api.adzuna.com/v1/api/jobs/${country}/search/${page}`);
+      url.searchParams.set("app_id", process.env.ADZUNA_APP_ID as string);
+      url.searchParams.set("app_key", process.env.ADZUNA_APP_KEY as string);
+      url.searchParams.set("results_per_page", String(Math.min(50, input.resultsPerPage || 30)));
+      if (what) url.searchParams.set("what", what);
+      // what_and is intentionally limited to two high-signal terms. Sending a
+      // full CV keyword list makes Adzuna return zero results in many markets.
+      if (keywordBoost.length) url.searchParams.set("what_and", keywordBoost.slice(0, 2).join(" "));
+      if (where) url.searchParams.set("where", where);
+      if (input.remote === "remote") url.searchParams.set("what_or", "remote home office work from home");
+      url.searchParams.set("sort_by", "date");
+      url.searchParams.set("max_days_old", "30");
+      url.searchParams.set("content-type", "application/json");
+
+      const res = await fetch(url.toString(), { cache: "no-store" });
+      if (!res.ok) throw new Error(`Adzuna ${res.status}`);
+      const data = (await res.json()) as AdzunaResponse;
+      return Array.isArray(data.results) ? data.results : [];
+    };
+
+    // Run a realistic search ladder: exact title first, then exact title with
+    // only the two strongest keywords, then a broader title search when needed.
+    // This avoids the previous all-keywords AND query that often returned no jobs.
+    const exact = await fetchPage(role);
+    const boosted = exact.length < 12 && keywords.length ? await fetchPage(role, keywords) : [];
+    const broadRole = role
+      .replace(/\b(junior|senior|lead|principal|entry[- ]level|intern(ship)?)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const broad = exact.length + boosted.length < 12 && broadRole && broadRole !== role
+      ? await fetchPage(broadRole)
+      : [];
+    const seen = new Set<string>();
+    const results = [...exact, ...boosted, ...broad].filter((r) => {
+      const key = `${r.id || ""}|${r.title || ""}|${r.company?.display_name || ""}`.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     const fetchedAt = new Date().toISOString();
 
     return results.map((r, index): WorkZoJob => {

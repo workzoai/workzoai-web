@@ -1,7 +1,6 @@
 import "server-only";
-import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getCurrentWorkZoUserSubscription, type WorkZoSubscriptionRecord } from "@/lib/workzoSubscription";
+import { getCurrentWorkZoUserSubscription, upsertWorkZoSubscription, type WorkZoSubscriptionRecord } from "@/lib/workzoSubscription";
 import { normalizeWorkZoPlan, type WorkZoPlanType } from "@/lib/workzoPlanLimits";
 import { isWorkZoFounderDevEmail } from "@/lib/workzoFounderAccess";
 
@@ -34,17 +33,63 @@ function planFromSubscription(subscription: WorkZoSubscriptionRecord | null): Wo
   return normalizeWorkZoPlan(subscription.plan_tier || subscription.plan || "free");
 }
 
-// Read the plan cookie set by /api/account/plan as a trusted fallback.
-// This is NOT used as the primary source of truth, Supabase DB is, but
-// if the Supabase session is temporarily unavailable (missing middleware,
-// token refresh lag), this prevents a valid paid user from being gated as free.
-async function planFromCookieFallback(): Promise<WorkZoPlanType | null> {
+// SECURITY: the plan cookie is NOT an authorization source.
+//
+// A previous version trusted a `workzo_plan` cookie when the DB said "free"
+// (and even when there was no session at all). Cookies are client-controlled,
+// so anyone could set workzo_plan=premium_pro in devtools and receive Premium
+// Pro for free. A user who never paid also has no stripe_subscription_id, so
+// the "cancelled subscriber" check did not stop them either.
+//
+// The real problem the cookie was papering over is a missed Stripe webhook.
+// The correct fix is to ask STRIPE, which is authoritative and cannot be
+// forged by the client. If Stripe confirms an active subscription we trust it
+// (and heal the DB); otherwise we fail CLOSED to "free".
+/** Find a Stripe customer by email. Needed when the webhook never fired at all,
+ *  so the DB has no subscription row and therefore no stripe_customer_id to look
+ *  up. Server-side only; the client cannot influence this. */
+async function stripeCustomerIdByEmail(email: string | null | undefined): Promise<string | null> {
+  const secret = process.env.STRIPE_SECRET_KEY;
+  if (!secret || !email) return null;
   try {
-    const cookieStore = await cookies();
-    const raw = cookieStore.get("workzo_plan")?.value || cookieStore.get("workzo_plan_type")?.value;
-    if (!raw) return null;
-    const normalized = normalizeWorkZoPlan(raw);
-    return normalized !== "free" ? normalized : null;
+    const res = await fetch(
+      `https://api.stripe.com/v1/customers?email=${encodeURIComponent(email)}&limit=1`,
+      { headers: { Authorization: `Bearer ${secret}` }, cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { data?: Array<{ id?: string }> };
+    return data.data?.[0]?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+async function planFromStripe(
+  stripeCustomerId: string | null | undefined,
+): Promise<{ plan: WorkZoPlanType; subscriptionId: string; priceId: string } | null> {
+  const secret = process.env.STRIPE_SECRET_KEY;
+  if (!secret || !stripeCustomerId) return null;
+  try {
+    const res = await fetch(
+      `https://api.stripe.com/v1/subscriptions?customer=${encodeURIComponent(stripeCustomerId)}&status=active&limit=1`,
+      { headers: { Authorization: `Bearer ${secret}` }, cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      data?: Array<{ id?: string; items?: { data?: Array<{ price?: { id?: string } }> } }>;
+    };
+    const sub = data.data?.[0];
+    if (!sub?.id) return null;
+
+    const priceId = sub.items?.data?.[0]?.price?.id || "";
+    const plan: WorkZoPlanType =
+      priceId && priceId === process.env.STRIPE_PREMIUM_PRO_PRICE_ID
+        ? "premium_pro"
+        : priceId && priceId === process.env.STRIPE_PREMIUM_PRICE_ID
+          ? "premium"
+          : "premium";
+
+    return { plan, subscriptionId: sub.id, priceId };
   } catch {
     return null;
   }
@@ -59,31 +104,16 @@ export async function resolveWorkZoServerPlan(): Promise<WorkZoResolvedPlan> {
   }
 
   if (!user) {
-    // No Supabase session, check if a valid plan cookie exists from a recent
-    // /api/account/plan call. If so, treat as authenticated with that plan.
-    // This handles cases where the session token needs middleware refresh.
-    const cookiePlan = await planFromCookieFallback();
-    if (cookiePlan) {
-      console.warn("[workzoServerPlan] No Supabase session but plan cookie found:", cookiePlan, "- using cookie as fallback");
-      return {
-        authenticated: true,
-        userId: null,
-        email: null,
-        plan: cookiePlan,
-        billingCycle: null,
-        status: "premium",
-        currentPeriodEnd: null,
-        stripeCustomerId: null,
-        stripeSubscriptionId: null,
-      };
-    }
+    // No Supabase session means NOT authenticated. Never grant a paid plan from
+    // a client-controlled cookie: that allowed anyone to set
+    // workzo_plan=premium_pro in devtools and receive Premium Pro for free.
     return {
       authenticated: false,
       userId: null,
       email: null,
       plan: "free",
       billingCycle: null,
-      status: "signed_out",
+      status: "free",
       currentPeriodEnd: null,
       stripeCustomerId: null,
       stripeSubscriptionId: null,
@@ -97,8 +127,6 @@ export async function resolveWorkZoServerPlan(): Promise<WorkZoResolvedPlan> {
   //
   // When Stripe webhooks fail to fire (network issues, misconfigured endpoint,
   // first-time setup), the DB row stays "free" even though the user paid.
-  // The workzo_plan cookie is set server-side by /api/account/plan after
-  // Stripe redirects back, so it's a reliable signal of payment intent.
   //
   // We trust the cookie fallback ONLY when ALL of these are true:
   //   1. User has a valid Supabase session (authenticated)
@@ -107,30 +135,40 @@ export async function resolveWorkZoServerPlan(): Promise<WorkZoResolvedPlan> {
   //      vs. a legitimately cancelled subscription which WOULD have an ID)
   //   4. Cookie says "premium" or "premium_pro"
   //
-  // This prevents a cancelled subscriber from gaming the system via a stale
-  // cookie, cancelled subs always have a stripe_subscription_id in the DB.
+  // Webhook-missed recovery, done SAFELY.
+  //
+  // If the DB says "free" but Stripe says the customer has an ACTIVE
+  // subscription, the webhook was missed. We ask Stripe directly (server-side,
+  // with the secret key) instead of trusting a client cookie, then heal the DB
+  // so the next request does not need the extra call.
   if (plan === "free") {
-    const hasNoStripeRecord = !subscription?.stripe_subscription_id;
-    const cookiePlan = await planFromCookieFallback();
-
-    if (cookiePlan && hasNoStripeRecord) {
-      if (shouldLogPlanFallback(`${user.id}:${cookiePlan}:no_stripe_id`)) {
+    // The row may be missing entirely (webhook never fired), so fall back to
+    // locating the Stripe customer by the signed-in user's email.
+    const customerId =
+      subscription?.stripe_customer_id || (await stripeCustomerIdByEmail(user.email));
+    const verified = customerId ? await planFromStripe(customerId) : null;
+    if (verified && customerId) {
+      if (shouldLogPlanFallback(`${user.id}:${verified.plan}:stripe_verified`)) {
         console.warn(
-          "[workzoServerPlan] COOKIE FALLBACK ACTIVATED for user", user.id,
-          "- DB has no Stripe subscription ID, cookie says:", cookiePlan,
-          "- Stripe webhook likely missed. Fix: check Stripe webhook logs and resend",
-          "customer.subscription.created / customer.subscription.updated events."
+          "[workzoServerPlan] Stripe reports an ACTIVE subscription but the DB row is free for user",
+          user.id,
+          "- the Stripe webhook was missed. Granting", verified.plan,
+          "from verified Stripe state and healing the DB row.",
         );
       }
-      plan = cookiePlan;
-    } else if (cookiePlan && !hasNoStripeRecord) {
-      // Has a Stripe record but still free, legitimately cancelled/expired.
-      if (shouldLogPlanFallback(`${user.id}:${cookiePlan}:has_stripe_record`)) {
-        console.warn(
-          "[workzoServerPlan] DB plan=free with Stripe record for user", user.id,
-          "- subscription status:", subscription?.status,
-          "- NOT using cookie fallback (subscription exists, may be cancelled)."
-        );
+      plan = verified.plan;
+      // Self-heal so this is a one-time cost, not a per-request Stripe call.
+      try {
+        await upsertWorkZoSubscription({
+          userId: user.id,
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: verified.subscriptionId,
+          stripePriceId: verified.priceId,
+          stripeStatus: "active",
+          plan: verified.plan,
+        });
+      } catch {
+        /* non-fatal: the plan is still correct for this request */
       }
     }
   }

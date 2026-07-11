@@ -383,14 +383,17 @@ export default function FreeToolRunner({ tool }: { tool: FreeTool }) {
         if (isSignedIn) {
           const source = resolveCvSource();
           const cvText = source.rawCvText || source.profile?.rawText || "";
-          if (cvText.trim()) {
-            setValues((current) => ({
-              ...current,
-              cvText: current.cvText || cvText,
-              resumeText: current.resumeText || cvText,
-              targetRole: current.targetRole || source.targetRole || source.profile?.basics?.headline || "",
-              jobDescription: current.jobDescription || source.jobDescription || "",
-            }));
+          // Restore each saved field independently. A missing CV must not make
+          // WorkZo forget a saved role or JD, and a saved CV must be reusable
+          // across every feature without asking the user to sign in again.
+          setValues((current) => ({
+            ...current,
+            cvText: current.cvText || cvText,
+            resumeText: current.resumeText || cvText,
+            targetRole: current.targetRole || source.targetRole || source.profile?.basics?.headline || "",
+            jobDescription: current.jobDescription || source.jobDescription || "",
+          }));
+          if (cvText.trim() || source.profile) {
             setRememberedCvName(source.fileName || source.profile?.basics?.name || "Saved CV");
             setRememberedProfile(source.profile);
           }
@@ -403,8 +406,17 @@ export default function FreeToolRunner({ tool }: { tool: FreeTool }) {
     }
 
     void hydrate();
+
+    const supabase = createSupabaseBrowserClient();
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
+      setSignedIn(Boolean(session?.user));
+      setAuthLoading(false);
+    });
+
     return () => {
       active = false;
+      authListener.subscription.unsubscribe();
     };
   }, []);
 

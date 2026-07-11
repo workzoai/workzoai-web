@@ -434,7 +434,15 @@ function buildRoleFit(profile: ResumeProfile, jd: JdSignal) {
 }
 
 function cleanSkillForDisplay(value = "") {
-  const raw = clean(value)
+  // IMPORTANT: do NOT run a skill token through clean()/normalizeResumeText.
+  // That prose-repair pass splits camelCase ("([a-z]{3,})([A-Z][a-z])"), which
+  // mangles every internal-capital tech name — TensorFlow -> "Tensor Flow",
+  // LangChain -> "Lang Chain", PyTorch, PostgreSQL, NumPy, DevOps, GraphQL, ...
+  // The old code then tried to rejoin a HARDCODED allowlist, so any brand not on
+  // that list stayed broken. A pre-tokenized skill never needs prose splitting,
+  // so we normalise whitespace only and preserve internal capitalisation. This
+  // is the global fix: it works for every CamelCase skill without an allowlist.
+  const raw = String(value ?? "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim()
     .replace(/\bWÜRzburg\b/gi, "Würzburg")
     .replace(/\bInventor 3d Printing:\s*Fff\b/gi, "Inventor")
     .replace(/\b3d Printing\b/gi, "3D Printing")
@@ -517,8 +525,24 @@ function cleanSkillsForDisplay(items: string[]) {
   }
   const deduped = Array.from(seen.values());
 
+  // Word-subset dedupe: drop a skill whose words are all contained in a longer
+  // skill ("Change Management" ⊂ "Engineering Change Management"; "Team
+  // Collaboration" ⊂ "Cross-functional Team Collaboration"). Keeps the more
+  // specific phrase and removes the redundant near-duplicate bloat.
+  const wordSet = (v: string) =>
+    new Set(v.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length > 2));
+  const subsetFiltered = deduped.filter((a, ai) => {
+    const A = wordSet(a);
+    if (A.size === 0) return true;
+    return !deduped.some((b, bi) => {
+      if (bi === ai) return false;
+      const B = wordSet(b);
+      return B.size > A.size && [...A].every((w) => B.has(w));
+    });
+  });
+
   return unique(
-    deduped
+    subsetFiltered
       .filter((item) => item.length <= 45)
       // Remove section headers that leaked into skills
       .filter((item) => !/^(education|languages|contact|profile|summary|work experience|professional experience|tools|experience|selected projects?|project management|references?)$/i.test(item))
@@ -760,6 +784,34 @@ function tailorExperience(profile: ResumeProfile, jd: JdSignal) {
   }).filter((job) => clean(job.title || job.company || job.dates) || job.bullets.length);
 }
 
+const EDU_LEVEL_BUCKETS: Array<[RegExp, string]> = [
+  [/\b(ph\.?\s?d|d\.?phil|doctora(?:te|l)|doktor|promotion)\b/i, "phd"],
+  [/\b(m\.?\s?b\.?\s?a|mba)\b/i, "mba"],
+  [/\b(master|magister|m\.?\s?sc|m\.?\s?a|m\.?\s?tech|m\.?\s?eng|m\.?\s?s|msc|meng|mtech)\b/i, "master"],
+  [/\b(bachelor|b\.?\s?sc|b\.?\s?a|b\.?\s?tech|b\.?\s?eng|b\.?\s?e|bsc|beng|btech|bba|honou?rs)\b/i, "bachelor"],
+  [/\b(diploma|diplom|pg\s?diploma)\b/i, "diploma"],
+  [/\b(associate)\b/i, "associate"],
+  [/\b(abitur|a-?levels?|high\s?school|secondary)\b/i, "school"],
+];
+function eduDegreeLevel(degree = ""): string {
+  for (const [re, b] of EDU_LEVEL_BUCKETS) if (re.test(degree)) return b;
+  return degree.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+function eduInstitutionKey(institution = ""): string {
+  return institution.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .split(/[,·|]|\s[–—-]\s/)[0].replace(/[^a-z0-9]/g, "");
+}
+// A canonical dedupe key: same degree LEVEL at the same school is one entry,
+// regardless of alias wording ("M.Sc." vs "Master of Science") or a trailing
+// location the institution field sometimes carries ("Uni Würzburg, Germany").
+function eduDedupeKey(degree = "", institution = ""): string {
+  return `${eduDegreeLevel(degree)}|${eduInstitutionKey(institution)}`;
+}
+// Strip a date/year that a PDF text layer glued onto the end of a degree line.
+function stripTrailingDate(degree = ""): string {
+  return degree.replace(/\s*(?:19|20)\d{2}(?:\s*[–—-]\s*(?:(?:19|20)\d{2}|present|current))?\s*$/i, "").trim();
+}
+
 function cleanEducation(items: ResumeProfile["education"], candidateName = "") {
   // Only match the candidate name when it appears as a standalone token at the
   // START of a degree/institution string, not anywhere in the text, which was
@@ -771,12 +823,12 @@ function cleanEducation(items: ResumeProfile["education"], candidateName = "") {
 
   const cleaned = items
     .map((item) => {
-      let degree = clean(item.degree)
+      let degree = stripTrailingDate(clean(item.degree)
         .replace(/\bMaster'S\b/g, "Master's")
         .replace(/\bBachelor'S\b/g, "Bachelor's")
         .replace(namePattern, "")
         .replace(/\s*·\s*$/g, "")
-        .trim();
+        .trim());
 
       let institution = clean(item.institution)
         .replace(/\s*\|\s*/g, " · ")
@@ -809,27 +861,36 @@ function cleanEducation(items: ResumeProfile["education"], candidateName = "") {
         institution = institution.replace(/[&-]\s*$/, "").trim();
       }
 
-      return { ...item, degree, institution, dates: clean(item.dates) };
+      // Drop a redundant location: the institution field often already carries
+      // the country ("University of Würzburg, Germany"), and appending the
+      // separate location renders "... Germany · Germany". Clear the location
+      // when it is already contained in the institution. Global for every CV.
+      const nrm = (v = "") => v.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+      let location = clean(item.location);
+      if (location && nrm(institution).includes(nrm(location))) location = "";
+
+      return { ...item, degree, institution, location, dates: clean(item.dates) };
     })
     .filter((item) => item.degree || item.institution)
     .filter((item) => !/\b(engineer|analyst|developer|support specialist|application engineer|professional experience|linkedin|gmail|outlook)\b/i.test(`${item.degree} ${item.institution}`));
 
   const merged = new Map<string, ResumeProfile["education"][number]>();
   for (const item of cleaned) {
-    const degreeKey = item.degree.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    const institutionKey = item.institution.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    const dateKey = item.dates.replace(/\D/g, "");
-    const key = institutionKey || `${degreeKey}|${dateKey}` || degreeKey;
+    const key = eduDedupeKey(item.degree, item.institution);
     const existing = merged.get(key);
     if (!existing) {
       merged.set(key, item);
       continue;
     }
+    const rangeRank = (d = "") => (/[–—-]/.test(d) ? 2 : d ? 1 : 0);
+    const bestDates = rangeRank(item.dates) > rangeRank(existing.dates) ? item.dates : existing.dates;
+    // Prefer the cleaner (date-free) degree; if equal, the longer wording.
+    const eDeg = stripTrailingDate(existing.degree), iDeg = stripTrailingDate(item.degree);
     merged.set(key, {
       ...existing,
-      degree: existing.degree.length >= item.degree.length ? existing.degree : item.degree,
-      institution: existing.institution || item.institution,
-      dates: existing.dates || item.dates,
+      degree: iDeg.length > eDeg.length ? iDeg : eDeg,
+      institution: existing.institution.length >= item.institution.length ? existing.institution : item.institution,
+      dates: bestDates,
       location: existing.location || item.location,
     });
   }
@@ -1303,7 +1364,20 @@ function extractRawEducation(profile: ResumeProfile) {
 function repairEducationFromRaw(profile: ResumeProfile, education: ResumeProfile["education"]) {
   const rawEdu = extractRawEducation(profile);
   const badExisting = education.some((e) => /completed|career break|technical skills|customer-facing|maternity|professional summary|profile summary/i.test(`${e.degree} ${e.institution}`));
-  const seed = rawEdu.length >= education.length || badExisting ? rawEdu : education;
+  // Compare DISTINCT counts, not raw counts: raw text with duplicate rows used
+  // to look "more complete" than the clean structured profile and win, dragging
+  // the mangled duplicates (and wrong glued dates) into the render. Trust the
+  // structured profile unless it is empty/contaminated, or raw genuinely has
+  // MORE DISTINCT entries after dedupe (i.e. the structurer dropped one).
+  const distinct = (list: ResumeProfile["education"]) =>
+    new Set(list.map((e) => eduDedupeKey(e.degree, e.institution))).size;
+  const cleanExisting = education.filter(
+    (e) => !/completed|career break|technical skills|customer-facing|maternity|professional summary|profile summary/i.test(`${e.degree} ${e.institution}`),
+  );
+  const seed =
+    cleanExisting.length === 0 || badExisting || distinct(rawEdu) > distinct(cleanExisting)
+      ? rawEdu
+      : cleanExisting;
   const merged = [...seed];
   const supplement = seed === rawEdu ? education : rawEdu;
   for (const item of supplement) {

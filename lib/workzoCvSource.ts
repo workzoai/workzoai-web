@@ -118,10 +118,13 @@ function normalizeSource(input?: Partial<WorkZoCvSourceResolution> | null): Work
   const profile = usableProfile(input?.profile) || null;
   const rawCvText = typeof input?.rawCvText === "string" ? input.rawCvText : profile?.rawText || "";
   const jobDescription = typeof input?.jobDescription === "string" ? input.jobDescription : "";
+  // Target role is what the user is APPLYING FOR, never the CV's own headline.
+  // Substituting the headline made Improve CV tailor to the user's OLD job title
+  // (or the "Professional" placeholder) instead of their chosen target role.
   const targetRole =
     typeof input?.targetRole === "string" && input.targetRole.trim()
       ? input.targetRole
-      : profile?.basics?.headline || "";
+      : "";
   const targetMarket =
     typeof input?.targetMarket === "string" && input.targetMarket.trim() ? input.targetMarket : "Global";
   const fileName = typeof input?.fileName === "string" ? input.fileName : "";
@@ -164,10 +167,15 @@ export function resolveCvSource(): WorkZoCvSourceResolution {
     readString(RAW_CV_KEYS, "");
   const jobDescription =
     packed?.jobDescription || normalizeSetupJobDescription(setup) || readString(JD_KEYS, "");
+  // The explicit shared target-role key and the latest onboarding/interview
+  // setup are authoritative. `workzo_cv_source` may contain an older value
+  // copied from the CV headline, so it must not override a role the user
+  // explicitly selected later.
   const targetRole =
-    packed?.targetRole ||
     normalizeSetupTargetRole(setup) ||
-    readString(ROLE_KEYS, profile?.basics?.headline || "");
+    readString(ROLE_KEYS, "") ||
+    packed?.targetRole ||
+    "";
   const targetMarket =
     packed?.targetMarket || normalizeSetupTargetMarket(setup) || readString(MARKET_KEYS, "Global");
   const fileName = packed?.fileName || setup?.fileName || readString(FILE_KEYS, "");
@@ -255,9 +263,9 @@ export function applyConfirmedCvIdentity(edited: {
       ? edited.headline.trim()
       : typeof edited.role === "string" && edited.role.trim()
         ? edited.role.trim()
-        : typeof edited.targetRole === "string"
-          ? edited.targetRole.trim()
-          : "";
+        : "";
+  const explicitTargetRole =
+    typeof edited.targetRole === "string" ? edited.targetRole.trim() : "";
 
   if (cleanName) basics.name = cleanName;
   if (cleanHeadline) basics.headline = cleanHeadline;
@@ -268,7 +276,9 @@ export function applyConfirmedCvIdentity(edited: {
     ...current,
     profile,
     jobDescription: typeof edited.jobDescription === "string" ? edited.jobDescription : current.jobDescription,
-    targetRole: cleanHeadline || current.targetRole,
+    // A CV headline describes the candidate's current profile. It must never
+    // silently overwrite the user's separately chosen target role.
+    targetRole: explicitTargetRole || current.targetRole,
     targetMarket: edited.targetMarket?.trim() || current.targetMarket,
     fileName: edited.fileName?.trim() || current.fileName,
     origin: nextSource,

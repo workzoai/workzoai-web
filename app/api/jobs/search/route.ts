@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
         ? (body.keywords as unknown[]).map((k) => str(k)).filter(Boolean)
         : str(body.keywords).split(",").map((k) => k.trim()).filter(Boolean),
       page: typeof body.page === "number" ? body.page : 1,
-      resultsPerPage: 20,
+      resultsPerPage: 30,
     };
 
     const candidate: CandidateContext = {
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
         success: true,
         live: false,
         message:
-          "No job providers are configured. Add ADZUNA_APP_ID, ADZUNA_APP_KEY, and JOOBLE_API_KEY to enable live search.",
+          "No job providers are configured. Add ADZUNA_APP_ID and ADZUNA_APP_KEY to enable live search. Jooble is optional.",
         jobs: [],
         providersConfigured: outcome.providersConfigured,
       });
@@ -98,6 +98,8 @@ export async function POST(request: NextRequest) {
       providersUsed: outcome.providersUsed,
       providerErrors: outcome.providerErrors,
       count: outcome.jobs.length,
+      searchedAt: new Date().toISOString(),
+      freshnessWindowDays: 30,
     };
     searchCache.set(cacheKey, { at: Date.now(), payload });
     return NextResponse.json(payload);

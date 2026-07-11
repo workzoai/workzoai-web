@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import PremiumFeatureGate from "@/components/PremiumFeatureGate";
 import { AlertTriangle, ArrowLeft, CheckCircle2, Copy, Download, FileText, Wand2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { printResumeHtml } from "@/lib/workzoWorkspaceGenerators";
 import { resolveCvSource } from "@/lib/workzoCvSource";
 import CvSourcePanel from "@/components/CvSourcePanel";
@@ -123,12 +124,17 @@ function coverLetterHtml(body: string, name = ""): string {
 </style></head>
 <body><div class="letter">${esc(body)}</div></body></html>`;
 }
-export default function CoverLetterWorkspacePage() {
+function CoverLetterWorkspaceContent() {
+  const searchParams = useSearchParams();
+  const openedFromLanding = searchParams.get("from") === "landing";
+  const backHref = openedFromLanding ? "/" : "/dashboard";
+  const backLabel = openedFromLanding ? "Back to home" : "Back to dashboard";
   const [cvText, setCvText] = useState("");
   const [resumeProfile, setResumeProfile] = useState<any>(null);
   const [jobDescription, setJobDescription] = useState("");
   const [targetRole, setTargetRole] = useState("");
   const [targetMarket, setTargetMarket] = useState("");
+  const [outputLanguage, setOutputLanguage] = useState("English");
   const [generated, setGenerated] = useState("");
   const [letterBody, setLetterBody] = useState("");
   const [assessment, setAssessment] = useState("");
@@ -177,6 +183,7 @@ export default function CoverLetterWorkspacePage() {
           jobDescription,
           targetRole,
           targetMarket,
+          outputLanguage,
           resumeProfile,
         }),
       });
@@ -222,8 +229,8 @@ export default function CoverLetterWorkspacePage() {
       <main className="min-h-screen bg-canvas px-5 py-5 text-fg">
       <div className="mx-auto max-w-6xl">
         <header className="flex items-center justify-between rounded-xl border border-line bg-fg/[0.035] px-4 py-3">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-black text-muted hover:text-fg">
-            <ArrowLeft className="h-4 w-4" /> Dashboard
+          <Link href={backHref} className="inline-flex items-center gap-2 text-sm font-black text-muted hover:text-fg">
+            <ArrowLeft className="h-4 w-4" /> {backLabel}
           </Link>
           <div className="flex items-center gap-2 text-sm font-black text-muted"><FileText className="h-4 w-4" /> Cover Letter</div>
         </header>
@@ -258,6 +265,15 @@ export default function CoverLetterWorkspacePage() {
               <label className="block">
                 <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">Target role</span>
                 <input value={targetRole} onChange={(e) => setTargetRole(e.target.value)} placeholder="e.g. Customer Success Manager" className="w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm outline-none focus:border-brand" />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">Cover letter language</span>
+                <select value={outputLanguage} onChange={(e) => setOutputLanguage(e.target.value)} className="w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm outline-none focus:border-brand">
+                  {[
+                    "English", "German", "French", "Spanish", "Italian", "Dutch", "Portuguese", "Polish", "Turkish", "Arabic", "Hindi", "Tamil", "Chinese", "Japanese", "Korean",
+                  ].map((language) => <option key={language} value={language}>{language}</option>)}
+                </select>
+                <span className="mt-2 block text-xs text-subtle">Choose the language before generating. Generate again to create the letter in another language.</span>
               </label>
               <label className="block">
                 <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">CV context</span>
@@ -362,32 +378,13 @@ export default function CoverLetterWorkspacePage() {
           </div>
 
           <div className="space-y-6">
-            {/* Honest fit assessment, kept separate from the letter itself */}
-            <div className="rounded-lg border border-warning/25 bg-warning/[0.06] p-6">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-warning" />
-                <h2 className="text-sm font-black uppercase tracking-[0.16em] text-warning">Honest fit assessment</h2>
-              </div>
-              {assessment ? (
-                <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-fg">{assessment}</p>
-              ) : (
-                <p className="mt-4 text-sm leading-7 text-muted">
-                  {generated
-                    ? "This letter did not include a separate fit note. Use the match and risk signals on the left to judge fit before sending."
-                    : "Generate a letter to get an honest read on how well this role fits, gaps included."}
-                </p>
-              )}
-              {notes ? (
-                <div className="mt-4 border-t border-warning/20 pt-4">
-                  <p className="whitespace-pre-wrap text-sm leading-7 text-muted">{notes}</p>
-                </div>
-              ) : null}
-            </div>
-
-            {/* Editable cover letter with copy and PDF */}
+            {/* Editable cover letter is the primary output and appears first. */}
             <div className="rounded-lg border border-line bg-fg/[0.035] p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-xl font-black">Cover letter</h2>
+                <div>
+                  <h2 className="text-xl font-black">Cover letter</h2>
+                  <p className="mt-1 text-xs text-subtle">Language: {outputLanguage}</p>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleCopy}
@@ -414,10 +411,39 @@ export default function CoverLetterWorkspacePage() {
               />
               <p className="mt-2 text-xs text-subtle">Edit freely. Copy and Download PDF use your edited text.</p>
             </div>
+
+            {/* Honest assessment is optional supporting information. */}
+            <details className="rounded-lg border border-warning/25 bg-warning/[0.06] p-6">
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-warning">
+                <AlertTriangle className="h-4 w-4 text-warning" /> Honest fit assessment
+              </summary>
+              {assessment ? (
+                <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-fg">{assessment}</p>
+              ) : (
+                <p className="mt-4 text-sm leading-7 text-muted">
+                  {generated
+                    ? "This letter did not include a separate fit note. Use the match and risk signals on the left to judge fit before sending."
+                    : "Generate a letter to get an honest read on how well this role fits, gaps included."}
+                </p>
+              )}
+              {notes ? (
+                <div className="mt-4 border-t border-warning/20 pt-4">
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-muted">{notes}</p>
+                </div>
+              ) : null}
+            </details>
           </div>
         </section>
       </div>
     </main>
     </PremiumFeatureGate>
+  );
+}
+
+export default function CoverLetterWorkspacePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <CoverLetterWorkspaceContent />
+    </Suspense>
   );
 }

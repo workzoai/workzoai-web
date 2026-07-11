@@ -27,6 +27,7 @@ type AnyProfile = {
   summary?: string;
   basics?: { name?: string; headline?: string } | null;
   experience?: Array<{ title?: string; company?: string; dates?: string; bullets?: string[] }>;
+  skills?: string[];
   education?: Array<{ degree?: string; institution?: string; dates?: string }>;
   projects?: Array<{ name?: string; bullets?: string[] }>;
   [key: string]: unknown;
@@ -121,9 +122,36 @@ export function sanitizeDates(value: unknown): string {
   return v.replace(/\s{2,}/g, " ").replace(/\s*[-–—,]\s*$/, "").trim();
 }
 
+/** Repair a field corrupted by two-column PDF extraction:
+ *  a sidebar heading glued to the front ("PROGRAMMING CSS Corp (...)") and the
+ *  same fragment repeated ("X, Chennai () X"). Structural: no company or CV
+ *  vocabulary, just header shapes and self-repetition. */
+const SIDEBAR_HEADER_RE =
+  /^(programming|skills?|core skills?|soft skills?|technical skills?|languages?|data (visuali[sz]ation|engineering)|machine learning|tools?|expertise|contact|education|experience|projects?|profile|summary)\s+/i;
+
+function repairLeakedField(value: string): string {
+  let v = norm(value);
+  if (!v) return "";
+  // Strip a leaked sidebar heading from the front (possibly several).
+  for (let i = 0; i < 3 && SIDEBAR_HEADER_RE.test(v); i++) {
+    v = v.replace(SIDEBAR_HEADER_RE, "").trim();
+  }
+  // Collapse self-repetition: "A, B () A" -> "A, B".
+  const half = Math.floor(v.length / 2);
+  for (let cut = half; cut > 8; cut--) {
+    const head = v.slice(0, cut).trim();
+    if (head.length > 8 && v.slice(cut).replace(/[^\p{L}\p{N}]/gu, " ").toLowerCase().includes(head.replace(/[^\p{L}\p{N}]/gu, " ").toLowerCase().trim())) {
+      v = head;
+      break;
+    }
+  }
+  return v.replace(/[\s,;(]+$/, "").replace(/\(\s*\)/g, "").replace(/\s{2,}/g, " ").trim();
+}
+
 export type ProfileIntegrityReport = {
   removedEducation: string[];
   removedProjects: string[];
+  removedSkills: string[];
   removedExperience: string[];
   removedBullets: string[];
   repairedNames: string[];
@@ -196,6 +224,7 @@ export function guardProfileIntegrity<T extends AnyProfile>(
   const report: ProfileIntegrityReport = {
     removedEducation: [],
     removedProjects: [],
+    removedSkills: [],
     removedExperience: [],
     removedBullets: [],
     repairedNames: [],
@@ -273,6 +302,12 @@ export function guardProfileIntegrity<T extends AnyProfile>(
 
   // ── Experience ──────────────────────────────────────────────────────────
   const experience = (Array.isArray(profile.experience) ? profile.experience : [])
+    .map((x) => ({
+      ...x,
+      // Repair first: deleting a corrupted entry would LOSE a real job.
+      title: repairLeakedField(norm(x?.title)),
+      company: repairLeakedField(norm(x?.company)),
+    }))
     .filter((x) => {
       const title = norm(x?.title);
       const company = norm(x?.company);
@@ -280,6 +315,9 @@ export function guardProfileIntegrity<T extends AnyProfile>(
         report.removedExperience.push("(empty)");
         return false;
       }
+      // A repaired entry that still has a usable company is a REAL job: keep it
+      // even if the title is imperfect. Only drop it when nothing survives.
+      if (company && company.length > 2) return true;
       // A role whose title is summary prose is contamination.
       if (looksLikeProse(title) || containedInSummary(`${title} ${company}`, summaryKey)) {
         report.removedExperience.push(`${title} ${company}`.trim());
@@ -307,8 +345,117 @@ export function guardProfileIntegrity<T extends AnyProfile>(
       return { ...x, bullets, ...(x?.dates !== undefined ? { dates: sanitizeDates(x.dates) } : {}) };
     });
 
+  // ── Skills ──────────────────────────────────────────────────────────────
+  // A skill is not an EMPLOYER. Two-column CVs regularly spill the experience
+  // column into the skills sidebar, so company names ("Zoho Corp", "CSS Corp")
+  // get stored as skills and then poison the rewrite, which starts injecting
+  // them into bullets. Detected by cross-field comparison against this CV's own
+  // experience entries: no company lists, no vocabulary, works for any CV.
+  // Use the REPAIRED experience list: the raw one may hold corrupted company
+  // strings ("PROGRAMMING CSS Corp (...)"), which would fail to match the skill
+  // "CSS Corp" and let the employer survive in the skills list.
+  const companyKeys = new Set(
+    experience
+      .map((x) => key(norm(x?.company)))
+      .filter((k) => k.length > 2),
+  );
+  const candidateNameKey = key(norm(profile.basics?.name));
+
+  const skills = (Array.isArray(profile.skills) ? profile.skills : []).filter((raw) => {
+    const skill = norm(raw);
+    if (!skill) return false;
+    const k = key(skill);
+    if (!k) return false;
+
+    // An employer, in any of the shapes a two-column CV produces:
+    //   - exactly the company            ("NHS Trust")
+    //   - the company plus product detail ("Zoho Corp (ManageEngine - ...)")
+    //   - the company's leading words     ("CSS Corp" from "CSS Corp (Belkin...)")
+    //
+    // The last case is only safe when the fragment carries a CORPORATE
+    // DESIGNATOR. Otherwise a genuine skill that happens to start an employer's
+    // name would be deleted: someone at "Oracle Consulting Ltd" may legitimately
+    // list "Oracle" the database as a skill, and must keep it.
+    const hasCorporateDesignator =
+      /\b(corp|corporation|inc|incorporated|ltd|limited|llc|llp|gmbh|mbh|ag|kg|sa|sas|srl|bv|nv|plc|oy|ab|as|group|holdings?|trust|pvt|pte|co)\b/i.test(skill);
+
+    for (const company of companyKeys) {
+      const isExact = k === company;
+      const isCompanyWithDetail = k.startsWith(`${company} `);
+      const isCompanyPrefix = company.startsWith(`${k} `) && hasCorporateDesignator;
+      if (isExact || isCompanyWithDetail || isCompanyPrefix) {
+        report.removedSkills.push(skill);
+        return false;
+      }
+    }
+    if (candidateNameKey && k === candidateNameKey) {
+      report.removedSkills.push(skill);
+      return false;
+    }
+    if (isPlaceholder(skill) || looksLikeProse(skill)) {
+      report.removedSkills.push(skill);
+      return false;
+    }
+    return true;
+  });
+
   return {
-    profile: { ...profile, projects, education, experience } as T,
+    profile: { ...profile, projects, education, experience, skills } as T,
     report,
   };
+}
+
+/**
+ * RECOVER THE REAL NAME FROM THE TOP OF THE CV.
+ *
+ * When the incoming name is rejected (it was the address or a skill) and the
+ * generic extractor also only offers contaminated text, we previously fell
+ * through to an EMPTY name. Empty is safer than wrong, but it is not the right
+ * answer: virtually every CV prints the candidate's name on the first line.
+ *
+ * This scans the first lines of the raw CV for the first line that LOOKS like a
+ * person's name and is not contaminated by another field. Purely structural, so
+ * it works for any CV: no name lists, no locales, no sample-specific rules.
+ */
+export function recoverNameFromRawText(
+  rawText: unknown,
+  fields: { location?: unknown; headline?: unknown; skills?: unknown; languages?: unknown },
+): string {
+  const text = typeof rawText === "string" ? rawText : "";
+  if (!text) return "";
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(0, 12); // the name is at the top of the document
+
+  for (const line of lines) {
+    // Some PDF extractors space out header letters ("S U R E N D E R  D...").
+    // Collapse single-letter runs back into words, using a wider gap (2+ spaces)
+    // as the word boundary where the extractor preserved one.
+    const candidate = /^(?:\p{L}\s+){3,}\p{L}\s*$/u.test(line)
+      ? line
+          .split(/\s{2,}/)
+          .map((chunk) => chunk.replace(/\s+/g, ""))
+          .filter(Boolean)
+          .join(" ")
+      : line;
+
+    if (!candidate || candidate.length < 4 || candidate.length > 60) continue;
+    // Reject anything with contact/section markers: not a name line.
+    if (/[@\d]|https?:|www\.|\||·|;/.test(candidate)) continue;
+    // A name is 1 to 4 words of letters (allowing hyphens/apostrophes).
+    const words = candidate.split(/\s+/);
+    if (words.length < 1 || words.length > 4) continue;
+    if (!words.every((w) => /^[\p{L}][\p{L}'’.-]*$/u.test(w))) continue;
+    // Must not be SHOUTED section header vocabulary.
+    if (/^(curriculum vitae|resume|cv|profile|contact|kontakt|summary|education|experience|skills|languages)$/i.test(candidate)) continue;
+    // Must not collide with the address, a skill, the headline, or a language.
+    if (isCrossFieldContaminatedName(candidate, fields)) continue;
+
+    return candidate.replace(/\s+/g, " ").trim();
+  }
+
+  return "";
 }

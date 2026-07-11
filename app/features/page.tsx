@@ -107,14 +107,14 @@ const resumeTools: Item[] = [
   {
     title: "Improve CV",
     description: "Rewrite and optimize your CV against a role, with fact-guarded edits you can trust.",
-    href: "/cv",
+    href: "/features/improve-cv",
     icon: PenLine,
     badge: "Free",
   },
   {
     title: "Resume Templates",
     description: "Clean, single-column, ATS-friendly resume templates you can copy and fill in minutes.",
-    href: "/resume-templates",
+    href: "/features/resume-templates",
     icon: LayoutTemplate,
     badge: "Free",
   },
@@ -124,14 +124,14 @@ const applicationTools: Item[] = [
   {
     title: "Cover Letter Generator",
     description: "Generate a tailored, honest cover letter for any role, then edit and download it.",
-    href: "/cover-letter",
+    href: "/features/cover-letter",
     icon: Mail,
     badge: "Free",
   },
   {
     title: "LinkedIn Optimizer",
     description: "Check your LinkedIn against your real CV and the job, and fix every mismatch a recruiter would spot.",
-    href: "/linkedin",
+    href: "/features/linkedin-optimizer",
     icon: LinkedinIcon as unknown as LucideIcon,
     badge: "New",
   },

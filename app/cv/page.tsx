@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import PremiumFeatureGate from "@/components/PremiumFeatureGate";
 import {
   ArrowLeft,
@@ -45,6 +46,7 @@ import {
 import {
   guardResumeAgainstSource,
   formatResumeProfileText,
+  repairParsedResume,
 } from "@/lib/workzoResumeFactGuard";
 
 const templates: Array<{ id: CvTemplate; label: string; description: string }> =
@@ -81,6 +83,25 @@ const OUTPUT_LANGUAGES = [
 
 function cn(...c: Array<string | false | null | undefined>) {
   return c.filter(Boolean).join(" ");
+}
+
+// Normalize a profile the moment it enters the improve-CV page, BEFORE anything
+// renders it. This runs ONLY structural repair on the profile the vision
+// extractor already produced (dedupe duplicate education rows, repair dates on
+// the existing entries). It deliberately does NOT re-parse the raw CV text:
+// re-parsing a two-column PDF flattened into one column is exactly what
+// reintroduces the wrong name (the address), doubled education, and dropped
+// jobs. It is also wrapped so a repair failure can never blank the profile —
+// on any error we fall back to the profile as-is.
+function normalizeLoadedProfile(
+  profile: ResumeProfile,
+  rawCvText: string,
+): ResumeProfile {
+  try {
+    return repairParsedResume(profile, rawCvText) as ResumeProfile;
+  } catch {
+    return profile;
+  }
 }
 
 function renderResumeProfilePlainText(profile?: ResumeProfile | null): string {
@@ -206,7 +227,11 @@ function CollapsibleSection({
   );
 }
 
-export default function CvWorkspacePage() {
+function CvWorkspaceContent() {
+  const searchParams = useSearchParams();
+  const openedFromLanding = searchParams.get("from") === "landing";
+  const backHref = openedFromLanding ? "/" : "/dashboard";
+  const backLabel = openedFromLanding ? "Back to home" : "Back to dashboard";
   const [cvText, setCvText] = useState("");
   // Original uploaded CV text/layout text. Keep this separate from the clean
   // display text. Improve CV must use this as evidence so experience bullets
@@ -300,7 +325,8 @@ export default function CvWorkspacePage() {
       return;
     }
 
-    const completed = completeResumeProfile(source.profile, source.rawCvText);
+    const normalized = normalizeLoadedProfile(source.profile, source.rawCvText);
+    const completed = completeResumeProfile(normalized, source.rawCvText);
     const profileWithRaw = {
       ...completed,
       rawText: completed.rawText || source.rawCvText,
@@ -818,14 +844,17 @@ export default function CvWorkspacePage() {
       const originalEvidenceText =
         rawCvText || savedResumeProfile?.rawText || cvText || atsText || improvedCv;
       const freshProfileForRewrite = savedResumeProfile
-        ? completeResumeProfile(
-            {
-              ...savedResumeProfile,
-              rawText: savedResumeProfile.rawText || originalEvidenceText,
-              previewText:
-                savedResumeProfile.previewText ||
-                originalEvidenceText.slice(0, 1200),
-            },
+        ? repairParsedResume(
+            completeResumeProfile(
+              {
+                ...savedResumeProfile,
+                rawText: savedResumeProfile.rawText || originalEvidenceText,
+                previewText:
+                  savedResumeProfile.previewText ||
+                  originalEvidenceText.slice(0, 1200),
+              },
+              originalEvidenceText,
+            ),
             originalEvidenceText,
           )
         : undefined;
@@ -908,11 +937,42 @@ export default function CvWorkspacePage() {
         isTranslated && data.resumeProfile && typeof data.resumeProfile === "object"
           ? (data.resumeProfile as ResumeProfile)
           : mergedProfile;
-      const safeProfile = guardResumeAgainstSource(
+      const guardedProfile = guardResumeAgainstSource(
         candidateForGuard,
         { profile: savedResumeProfile, text: cvSource },
         { jobDescription, targetRole, outputLanguage },
       );
+
+      // Preserve every verified source section after the targeted rewrite.
+      // The AI may improve the summary, skill ordering, and evidence bullets,
+      // but it is not allowed to drop languages, jobs, education, dates, or
+      // certifications from the uploaded CV. This also deduplicates education
+      // through completeResumeProfile/mergePreservingOriginalStructure.
+      const repairedOriginalProfile = savedResumeProfile
+        ? repairParsedResume(
+            completeResumeProfile(savedResumeProfile, cvSource),
+            cvSource,
+          )
+        : undefined;
+      const mergedSafeProfile = repairedOriginalProfile
+        ? mergePreservingOriginalStructure(repairedOriginalProfile, guardedProfile)
+        : guardedProfile;
+
+      // Final deterministic contract for every CV and every JD:
+      // - headline = the user's explicit target role
+      // - languages = the complete verified source list
+      // AI may never overwrite either with a CV headline, education label, or a
+      // partial list returned by the model.
+      const safeProfile: ResumeProfile = {
+        ...mergedSafeProfile,
+        basics: {
+          ...mergedSafeProfile.basics,
+          headline: targetRole.trim() || mergedSafeProfile.basics.headline,
+        },
+        languages: repairedOriginalProfile?.languages?.length
+          ? repairedOriginalProfile.languages
+          : mergedSafeProfile.languages,
+      };
       const safeText = formatResumeProfileText(safeProfile) || rewritten;
 
       setRewrittenResumeProfile(safeProfile);
@@ -1627,5 +1687,13 @@ export default function CvWorkspacePage() {
         </section>
       </main>
     </PremiumFeatureGate>
+  );
+}
+
+export default function CvWorkspacePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <CvWorkspaceContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import PremiumFeatureGate from "@/components/PremiumFeatureGate";
 import {
   ArrowLeft,
@@ -23,7 +24,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   normalizeSetupCvText,
   normalizeSetupJobDescription,
@@ -91,6 +92,43 @@ function buildSearchQuery(role: string, location: string, keywords: string) {
     .join(" ");
 }
 
+function buildRoleVariants(role: string) {
+  const value = cleanText(role, "Data Analyst");
+  const lower = value.toLowerCase();
+  const variants = [value];
+  if (lower.includes("data analyst")) variants.push("Business Intelligence Analyst", "Reporting Analyst", "BI Analyst", "Analytics Specialist");
+  else if (lower.includes("technical support") || lower.includes("it support")) variants.push("Service Desk Analyst", "Helpdesk Specialist", "Application Support Engineer", "Desktop Support Engineer");
+  else if (lower.includes("customer success")) variants.push("Customer Success Specialist", "Client Success Manager", "Implementation Specialist", "Onboarding Specialist");
+  else if (lower.includes("software engineer") || lower.includes("developer")) variants.push("Software Developer", "Application Developer", "Full Stack Developer");
+  return [...new Set(variants)].slice(0, 5);
+}
+
+function buildCvRoleSuggestions(profile: ResumeProfile | null, preferredRole = "") {
+  const seeds = [
+    cleanText(preferredRole),
+    cleanText(profile?.basics?.headline),
+    ...(profile?.experience || []).map((item) => cleanText(item.title)),
+  ].filter(Boolean);
+  return [...new Set(seeds.flatMap((role) => buildRoleVariants(role)))].slice(0, 12);
+}
+
+function estimateYearsExperience(profile: ResumeProfile | null): number | undefined {
+  if (!profile?.experience?.length) return undefined;
+  const currentYear = new Date().getFullYear();
+  let earliest = currentYear;
+  let latest = 0;
+  for (const item of profile.experience) {
+    const years = String(item.dates || "").match(/(?:19|20)\d{2}/g)?.map(Number) || [];
+    if (years.length) {
+      earliest = Math.min(earliest, ...years);
+      latest = Math.max(latest, ...years);
+    }
+    if (/present|current|heute/i.test(String(item.dates || ""))) latest = currentYear;
+  }
+  if (!latest || earliest === currentYear) return Math.max(1, profile.experience.length);
+  return Math.max(0, Math.min(40, latest - earliest));
+}
+
 function buildJobLinks(role: string, location: string, keywords: string) {
   const cleanRole = cleanText(role, "Data Analyst");
   const cleanMarket = cleanLocation(location);
@@ -100,6 +138,7 @@ function buildJobLinks(role: string, location: string, keywords: string) {
   const linkedInQuery = safeEncode(roleAndKeywords);
   const locationQuery = safeEncode(cleanMarket);
   const googleQuery = safeEncode(`${query} jobs`);
+  const germany = /germany|deutschland|berlin|munich|münchen|würzburg|wuerzburg|frankfurt|nuremberg|nürnberg|hamburg|cologne|köln|stuttgart|düsseldorf|duesseldorf/i.test(cleanMarket);
 
   return [
     {
@@ -110,7 +149,7 @@ function buildJobLinks(role: string, location: string, keywords: string) {
     {
       label: "Indeed",
       description: "Broad job coverage across countries and experience levels.",
-      href: `https://www.indeed.com/jobs?q=${safeEncode(roleAndKeywords)}&l=${locationQuery}`,
+      href: `${germany ? "https://de.indeed.com/jobs" : "https://www.indeed.com/jobs"}?q=${safeEncode(roleAndKeywords)}&l=${locationQuery}`,
     },
     {
       label: "Google Jobs",
@@ -120,7 +159,7 @@ function buildJobLinks(role: string, location: string, keywords: string) {
     {
       label: "StepStone",
       description: "Useful for Germany and EU job searches.",
-      href: `https://www.stepstone.de/jobs/${safeEncode(cleanRole)}/in-${locationQuery}`,
+      href: `https://www.stepstone.de/jobs/${safeEncode(cleanRole)}?where=${locationQuery}`,
     },
     {
       label: "XING Jobs",
@@ -187,32 +226,33 @@ function saveRecentSearch(search: Omit<RecentSearch, "id" | "createdAt">) {
   }
 }
 
-function extractKeywords(cvText: string, jobDescription: string, role: string) {
-  const text = `${role} ${jobDescription} ${cvText}`.toLowerCase();
-  const candidates = [
-    "sql",
-    "python",
-    "excel",
-    "power bi",
-    "tableau",
-    "customer success",
-    "technical support",
-    "crm",
-    "salesforce",
-    "hubspot",
-    "data analysis",
-    "analytics",
-    "reporting",
-    "saas",
-    "stakeholder",
-    "b2b",
-    "support engineer",
-    "product analytics",
-    "dashboard",
-    "communication",
-  ];
+function extractKeywords(cvText: string) {
+  // Search keywords must come from the candidate's CV, never from a JD that
+  // may have been pasted during onboarding for an unrelated application.
+  const extracted = extractJobSkills(cvText, 10)
+    .map((item) => cleanText(item))
+    .filter(Boolean);
+  return [...new Set(extracted)].slice(0, 8).join(", ");
+}
 
-  return candidates.filter((item) => text.includes(item)).slice(0, 6).join(", ");
+function toPlainAnalysis(value: string) {
+  return value
+    .replace(/\r\n/g, "\n")
+    .replace(/^\s*#{1,6}\s*/gm, "")
+    .replace(/^\s*>+\s?/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+[.)]\s+/gm, "")
+    .replace(/^\s*\|?\s*[-:]+(?:\s*\|\s*[-:]+)+\s*\|?\s*$/gm, "")
+    .replace(/^\s*\|\s*/gm, "")
+    .replace(/\s*\|\s*$/gm, "")
+    .replace(/\s*\|\s*/g, ": ")
+    .replace(/^\s*[-–—*_]{3,}\s*$/gm, "")
+    .replace(/[✅❌⭐👉✓✗☐]/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function summarizeDescription(value: string) {
@@ -279,7 +319,11 @@ function JobActionLink({ href, children, onClick }: { href: string; children: Re
   );
 }
 
-export default function JobsWorkspacePage() {
+function JobsWorkspaceContent() {
+  const searchParams = useSearchParams();
+  const openedFromLanding = searchParams.get("from") === "landing";
+  const backHref = openedFromLanding ? "/" : "/dashboard";
+  const backLabel = openedFromLanding ? "Back to home" : "Back to dashboard";
   const cvFileRef = useRef<HTMLInputElement | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
@@ -289,8 +333,9 @@ export default function JobsWorkspacePage() {
   const [setup, setSetup] = useState<WorkZoInterviewSetup | null>(null);
   const [cvText, setCvText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
-  const [targetRole, setTargetRole] = useState("Data Analyst");
-  const [targetMarket, setTargetMarket] = useState("Remote");
+  const [targetRole, setTargetRole] = useState("");
+  const [roleOptions, setRoleOptions] = useState<string[]>([]);
+  const [targetMarket, setTargetMarket] = useState("Germany");
   const [keywords, setKeywords] = useState("");
   const [jobs, setJobs] = useState<LiveJob[]>([]);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
@@ -317,18 +362,23 @@ export default function JobsWorkspacePage() {
         const latestSetup = readLatestInterviewSetup();
         const source = resolveCvSource();
         const cv = source.rawCvText || normalizeSetupCvText(latestSetup);
-        const jd = source.jobDescription || normalizeSetupJobDescription(latestSetup);
-        const role = source.targetRole || normalizeSetupTargetRole(latestSetup) || "Data Analyst";
-        const market = cleanLocation(source.targetMarket || normalizeSetupTargetMarket(latestSetup) || "Remote");
+        // Job Assist must start from the saved CV, not from an old onboarding JD.
+        // The user can enter a role and optional keywords for this search.
+        const role =
+          cleanText(source.targetRole) ||
+          cleanText(normalizeSetupTargetRole(latestSetup)) ||
+          cleanText(source.profile?.basics?.headline);
+        const market = cleanLocation(source.targetMarket || normalizeSetupTargetMarket(latestSetup) || "Germany");
 
         setSetup(latestSetup);
         setCvText(cv);
         setCvProfile(source.profile);
         setCvFileName(source.fileName || source.profile?.basics?.name || "");
-        setJobDescription(jd);
+        setJobDescription("");
         setTargetRole(role);
+        setRoleOptions(buildCvRoleSuggestions(source.profile, role));
         setTargetMarket(market);
-        setKeywords(extractKeywords(cv, jd, role));
+        setKeywords("");
         setRecentSearches(readRecentSearches());
       } catch {
         if (active) setSignedIn(false);
@@ -351,6 +401,10 @@ export default function JobsWorkspacePage() {
   const searchLinks = useMemo(
     () => buildJobLinks(targetRole, targetMarket, keywords),
     [targetRole, targetMarket, keywords],
+  );
+  const roleVariants = useMemo(
+    () => roleOptions.length ? roleOptions : buildRoleVariants(targetRole),
+    [roleOptions, targetRole],
   );
 
   const phaseA = useMemo(
@@ -405,9 +459,10 @@ export default function JobsWorkspacePage() {
       setCvText(next.rawCvText);
       setCvProfile(next.profile);
       setCvFileName(file.name);
+      setRoleOptions(buildCvRoleSuggestions(next.profile, targetRole || next.targetRole));
       if (!targetRole.trim() && next.targetRole) setTargetRole(next.targetRole);
-      setKeywords(extractKeywords(next.rawCvText, jobDescription, targetRole || next.targetRole));
-      setMessage("CV updated. Job matching now uses this verified profile across WorkZo.");
+      setKeywords("");
+      setMessage("CV updated. Job Assist will use this CV only. Add search keywords manually when needed.");
     } catch (uploadError) {
       setMessage(uploadError instanceof Error ? uploadError.message : "Could not read that CV.");
     } finally {
@@ -417,6 +472,15 @@ export default function JobsWorkspacePage() {
   }
 
   async function handleFindLiveJobs() {
+    if (!cvText.trim() && !cvProfile) {
+      setMessage("Upload your CV first. Job Assist uses your CV, not an onboarding job description.");
+      return;
+    }
+    if (!targetRole.trim()) {
+      setMessage("Enter the target role you want to search for.");
+      return;
+    }
+
     setLoading(true);
     setMessage("");
     setCopied(false);
@@ -435,7 +499,12 @@ export default function JobsWorkspacePage() {
           remote: isRemote ? "remote" : undefined,
           keywords: keywordList,
           cvText,
-          skills: extractJobSkills(cvText, 20),
+          skills: Array.from(new Set([...(cvProfile?.skills || []), ...extractJobSkills(cvText, 24)])).slice(0, 30),
+          yearsExperience: estimateYearsExperience(cvProfile),
+          languages: cvProfile?.languages || [],
+          education: (cvProfile?.education || []).map((item) =>
+            [item.degree, item.institution].filter(Boolean).join(" | "),
+          ),
         }),
       });
 
@@ -472,7 +541,10 @@ export default function JobsWorkspacePage() {
       } else if (!nextJobs.length) {
         setMessage("No live jobs found. Try a broader role, fewer keywords, or a specific city/country.");
       } else {
-        setMessage(`Found ${nextJobs.length} matched roles, ranked against your CV.`);
+        const used = Array.isArray(data?.providersUsed) && data.providersUsed.length
+        ? ` from ${data.providersUsed.map((name: string) => name === "adzuna" ? "Adzuna" : name === "jooble" ? "Jooble" : name).join(" + ")}`
+        : "";
+      setMessage(`Found ${nextJobs.length} live openings${used}. Search relevance is prioritized; CV match explains strengths and gaps.`);
       }
     } catch {
       setJobs([]);
@@ -559,48 +631,25 @@ CANDIDATE BACKGROUND: ${cvText.slice(0, 800)}`,
     if (!cvText.trim()) return;
     setAnalyzingJobId(job.id);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [
-            {
-              role: "user",
-              content: `Analyse the fit between this candidate CV and the job below. Be specific and honest, reference actual CV details.
-
-CV:
-${cvText.slice(0, 2500)}
-
-JOB: ${job.title} at ${job.company}
-${job.description.slice(0, 1500)}
-
-Respond with exactly this format:
-FIT SCORE: X/100
-
-MATCH REASONS:
-• [specific reason tied to CV + JD]
-• [specific reason tied to CV + JD]
-• [specific reason tied to CV + JD]
-
-GAPS:
-• [honest gap, not generic advice]
-• [honest gap, not generic advice]
-
-INTERVIEW TIP:
-[One specific preparation tip based on the JD requirements]`,
-            },
-          ],
+          action: "job_fit",
+          message: "Analyse the candidate against this selected live job. Use only verified CV facts and the selected job description. Return simple plain text without markdown, tables, bullets, symbols, emojis, or decorative separators.",
+          cvText: cvText.slice(0, 9000),
+          resumeProfile: cvProfile,
+          jobDescription: job.description.slice(0, 7000),
+          targetRole: job.title,
+          targetMarket: job.location,
+          question: `${job.title} at ${job.company}`,
         }),
       });
-      const data = await res.json() as { content?: Array<{ type: string; text?: string }> };
-      const text = data.content?.map((b) => (b.type === "text" ? b.text ?? "" : "")).join("").trim();
-      if (text) {
-        setJobAnalysis((prev) => ({ ...prev, [job.id]: text }));
-      }
+      const data = await res.json().catch(() => null);
+      const text = data?.output || data?.message || data?.answer || data?.result || "";
+      if (text) setJobAnalysis((prev) => ({ ...prev, [job.id]: toPlainAnalysis(text) }));
     } catch {
-      // silently fail, button can be retried
+      setMessage("Could not analyse this job right now. Please try again.");
     } finally {
       setAnalyzingJobId(null);
     }
@@ -646,8 +695,8 @@ INTERVIEW TIP:
       <main className="min-h-screen bg-canvas px-4 py-5 text-fg sm:px-5">
       <div className="mx-auto max-w-7xl">
         <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-fg/[0.035] px-4 py-3">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-black text-muted hover:text-fg">
-            <ArrowLeft className="h-4 w-4" /> Dashboard
+          <Link href={backHref} className="inline-flex items-center gap-2 text-sm font-black text-muted hover:text-fg">
+            <ArrowLeft className="h-4 w-4" /> {backLabel}
           </Link>
           <div className="flex items-center gap-2 text-sm font-black text-muted">
             <Briefcase className="h-4 w-4" /> Find Jobs
@@ -715,10 +764,28 @@ INTERVIEW TIP:
             <div className="rounded-lg border border-line bg-fg/[0.04] p-5">
               <h2 className="text-xl font-black">Search setup</h2>
               <p className="mt-2 text-sm leading-6 text-muted">
-                WorkZo pre-fills this from your latest CV/interview setup. Adjust it for each search.
+                WorkZo keeps your saved target role and uses your CV experience, skills, languages, and education to rank results. You can change the role for each search.
               </p>
 
-              <label className="mt-5 block">
+              {roleOptions.length > 0 ? (
+                <label className="mt-5 block">
+                  <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">Relevant roles from your CV</span>
+                  <select
+                    value={roleOptions.includes(targetRole) ? targetRole : ""}
+                    onChange={(event) => {
+                      if (event.target.value) setTargetRole(event.target.value);
+                    }}
+                    className="w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm outline-none focus:border-brand"
+                  >
+                    <option value="">Choose a suggested role</option>
+                    {roleOptions.map((role) => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              <label className={roleOptions.length > 0 ? "mt-4 block" : "mt-5 block"}>
                 <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">Target role</span>
                 <input
                   value={targetRole}
@@ -739,13 +806,13 @@ INTERVIEW TIP:
               </label>
 
               <label className="mt-4 block">
-                <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">Keywords</span>
+                <span className="mb-2 block text-xs font-black uppercase tracking-[.18em] text-muted">Keywords (optional, entered by you)</span>
                 <textarea
                   value={keywords}
                   onChange={(event) => setKeywords(event.target.value)}
                   rows={3}
                   className="w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm leading-6 outline-none focus:border-brand"
-                  placeholder="SQL, Python, Power BI, SaaS"
+                  placeholder="Optional: SQL, Python, Power BI, SaaS"
                 />
               </label>
 
@@ -1021,15 +1088,6 @@ INTERVIEW TIP:
                         {generatingQuestionsFor === job.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mic className="h-3 w-3" />}
                         {generatingQuestionsFor === job.id ? "Generating…" : "Likely questions"}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => { rememberJob(job); void handleGenerateQuestions(job); }}
-                        disabled={generatingQuestionsFor === job.id}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-brand/20 bg-brand/10 px-3 py-1.5 text-xs font-black text-brand transition hover:bg-brand/20 disabled:opacity-60"
-                      >
-                        {generatingQuestionsFor === job.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mic className="h-3 w-3" />}
-                        {generatingQuestionsFor === job.id ? "Generating…" : "Likely questions"}
-                      </button>
                       <JobActionLink href="/interview" onClick={() => rememberJob(job)}>
                         <Mic className="mr-1.5 h-3.5 w-3.5" /> Prepare interview
                       </JobActionLink>
@@ -1085,10 +1143,26 @@ INTERVIEW TIP:
             <div className="rounded-lg border border-line bg-fg/[0.035] p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-black">Open job boards</h2>
-                  <p className="mt-1 text-sm text-muted">Trusted searches using the same role, location, and keywords.</p>
+                  <h2 className="text-xl font-black">Search major job platforms</h2>
+                  <p className="mt-1 text-sm text-muted">Open live results on LinkedIn, Indeed, XING, StepStone and other boards using the same search. WorkZo does not invent job counts or scrape protected listings.</p>
                 </div>
                 <Briefcase className="h-5 w-5 text-brand" />
+              </div>
+
+              <div className="mt-5 rounded-xl border border-line bg-canvas-soft p-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-subtle">Related titles worth checking</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {roleVariants.map((variant) => (
+                    <button
+                      key={variant}
+                      type="button"
+                      onClick={() => setTargetRole(variant)}
+                      className="rounded-full border border-line bg-canvas px-3 py-1.5 text-xs font-black text-muted hover:border-brand/30 hover:text-fg"
+                    >
+                      {variant}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -1105,6 +1179,7 @@ INTERVIEW TIP:
                       <ExternalLink className="h-4 w-4 text-subtle" />
                     </div>
                     <p className="mt-2 text-sm leading-6 text-muted">{item.description}</p>
+                    <p className="mt-3 text-xs font-black text-brand">Open live results →</p>
                   </a>
                 ))}
               </div>
@@ -1135,5 +1210,13 @@ INTERVIEW TIP:
       </div>
     </main>
     </PremiumFeatureGate>
+  );
+}
+
+export default function JobsWorkspacePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <JobsWorkspaceContent />
+    </Suspense>
   );
 }
