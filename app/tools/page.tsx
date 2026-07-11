@@ -4,6 +4,7 @@ import {
   MarketingShell,
   Reveal,
   Eyebrow,
+  SectionHeading,
   FeatureCard,
   CTASection,
   PrimaryButton,
@@ -13,56 +14,67 @@ import { FREE_TOOLS } from "@/lib/free-tools";
 import { getFreeToolIcon } from "@/components/marketing/freeToolIcons";
 
 export const metadata: Metadata = {
-  title: "Free AI Career Tools, CV Review, Resume Tailor & More | WorkZo AI",
+  title: "AI Career Tools | WorkZo AI",
   description:
-    "Free AI career tools from WorkZo AI: review your CV, tailor your resume to any job, generate cover letters, and create realistic interview questions. No signup required.",
-  openGraph: {
-    title: "Free AI Career Tools | WorkZo AI",
-    description:
-      "Review your CV, tailor your resume, generate cover letters, and create interview questions, free.",
-  },
+    "AI career tools from WorkZo AI for CV review, ATS checks, cover letters, professional summaries, STAR stories, resume headlines, and interview preparation.",
+  keywords: [
+    "free career tools",
+    "free cv review",
+    "ats resume checker",
+    "free cover letter generator",
+    "interview question generator",
+    "resume headline generator",
+  ],
+  alternates: { canonical: "/tools" },
 };
 
-export default function FreeToolsIndexPage() {
+export default function FreeToolsHubPage() {
   return (
     <MarketingShell>
       {/* Hero */}
-      <section className="mx-auto max-w-7xl px-4 pb-12 pt-14 sm:px-6 lg:px-8 lg:pt-20">
+      <section className="mx-auto max-w-7xl px-4 pb-10 pt-12 sm:px-6 lg:px-8 lg:pt-16">
         <Reveal>
-          <Eyebrow icon={Sparkles}>Free AI Career Tools</Eyebrow>
+          <Eyebrow icon={Sparkles}>Career tools</Eyebrow>
           <h1 className="mt-5 max-w-3xl text-4xl font-black leading-[1.03] tracking-tight sm:text-5xl">
-            Practice and prepare before you upgrade.
+            Career tools that remember your progress.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
-            Every WorkZo AI free tool is built to move your job search forward today, no signup, no
-            cost. Review your CV, tailor your resume, write a cover letter, and rehearse the questions
-            you'll actually be asked.
+            Sign in once, upload your CV once, and reuse the same verified profile across every tool.
+            WorkZo keeps your application context connected as you move from CV review to cover
+            letters and interview preparation.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <PrimaryButton href="/onboarding">Start a free AI interview</PrimaryButton>
-            <GhostButton href="/pricing">See all plans</GhostButton>
+            <PrimaryButton href="/onboarding">Start interview preparation</PrimaryButton>
+            <GhostButton href="/features">See all features</GhostButton>
           </div>
         </Reveal>
       </section>
 
       {/* Tools grid */}
-      <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <SectionHeading
+          eyebrow="Pick a tool"
+          title="Everything you need to apply with confidence."
+          intro="Choose a tool and continue with the CV already saved in your WorkZo workspace."
+        />
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {FREE_TOOLS.map((tool, i) => (
-            <Reveal key={tool.id} delay={i * 80}>
-              <FeatureCard icon={getFreeToolIcon(tool.icon)} title={tool.title} href={tool.href}>
-                {tool.description}
-              </FeatureCard>
+            <Reveal key={tool.id} delay={i * 50}>
+              <div className="relative h-full">
+                <FeatureCard icon={getFreeToolIcon(tool.icon)} title={tool.title} href={tool.href}>
+                  {tool.description}
+                </FeatureCard>
+              </div>
             </Reveal>
           ))}
         </div>
       </section>
 
       <CTASection
-        title="Free tools get you started. WorkZo gets you the offer."
-        intro="Practice a full, CV-aware AI interview with real follow-ups, pressure, and a trust score that shows exactly where an interview turns."
-        primary={{ href: "/onboarding", label: "Try a free interview" }}
-        secondary={{ href: "/pricing", label: "Compare plans" }}
+        title="One profile, every step of your application."
+        intro="Use your saved CV across career tools, then practise a full AI interview built from the same verified profile."
+        primary={{ href: "/onboarding", label: "Start interview preparation" }}
+        secondary={{ href: "/features", label: "See all features" }}
       />
     </MarketingShell>
   );

@@ -473,6 +473,183 @@ const SEGMENTS: Record<string, Segment> = {
       { q: "Who can see candidate results?", a: "Group-level visibility is scoped to your program administrators. You control access, and candidate data stays within your program." },
     ],
   },
+  "students": {
+    slug: "students",
+    eyebrow: "Students & Graduates",
+    navLabel: "For Students",
+    icon: GraduationCap,
+    title: "Walk into your first interview like you have done it before.",
+    intro:
+      "WorkZo AI runs realistic, CV-aware interviews built from your own resume and a target job, so the nerves, the follow-ups, and the tricky questions happen in practice first. You get a clear score and the exact answers to fix before the real thing.",
+    audience: "For students, recent graduates, and first-time job seekers",
+    snippet: {
+      recruiter: "Your CV mentions a group project. Tell me about a time the team disagreed and what you personally did.",
+      candidate: "We disagreed on scope, so I set up a quick vote and split the work by strength, which kept us on track…",
+      signal: "Good instinct, needs a concrete result",
+      tone: "watch",
+    },
+    outcomeStats: [
+      { value: "Free", label: "to start practising, with no interview experience needed" },
+      { value: "5-cat", label: "scoring: communication, relevance, experience, evidence, job fit" },
+      { value: "Report", label: "that tells you exactly what to say better next time" },
+    ],
+    problem: {
+      heading: "Why first interviews go wrong",
+      points: [
+        "You have little to practise on, so the first real interview becomes the practice run.",
+        "Classic questions like 'tell me about yourself' and 'your weakness' freeze people who have never rehearsed them out loud.",
+        "Advice online is generic. It never reacts to your actual CV or the specific job you applied for.",
+      ],
+    },
+    solution: {
+      heading: "How WorkZo helps",
+      points: [
+        "Practise unlimited realistic interviews built from your CV and the exact role you want.",
+        "Get pushed with real follow-ups and pressure, then see a calm, scored breakdown afterwards.",
+        "Turn projects, internships, and coursework into strong STAR answers with evidence.",
+      ],
+    },
+    capabilities: [
+      { title: "Questions from your real CV", text: "The interview references your own projects, internships, and coursework, so you rehearse defending what you actually did." },
+      { title: "The classics, handled", text: "Practise the questions everyone dreads, from 'tell me about yourself' to gaps and weaknesses, until they feel routine." },
+      { title: "STAR without the jargon", text: "The report shows you how to structure answers as Situation, Task, Action, Result, using your own words as the example." },
+      { title: "Confidence you can measure", text: "A readiness score shows progress across sessions, so you know when you are actually ready to apply." },
+    ],
+    steps: [
+      { title: "Add the job", text: "Upload your CV and paste a job description you are aiming for. The interview is built around that role." },
+      { title: "Do the interview", text: "Complete a realistic voice or text interview with a recruiter persona matched to the role." },
+      { title: "Fix and repeat", text: "Review your scored report, apply the fixes, and run it again until it feels easy." },
+    ],
+    metrics: [
+      { value: "JD-led", label: "interviews for the role you want, not a generic template" },
+      { value: "Any field", label: "from software and data to marketing, finance, and support" },
+      { value: "Voice + text", label: "practise the format your real interview will use" },
+    ],
+    faqs: [
+      { q: "I have no work experience. Can I still use it?", a: "Yes. The interview is built from your CV, including projects, internships, volunteering, and coursework, and the report shows you how to turn those into strong answers." },
+      { q: "Is it free?", a: "You can start practising for free. Premium adds unlimited sessions, deeper reports, and cross-session coaching that remembers your weak spots." },
+      { q: "Will it help with graduate scheme interviews?", a: "Yes. You can practise HR screens, competency questions, and hiring-manager conversations, all built around the specific scheme or role you are applying to." },
+      { q: "What if I freeze on the day?", a: "Rehearsing the real questions out loud is the fastest way to stop freezing. The more sessions you run, the more the pressure feels familiar instead of new." },
+    ],
+  },
+  "career-changers": {
+    slug: "career-changers",
+    eyebrow: "Career Changers",
+    navLabel: "For Career Changers",
+    icon: Target,
+    title: "Make the switch make sense, in the interview.",
+    intro:
+      "Changing field means one hard job: convincing an interviewer your past experience transfers. WorkZo AI runs realistic interviews for your target role and shows you how to reframe what you have already done into the language of where you are going.",
+    audience: "For professionals moving into a new role, function, or industry",
+    snippet: {
+      recruiter: "Your background is in teaching, but this is a product role. Why should I believe you can do it?",
+      candidate: "Teaching is stakeholder management and prioritisation under constraints, which is most of product…",
+      signal: "Strong reframe, tie it to a metric",
+      tone: "watch",
+    },
+    outcomeStats: [
+      { value: "Reframe", label: "past experience into the target role's language" },
+      { value: "5-cat", label: "scoring: communication, relevance, experience, evidence, job fit" },
+      { value: "Report", label: "showing exactly where the switch story lands or wobbles" },
+    ],
+    problem: {
+      heading: "Why career changes stall at interview",
+      points: [
+        "Your CV reads like your old field, so interviewers cannot see the fit for the new one.",
+        "The hardest question is always 'why the change', and most people answer it defensively.",
+        "Transferable skills are real, but they only count if you can name them and back them with evidence.",
+      ],
+    },
+    solution: {
+      heading: "How WorkZo helps",
+      points: [
+        "Practise interviews built from the target job description, so you rehearse for the role you want next.",
+        "Get a clear, confident way to answer 'why the change' that reframes it as a strength.",
+        "See which of your past achievements map onto the new role, and how to phrase them.",
+      ],
+    },
+    capabilities: [
+      { title: "Skills mapping", text: "The report highlights where your existing experience answers the new role's requirements, so you stop underselling yourself." },
+      { title: "The 'why the change' answer", text: "Rehearse the question every changer gets, until you can answer it as a deliberate move rather than an escape." },
+      { title: "Evidence over adjectives", text: "Learn to back a transferable skill with a concrete result, which is what turns a claim into a credible one." },
+      { title: "Target-role interviews", text: "Personas and questions are built from the job description for your new direction, not your old title." },
+    ],
+    steps: [
+      { title: "Point at the new role", text: "Upload your CV and paste a job description for the field you are moving into." },
+      { title: "Run the interview", text: "Answer real questions for that role, including the ones that probe your switch." },
+      { title: "Sharpen the story", text: "Use the report to tighten your reframe and your evidence, then run it again." },
+    ],
+    metrics: [
+      { value: "JD-led", label: "70% job description, 30% resume: built for the next role" },
+      { value: "Any pivot", label: "function, industry, or seniority changes all supported" },
+      { value: "Cross-session", label: "Premium remembers your weak answers and coaches on them" },
+    ],
+    faqs: [
+      { q: "How do I answer 'why are you changing careers'?", a: "WorkZo helps you rehearse a version that frames the change as a deliberate move toward the new role's strengths, backed by a concrete example, rather than a reason you are leaving the old one." },
+      { q: "Will it understand my old experience?", a: "Yes. The interview is built from your CV, and the report shows which past achievements map onto the target role and how to phrase them for a new audience." },
+      { q: "I do not have direct experience yet. Does that matter?", a: "Most changers do not. The goal is to prove transferable skills with evidence, and the tool coaches exactly that, question by question." },
+      { q: "Can I practise for a specific job?", a: "Yes. Paste the job description and the interview, questions, and report are all tailored to that role." },
+    ],
+  },
+  "career-coaches": {
+    slug: "career-coaches",
+    eyebrow: "Career Coaches",
+    navLabel: "For Career Coaches",
+    icon: Handshake,
+    title: "Give every client realistic reps between sessions.",
+    intro:
+      "You cannot sit in a mock interview with every client every week. WorkZo AI gives your clients unlimited realistic, CV-aware practice on their own time, then hands you a scored report so your sessions go straight to the coaching that matters.",
+    audience: "For independent career coaches, CV writers, and outplacement teams",
+    snippet: {
+      recruiter: "You mentioned leading a turnaround. What was the single decision you are most proud of, and why?",
+      candidate: "Cutting the two lowest-margin products, which lifted focus and margin within a quarter…",
+      signal: "Clear and quantified, strong answer",
+      tone: "good",
+    },
+    outcomeStats: [
+      { value: "24/7", label: "practice for clients, without more of your hours" },
+      { value: "Report", label: "you can coach from, with quotes and weak moments" },
+      { value: "5-cat", label: "scoring you can track across a client's sessions" },
+    ],
+    problem: {
+      heading: "What limits coaching outcomes",
+      points: [
+        "Live mock interviews do not scale, so clients get a handful of reps when they need dozens.",
+        "You spend session time surfacing weak answers instead of fixing them.",
+        "It is hard to show a client measurable progress between the start and the offer.",
+      ],
+    },
+    solution: {
+      heading: "How WorkZo helps",
+      points: [
+        "Clients practise unlimited realistic interviews built from their CV and target role, whenever they want.",
+        "Each session produces a scored report, so you walk in already knowing what to coach.",
+        "Readiness scores across sessions give you and your client clear proof of progress.",
+      ],
+    },
+    capabilities: [
+      { title: "Practice that scales", text: "Clients run as many realistic interviews as they need between your sessions, so your time goes to judgement, not repetition." },
+      { title: "Coach from the report", text: "Every session quotes the client's own answers and flags the weakest moments, so you start each session on the real problem." },
+      { title: "Measurable progress", text: "Track a readiness score across sessions to show clients, and referrers, the value of the work." },
+      { title: "Your method, amplified", text: "WorkZo handles the reps and the scoring. You stay the expert who turns the report into a breakthrough." },
+    ],
+    steps: [
+      { title: "Set the target", text: "Your client uploads their CV and pastes the job description for the role they are chasing." },
+      { title: "They practise", text: "The client runs realistic interviews with recruiter personas matched to the role and company style." },
+      { title: "You coach the gaps", text: "Review the scored report together and focus your session on the highest-impact fixes." },
+    ],
+    metrics: [
+      { value: "11", label: "recruiter personas across HR, technical, and hiring-manager styles" },
+      { value: "Any role", label: "from graduate to executive, across industries" },
+      { value: "Partner", label: "options available for coaches running client cohorts" },
+    ],
+    faqs: [
+      { q: "Can I use this with my own clients?", a: "Yes. Clients practise on their own time and share their reports with you, and we offer partner options for coaches who want to run structured cohorts." },
+      { q: "Does it replace what I do?", a: "No. WorkZo handles the reps and the scoring so your expertise goes to interpretation and coaching, which is where clients get the real breakthrough." },
+      { q: "How do I show clients progress?", a: "Readiness scores across sessions give you a simple, honest way to show movement from the first practice to interview-ready." },
+      { q: "What does a partner setup look like?", a: "We can set up a shared pool for your clients with the recruiter personas that match the roles you coach for. Reach out through the form below to scope it." },
+    ],
+  },
 };
 
 const SEGMENT_ORDER = Object.keys(SEGMENTS);

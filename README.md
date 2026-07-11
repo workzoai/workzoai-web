@@ -1,20 +1,24 @@
-# WorkZo Experience Visibility Final Fix
+# WorkZo tools auth + CV memory upgrade
 
-Replace these files:
+Replace the included files at the same paths in your project.
 
-- app/cv/page.tsx
-- app/api/copilot/route.ts
-- app/api/cv/route.ts
-- lib/workzoWorkspaceGenerators.ts
+## Included
+- `components/marketing/FreeToolRunner.tsx`
+- `app/tools/[slug]/page.tsx`
+- `app/tools/page.tsx`
+- `app/jobs/page.tsx`
+- `lib/free-tools.ts`
 
-What changed:
+## What changed
+- Requires sign-in before any career tool runs.
+- Reuses the canonical uploaded CV across CV review, resume tailoring, cover letter, ATS, headline, and related tools.
+- Adds a compact CV uploader/replacer directly inside the tool runner.
+- Adds CV memory and replacement controls to Job Search Hub.
+- Removes visible "free / no signup" messaging from the tools UI.
+- Keeps tool results connected to the signed-in WorkZo workspace.
 
-1. The Improve CV page now keeps `sourceCvText`, the original uploaded CV text, separate from the clean rendered profile text.
-2. The rewrite request sends the original uploaded CV text to `/api/copilot`, not the rendered profile text.
-3. The server can compare the raw CV evidence against the stored profile and recover experience bullets when the browser profile is stale or incomplete.
-4. The template/preview path still uses the rewritten structured profile after rewrite, but the rewrite source is always the original CV evidence.
-
-Important after replacing:
-
-- Run `npm run build`.
-- Re-upload the original CV once. Existing browser/local storage may already contain a broken profile where experience bullets were dropped.
+## Build
+```powershell
+Remove-Item -Recurse -Force .next
+npm run build
+```

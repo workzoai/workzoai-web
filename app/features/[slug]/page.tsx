@@ -36,6 +36,15 @@ const features: Record<string, Feature> = {
     example: "Current: \u2018Handled support tickets.\u2019 Improved: \u2018Resolved 40+ technical support tickets weekly while improving first-response quality and customer satisfaction.\u2019",
     cta: "Unlock CV intelligence",
   },
+  "linkedin-optimizer": {
+    eyebrow: "AI LinkedIn Career Optimizer",
+    title: "Not a profile checker. It already knows your CV.",
+    description: "Every other LinkedIn tool reads one document. WorkZo reads two, and compares them. It finds the title your CV and LinkedIn disagree on, the skills you listed in one place and forgot in the other, and the keywords a recruiter searches for that your profile never says out loud.",
+    freePreview: ["CV vs LinkedIn consistency score", "Every title, tenure, and role mismatch a recruiter would spot", "Skills on your CV that never appear on LinkedIn", "LinkedIn vs job description match score"],
+    premium: ["AI rewrite of your headline and About section", "Built only from keywords your CV can prove", "Every unprovable claim removed before you see it"],
+    example: "Power BI is missing from your profile. So is Tableau. Only one of those is a gap: your CV proves Tableau, so add it today. Nothing in your CV supports Power BI, so WorkZo will not write it for you.",
+    cta: "Check my LinkedIn",
+  },
   "cover-letter": {
     eyebrow: "Cover Letter",
     title: "Create a focused letter that doesn't sound generic.",

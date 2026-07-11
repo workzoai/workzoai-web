@@ -1,4 +1,5 @@
 import type { ResumeProfile } from "@/lib/workzoResumeParser";
+import { guardProfileIntegrity, isCrossFieldContaminatedName } from "@/lib/workzoProfileIntegrityGuard";
 
 function cleanText(value: unknown, max = 50000) {
   if (typeof value !== "string") return "";
@@ -473,11 +474,38 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
   // If basics.name is already a valid human name, trust it and do not re-derive
   // from rawText. Re-deriving overwrites correct names when the raw text starts
   // with skill words or section headers (common in two-column PDF extractions).
-  const existingValidName = validateCandidateName(basics.name);
-  const resolvedName = existingValidName ||
-    chooseSaferName(basics.name, extractCanonicalCandidateName(rawText || p.rawText || "", "", basics.name), p);
+  // "Valid" by SHAPE is not enough: "Wuerzburg Germany" (from the address block)
+  // and "Public Relations" (a skill) are both shaped like "First Last". Reject any
+  // candidate that collides with another field of this same CV.
+  const nameFields = {
+    location: basics.location,
+    headline: basics.headline,
+    skills: p.skills,
+    languages: p.languages,
+  };
+  const incomingContaminated = isCrossFieldContaminatedName(basics.name, nameFields);
+  const existingValidName = incomingContaminated ? "" : validateCandidateName(basics.name);
 
-  return {
+  const derivedName = extractCanonicalCandidateName(
+    rawText || p.rawText || "",
+    "",
+    incomingContaminated ? "" : basics.name,
+  );
+  const safeDerivedName = isCrossFieldContaminatedName(derivedName, nameFields) ? "" : derivedName;
+
+  const resolvedName = existingValidName ||
+    chooseSaferName(incomingContaminated ? "" : basics.name, safeDerivedName, p);
+
+  if (incomingContaminated) {
+    try {
+      console.warn("[WorkZo CV] rejected cross-field contaminated name (matched address, skill, or headline)", {
+        rejected: basics.name,
+        resolved: resolvedName || "(needs confirmation)",
+      });
+    } catch { /* non-fatal */ }
+  }
+
+  const built: ResumeProfile = {
     rawText: cleanText(p.rawText || rawText, 50000),
     basics: {
       name: resolvedName,
@@ -522,46 +550,63 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
       dates: cleanText(e.dates, 80),
       bullets: Array.isArray(e.bullets) ? e.bullets.map((b) => cleanText(b, 500)).filter(Boolean).slice(0, 10) : [],
     })),
-    education: unique(Array.isArray(p.education) ? p.education : [], (e) => {
-      // Deduplicate by degree+institution only (dates cause spurious duplication).
-      // Reject entries where degree === institution (parser artifact).
-      const d = cleanText(e.degree, 180);
-      const i = cleanText(e.institution, 180);
-      if (!d && !i) return `empty-edu-${Math.random()}`;
-      if (d === i) return `dup-deg-inst-${norm(d)}`;
-      return `${norm(d)}|${norm(i)}`;
-    }).filter((e) => {
-      // Reject education entries where both degree and institution are empty,
-      // or where the degree field contains only a date range (parser artifact).
-      const d = cleanText(e.degree, 180);
-      const i = cleanText(e.institution, 180);
-      if (!d && !i) return false;
-      if (/^\d{2,4}\s*[-–]\s*\d{2,4}$/.test(d.trim())) return false; // degree = "2013 - 2016"
-      if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4}/i.test(d.trim())) return false;
-      // Reject if degree looks like a location ("University Of X, Country")
-      if (/^(university|universit|college|school|institut|academ)/i.test(d) && !i) return false;
-      // Reject if degree is a job title (e.g. "Senior Accountant" appearing in
-      // an education section due to PDF layout confusion).
-      if (ROLE_TITLE_RE.test(d) && !/bachelor|master|mba|msc|phd|degree|diploma|certificate|science|arts|engineering|management|technology|administration|education/i.test(d)) return false;
-      return true;
-    }).map((e) => {
-      const d = cleanText(e.degree, 180);
-      const i = cleanText(e.institution, 180);
-      // When degree and institution are identical, the parser put the institution name
-      // in both fields. Keep the institution, clear the degree.
-      const resolvedDegree = (d && i && norm(d) === norm(i)) ? "" : d;
-      // When degree looks like a university/school name (e.g. "Borcelle University"),
-      // move it to institution if institution is empty, then clear degree.
-      const looksLikeInstitution = /\b(university|universit|college|school|institute|academ|hochschule|universität)\b/i.test(d);
-      const finalDegree = looksLikeInstitution && !i ? "" : resolvedDegree;
-      const finalInstitution = looksLikeInstitution && !i ? d : i;
-      return {
-        degree: finalDegree,
-        institution: finalInstitution,
-        location: cleanText(e.location, 180),
-        dates: cleanText(e.dates, 80),
-      };
-    }),
+    // ORDER MATTERS: normalize -> filter -> dedupe.
+    //
+    // Previously this ran dedupe -> filter -> normalize, which produced two
+    // structural bugs on every CV where the parser split one school across two
+    // shapes:
+    //
+    //   A { degree: "Borcelle University", institution: "" }
+    //   B { degree: "",                    institution: "Borcelle University" }
+    //
+    //   1. DUPLICATE EDUCATION. A and B hash to different dedupe keys
+    //      ("borcelle university|" vs "|borcelle university"), so both survive.
+    //      Normalization then rewrote A into B's exact shape — and the same
+    //      school rendered twice in the improved CV.
+    //
+    //   2. MISSING EDUCATION. The filter rejected any entry whose degree began
+    //      with "University/College/School..." and had no institution — i.e. it
+    //      deleted A before normalization could rescue it by moving the school
+    //      name into `institution`.
+    //
+    // Normalizing first means both entries reach the dedupe as the identical
+    // canonical shape, so exactly one survives, and the filter never sees a
+    // school name sitting in `degree`.
+    education: unique(
+      (Array.isArray(p.education) ? p.education : [])
+        .map((e) => {
+          const d = cleanText(e.degree, 180);
+          const i = cleanText(e.institution, 180);
+          // Parser put the institution name in both fields: keep institution.
+          const resolvedDegree = d && i && norm(d) === norm(i) ? "" : d;
+          // Degree slot actually holds a school name: move it to institution.
+          const looksLikeInstitution =
+            /\b(university|universit|college|school|institute|academ|hochschule|universität)\b/i.test(d);
+          return {
+            degree: looksLikeInstitution && !i ? "" : resolvedDegree,
+            institution: looksLikeInstitution && !i ? d : i,
+            location: cleanText(e.location, 180),
+            dates: cleanText(e.dates, 80),
+          };
+        })
+        .filter((e) => {
+          const d = e.degree;
+          const i = e.institution;
+          // Both empty: nothing to show.
+          if (!d && !i) return false;
+          // degree = "2013 - 2016" (date range leaked into the degree slot).
+          if (/^\d{2,4}\s*[-–]\s*\d{2,4}$/.test(d.trim())) return false;
+          if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4}/i.test(d.trim())) return false;
+          // Degree is a job title bled in from a neighbouring column.
+          if (
+            ROLE_TITLE_RE.test(d) &&
+            !/bachelor|master|mba|msc|phd|degree|diploma|certificate|science|arts|engineering|management|technology|administration|education/i.test(d)
+          )
+            return false;
+          return true;
+        }),
+      (e) => `${norm(e.degree)}|${norm(e.institution)}`,
+    ),
     skills: unique(
       (Array.isArray(p.skills)
         ? p.skills.flatMap((skill) => cleanText(skill, 180).split(/[,;•|]/g).map((s) => cleanText(s, 90))).filter(Boolean)
@@ -590,6 +635,22 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
     warnings: unique(Array.isArray(p.warnings) ? p.warnings.map((s) => cleanText(s, 300)).filter(Boolean) : [], (s) => s),
     previewText: cleanText(p.previewText || rawText, 3000),
   };
+
+  // Final structural pass: strip cross-section contamination. This is the single
+  // choke point every surface reads through (Improve CV, LinkedIn, Cover Letter,
+  // interview setup), so guarding here fixes them all at once.
+  const { profile: guarded, report } = guardProfileIntegrity(built);
+  if (
+    report.removedEducation.length ||
+    report.removedProjects.length ||
+    report.removedExperience.length ||
+    report.removedBullets.length
+  ) {
+    try {
+      console.warn("[WorkZo CV] profile integrity guard removed contaminated entries", report);
+    } catch { /* non-fatal */ }
+  }
+  return guarded;
 }
 
 export function isLowQualityResumeProfile(profile: unknown): boolean {

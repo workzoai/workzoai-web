@@ -2,18 +2,127 @@
 
 import Link from "next/link";
 import PremiumFeatureGate from "@/components/PremiumFeatureGate";
-import { AlertTriangle, ArrowLeft, CheckCircle2, Copy, FileText, Wand2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Copy, Download, FileText, Wand2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import {
-  normalizeSetupCvText,
-  normalizeSetupJobDescription,
-  normalizeSetupTargetRole,
-  readLatestInterviewSetup,
-} from "@/lib/workzoInterviewSetup";
+import { printResumeHtml } from "@/lib/workzoWorkspaceGenerators";
+import { resolveCvSource } from "@/lib/workzoCvSource";
 import CvSourcePanel from "@/components/CvSourcePanel";
 import { buildPhaseAInsights } from "@/lib/workzoCareerSuitePhaseA";
 import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
 
+// Parses the model's markdown output into clean, symbol-free pieces:
+//  - assessment: the honest fit note, for its own card
+//  - letter: ONLY the letter body, with every markdown symbol removed
+//  - notes: secondary guidance (personalise checklist, alternative opening)
+// General and format-agnostic: it classifies by section heading, and falls
+// back to a salutation split when the model returns no headings.
+function stripInlineMd(s: string): string {
+  return s
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/(^|[^*])\*(?!\*)([^*]+)\*/g, "$1$2")
+    .replace(/`([^`]+)`/g, "$1");
+}
+
+function stripLineMd(line: string): string {
+  return stripInlineMd(line.replace(/^\s*>+\s?/, "").replace(/^\s*#{1,6}\s*/, ""));
+}
+
+function cleanBlock(text: string): string {
+  return text
+    .split(/\n/)
+    .map(stripLineMd)
+    .join("\n")
+    .replace(/^\s*[-\u2013\u2014*_]{3,}\s*$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function splitSections(raw: string): Array<{ title: string; body: string }> {
+  const lines = raw.replace(/\r\n/g, "\n").trim().split("\n");
+  const sections: Array<{ title: string; body: string[] }> = [];
+  let current: { title: string; body: string[] } = { title: "", body: [] };
+  for (const line of lines) {
+    const heading = line.match(/^\s*#{1,6}\s*(.+?)\s*$/);
+    if (heading) {
+      if (current.title || current.body.length) sections.push(current);
+      current = { title: heading[1], body: [] };
+    } else if (/^\s*[-\u2013\u2014*_]{3,}\s*$/.test(line)) {
+      if (current.title || current.body.length) {
+        sections.push(current);
+        current = { title: "", body: [] };
+      }
+    } else {
+      current.body.push(line);
+    }
+  }
+  if (current.title || current.body.length) sections.push(current);
+  return sections.map((s) => ({ title: s.title, body: s.body.join("\n") }));
+}
+
+function classifySection(title: string): "assessment" | "letter" | "checklist" | "alt" | "other" {
+  const t = title.toLowerCase();
+  if (/fit note|fit summary|assessment|quick fit|honest/.test(t)) return "assessment";
+  if (/cover letter|letter draft|^draft|the letter/.test(t)) return "letter";
+  if (/personalis|personaliz|before sending|before you send|checklist|customi/.test(t)) return "checklist";
+  if (/alternativ|stronger opening|opening/.test(t)) return "alt";
+  return "other";
+}
+
+function parseCoverLetter(raw: string): { assessment: string; letter: string; notes: string } {
+  const text = (raw || "").replace(/\r\n/g, "\n").trim();
+  if (!text) return { assessment: "", letter: "", notes: "" };
+
+  let assessment = "";
+  let letter = "";
+  let checklist = "";
+  let alt = "";
+  for (const section of splitSections(text)) {
+    const kind = classifySection(section.title);
+    const body = cleanBlock(section.body);
+    if (!body) continue;
+    if (kind === "assessment" && !assessment) assessment = body;
+    else if (kind === "letter" && !letter) letter = body;
+    else if (kind === "checklist" && !checklist) checklist = body;
+    else if (kind === "alt" && !alt) alt = body;
+  }
+
+  // No headings: strip symbols, then split on the first salutation.
+  if (!letter) {
+    const cleaned = cleanBlock(text);
+    const m = cleaned.match(/(^|\n)\s*(dear\b[^\n]*|hi\b[^\n]*|hello\b[^\n]*|to whom it may concern[^\n]*)/i);
+    if (m) {
+      const at = (m.index ?? 0) + (m[1] ? m[1].length : 0);
+      if (!assessment && at > 40) assessment = cleaned.slice(0, at).trim();
+      letter = cleaned.slice(at).trim();
+    } else {
+      letter = cleaned;
+    }
+  }
+
+  const notesParts: string[] = [];
+  if (checklist) {
+    const list = checklist
+      .replace(/^\s*[-*]\s*\[[ xX]?\]\s*/gm, "• ")
+      .replace(/^\s*[-*]\s+/gm, "• ");
+    notesParts.push(`Before you send:\n${list}`);
+  }
+  if (alt) notesParts.push(`Alternative opening:\n${alt}`);
+  return { assessment, letter, notes: notesParts.join("\n\n").trim() };
+}
+
+// Printable A4 letter for the browser's Save as PDF. Dependency-free.
+function coverLetterHtml(body: string, name = ""): string {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(name) || "Cover Letter"}</title>
+<style>
+  @page { size: A4; margin: 22mm 20mm; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: Georgia, "Times New Roman", serif; color: #111; line-height: 1.6; font-size: 12pt; }
+  .letter { white-space: pre-wrap; }
+</style></head>
+<body><div class="letter">${esc(body)}</div></body></html>`;
+}
 export default function CoverLetterWorkspacePage() {
   const [cvText, setCvText] = useState("");
   const [resumeProfile, setResumeProfile] = useState<any>(null);
@@ -21,27 +130,27 @@ export default function CoverLetterWorkspacePage() {
   const [targetRole, setTargetRole] = useState("");
   const [targetMarket, setTargetMarket] = useState("");
   const [generated, setGenerated] = useState("");
+  const [letterBody, setLetterBody] = useState("");
+  const [assessment, setAssessment] = useState("");
+  const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Keep the editable letter, the assessment, and the secondary notes in sync
+  // with each new generation, while leaving the user free to edit the letter.
   useEffect(() => {
-    const setup = readLatestInterviewSetup();
-    import("@/lib/workzoInterviewSetup").then(({ normalizeSetupCvText: normCv, normalizeSetupJobDescription: normJd, normalizeSetupTargetRole: normRole, normalizeSetupTargetMarket: normMarket }) => {
-      setCvText(normCv(setup));
-      setJobDescription(normJd(setup));
-      setTargetRole(normRole(setup));
-      setTargetMarket(normMarket ? normMarket(setup) : String(setup?.targetMarket || setup?.country || "Global"));
-      if (setup?.resumeProfile && typeof setup.resumeProfile === "object") {
-        setResumeProfile(setup.resumeProfile);
-      }
-    }).catch(() => {
-      // fallback
-      setCvText(String(setup?.cvText || setup?.uploadedCvText || setup?.resumeText || ""));
-      setJobDescription(String(setup?.jobDescription || setup?.jdText || ""));
-      setTargetRole(String(setup?.targetRole || setup?.role || ""));
-      if (setup?.resumeProfile && typeof setup.resumeProfile === "object") {
-        setResumeProfile(setup.resumeProfile);
-      }
-    });
+    const parsed = parseCoverLetter(generated);
+    setAssessment(parsed.assessment);
+    setNotes(parsed.notes);
+    setLetterBody(parsed.letter);
+  }, [generated]);
+
+  useEffect(() => {
+    const source = resolveCvSource();
+    setCvText(source.rawCvText);
+    setResumeProfile(source.profile);
+    setJobDescription(source.jobDescription);
+    setTargetRole(source.targetRole || source.profile?.basics?.headline || "");
+    setTargetMarket(source.targetMarket || "Global");
   }, []);
 
   const phaseA = useMemo(() => buildPhaseAInsights({ cvText, jobDescription, targetRole }), [cvText, jobDescription, targetRole]);
@@ -68,6 +177,7 @@ export default function CoverLetterWorkspacePage() {
           jobDescription,
           targetRole,
           targetMarket,
+          resumeProfile,
         }),
       });
 
@@ -97,8 +207,14 @@ export default function CoverLetterWorkspacePage() {
   }
 
   async function handleCopy() {
-    if (!generated) return;
-    await navigator.clipboard.writeText(generated);
+    if (!letterBody) return;
+    await navigator.clipboard.writeText(letterBody);
+  }
+
+  function handleDownloadPdf() {
+    if (!letterBody.trim()) return;
+    const name = (resumeProfile && resumeProfile.basics && resumeProfile.basics.name) || "";
+    printResumeHtml(coverLetterHtml(letterBody, name));
   }
 
   return (
@@ -245,16 +361,59 @@ export default function CoverLetterWorkspacePage() {
             </details>
           </div>
 
-          <div className="rounded-lg border border-line bg-fg/[0.035] p-6">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-black">Draft</h2>
-              <button onClick={handleCopy} className="inline-flex items-center gap-2 rounded-xl border border-line bg-fg/[0.05] px-3 py-2 text-xs font-black text-fg hover:bg-fg/[0.09]">
-                <Copy className="h-4 w-4" /> Copy
-              </button>
+          <div className="space-y-6">
+            {/* Honest fit assessment, kept separate from the letter itself */}
+            <div className="rounded-lg border border-warning/25 bg-warning/[0.06] p-6">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-warning" />
+                <h2 className="text-sm font-black uppercase tracking-[0.16em] text-warning">Honest fit assessment</h2>
+              </div>
+              {assessment ? (
+                <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-fg">{assessment}</p>
+              ) : (
+                <p className="mt-4 text-sm leading-7 text-muted">
+                  {generated
+                    ? "This letter did not include a separate fit note. Use the match and risk signals on the left to judge fit before sending."
+                    : "Generate a letter to get an honest read on how well this role fits, gaps included."}
+                </p>
+              )}
+              {notes ? (
+                <div className="mt-4 border-t border-warning/20 pt-4">
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-muted">{notes}</p>
+                </div>
+              ) : null}
             </div>
-            <pre className="mt-5 min-h-[520px] whitespace-pre-wrap rounded-lg bg-canvas-soft p-5 text-sm leading-7 text-fg">
-              {generated || "Your cover letter draft will appear here after generation."}
-            </pre>
+
+            {/* Editable cover letter with copy and PDF */}
+            <div className="rounded-lg border border-line bg-fg/[0.035] p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-xl font-black">Cover letter</h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopy}
+                    disabled={!letterBody}
+                    className="inline-flex items-center gap-2 rounded-xl border border-line bg-fg/[0.05] px-3 py-2 text-xs font-black text-fg hover:bg-fg/[0.09] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Copy className="h-4 w-4" /> Copy
+                  </button>
+                  <button
+                    onClick={handleDownloadPdf}
+                    disabled={!letterBody}
+                    className="inline-flex items-center gap-2 rounded-xl bg-brand px-3 py-2 text-xs font-black text-on-brand hover:bg-brand disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Download className="h-4 w-4" /> Download PDF
+                  </button>
+                </div>
+              </div>
+              <textarea
+                value={letterBody}
+                onChange={(e) => setLetterBody(e.target.value)}
+                placeholder="Your cover letter will appear here after generation. You can edit it before copying or downloading."
+                className="mt-5 min-h-[520px] w-full resize-y whitespace-pre-wrap rounded-lg border border-line bg-canvas-soft p-5 text-sm leading-7 text-fg outline-none focus:border-brand"
+                spellCheck
+              />
+              <p className="mt-2 text-xs text-subtle">Edit freely. Copy and Download PDF use your edited text.</p>
+            </div>
           </div>
         </section>
       </div>

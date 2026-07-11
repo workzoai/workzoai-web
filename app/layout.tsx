@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import "./globals.css";
 import LegacyStoragePrivacyCleanup from "@/components/privacy/LegacyStoragePrivacyCleanup";
 import CookieConsentBanner from "@/components/privacy/CookieConsentBanner";
 import WorkZoFounderAnalyticsTracker from "@/components/WorkZoFounderAnalyticsTracker";
 import { AppLanguageProvider } from "@/lib/workzoAppLanguage";
 import WorkOBotRouteGate from "@/components/WorkOBotRouteGate";
-import { ThemeProvider, THEME_NO_FLASH_SCRIPT } from "@/lib/workzoTheme";
+import { ThemeProvider } from "@/lib/workzoTheme";
 
 
 export const metadata: Metadata = {
@@ -54,12 +53,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>
-        <Script
-          id="theme-no-flash"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{ __html: THEME_NO_FLASH_SCRIPT }}
-        />
+      <body suppressHydrationWarning>
         <ThemeProvider>
           <LegacyStoragePrivacyCleanup />
           <WorkZoFounderAnalyticsTracker />

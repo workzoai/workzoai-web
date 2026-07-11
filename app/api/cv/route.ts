@@ -15,7 +15,6 @@ import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipe
 import { enforceCanonicalCandidateName } from "@/lib/workzoResumeProfileManager";
 import { finalizeCanonicalCvProfile } from "@/lib/workzoCvGlobalFinalizer";
 import { extractPdfTextLayoutAware } from "@/lib/workzoSpatialPdfExtractor";
-import { extractCvWithVision } from "@/lib/workzoVisionCvExtractor";
 
 const require = createRequire(import.meta.url);
 
@@ -1067,10 +1066,6 @@ function lockResumeProfileIdentity(input: {
   fileName?: string;
   candidateName?: string;
 }) {
-  // Keep this as a defensive wrapper, but do not let raw PDF layout scans
-  // override a parser-produced identity. The final merge layer validates and
-  // freezes identity. This prevents names from becoming layout markers, skills,
-  // schools, or section headers.
   return enforceCanonicalCandidateName(
     input.profile,
     input.rawText,
@@ -1109,18 +1104,13 @@ function buildResponse(input: {
   jobDescription?: string;
   targetRole?: string;
   targetMarket?: string;
-  // Confidence gate from the vision extractor. When needsConfirmation is true the
-  // client must show a "review what we read" screen before starting the interview.
-  needsConfirmation?: boolean;
   confidence?: { name: number; experience: number; skills: number; overall: number };
-  confirmationReasons?: string[];
 }) {
-  // Single authoritative finalize step. The finalizer treats parser output as
-  // draft data and produces one validated CandidateProfile: it rejects layout
-  // markers, section headers, skills, roles, companies, and schools from the
-  // candidate name/headline, moves education out of experience, and dedupes.
-  // Nothing after this is allowed to change identity, so mergeCvProfile() and
-  // the api.cv.name_override stage are removed from this path.
+  // Single authoritative finalize step, matching /api/cv exactly so both
+  // endpoints return the same validated CandidateProfile shape. The finalizer
+  // rejects layout markers, section headers, skills, roles, companies, and
+  // schools from name/headline, moves education out of experience, and dedupes.
+  // mergeCvProfile() and api.cv.name_override are removed from this path.
   const finalizedProfile = finalizeCanonicalCvProfile(input.resumeProfile as any, {
     rawText: input.rawCvText,
     fileName: input.fileName || "",
@@ -1129,20 +1119,9 @@ function buildResponse(input: {
     confidence: input.confidence,
   }) as ResumeProfile;
 
-  // The finalizer is the last profile-changing function. Attach the original
-  // uploaded text to the structured profile before freezing it. This is
-  // critical for Improve CV: if later pages only have a clean rendered profile
-  // text, experience bullets from complex/two-column PDFs can disappear. The
-  // rawText/previewText fields keep the original upload available as evidence
-  // for global recovery, rewriting, and rendering.
-  const resumeProfile = Object.freeze({
-    ...finalizedProfile,
-    rawText: input.rawCvText || (finalizedProfile as any).rawText || "",
-    previewText:
-      input.rawCvText?.slice(0, 1200) ||
-      (finalizedProfile as any).previewText ||
-      "",
-  }) as ResumeProfile;
+  // The finalizer is the last profile-changing function. Freeze so no later
+  // stage can mutate name, headline, experience, or education.
+  const resumeProfile = Object.freeze(finalizedProfile) as ResumeProfile;
 
   const finalizerConfidence = (resumeProfile as any).confidence || {};
   debugCvPipeline("api.cv.finalizer.identity_decision", {
@@ -1170,11 +1149,6 @@ function buildResponse(input: {
     profile: resumeProfile,
     fileName: input.fileName,
     candidateName: resumeProfile.basics?.name || "",
-    // Confidence gate — the client uses needsConfirmation to decide whether to
-    // show the "review what we read" screen before the interview starts.
-    needsConfirmation: input.needsConfirmation ?? false,
-    confidence: input.confidence,
-    confirmationReasons: input.confirmationReasons || [],
     chars: input.rawCvText.length,
     recruiterMemoryProfile: {
       candidateName: resumeProfile.basics?.name || "",
@@ -1521,106 +1495,20 @@ export async function POST(request: Request) {
           { status: 422 },
         );
 
-      // GLOBAL PERFORMANCE FIX:
-      // The upload route must be fast and reliable. Real user logs showed PDF text
-      // extraction completed quickly, but the AI structuring step held /api/cv open
-      // for ~49 seconds. That can make the browser abort or show a timeout even
-      // though the CV was already readable.
+      // Production decision after testing: AI parser is primary.
+      // Affinda is currently too inconsistent for WorkZo CVs (often returns no experience/education
+      // and misclassifies skills/section text as the candidate name). We keep it only as a fallback
+      // when the AI parser produces a weak structure.
       //
-      // Therefore multipart CV upload now returns immediately with the raw extracted
-      // text plus the deterministic local profile. The app can continue without
-      // blocking the user. If you ever want to force the old synchronous AI parser
-      // for internal QA, set WORKZO_SYNC_AI_CV_UPLOAD=true in .env.local.
-      const localFastProfile = repairResumeProfileAfterParsing(
-        extractResumeProfileComplex(cleanedCv),
-        cleanedCv,
-        safeFileName,
-      );
-
-      if (process.env.WORKZO_SYNC_AI_CV_UPLOAD !== "true") {
-        // PRIMARY PATH: vision extraction from page images. Reading the rendered
-        // page (not flattened text) is what makes name/experience/skills reliable
-        // across columns, banners, spaced-caps, and any language. Only for PDFs;
-        // plain-text uploads keep the deterministic path below. Guarded by the
-        // request deadline so we never risk a browser-side timeout.
-        if (
-          fileType === "application/pdf" &&
-          process.env.OPENROUTER_API_KEY &&
-          Date.now() < requestDeadline - 20000
-        ) {
-          try {
-            // Direct-PDF path: send the PDF straight to a document-capable vision
-            // model (e.g. Gemini). No rasterization, so NO native image libraries
-            // (@napi-rs/canvas / pdfjs) in the import graph — those caused the
-            // native-binding crash on Windows dev and behave identically here on
-            // Windows and on Linux/Vercel. If the model call fails for any reason,
-            // the catch below degrades gracefully to the deterministic profile.
-            const pdfDataUrl = `data:application/pdf;base64,${buffer.toString("base64")}`;
-            const vision = await extractCvWithVision({
-              pdfDataUrl,
-              fileName: safeFileName,
-              // Cheap email from the deterministic parse doubles as the name oracle.
-              email: localFastProfile.basics?.email || "",
-            });
-
-            if (vision.ok) {
-              debugCvProfile("api.cv.vision.profile", vision.resumeProfile, {
-                fileName: safeFileName,
-                source: "vision_structured_cv",
-                confidence: vision.confidence,
-                needsConfirmation: vision.needsConfirmation,
-              });
-              return buildResponse({
-                aiOk: true,
-                source: "vision_structured_cv",
-                error: "",
-                rawCvText: cleanedCv,
-                resumeProfile: vision.resumeProfile,
-                fileName: safeFileName,
-                candidateName: vision.resumeProfile.basics?.name || "",
-                needsConfirmation: vision.needsConfirmation,
-                confidence: vision.confidence,
-                confirmationReasons: vision.confirmationReasons,
-              });
-            }
-            // vision.ok === false → fall through to the deterministic profile.
-            debugCvPipeline("api.cv.vision.fallback", {
-              fileName: safeFileName,
-              reason: vision.source,
-              error: vision.error,
-            });
-          } catch (visionErr) {
-            // Rasterize/model failure must never block the upload; fall through.
-            debugCvPipeline("api.cv.vision.error", {
-              fileName: safeFileName,
-              error:
-                visionErr instanceof Error ? visionErr.message : String(visionErr),
-            });
-          }
-        }
-
-        // FALLBACK PATH: deterministic local profile. Lower confidence by
-        // definition, so always force the client-side review screen.
-        debugCvProfile("api.cv.fast_upload.local_profile", localFastProfile, {
-          fileName: safeFileName,
-          source: "local_fast_upload",
-        });
-        return buildResponse({
-          aiOk: false,
-          source: "local_fast_upload_ai_structuring_deferred",
-          error: "AI CV structuring was deferred so upload stays responsive.",
-          rawCvText: cleanedCv,
-          resumeProfile: localFastProfile,
-          fileName: safeFileName,
-          needsConfirmation: true,
-          confirmationReasons: [
-            "Used the fast deterministic parser; please review the extracted details.",
-          ],
-        });
-      }
-
-      // Optional synchronous AI parsing path for internal QA only.
-      // Keep this behind WORKZO_SYNC_AI_CV_UPLOAD=true because it can be slow.
+      // Defensive try/catch here, in addition to the one inside
+      // parseResumeWithAiStructure itself: when OpenRouter returns a
+      // malformed/non-JSON response body (rate-limit page, truncated
+      // stream, upstream timeout), the OpenAI SDK's own internal response
+      // parsing can throw in a way that escapes its caller's try/catch -
+      // surfacing as an uncaught "SyntaxError: No number after minus sign
+      // in JSON" 500 for the whole route instead of degrading to the local
+      // fallback parser. This guarantees the route always returns clean
+      // JSON instead of crashing.
       let aiResult;
       try {
         aiResult = await parseResumeWithAiStructure({
@@ -1666,64 +1554,15 @@ export async function POST(request: Request) {
         });
       }
 
-      // Affinda is the slower fallback; only run it if enough time remains.
-      const timeLeftForAffinda = requestDeadline - Date.now();
-      if (timeLeftForAffinda < 8000) {
-        return buildResponse({
-          aiOk: aiResult.ok,
-          source: `${aiResult.source}_affinda_skipped_low_time`,
-          error: aiResult.error || "CV parser produced a weak structure.",
-          rawCvText: cleanedCv,
-          resumeProfile: aiResult.resumeProfile,
-          fileName: safeFileName,
-        });
-      }
-
-      const affinda = await parseWithAffinda({
-        buffer,
-        fileName: safeFileName,
-        fileType,
-        rawText: cleanedCv,
-        deadline: requestDeadline,
-      });
-
-      if (
-        affinda.ok &&
-        affinda.resumeProfile
-      ) {
-        affinda.resumeProfile = lockResumeProfileIdentity({
-          profile: affinda.resumeProfile,
-          rawText: cleanedCv,
-          fileName: safeFileName,
-        });
-      }
-
-      if (
-        affinda.ok &&
-        affinda.resumeProfile &&
-        isProfileUsable(affinda.resumeProfile)
-      ) {
-        debugCvProfile("api.cv.affinda.fallback_output", affinda.resumeProfile, {
-          fileName: safeFileName,
-          source: affinda.source,
-          ok: affinda.ok,
-          name: affinda.resumeProfile.basics?.name,
-        });
-
-        return buildResponse({
-          aiOk: true,
-          source: `${affinda.source}_ai_fallback`,
-          error: aiResult.error,
-          rawCvText: cleanedCv,
-          resumeProfile: affinda.resumeProfile,
-          fileName: safeFileName,
-        });
-      }
-
+      // Resilient upload path: once text extraction succeeds, never make the
+      // candidate wait for a second slow parser before returning. The AI parser
+      // already falls back to the deterministic local parser on timeout/error.
+      // Returning here keeps onboarding responsive and prevents the browser from
+      // showing a false "reading took too long" upload failure.
       return buildResponse({
         aiOk: aiResult.ok,
-        source: `${aiResult.source}_affinda_rejected`,
-        error: aiResult.error || affinda.error || "CV parser produced a weak structure.",
+        source: `${aiResult.source}_resilient_upload_returned_without_slow_fallback`,
+        error: aiResult.error || "CV parser used the best available structure.",
         rawCvText: cleanedCv,
         resumeProfile: aiResult.resumeProfile,
         fileName: safeFileName,

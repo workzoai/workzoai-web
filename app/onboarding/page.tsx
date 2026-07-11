@@ -1002,7 +1002,7 @@ export default function OnboardingPage() {
     launchInterview();
   }
 
-  function handleIdentityConfirmed(edited: { name: string; headline: string }) {
+  function handleIdentityConfirmed(edited: { name: string; role: string }) {
     setShowIdentityConfirm(false);
     setIdentityConfirmed(true);
 
@@ -1013,7 +1013,7 @@ export default function OnboardingPage() {
         basics: {
           ...(base.basics || {}),
           name: edited.name || base.basics?.name || "",
-          headline: edited.headline || base.basics?.headline || "",
+          headline: edited.role || base.basics?.headline || "",
         },
       } as ResumeProfile;
       setAiResumeProfile(correctedProfile);
@@ -1026,7 +1026,7 @@ export default function OnboardingPage() {
           setup,
           rawCvText: manualCv,
           jobDescription: jobDescription.trim(),
-          role: role || correctedProfile.basics.headline || "General Role",
+          role: edited.role || role || correctedProfile.basics.headline || "General Role",
           market,
           companyStyle,
           recruiter: recruiter as RecruiterKey,
@@ -1042,7 +1042,7 @@ export default function OnboardingPage() {
       // Also sync the legacy identity store so every reader agrees with the
       // user's explicit confirmation, the highest-authority identity source.
       try {
-        saveCandidateIdentity({ name: edited.name, headline: edited.headline });
+        saveCandidateIdentity({ name: edited.name, headline: edited.role });
       } catch { /* non-fatal */ }
 
       // GLOBAL FIX (stale-state race): launchInterview() calls persistFast(),
@@ -1483,6 +1483,7 @@ export default function OnboardingPage() {
         open={showIdentityConfirm}
         profile={aiResumeProfile}
         fileName={fileName}
+        initialRole={role}
         onConfirm={handleIdentityConfirmed}
         onCancel={() => setShowIdentityConfirm(false)}
       />

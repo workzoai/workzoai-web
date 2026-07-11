@@ -41,16 +41,35 @@ function workzoCleanCandidateName(value: unknown, fallback = "Candidate") {
 function workzoExtractNameFromRawCv(rawText: string) {
   const normalized = String(rawText || "");
 
-  const lines = normalized
+  const allLines = normalized
     .split(/\n+/)
     .map((line) => line.trim())
     .filter(Boolean)
     .slice(0, 40);
 
-  for (const line of lines) {
+  // A person's name only ever lives in the header block, ABOVE the first real
+  // section header. Scanning past the first section (SKILLS, EXPERIENCE, ...)
+  // lets the fallback borrow a section-body phrase (a skill, a company, a
+  // degree — whatever comes first for that CV) and render it as the candidate's
+  // name whenever the true header line stops being name-shaped (e.g. the user
+  // trims it in the editable box). Bound the scan to the header region so a
+  // name is never taken from inside a section. Global: language/CV agnostic.
+  const firstSectionIdx = allLines.findIndex((line) => findSectionKind(line));
+  const headerLines =
+    firstSectionIdx === -1 ? allLines : allLines.slice(0, firstSectionIdx);
+
+  for (const line of headerLines) {
     const candidate = workzoCleanCandidateName(line, "");
     if (candidate) return candidate;
   }
+
+  // No strictly name-shaped line in the header (common mid-edit, e.g. a
+  // single-word first line): trust top-of-document position and keep the first
+  // header line as-is rather than reaching into a later section.
+  const firstHeaderLine = headerLines.find(
+    (line) => !/@|www|http/.test(line) && !findSectionKind(line),
+  );
+  if (firstHeaderLine && firstHeaderLine.length <= 60) return firstHeaderLine;
 
   const email = normalized.match(/\b([a-z][a-z0-9._-]{2,})@[a-z0-9.-]+\.[a-z]{2,}\b/i)?.[1] || "";
   const emailName = email
@@ -755,8 +774,8 @@ function extractDate(line = "") {
   const monthDate = new RegExp(`(?:${MONTH_RE})\\.?\\s*(?:19|20)\\d{2}\\s*[-]\\s*(?:present|current|heute|now|(?:${MONTH_RE})\\.?\\s*(?:19|20)\\d{2}|(?:19|20)\\d{2})`, "i").exec(clean)?.[0];
   // Allow optional spaces around the slash: "10 / 2020 - HEUTE" (common in
   // German/European CV templates) as well as "10/2020 - 06/2021".
-  const numericDate = clean.match(/(?:0?[1-9]|1[0-2])\s*\/\s*(?:19|20)\d{2}\s*[-]\s*(?:present|current|heute|(?:0?[1-9]|1[0-2])\s*\/\s*(?:19|20)\d{2})/i)?.[0];
-  const yearDate = clean.match(/(?:19|20)\d{2}\s*[-]\s*(?:present|current|heute|(?:19|20)\d{2})/i)?.[0];
+  const numericDate = clean.match(/(?:0?[1-9]|1[0-2])\s*\/\s*(?:19|20)\d{2}\s*(?:[-\u2013\u2014]|to|until|bis)\s*(?:present|current|heute|(?:0?[1-9]|1[0-2])\s*\/\s*(?:19|20)\d{2})/i)?.[0];
+  const yearDate = clean.match(/(?:19|20)\d{2}\s*(?:[-\u2013\u2014]|to|until|bis)\s*(?:present|current|heute|(?:19|20)\d{2})/i)?.[0];
   const singleYear = clean.match(/\b(?:19|20)\d{2}\b/)?.[0];
   return monthDate || numericDate || yearDate || singleYear || "";
 }
@@ -961,9 +980,46 @@ function extractBasics(lines: string[], rawText: string) {
     return "";
   }
 
-  const directName = top.find(looksLikeName) || lines.find(looksLikeName) || findTwoLineStylizedName() || "";
+  // A name only lives in the header block, ABOVE the first section header. The
+  // old fallback `lines.find(looksLikeName)` scanned the WHOLE document, so as
+  // soon as the header line stopped being name-shaped it grabbed the first
+  // 2-word capitalized phrase anywhere — typically the first skill (e.g. "Team
+  // Collaboration"), but for another CV it could be a company or a degree — and
+  // rendered THAT as the candidate's name. Bound every name search to the
+  // header region so a name is never borrowed from a section body. This is the
+  // global fix: it is independent of the specific CV and language.
+  const firstSectionIdx = lines.findIndex((line) => findSectionKind(line));
+  const headerRegion = firstSectionIdx === -1 ? top : lines.slice(0, firstSectionIdx);
+  const headerScan = headerRegion.length ? headerRegion : top;
+
+  const directName =
+    headerScan.find(looksLikeName) || findTwoLineStylizedName() || "";
+
+  // If nothing in the header is strictly name-shaped (common mid-edit, e.g. a
+  // single-word first line), trust top-of-document position and keep the first
+  // non-contact header line as-is instead of reaching into a section.
+  const firstHeaderLine = headerScan.find(
+    (line) =>
+      line &&
+      line.length <= 60 &&
+      !isContactLine(line) &&
+      !findSectionKind(line) &&
+      !ROLE_RE.test(line) &&
+      !DEGREE_RE.test(line) &&
+      !COMPANY_WORD_RE.test(line),
+  );
+
   const extractedCandidateName = workzoExtractNameFromRawCv(rawText);
-  const name = workzoCleanCandidateName(directName ? titleCase(directName) : inferNameFromEmail() || "Candidate", extractedCandidateName || "Candidate");
+  const strictName = workzoCleanCandidateName(
+    directName ? titleCase(directName) : inferNameFromEmail() || "Candidate",
+    extractedCandidateName || "Candidate",
+  );
+  const name =
+    strictName && strictName !== "Candidate"
+      ? strictName
+      : firstHeaderLine
+        ? titleCase(firstHeaderLine)
+        : strictName;
 
   const headlineLine =
     lines.slice(0, 30).find((line) => ROLE_RE.test(line) && line.length <= 95 && !isContactLine(line) && !COMPANY_WORD_RE.test(line)) ||
@@ -1250,18 +1306,25 @@ function extractEducation(sections: SectionMap, lines: string[]) {
     .filter((line) => !isLanguageLine(line));
   const items: ResumeEducation[] = [];
 
+  // NB: an earlier version stripped a trailing "Capitalized Capitalized" pair to
+  // drop a stray trailing name/location. That also truncated real degree fields
+  // ("... Space Science and Technology" -> "... Space Science", "Bachelor's
+  // Degree in Aeronautical Engineering" -> "Bachelor's Degree in") and real
+  // institution names ("University of Applied Sciences" -> "University of").
+  // It was previously masked by dates left glued to the line; once dates parse
+  // correctly it corrupts the field, so it is removed.
   function cleanDegree(line = "") {
     return titleCase(removeDate(line))
-      .replace(/\b[A-Z][a-z]+\s+[A-Z][a-z]+\b(?=\s*$)/g, "")
       .replace(/\bCandidate\b/gi, "")
+      .replace(/[,;]\s*$/, "")
       .replace(/\s+/g, " ")
       .trim();
   }
 
   function cleanInstitution(line = "") {
     return titleCase(removeDate(line))
-      .replace(/\b[A-Z][a-z]+\s+[A-Z][a-z]+\b(?=\s*$)/g, "")
       .replace(/\bCandidate\b/gi, "")
+      .replace(/[,;]\s*$/, "")
       .replace(/\s+/g, " ")
       .trim();
   }
@@ -1274,44 +1337,85 @@ function extractEducation(sections: SectionMap, lines: string[]) {
     return EDUCATION_ORG_RE.test(line) && !ACTION_RE.test(line) && !ROLE_RE.test(line);
   }
 
+  // Degree-level key so the SAME qualification at the SAME school collapses to
+  // one entry even when the source repeats it with a different date format
+  // (a common export artifact). Level = bachelor/master/phd/etc; falls back to
+  // the whole normalized degree when no level word is present.
+  const degreeLevel = (degree: string) => {
+    const m = /\b(ph\.?d|doctorate|doktor|master|magister|m\.?sc|m\.?a|mba|bachelor|b\.?sc|b\.?a|b\.?eng|diploma|diplom|associate|abitur)\b/i.exec(degree || "");
+    return (m ? m[1] : degree || "").toLowerCase().replace(/[^a-z]/g, "");
+  };
+  const dedupeKey = (degree: string, institution: string) =>
+    `${degreeLevel(degree)}|${institution.toLowerCase().replace(/[^a-z0-9]/g, "")}`;
+  // Prefer a full range ("2013 - 2016") over a single year, and any date over none.
+  const betterDates = (a = "", b = "") => {
+    const rank = (d: string) => (/-/.test(d) ? 2 : d ? 1 : 0);
+    return rank(b) > rank(a) ? b : a;
+  };
+
   function add(item: ResumeEducation) {
     const degree = cleanDegree(item.degree);
     const institution = cleanInstitution(item.institution);
     const dates = normalizeDate(item.dates || extractDate(`${item.degree} ${item.institution}`));
     if (!degree && !institution) return;
     if (ROLE_RE.test(`${degree} ${institution}`)) return;
-    const key = `${degree}|${institution}|${dates}`.toLowerCase().replace(/\s+/g, " ").trim();
-    if (items.some((existing) => `${existing.degree}|${existing.institution}|${existing.dates}`.toLowerCase().replace(/\s+/g, " ").trim() === key)) return;
-    items.push({ degree: degree || "Education", institution: institution !== degree ? institution : "", location: item.location || "", dates });
+    const inst = institution !== degree ? institution : "";
+    const key = dedupeKey(degree, inst);
+    const existing = items.find((e) => dedupeKey(e.degree, e.institution) === key);
+    if (existing) {
+      // Merge duplicates instead of emitting a second, differently-dated row.
+      existing.dates = betterDates(existing.dates, dates);
+      if (!existing.institution && inst) existing.institution = inst;
+      if (!existing.location && item.location) existing.location = item.location;
+      return;
+    }
+    items.push({ degree: degree || "Education", institution: inst, location: item.location || "", dates });
   }
 
-  for (let i = 0; i < source.length; i += 1) {
-    const line = source[i];
-    if (!line || findSectionKind(line) || isContactLine(line) || isSkillCategory(line) || isProbablyBullet(line)) continue;
-
-    if (isOrg(line)) {
-      let degree = "";
-      let dates = normalizeDate(extractDate(line));
-      for (let j = i - 3; j <= i + 5; j += 1) {
-        if (j < 0 || j >= source.length || j === i) continue;
-        const candidate = source[j];
-        if (!degree && isDegree(candidate)) degree = candidate;
-        if (!dates && extractDate(candidate) && !ROLE_RE.test(candidate)) dates = normalizeDate(extractDate(candidate));
-      }
-      add({ degree, institution: line, location: "", dates });
+  // Pair education lines SEQUENTIALLY into blocks. The old code scanned a wide
+  // +/-window from every degree AND every institution line, so degrees paired
+  // with the wrong school and dates were pulled from a neighbouring block. In
+  // practice an entry is a "degree line" and the nearest adjacent "institution
+  // line" (either order); dates sit on whichever line carries them. Walk the
+  // section once and close a block when the pair is complete or a new degree
+  // starts.
+  // NB: do NOT exclude with isContactLine here. isContactLine flags any line
+  // containing a 4-digit number (its postal-code heuristic), which also matches
+  // a degree line carrying an inline year ("... Technology 2013 - 2016"). That
+  // would strip every dated degree line and leave only institutions. Real
+  // contact lines (email/phone/url) are neither a degree nor an institution, so
+  // the isDegree/isOrg gates in the loop below ignore them anyway.
+  const rows = source.filter(
+    (line) => line && !findSectionKind(line) && !isSkillCategory(line) && !isProbablyBullet(line),
+  );
+  type Block = { degree?: string; institution?: string; dates?: string; location?: string };
+  const blocks: Block[] = [];
+  let cur: Block | null = null;
+  const flush = () => {
+    if (cur && (cur.degree || cur.institution)) blocks.push(cur);
+    cur = null;
+  };
+  for (const line of rows) {
+    const isDeg = isDegree(line);
+    const isInst = !isDeg && isOrg(line);
+    const date = normalizeDate(extractDate(line));
+    if (isDeg) {
+      if (cur && cur.degree) flush();
+      if (!cur) cur = {};
+      cur.degree = line;
+      if (date && !cur.dates) cur.dates = date;
+    } else if (isInst) {
+      if (!cur) cur = {};
+      if (!cur.institution) cur.institution = line;
+      if (date && !cur.dates) cur.dates = date;
+      if (cur.degree) flush();
+    } else if (date && cur && !cur.dates) {
+      cur.dates = date;
     }
-
-    if (isDegree(line)) {
-      let institution = "";
-      let dates = normalizeDate(extractDate(line));
-      for (let j = i - 3; j <= i + 5; j += 1) {
-        if (j < 0 || j >= source.length || j === i) continue;
-        const candidate = source[j];
-        if (!institution && isOrg(candidate)) institution = candidate;
-        if (!dates && extractDate(candidate) && !ROLE_RE.test(candidate)) dates = normalizeDate(extractDate(candidate));
-      }
-      add({ degree: line, institution, location: "", dates });
-    }
+  }
+  flush();
+  for (const b of blocks) {
+    add({ degree: b.degree || "", institution: b.institution || "", location: b.location || "", dates: b.dates || "" });
   }
 
   return items
@@ -1333,7 +1437,10 @@ function extractProjects(sections: SectionMap, lines: string[]) {
   if (!sections.projects.length) return [];
 
   const titles = extractProjectTitles(lines, sections);
-  const projects: ResumeProject[] = titles.map((name) => ({ name: workzoCleanCandidateName(name, "Candidate"), bullets: [] }));
+  // A project title is NOT a person's name. Running it through the candidate
+  // name cleaner made every non-name-shaped title (which is almost all of them)
+  // collapse to the "Candidate" fallback, so Projects rendered as "Candidate".
+  const projects: ResumeProject[] = titles.map((name) => ({ name, bullets: [] }));
   let currentIndex = projects.length ? 0 : -1;
   const titleKeys = new Map(titles.map((title, index) => [title.toLowerCase(), index]));
 

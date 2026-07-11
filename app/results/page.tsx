@@ -189,6 +189,8 @@ type RichReport = {
   improvementPlan: Array<{ priority: string; title: string; action: string; gain: string }>;
   thirtyDayPlan: Array<{ week: string; focus: string; action: string }>;
   starCoaching: Array<{ question: string; whatYouSaid: string; missingComponent: string; coachingTip: string; howToAnswer: string }>;
+  answerBreakdown: AnswerBreakdown[];
+  coachingTrends: CoachingTrends;
   missedOpportunities: string[];
   recruiterSummary: string;
   hiringCommittee: WorkZoHiringCommitteeMemo;
@@ -789,6 +791,227 @@ function hireRecommendationFromScore(score: number): string {
   return "Strong No Hire";
 }
 
+// ─── Answer Breakdown & Coaching ────────────────────────────────────────────
+// A grounded, per-answer analysis: a real STAR breakdown (each part scored),
+// which JD requirements the answer hit, which CV achievements the candidate
+// could have used, what impressed and what weakened the answer, and a rewritten
+// version. Only the strongest and weakest answers are surfaced, plus trends, so
+// the section stays useful without asking the reader to scroll every question.
+
+type StarStatus = "good" | "watch" | "missing";
+type StarPart = { key: string; status: StarStatus; note: string };
+type AnswerBreakdown = {
+  id: string;
+  kind: "strength" | "weakness";
+  question: string;
+  quote: string;
+  score: number;
+  star: StarPart[];
+  jdHits: string[];
+  cvEvidence: string[];
+  impressed: string[];
+  weakened: string[];
+  improved: string;
+};
+type CoachingTrends = {
+  weakWords: Array<{ word: string; count: number }>;
+  evidenceUsed: Array<{ label: string; rating: number }>;
+  recruiterImpression: string;
+};
+
+function capWords(value: string): string {
+  return value.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Pull the strongest CV achievements (sentences carrying a metric) and a set of
+// recognisable skills, straight from the candidate's own CV text.
+function extractCvEvidence(cvText: string): { achievements: string[]; skills: string[] } {
+  const text = cleanText(cvText, "");
+  if (!text) return { achievements: [], skills: [] };
+  const sentences = text
+    .split(/[\n.;•|]+/)
+    .map((s) => s.trim().replace(/\s+/g, " "))
+    .filter((s) => s.length >= 12 && s.length <= 170);
+  const achievements = uniqueList(sentences.filter((s) => hasMetric(s)), [], 6) as string[];
+  const skillLib = [
+    "sql", "python", "rest api", "api", "troubleshooting", "automation", "kubernetes",
+    "docker", "aws", "azure", "react", "javascript", "typescript", "excel", "salesforce",
+    "zendesk", "jira", "linux", "networking", "debugging", "documentation", "onboarding",
+    "csat", "sla", "first-call resolution", "root cause", "escalation", "knowledge base",
+  ];
+  const lower = text.toLowerCase();
+  const skills = skillLib.filter((s) => lower.includes(s)).map((s) => capWords(s)).slice(0, 10);
+  return { achievements, skills };
+}
+
+// Heuristic STAR breakdown for a single answer.
+function detectStarParts(answer: string, insight: AnswerInsight): StarPart[] {
+  const t = (answer || "").toLowerCase();
+  const words = insight.wordCount;
+
+  const hasContext = /\b(when|while|at |during|in my role|for a|customer|client|project|team|company|we had|there was|one time|a time|the issue|a ticket)\b/.test(t);
+  const situation: StarPart = words < 12
+    ? { key: "Situation", status: "missing", note: "Answer ended before any context was set." }
+    : hasContext
+      ? { key: "Situation", status: "good", note: "The context is clear." }
+      : { key: "Situation", status: "watch", note: "Set the scene in one sentence: where and when." };
+
+  const hasTask = /\b(responsible|my job|my role|i had to|i needed to|asked to|tasked|the goal|my task|supposed to|expected to|in charge|owned the)\b/.test(t);
+  const task: StarPart = words < 12
+    ? { key: "Task", status: "missing", note: "Name what you were responsible for." }
+    : hasTask
+      ? { key: "Task", status: "good", note: "Your responsibility is stated." }
+      : { key: "Task", status: "watch", note: "Say what you specifically had to do." };
+
+  const action: StarPart = insight.ownershipPresent
+    ? { key: "Action", status: "good", note: "Clear personal actions using 'I'." }
+    : { key: "Action", status: "missing", note: "Unclear what you did versus the team. Use 'I'." };
+
+  const result: StarPart = insight.resultPresent && insight.metricPresent
+    ? { key: "Result", status: "good", note: "A measurable outcome is given." }
+    : insight.resultPresent
+      ? { key: "Result", status: "watch", note: "Outcome stated but not measurable. Add a number." }
+      : { key: "Result", status: "missing", note: "No outcome. Close with what changed." };
+
+  return [situation, task, action, result];
+}
+
+function answerScore(insight: AnswerInsight): number {
+  return clamp(Math.round(insight.structureScore * 0.4 + insight.evidenceScore * 0.4 + insight.trustImpact * 0.2));
+}
+
+function answerJdHits(answer: string, jdKeywords: string[]): string[] {
+  const stems = new Set(
+    (answer || "").toLowerCase().replace(/[^a-z0-9\s-]/g, " ").split(/\s+/).filter(Boolean).map(stemToken),
+  );
+  return jdKeywords
+    .filter((kw) => {
+      const toks = kw.split(/[\s-]+/).filter((x) => x.length > 2).map(stemToken);
+      return toks.length > 0 && toks.every((tk) => stems.has(tk));
+    })
+    .slice(0, 5);
+}
+
+function buildOneBreakdown(
+  insight: AnswerInsight,
+  kind: "strength" | "weakness",
+  jdKeywords: string[],
+  cv: { achievements: string[]; skills: string[] },
+): AnswerBreakdown {
+  const quote = truncateAtSentence(insight.answer, 150) || "Answer not captured yet.";
+  const star = detectStarParts(insight.answer, insight);
+  const jdHits = answerJdHits(insight.answer, jdKeywords).map(capWords);
+
+  const impressed: string[] = [];
+  if (insight.ownershipPresent) impressed.push("Clear personal ownership.");
+  if (insight.metricPresent) impressed.push("Quantified the impact.");
+  if (insight.resultPresent) impressed.push("Closed with an outcome.");
+  if (jdHits.length) impressed.push(`Hit role keywords: ${jdHits.slice(0, 3).join(", ")}.`);
+  if (!impressed.length) impressed.push("On topic and engaged.");
+
+  const weakened: string[] = [];
+  if (insight.wordCount < 25) weakened.push("Too short to show depth.");
+  if (!insight.ownershipPresent) weakened.push("Unclear what you personally did.");
+  if (!insight.metricPresent) weakened.push("No measurable result.");
+  if ((insight.hedgeCount ?? 0) >= 2) weakened.push("Hedging language weakened confidence.");
+  if ((insight.fillerCount ?? 0) >= 4) weakened.push("Filler words broke the flow.");
+
+  // Surface CV evidence when the spoken answer lacked proof but the CV has it.
+  const cvEvidence: string[] = [];
+  if (!insight.metricPresent && cv.achievements.length) {
+    cvEvidence.push(...cv.achievements.slice(0, 2));
+  }
+
+  const cvClause = cvEvidence.length ? ` For example: "${cvEvidence[0]}."` : " for example, [what changed, with a number].";
+  const improved = insight.ownershipPresent
+    ? `Keep the structure, then close with the result: "As a result,${cvClause}"`
+    : `Rewrite in the first person: "I diagnosed the issue, I implemented the fix, and as a result,${cvClause}"`;
+
+  return {
+    id: insight.id,
+    kind,
+    question: insight.question,
+    quote,
+    score: answerScore(insight),
+    star,
+    jdHits,
+    cvEvidence,
+    impressed: impressed.slice(0, 3),
+    weakened: weakened.slice(0, 3),
+    improved,
+  };
+}
+
+// Select the weakest few answers (to fix) and the strongest few (to reinforce),
+// so the section never asks the reader to review all fifteen questions.
+function buildAnswerBreakdown(
+  answerInsights: AnswerInsight[],
+  jobDescription: string,
+  cvText: string,
+): AnswerBreakdown[] {
+  const real = answerInsights.filter((a) => a.wordCount >= 4 && !/not captured/i.test(a.answer));
+  if (!real.length) return [];
+  const jdKeywords = extractJdKeywords(jobDescription);
+  const cv = extractCvEvidence(cvText);
+
+  const byScore = [...real].sort((a, b) => answerScore(a) - answerScore(b));
+  const weakest = byScore.slice(0, Math.min(4, byScore.length));
+  const weakestIds = new Set(weakest.map((a) => a.id));
+  const strongest = [...real]
+    .sort((a, b) => answerScore(b) - answerScore(a))
+    .filter((a) => !weakestIds.has(a.id))
+    .slice(0, 2);
+
+  return [
+    ...weakest.map((a) => buildOneBreakdown(a, "weakness", jdKeywords, cv)),
+    ...strongest.map((a) => buildOneBreakdown(a, "strength", jdKeywords, cv)),
+  ];
+}
+
+const WEAK_WORD_LIST = [
+  "usually", "i think", "maybe", "kind of", "sort of", "just", "probably",
+  "i guess", "you know", "basically", "honestly", "like", "i mean",
+];
+
+function buildCoachingTrends(
+  answerInsights: AnswerInsight[],
+  jobDescription: string,
+  cvText: string,
+): CoachingTrends {
+  const all = answerInsights.map((a) => a.answer || "").join(" \n ").toLowerCase();
+
+  const weakWords = WEAK_WORD_LIST
+    .map((w) => ({
+      word: w,
+      count: (all.match(new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g")) || []).length,
+    }))
+    .filter((w) => w.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  const answersCount = Math.max(answerInsights.filter((a) => a.wordCount >= 4).length, 1);
+  const jdKeywords = extractJdKeywords(jobDescription).slice(0, 6);
+  const evidenceUsed = jdKeywords.map((kw) => {
+    const touched = answerInsights.filter((a) => answerJdHits(a.answer, [kw]).length > 0).length;
+    return { label: capWords(kw), rating: clamp(Math.round((touched / answersCount) * 5), 0, 5) };
+  });
+
+  const ownershipRate = answerInsights.filter((a) => a.ownershipPresent).length / answersCount;
+  const metricRate = answerInsights.filter((a) => a.metricPresent).length / answersCount;
+  const cv = extractCvEvidence(cvText);
+  const parts: string[] = [];
+  if (ownershipRate >= 0.6) parts.push("You showed clear ownership in most answers");
+  else parts.push("You often described the work without making your own part obvious");
+  if (metricRate < 0.4) parts.push("but rarely closed with a measurable outcome");
+  else parts.push("and backed several answers with numbers");
+  let impression = `${parts.join(", ")}.`;
+  if (cv.achievements.length && metricRate < 0.5) {
+    impression += " Your CV holds stronger proof than you spoke aloud, lead with those achievements next time.";
+  }
+
+  return { weakWords, evidenceUsed, recruiterImpression: impression };
+}
+
 // ─── STAR Coaching (Interview Engine v2.0 spec) ─────────────────────────────
 // For each answer, identify which STAR component (Situation/Task, Action,
 // Result) was weak or missing, quote what the candidate actually said, and
@@ -1165,7 +1388,7 @@ function buildContradictions(result: StoredResult, insights: AnswerInsight[]) {
   return [];
 }
 
-function buildRichReport(result: StoredResult, isPremium: boolean, jobDescriptionOverride?: string): RichReport {
+function buildRichReport(result: StoredResult, isPremium: boolean, jobDescriptionOverride?: string, cvText: string = ""): RichReport {
   const pairs = buildPairs(result);
   const answerInsights = pairs.length
     ? pairs.map((pair, index) => analyzeAnswer(pair.question, pair.answer, index))
@@ -1190,7 +1413,7 @@ function buildRichReport(result: StoredResult, isPremium: boolean, jobDescriptio
     : numberOr(result.trustScore, numberOr(resultRecord.score?.trust, 0));
   const structureScore = answersCount > 0 ? average(answerInsights.map((item) => item.structureScore), 42) : 0;
   // ownershipScore: share of answers with clear personal ownership, mapped to a
-  // 40–95 band so "little ownership" reads as a genuine weak signal rather than
+  // 40-95 band so "little ownership" reads as a genuine weak signal rather than
   // an implausible near-zero.
   const ownershipScore = answersCount > 0
     ? clamp(Math.round(40 + (answerInsights.filter((a) => a.ownershipPresent).length / answersCount) * 55))
@@ -1421,6 +1644,8 @@ function buildRichReport(result: StoredResult, isPremium: boolean, jobDescriptio
       structureScore,
     }),
     starCoaching: buildStarCoaching(answerInsights),
+    answerBreakdown: buildAnswerBreakdown(answerInsights, resolvedJobDescription, cvText),
+    coachingTrends: buildCoachingTrends(answerInsights, resolvedJobDescription, cvText),
     missedOpportunities: buildMissedOpportunities(answerInsights, missingJdRequirements),
     recruiterSummary: buildRecruiterSummary({
       recruiterName,
@@ -2521,6 +2746,7 @@ export default function ResultsPage() {
           sourceResult,
           premiumNow,
           String((sourceResult as Record<string, unknown>).jobDescription || storedSetup.jobDescription || storedSetup.jdText || ""),
+          String((sourceResult as Record<string, unknown>).cvText || storedSetup.cvText || storedSetup.uploadedCvText || storedSetup.resumeText || ""),
         );
         const brain = updateCareerMemoryFromReport({
           targetRole: immediateReport.roleLabel,
@@ -2602,6 +2828,7 @@ export default function ResultsPage() {
       result,
       isPremium,
       String((result as Record<string, unknown>).jobDescription || setupContext.jobDescription || setupContext.jdText || ""),
+      String((result as Record<string, unknown>).cvText || setupContext.cvText || setupContext.uploadedCvText || setupContext.resumeText || ""),
     ),
     [result, isPremium, setupContext],
   );
@@ -2773,6 +3000,65 @@ export default function ResultsPage() {
 
             <ScoreRing score={sessionWiri.score} grade="WIRI" />
           </div>
+        </section>
+
+        <section className="mt-4 rounded-2xl border border-line bg-canvas-soft p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted">Decision dashboard</p>
+              <h2 className="mt-1 text-xl font-black">What decided this interview</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">
+                One clear verdict, the strongest signal, the main risk, and the fastest next action. Detailed analysis remains below when you need it.
+              </p>
+            </div>
+            <div className="rounded-xl border border-brand/20 bg-brand/10 px-4 py-3 text-right">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-brand">Hiring call</p>
+              <p className="mt-1 text-lg font-black text-fg">{report.decision}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-success/20 bg-success/[0.06] p-4">
+              <div className="flex items-center gap-2 text-success">
+                <CheckCircle2 className="h-4 w-4" />
+                <p className="text-xs font-black uppercase tracking-[0.14em]">Strongest signal</p>
+              </div>
+              <p className="mt-3 text-sm font-black leading-6 text-fg">{report.strengths?.[0] || "Relevant experience came through."}</p>
+            </div>
+            <div className="rounded-xl border border-danger/20 bg-danger/[0.05] p-4">
+              <div className="flex items-center gap-2 text-danger">
+                <XCircle className="h-4 w-4" />
+                <p className="text-xs font-black uppercase tracking-[0.14em]">Main blocker</p>
+              </div>
+              <p className="mt-3 text-sm font-black leading-6 text-fg">{report.biggestBlocker}</p>
+            </div>
+            <div className="rounded-xl border border-warning/20 bg-warning/[0.06] p-4">
+              <div className="flex items-center gap-2 text-warning">
+                <Target className="h-4 w-4" />
+                <p className="text-xs font-black uppercase tracking-[0.14em]">Fastest win</p>
+              </div>
+              <p className="mt-3 text-sm font-black leading-6 text-fg">{report.quickWin}</p>
+            </div>
+            <div className="rounded-xl border border-brand/20 bg-brand/[0.06] p-4">
+              <div className="flex items-center gap-2 text-brand">
+                <Gauge className="h-4 w-4" />
+                <p className="text-xs font-black uppercase tracking-[0.14em]">Next-round confidence</p>
+              </div>
+              <p className="mt-3 text-3xl font-black text-fg">{Math.round((report.trustScore + report.roleCompetencyScore + report.evidenceQuality) / 3)}%</p>
+              <p className="mt-1 text-xs leading-5 text-muted">Based on trust, role evidence, and proof density.</p>
+            </div>
+          </div>
+
+          {report.missingJdRequirements?.length ? (
+            <div className="mt-4 rounded-xl border border-line bg-fg/[0.025] p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">Important JD topics not demonstrated</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {report.missingJdRequirements.slice(0, 8).map((item) => (
+                  <span key={item} className="rounded-full border border-line bg-canvas px-3 py-1.5 text-xs font-bold text-fg">{item}</span>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <ExecutiveSummary
@@ -3128,24 +3414,92 @@ export default function ResultsPage() {
               </section>
             )}
 
-            {/* STAR coaching: per-answer, quoted, with the specific missing
-                STAR component and one concrete fix. */}
-            {report.starCoaching.length > 0 && (
+            {/* Answer breakdown & coaching: only the strongest and weakest
+                answers, each broken down by STAR, the JD, and the candidate's
+                own CV, plus session-wide trends. Grounded, not repetitive. */}
+            {report.answerBreakdown.length > 0 && (
               <section className="mt-4 rounded-2xl border border-line bg-fg/[0.035] p-5">
-                <h2 className="flex items-center gap-2 text-base font-black"><Star className="h-4 w-4 text-brand" />STAR coaching</h2>
-                <p className="mt-1 text-xs leading-5 text-muted">Situation, Task, Action, Result, where each answer fell short and how to fix it.</p>
+                <h2 className="flex items-center gap-2 text-base font-black"><Star className="h-4 w-4 text-brand" />Answer breakdown &amp; coaching</h2>
+                <p className="mt-1 text-xs leading-5 text-muted">Your strongest and weakest answers, broken down by STAR, the role, and your CV. Not every question, just what moves the needle.</p>
+
+                {/* Session trends */}
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-xl border border-line bg-canvas-soft p-3 md:col-span-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">Recruiter impression</p>
+                    <p className="mt-1.5 text-xs leading-5 text-fg">{report.coachingTrends.recruiterImpression}</p>
+                  </div>
+                  {report.coachingTrends.weakWords.length > 0 && (
+                    <div className="rounded-xl border border-line bg-canvas-soft p-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">Words that weakened you</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {report.coachingTrends.weakWords.map((w) => (
+                          <span key={w.word} className="rounded-full bg-danger/10 px-2 py-0.5 text-[11px] font-bold text-danger">&quot;{w.word}&quot; ×{w.count}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {report.coachingTrends.evidenceUsed.length > 0 && (
+                    <div className="rounded-xl border border-line bg-canvas-soft p-3 md:col-span-2">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">Evidence used vs the role</p>
+                      <div className="mt-2 space-y-1.5">
+                        {report.coachingTrends.evidenceUsed.map((e) => (
+                          <div key={e.label} className="flex items-center justify-between gap-3 text-xs">
+                            <span className="font-bold text-fg">{e.label}</span>
+                            <span className="tracking-widest"><span className="text-brand">{"★".repeat(e.rating)}</span><span className="text-muted">{"★".repeat(5 - e.rating)}</span></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Per-answer cards */}
                 <div className="mt-4 space-y-3">
-                  {report.starCoaching.map((item, index) => (
-                    <div key={index} className="rounded-xl border border-line bg-canvas-soft p-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">{item.question}</p>
-                      <p className="mt-2 text-xs italic leading-5 text-muted">"{item.whatYouSaid}"</p>
-                      <p className="mt-2 text-xs font-black text-danger">{item.missingComponent}</p>
-                      <p className="mt-1 text-xs leading-5 text-fg">{item.coachingTip}</p>
-                      {item.howToAnswer && (
-                        <div className="mt-3 rounded-lg border border-brand/20 bg-brand/[0.06] px-3 py-2.5">
-                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-brand mb-1">How to answer this</p>
-                          <p className="text-xs leading-5 text-fg">{item.howToAnswer}</p>
-                        </div>
+                  {report.answerBreakdown.map((a) => (
+                    <div key={a.id} className={cn("rounded-xl border p-3.5", a.kind === "strength" ? "border-success/30 bg-success/[0.05]" : "border-line bg-canvas-soft")}>
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">{a.question}</p>
+                        <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black", a.kind === "strength" ? "bg-success/15 text-success" : "bg-warning/15 text-warning")}>{a.kind === "strength" ? "Strong" : "Fix"} · {a.score}</span>
+                      </div>
+                      <p className="mt-2 text-xs italic leading-5 text-muted">&quot;{a.quote}&quot;</p>
+
+                      {/* STAR row */}
+                      <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                        {a.star.map((p) => (
+                          <div key={p.key} className="rounded-lg border border-line bg-canvas px-2 py-1.5">
+                            <span className="flex items-center gap-1.5 text-[11px] font-black text-fg">
+                              <span className={cn("h-2 w-2 rounded-full", p.status === "good" ? "bg-success" : p.status === "watch" ? "bg-warning" : "bg-danger")} />
+                              {p.key}
+                            </span>
+                            {a.kind === "weakness" && <span className="mt-0.5 block text-[10px] leading-4 text-muted">{p.note}</span>}
+                          </div>
+                        ))}
+                      </div>
+
+                      {a.jdHits.length > 0 && (
+                        <p className="mt-2.5 text-[11px] text-muted"><span className="font-black text-fg">Role match:</span> {a.jdHits.join(", ")}</p>
+                      )}
+
+                      {a.kind === "strength" ? (
+                        a.impressed.length > 0 && <p className="mt-1.5 text-[11px] leading-5 text-success">{a.impressed.join(" ")}</p>
+                      ) : (
+                        <>
+                          {a.weakened.length > 0 && <p className="mt-1.5 text-[11px] leading-5 text-danger">{a.weakened.join(" ")}</p>}
+                          {a.cvEvidence.length > 0 && (
+                            <div className="mt-2.5 rounded-lg border border-brand/20 bg-brand/[0.06] px-3 py-2">
+                              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-brand">Your CV already proves</p>
+                              <ul className="mt-1 space-y-0.5">
+                                {a.cvEvidence.map((c, i) => (
+                                  <li key={i} className="text-[11px] leading-5 text-fg">✔ {c}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          <div className="mt-2.5 rounded-lg border border-line bg-canvas px-3 py-2">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">Stronger version</p>
+                            <p className="mt-1 text-[11px] leading-5 text-fg">{a.improved}</p>
+                          </div>
+                        </>
                       )}
                     </div>
                   ))}

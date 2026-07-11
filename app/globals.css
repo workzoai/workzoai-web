@@ -5,7 +5,7 @@
 
 /* WorkZo AI, global design tokens
    Light is the default; .dark overrides the same vars.
-   Brand blue (#2563EB) is constant across both themes. */
+   Brand teal (#0D9488) is constant across both themes. */
 
 :root {
   /* surfaces */
@@ -22,8 +22,8 @@
   --wz-subtle: #475569;  /* matches muted, both now clearly readable on white */
 
   /* brand */
-  --wz-brand: #2563eb;
-  --wz-brand-strong: #1d4ed8;
+  --wz-brand: #0d9488;
+  --wz-brand-strong: #0f766e;
   --wz-on-brand: #ffffff;
 
   /* status */
@@ -40,7 +40,7 @@
   /* effects */
   --wz-shadow-card: 0 10px 40px rgba(15, 23, 42, 0.08);
   --wz-shadow-soft: 0 6px 24px rgba(15, 23, 42, 0.06);
-  --wz-gradient-primary: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  --wz-gradient-primary: linear-gradient(135deg, #0d9488 0%, #0e7490 100%);
   --wz-gradient-bg: linear-gradient(180deg, #ffffff 0%, #f5f7fb 100%);
 
   /* legacy aliases (kept so any stragglers still resolve) */
@@ -65,8 +65,8 @@
   --wz-muted: #94a3b8;   /* 6.84:1 on dark canvas, passes AA */
   --wz-subtle: #94a3b8;  /* matches muted, both clearly readable on dark bg */
 
-  --wz-brand: #3b82f6;
-  --wz-brand-strong: #2563eb;
+  --wz-brand: #14b8a6;
+  --wz-brand-strong: #0d9488;
   --wz-on-brand: #ffffff;
 
   --wz-success: #34d399;
@@ -153,7 +153,7 @@ a {
   background: var(--wz-gradient-primary);
   color: var(--wz-on-brand);
   font-weight: 900;
-  box-shadow: 0 16px 44px rgba(37, 99, 235, 0.28);
+  box-shadow: 0 16px 44px rgba(13, 148, 136, 0.28);
 }
 
 .wz-secondary-button {
@@ -300,5 +300,172 @@ a {
 @media (max-width: 1024px) {
   .wz-hero-slow-zoom {
     animation: none;
+  }
+}
+/* ─────────────────────────────────────────────────────────────
+   Cinematic motion layer (landing page)
+   Entrance, scroll-reveal, ambient float, breathing glow, sheen.
+   All neutralized by the prefers-reduced-motion block above.
+   ───────────────────────────────────────────────────────────── */
+
+@keyframes wzRevealUp {
+  from {
+    opacity: 0;
+    transform: translateY(34px) scale(0.955);
+    filter: blur(7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes wzFloat {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(14px, -40px, 0) scale(1.12);
+  }
+}
+
+@keyframes wzGlowBreathe {
+  0%, 100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes wzSheen {
+  0% {
+    transform: translateX(-140%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+
+/* Staggered hero entrance. Add inline animation-delay for the stagger. */
+.wz-in {
+  opacity: 0;
+  animation: wzRevealUp 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+
+/* Scroll reveal: hidden until IntersectionObserver adds .is-visible.
+   A no-JS / no-observer fallback in the page reveals everything. */
+.wz-reveal {
+  opacity: 0;
+  transform: translateY(38px) scale(0.98);
+  transition: opacity 0.9s cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 0.9s cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+  filter: blur(4px);
+  will-change: opacity, transform;
+}
+
+.wz-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+  filter: blur(0);
+}
+
+/* Slow ambient orbs behind the hero. */
+.wz-float-orb {
+  animation: wzFloat 14s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Breathing spotlight for the hero glow. */
+.wz-glow-breathe {
+  animation: wzGlowBreathe 9s ease-in-out infinite;
+  transform-origin: center top;
+}
+
+/* Sheen sweep for a primary CTA (wrap in an overflow-hidden element). */
+.wz-sheen::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 45%;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(255, 255, 255, 0.28),
+    transparent
+  );
+  transform: translateX(-140%) skewX(-18deg);
+  animation: wzSheen 4.6s ease-in-out 1.2s infinite;
+  pointer-events: none;
+}
+
+/* Perf + taste: calm the heaviest ambient motion on small screens. */
+@media (max-width: 1024px) {
+  .wz-float-orb,
+  .wz-glow-breathe {
+    animation: none;
+  }
+}
+
+/* Animated gradient sweep for a headline keyword. */
+@keyframes wzGradientPan {
+  to {
+    background-position: 200% center;
+  }
+}
+
+.wz-gradient-text {
+  background-image: linear-gradient(
+    90deg,
+    var(--wz-brand) 0%,
+    #22d3ee 25%,
+    #5eead4 50%,
+    #22d3ee 75%,
+    var(--wz-brand) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: wzGradientPan 5.5s linear infinite;
+}
+
+/* Slow drifting gradient wash behind the hero for depth. */
+@keyframes wzBgDrift {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1.12);
+  }
+  50% {
+    transform: translate3d(3%, 2.5%, 0) scale(1.2);
+  }
+}
+
+.wz-hero-bg {
+  background-image:
+    radial-gradient(55% 45% at 18% 8%, rgba(20, 184, 166, 0.20), transparent 60%),
+    radial-gradient(45% 45% at 86% 12%, rgba(8, 145, 178, 0.18), transparent 60%),
+    radial-gradient(55% 55% at 62% 95%, rgba(13, 148, 136, 0.14), transparent 62%);
+  animation: wzBgDrift 24s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Parallax layer driven by --wz-parallax (set from scroll in the page). */
+.wz-parallax {
+  transform: translate3d(0, var(--wz-parallax, 0px), 0);
+  will-change: transform;
+}
+
+@media (max-width: 1024px) {
+  .wz-hero-bg {
+    animation: none;
+  }
+  .wz-parallax {
+    transform: none;
   }
 }

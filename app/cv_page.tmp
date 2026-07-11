@@ -1,0 +1,1606 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import PremiumFeatureGate from "@/components/PremiumFeatureGate";
+import {
+  ArrowLeft,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  Copy,
+  Download,
+  FileText,
+  Gauge,
+  Loader2,
+  Printer,
+  Sparkles,
+  Target,
+} from "lucide-react";
+import {
+  buildResumeJson,
+  generateImprovedCv,
+  generateResumeHtml,
+  downloadHtmlFile,
+  printResumeHtml,
+  type CvTemplate,
+} from "@/lib/workzoWorkspaceGenerators";
+import { syncCandidateIdentityFromSetup } from "@/lib/workzoCandidateIdentity";
+import { readLatestInterviewSetup } from "@/lib/workzoInterviewSetup";
+import type { ResumeProfile } from "@/lib/workzoResumeParser";
+import CvSourcePanel from "@/components/CvSourcePanel";
+import { resolveCvSource } from "@/lib/workzoCvSource";
+import {
+  debugCvPipeline,
+  debugCvProfile,
+  debugCvText,
+} from "@/lib/workzoCvPipelineDebug";
+import { buildPhaseAInsights } from "@/lib/workzoCareerSuitePhaseA";
+import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
+import {
+  completeResumeProfile,
+  mergePreservingOriginalStructure,
+  resumeProfileHasMinimumStructure,
+} from "@/lib/workzoResumeProfileManager";
+import {
+  guardResumeAgainstSource,
+  formatResumeProfileText,
+} from "@/lib/workzoResumeFactGuard";
+
+const templates: Array<{ id: CvTemplate; label: string; description: string }> =
+  [
+    {
+      id: "ats",
+      label: "ATS Clean",
+      description: "Strict, single-column, recruiter-safe layout.",
+    },
+    {
+      id: "modern",
+      label: "Modern Professional",
+      description: "Premium two-column layout with skill chips.",
+    },
+    {
+      id: "career_switcher",
+      label: "Career Switcher",
+      description: "Highlights transferable fit and projects.",
+    },
+  ];
+
+const OUTPUT_LANGUAGES = [
+  { value: "English", label: "🇬🇧 English" },
+  { value: "German", label: "🇩🇪 Deutsch" },
+  { value: "Dutch", label: "🇳🇱 Nederlands" },
+  { value: "French", label: "🇫🇷 Français" },
+  { value: "Spanish", label: "🇪🇸 Español" },
+  { value: "Italian", label: "🇮🇹 Italiano" },
+  { value: "Portuguese", label: "🇵🇹 Português" },
+  { value: "Chinese", label: "🇨🇳 中文" },
+  { value: "Arabic", label: "🇸🇦 العربية" },
+  { value: "Polish", label: "🇵🇱 Polski" },
+];
+
+function cn(...c: Array<string | false | null | undefined>) {
+  return c.filter(Boolean).join(" ");
+}
+
+function renderResumeProfilePlainText(profile?: ResumeProfile | null): string {
+  if (!profile || typeof profile !== "object" || !("basics" in profile))
+    return "";
+  const out: string[] = [];
+  const basics = profile.basics || {
+    name: "",
+    headline: "",
+    email: "",
+    phone: "",
+    location: "",
+    linkedin: "",
+  };
+  const push = (line?: string) => {
+    const value = String(line || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (value) out.push(value);
+  };
+
+  push(basics.name);
+  push(basics.headline);
+  const contact = [basics.email, basics.phone, basics.location, basics.linkedin]
+    .filter(Boolean)
+    .join(" | ");
+  push(contact);
+
+  if (profile.summary) {
+    out.push("", "PROFESSIONAL SUMMARY");
+    push(profile.summary);
+  }
+
+  if (profile.skills?.length) {
+    out.push("", "CORE SKILLS");
+    push(profile.skills.slice(0, 32).join(", "));
+  }
+
+  if (profile.experience?.length) {
+    out.push("", "PROFESSIONAL EXPERIENCE");
+    profile.experience.forEach((job) => {
+      const heading = [job.title, job.company, job.location, job.dates]
+        .filter(Boolean)
+        .join(" | ");
+      push(heading);
+      (job.bullets || []).slice(0, 6).forEach((bullet) => push(`- ${bullet}`));
+    });
+  }
+
+  if (profile.projects?.length) {
+    out.push("", "PROJECTS");
+    profile.projects.forEach((project) => {
+      push(project.name);
+      (project.bullets || [])
+        .slice(0, 5)
+        .forEach((bullet) => push(`- ${bullet}`));
+    });
+  }
+
+  if (profile.education?.length) {
+    out.push("", "EDUCATION");
+    profile.education.forEach((edu) =>
+      push(
+        [edu.degree, edu.institution, edu.location, edu.dates]
+          .filter(Boolean)
+          .join(" | "),
+      ),
+    );
+  }
+
+  if (profile.certifications?.length) {
+    out.push("", "CERTIFICATIONS");
+    profile.certifications.forEach(push);
+  }
+
+  if (profile.languages?.length) {
+    out.push("", "LANGUAGES");
+    push(profile.languages.join(", "));
+  }
+
+  return out
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function CollapsibleSection({
+  title,
+  eyebrow,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  eyebrow: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-xl border border-line bg-fg/[0.03]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+      >
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-subtle">
+            {eyebrow}
+          </p>
+          <h3 className="mt-1 text-lg font-black text-fg">{title}</h3>
+        </div>
+        <ChevronDown
+          className={cn(
+            "h-5 w-5 shrink-0 text-muted transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+      {open && (
+        <div className="border-t border-line px-5 pb-5 pt-4">{children}</div>
+      )}
+    </div>
+  );
+}
+
+export default function CvWorkspacePage() {
+  const [cvText, setCvText] = useState("");
+  // Original uploaded CV text/layout text. Keep this separate from the clean
+  // display text. Improve CV must use this as evidence so experience bullets
+  // from the uploaded resume are not lost after the profile is rendered cleanly.
+  const [rawCvText, setRawCvText] = useState("");
+  const [jobDescription, setJobDescription] = useState("");
+  const [targetRole, setTargetRole] = useState("");
+  const [targetMarket, setTargetMarket] = useState("global");
+  const [outputLanguage, setOutputLanguage] = useState("English");
+  const [template, setTemplate] = useState<CvTemplate>("ats");
+  const [atsText, setAtsText] = useState("");
+  const [aiRewriteLoading, setAiRewriteLoading] = useState(false);
+  const [aiRewriteError, setAiRewriteError] = useState("");
+  const [aiRewriteApplied, setAiRewriteApplied] = useState(false);
+  // True once the user has typed in the editable CV box (or an AI rewrite has
+  // populated it). While dirty, the auto-baseline effect below must never
+  // overwrite the text, and the preview/PDF/copy read from this text instead
+  // of the raw upload. Reset to false only on an explicit revert or a fresh
+  // upload, so edits can never be silently discarded.
+  const [atsDirty, setAtsDirty] = useState(false);
+  // The exact text the last AI rewrite produced. Used to tell an untouched
+  // rewrite (use its structured profile for best fidelity) apart from a
+  // rewrite the user then hand-edited (re-parse the edited text instead).
+  const [lastRewriteText, setLastRewriteText] = useState("");
+  const [savedResumeProfile, setSavedResumeProfile] = useState<
+    ResumeProfile | undefined
+  >(undefined);
+  // Structured profile returned directly by the AI rewrite (cv_rewrite_ats),
+  // when available. Using this instead of re-parsing the rewritten plain
+  // text through extractResumeProfile avoids the data loss/corruption that
+  // happened previously: dropped jobs, the candidate's name being
+  // overwritten by a project title, single-word project names falling
+  // back to "Candidate", and the summary collapsing into a single bullet.
+  const [rewrittenResumeProfile, setRewrittenResumeProfile] = useState<
+    ResumeProfile | undefined
+  >(undefined);
+  const [profileRecovering, setProfileRecovering] = useState(false);
+  const [profileNeedsReupload, setProfileNeedsReupload] = useState(false);
+  const [viewMode, setViewMode] = useState<"text" | "preview">("text");
+  const [cvTextExpanded, setCvTextExpanded] = useState(false);
+  const [copyConfirmed, setCopyConfirmed] = useState(false);
+  // The user must always be able to correct a mis-parsed CV. Previously the
+  // upload panel was hidden the moment *any* CV was in the setup store, so a
+  // wrong name or a missing job left the user with no way out of this page.
+  const [showReplacePanel, setShowReplacePanel] = useState(false);
+
+  useEffect(() => {
+    // ────────────────────────────────────────────────────────────────────────
+    // CV RESOLUTION — read only. Never re-parse.
+    //
+    // This page used to: read the interview *setup* store, run a heuristic
+    // `isLowQualityProfile` check on the profile it found, and — whenever that
+    // check failed — POST the flattened CV text to /api/cv/structure to rebuild
+    // the profile from scratch.
+    //
+    // That fallback fired constantly, because the setup store is written by
+    // several unrelated flows and resolved by `updatedAt` recency: any later
+    // save that carried no resumeProfile made the good profile disappear. The
+    // text re-parse then reconstructed the CV from a two-column PDF flattened
+    // into one column, which is precisely where the wrong name, the missing
+    // jobs, and the doubled education section came from.
+    //
+    // The vision extractor already parsed this CV correctly at upload time.
+    // We read that result. If it is not there, we ask for the file again
+    // rather than guessing.
+    // ────────────────────────────────────────────────────────────────────────
+    const source = resolveCvSource();
+    const setup = readLatestInterviewSetup();
+    syncCandidateIdentityFromSetup(setup);
+
+    debugCvPipeline("cv.page.source.resolved", {
+      origin: source.origin,
+      name: source.profile?.basics?.name || null,
+      experience: source.profile?.experience?.length ?? 0,
+      education: source.profile?.education?.length ?? 0,
+      rawChars: source.rawCvText.length,
+      needsReupload: source.needsReupload,
+    });
+
+    setJobDescription(source.jobDescription);
+    setTargetRole(source.targetRole);
+    setTargetMarket(source.targetMarket);
+    setRawCvText(source.rawCvText);
+
+    if (!source.profile) {
+      // No trustworthy structured CV. Show CvSourcePanel. Keep any raw text
+      // around so the user can see what we had, but never feed it to a rewrite.
+      setCvText(source.rawCvText);
+      setProfileRecovering(false);
+      setProfileNeedsReupload(source.needsReupload);
+      return;
+    }
+
+    const completed = completeResumeProfile(source.profile, source.rawCvText);
+    const profileWithRaw = {
+      ...completed,
+      rawText: completed.rawText || source.rawCvText,
+      previewText: completed.previewText || source.rawCvText.slice(0, 1200),
+    } as ResumeProfile;
+
+    setSavedResumeProfile(profileWithRaw);
+    setCvText(renderResumeProfilePlainText(profileWithRaw) || source.rawCvText);
+    setProfileRecovering(false);
+    setProfileNeedsReupload(false);
+    debugCvProfile("cv.page.savedResumeProfile.set", profileWithRaw);
+  }, []);
+
+  // `baselineInput` feeds the auto-generated "improved CV" baseline. It must
+  // NOT depend on atsText/aiRewriteApplied: those are the result of running
+  // the AI rewrite, and feeding them back in here would create a loop: the
+  // rewrite changes atsText → baseline recomputes from the new atsText →
+  // the effect below resets atsText back to the (now German, then English
+  // again) baseline → the rewrite is silently discarded immediately after
+  // being applied. This was the cause of the output language being ignored
+  // in the template preview: the German rewrite was overwritten by a fresh
+  // English regeneration within the same render cycle.
+  const baselineInput = useMemo(
+    () => ({
+      cvText:
+        rawCvText ||
+        savedResumeProfile?.rawText ||
+        (savedResumeProfile ? renderResumeProfilePlainText(savedResumeProfile) : cvText),
+      resumeProfile: savedResumeProfile,
+      jobDescription,
+      targetRole,
+      targetMarket,
+      template,
+    }),
+    [
+      cvText,
+      rawCvText,
+      savedResumeProfile,
+      jobDescription,
+      targetRole,
+      targetMarket,
+      template,
+    ],
+  );
+
+  // `resumeInput` feeds the template/preview/download: this is the one that
+  // SHOULD reflect the rewrite (and its language) once applied.
+  const resumeInput = useMemo(
+    () => {
+      // The editable box wins whenever the user has taken it over: either by
+      // typing (atsDirty) or by applying an AI rewrite. When it wins, it is
+      // the cvText source and rawCvText/savedResumeProfile must NOT override
+      // it, otherwise edits never reach the preview, PDF, or copy.
+      const usingEditedText =
+        (atsDirty || aiRewriteApplied) && atsText.trim().length > 0;
+      // Only trust the rewrite's structured profile while the text still
+      // matches the rewrite verbatim. Once the user hand-edits it, drop to
+      // re-parsing the edited text so their changes actually show up.
+      const useRewriteProfile =
+        aiRewriteApplied &&
+        !!rewrittenResumeProfile &&
+        atsText.trim() === lastRewriteText.trim();
+
+      return {
+        cvText: usingEditedText
+          ? atsText
+          : rawCvText ||
+            savedResumeProfile?.rawText ||
+            (savedResumeProfile
+              ? renderResumeProfilePlainText(savedResumeProfile)
+              : cvText),
+        // Prefer the AI's own structured profile from the rewrite when we have
+        // one and the text is unchanged: this is the fix for the rewrite
+        // corrupting the candidate name, dropping jobs/projects, and losing
+        // education. For manual edits (or an edited rewrite) we pass undefined,
+        // which makes buildResumeJson re-parse the edited text via
+        // extractResumeProfile, so every edit is reflected downstream.
+        resumeProfile: usingEditedText
+          ? useRewriteProfile
+            ? rewrittenResumeProfile || undefined
+            : undefined
+          : savedResumeProfile,
+        jobDescription,
+        targetRole,
+        targetMarket,
+        template,
+      };
+    },
+    [
+      cvText,
+      rawCvText,
+      atsText,
+      atsDirty,
+      aiRewriteApplied,
+      lastRewriteText,
+      savedResumeProfile,
+      rewrittenResumeProfile,
+      jobDescription,
+      targetRole,
+      targetMarket,
+      template,
+    ],
+  );
+
+  const improvedCv = useMemo(() => {
+    debugCvProfile(
+      "cv.page.generateImprovedCv.inputProfile",
+      baselineInput.resumeProfile,
+    );
+    const output = generateImprovedCv(baselineInput);
+    debugCvText("cv.page.generateImprovedCv.outputText", output);
+    return output;
+  }, [baselineInput]);
+
+  const resumeJson = useMemo(() => {
+    const output = buildResumeJson(resumeInput);
+    debugCvProfile("cv.page.buildResumeJson.outputProfile", output.profile, {
+      summary: output.summary,
+      experienceCount: output.experience.length,
+      projectCount: output.projects.length,
+      educationCount: output.education.length,
+      skillsCount: output.skills.length,
+    });
+    return output;
+  }, [resumeInput]);
+  const htmlPreview = useMemo(
+    () => generateResumeHtml(resumeInput),
+    [resumeInput],
+  );
+
+  const phaseA = useMemo(
+    () =>
+      buildPhaseAInsights({ cvText, jobDescription, targetRole, targetMarket }),
+    [cvText, jobDescription, targetRole, targetMarket],
+  );
+
+  const KNOWN_PHRASES = [
+    "project management",
+    "account management",
+    "change management",
+    "key account manager",
+    "customer success",
+    "customer success manager",
+    "success manager",
+    "stakeholder management",
+    "people management",
+    "team management",
+    "hr management",
+    "hr administration",
+    "human resources",
+    "power bi",
+    "power point",
+    "google sheets",
+    "microsoft office",
+    "machine learning",
+    "data analysis",
+    "data analytics",
+    "public relations",
+    "media relations",
+    "crisis communication",
+    "content creation",
+    "event planning",
+    "social media management",
+    "brand management",
+    "press releases",
+  ];
+
+  const SKILL_DICTIONARY = new Set([
+    ...KNOWN_PHRASES,
+    "sql",
+    "python",
+    "excel",
+    "tableau",
+    "salesforce",
+    "zendesk",
+    "jira",
+    "hubspot",
+    "azure",
+    "aws",
+    "gcp",
+    "react",
+    "node",
+    "java",
+    "typescript",
+    "javascript",
+    "api",
+    "saas",
+    "agile",
+    "scrum",
+    "crm",
+    "erp",
+    "stakeholder",
+    "stakeholders",
+    "customer",
+    "customers",
+    "client",
+    "clients",
+    "communication",
+    "leadership",
+    "negotiation",
+    "presentation",
+    "onboarding",
+    "implementation",
+    "escalation",
+    "escalations",
+    "milestones",
+    "rollout",
+    "management",
+    "manager",
+    "project",
+    "projects",
+    "experience",
+    "german",
+    "english",
+    "french",
+    "dutch",
+    "spanish",
+    "degree",
+    "certification",
+    "certifications",
+    "qualification",
+    "qualifications",
+    "travel",
+    "conferences",
+    "salary",
+    "bonus",
+    "commission",
+    "empathy",
+    "eloquent",
+    "eloquence",
+    "proactive",
+    "structured",
+    "media",
+    "press",
+    "branding",
+    "marketing",
+    "advertising",
+    "support",
+    "training",
+    "documentation",
+    "reporting",
+    "dashboards",
+  ]);
+
+  const keywordGap = useMemo(() => {
+    if (!jobDescription.trim() || !cvText.trim()) {
+      return {
+        score: 0,
+        matched: [] as string[],
+        partial: [] as string[],
+        missing: [] as string[],
+        total: 0,
+      };
+    }
+
+    const jdLower = jobDescription.toLowerCase();
+    const cvLower = cvText.toLowerCase();
+
+    const stopwords = new Set([
+      "the",
+      "a",
+      "an",
+      "and",
+      "or",
+      "but",
+      "in",
+      "on",
+      "at",
+      "to",
+      "for",
+      "of",
+      "with",
+      "by",
+      "from",
+      "is",
+      "are",
+      "was",
+      "were",
+      "will",
+      "be",
+      "been",
+      "being",
+      "have",
+      "has",
+      "had",
+      "do",
+      "does",
+      "did",
+      "not",
+      "this",
+      "that",
+      "these",
+      "those",
+      "we",
+      "you",
+      "they",
+      "their",
+      "our",
+      "your",
+      "its",
+      "it",
+      "as",
+      "if",
+      "than",
+      "then",
+      "so",
+      "can",
+      "could",
+      "should",
+      "would",
+      "may",
+      "must",
+      "shall",
+      "who",
+      "what",
+      "when",
+      "where",
+      "how",
+      "why",
+      "which",
+      "all",
+      "any",
+      "both",
+      "each",
+      "more",
+      "most",
+      "again",
+      "out",
+      "up",
+      "down",
+      "no",
+      "yes",
+      "etc",
+      "also",
+      "such",
+      "into",
+      "about",
+      "over",
+      "after",
+      "before",
+      "right",
+      "make",
+      "made",
+      "get",
+      "got",
+      "go",
+      "going",
+      "want",
+      "like",
+      "lot",
+      "point",
+      "start",
+      "level",
+      "job",
+      "work",
+      "works",
+      "working",
+      "really",
+      "very",
+      "well",
+      "good",
+    ]);
+
+    const includesWord = (text: string, term: string) => {
+      if (term.includes(" ")) return text.includes(term);
+      return new RegExp(
+        `\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+      ).test(text);
+    };
+
+    const found = new Set<string>();
+    for (const phrase of KNOWN_PHRASES) {
+      if (includesWord(jdLower, phrase)) found.add(phrase);
+    }
+
+    const jdWords = jdLower.match(/\b[a-z][a-z0-9+#.-]{2,25}\b/g) || [];
+    const freq: Record<string, number> = {};
+    for (const word of jdWords) {
+      if (stopwords.has(word)) continue;
+      freq[word] = (freq[word] || 0) + 1;
+    }
+    for (const [word, count] of Object.entries(freq)) {
+      if (SKILL_DICTIONARY.has(word) || count >= 3) found.add(word);
+    }
+
+    const keywords = Array.from(found).slice(0, 24);
+
+    const matched: string[] = [];
+    const partial: string[] = [];
+    const missing: string[] = [];
+
+    for (const keyword of keywords) {
+      if (includesWord(cvLower, keyword)) {
+        matched.push(keyword);
+        continue;
+      }
+      const words = keyword
+        .split(" ")
+        .filter((w) => w.length >= 4 && !stopwords.has(w));
+      if (words.length > 1 && words.some((w) => includesWord(cvLower, w))) {
+        partial.push(keyword);
+        continue;
+      }
+      missing.push(keyword);
+    }
+
+    const total = keywords.length || 1;
+    const score = Math.round(
+      ((matched.length + partial.length * 0.5) / total) * 100,
+    );
+
+    return { score, matched, partial, missing, total };
+  }, [cvText, jobDescription]);
+
+  const atsKeywords = keywordGap;
+  const atsScore = keywordGap.score;
+  const phaseB = useMemo(
+    () =>
+      buildPhaseBInsights({ cvText, jobDescription, targetRole, targetMarket }),
+    [cvText, jobDescription, targetRole, targetMarket],
+  );
+
+  useEffect(() => {
+    // Once the user has taken over the editable box, the baseline must never
+    // overwrite their text. It re-syncs only after an explicit revert or a
+    // fresh upload, both of which set atsDirty back to false.
+    if (atsDirty) return;
+    setAtsText(improvedCv || "");
+    setAiRewriteApplied(false);
+    setAiRewriteError("");
+    setRewrittenResumeProfile(undefined);
+  }, [improvedCv, atsDirty]);
+
+  useEffect(() => {
+    if (!resumeJson?.profile?.basics?.name) return;
+    syncCandidateIdentityFromSetup({
+      cvText: rawCvText || cvText,
+      jobDescription,
+      targetRole,
+      targetMarket,
+      resumeProfile: resumeJson.profile,
+      candidateName: resumeJson.profile.basics.name,
+      candidateHeadline: resumeJson.basics.headline,
+      candidateEmail: resumeJson.profile.basics.email,
+      candidatePhone: resumeJson.profile.basics.phone,
+      candidateLocation: resumeJson.profile.basics.location,
+      candidateLinkedin: resumeJson.profile.basics.linkedin,
+    });
+  }, [resumeJson, cvText, rawCvText, jobDescription, targetRole, targetMarket]);
+
+  function safeName() {
+    return (
+      resumeJson.profile.basics.name
+        .replace(/[^a-z0-9]+/gi, "-")
+        .replace(/^-|-$/g, "") || "workzo-cv"
+    );
+  }
+
+  function handleDownloadHtml(selectedTemplate = template) {
+    const html = generateResumeHtml({
+      ...resumeInput,
+      template: selectedTemplate,
+    });
+    downloadHtmlFile(`${safeName()}-${selectedTemplate}.html`, html);
+  }
+
+  function handlePrintPdf(selectedTemplate = template) {
+    const html = generateResumeHtml({
+      ...resumeInput,
+      template: selectedTemplate,
+    });
+    printResumeHtml(html);
+  }
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(atsText || improvedCv);
+    setCopyConfirmed(true);
+    setTimeout(() => setCopyConfirmed(false), 1800);
+  }
+
+  async function handleAiRewrite() {
+    if (!jobDescription.trim()) {
+      setAiRewriteError(
+        "Paste a job description first so the rewrite can target it.",
+      );
+      return;
+    }
+    if (!cvReady) {
+      setAiRewriteError("Upload or paste a CV first.");
+      return;
+    }
+
+    setAiRewriteLoading(true);
+    setAiRewriteError("");
+    setViewMode("text");
+
+    try {
+      // Always base the rewrite on the ORIGINAL saved profile + original cvText,
+      // never on a previously rewritten profile. Reusing the rewritten profile
+      // as input causes each successive rewrite to lose more content (missing
+      // jobs, merged projects, shortened bullets) because merge artifacts
+      // compound across runs.
+      const originalEvidenceText =
+        rawCvText || savedResumeProfile?.rawText || cvText || atsText || improvedCv;
+      const freshProfileForRewrite = savedResumeProfile
+        ? completeResumeProfile(
+            {
+              ...savedResumeProfile,
+              rawText: savedResumeProfile.rawText || originalEvidenceText,
+              previewText:
+                savedResumeProfile.previewText ||
+                originalEvidenceText.slice(0, 1200),
+            },
+            originalEvidenceText,
+          )
+        : undefined;
+
+      const response = await fetch("/api/copilot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "cv_rewrite_ats",
+          cvText: originalEvidenceText,
+          resumeProfile: freshProfileForRewrite,
+          jobDescription,
+          targetRole,
+          targetMarket,
+          outputLanguage,
+        }),
+      });
+
+      const data = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        output?: string;
+        resumeProfile?: ResumeProfile;
+        error?: string;
+      } | null;
+
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || "AI rewrite failed. Please try again.");
+      }
+
+      const rewritten = (data.output || "").trim();
+      if (!rewritten) throw new Error("AI rewrite returned no content.");
+
+      // Merge the model's structured output over the true parsed profile,
+      // keeping the original structure as the base.
+      let mergedProfile = savedResumeProfile
+        ? mergePreservingOriginalStructure(
+            completeResumeProfile(savedResumeProfile, rawCvText || savedResumeProfile.rawText || cvText),
+            data.resumeProfile && typeof data.resumeProfile === "object"
+              ? data.resumeProfile
+              : undefined,
+          )
+        : data.resumeProfile && typeof data.resumeProfile === "object"
+          ? (data.resumeProfile as ResumeProfile)
+          : undefined;
+      // Final name safety: if the merged profile still has a wrong name,
+      // restore it from savedResumeProfile which has the correct name.
+      if (
+        mergedProfile &&
+        savedResumeProfile?.basics?.name &&
+        mergedProfile.basics?.name !== savedResumeProfile.basics.name
+      ) {
+        mergedProfile = {
+          ...mergedProfile,
+          basics: {
+            ...mergedProfile.basics,
+            name: savedResumeProfile.basics.name,
+          },
+        };
+      }
+
+      // Guard the model output against fabrication before it reaches the
+      // preview, PDF, editable text, or copy. This is entity-free and works
+      // for any CV and JD: titles/companies/dates/education come from the
+      // real CV, a skill survives only if the CV evidences it, and every
+      // bullet must trace to a source bullet (re-homed to the right entry if
+      // the model moved it). Skills and bullets are reordered by relevance to
+      // the target role, so the rewrite stays targeted without inventing.
+      const cvSource = rawCvText || savedResumeProfile?.rawText || cvText;
+      const safeProfile = guardResumeAgainstSource(
+        mergedProfile,
+        { profile: savedResumeProfile, text: cvSource },
+        { jobDescription, targetRole },
+      );
+      const safeText = formatResumeProfileText(safeProfile) || rewritten;
+
+      setRewrittenResumeProfile(safeProfile);
+      setAtsText(safeText);
+      setLastRewriteText(safeText);
+      setAtsDirty(true);
+      setAiRewriteApplied(true);
+    } catch (err) {
+      setAiRewriteError(
+        err instanceof Error
+          ? err.message
+          : "AI rewrite failed. Please try again.",
+      );
+    } finally {
+      setAiRewriteLoading(false);
+    }
+  }
+
+  function handleRevertRewrite() {
+    setAtsText(improvedCv || "");
+    setAtsDirty(false);
+    setLastRewriteText("");
+    setAiRewriteApplied(false);
+    setAiRewriteError("");
+    setRewrittenResumeProfile(undefined);
+  }
+
+  const jdReady = jobDescription.trim().length > 0;
+  const cvReady =
+    Boolean(
+      savedResumeProfile &&
+      resumeProfileHasMinimumStructure(savedResumeProfile),
+    ) || cvText.trim().length > 0;
+
+  return (
+    <PremiumFeatureGate
+      feature="improve_cv"
+      title="Improve CV"
+      description="Improve CV is available on every WorkZo plan."
+    >
+      <main className="min-h-screen bg-canvas px-4 py-6 text-fg sm:px-5">
+        {(profileRecovering || profileNeedsReupload) && (
+          <div
+            className={cn(
+              "mx-auto mb-5 flex max-w-5xl items-start gap-3 rounded-lg border px-4 py-3 text-sm",
+              profileNeedsReupload
+                ? "border-warning/30 bg-warning/10 text-warning"
+                : "border-brand/20 bg-brand/[0.06] text-brand",
+            )}
+          >
+            {profileRecovering ? (
+              <>
+                <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
+                <span>
+                  Refreshing your CV profile with improved extraction…
+                </span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                <span>
+                  Your stored CV data needs refreshing.{" "}
+                  <a
+                    href="/onboarding"
+                    className="font-semibold underline underline-offset-2 hover:text-warning"
+                  >
+                    Re-upload your CV on the setup page
+                  </a>{" "}
+                  to fix this.
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
+        <header className="mx-auto mb-6 flex max-w-6xl items-center justify-between">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/5 px-4 py-2 text-sm font-bold text-fg transition hover:bg-fg/10"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back
+          </Link>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/20 text-brand">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-black">Improve CV</p>
+              <p className="text-xs text-muted">WorkZo AI</p>
+            </div>
+          </div>
+        </header>
+
+        {/* Standalone entry: users who arrive here directly (from the
+            landing / features page) never went through onboarding, so
+            there is no stored CV. Let them upload or paste one right
+            here. This also loads the full experience section, which is
+            what feeds the rewrite. */}
+        {/* Identity escape hatch. If the parsed name or experience is wrong,
+            the only correct action is to re-parse the original file — never to
+            re-parse the flattened text. */}
+        {cvReady && !showReplacePanel && (
+          <section className="mx-auto mb-4 max-w-6xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-fg/[0.02] px-4 py-3">
+              <p className="text-sm text-muted">
+                Working from{" "}
+                <span className="font-black text-fg">
+                  {savedResumeProfile?.basics?.name || "your CV"}
+                </span>
+                {savedResumeProfile?.experience?.length
+                  ? ` • ${savedResumeProfile.experience.length} roles`
+                  : ""}
+                {savedResumeProfile?.education?.length
+                  ? ` • ${savedResumeProfile.education.length} education entries`
+                  : ""}
+              </p>
+              <button
+                onClick={() => setShowReplacePanel(true)}
+                className="rounded-lg border border-line px-3 py-1.5 text-xs font-black text-fg hover:border-brand"
+              >
+                Not right? Upload the CV again
+              </button>
+            </div>
+          </section>
+        )}
+
+        {(!cvReady || showReplacePanel) && (
+          <section className="mx-auto mb-6 max-w-6xl">
+            <CvSourcePanel
+              requireJobDescription
+              initialJobDescription={jobDescription}
+              initialTargetRole={targetRole}
+              heading="Add your CV to improve it"
+              subheading="Upload a file or paste your CV, then add the job description. WorkZo rewrites it to target that role."
+              onLoaded={(r) => {
+                setRawCvText(r.rawCvText);
+                setCvText(r.cvText);
+                setSavedResumeProfile(r.resumeProfile);
+                setJobDescription(r.jobDescription);
+                setTargetRole(r.targetRole);
+                setAtsDirty(false);
+                setLastRewriteText("");
+                setProfileNeedsReupload(false);
+                setShowReplacePanel(false);
+              }}
+            />
+          </section>
+        )}
+
+        {/* ── Step 1: target this job ───────────────────────────────────── */}
+        <section className="mx-auto max-w-6xl rounded-lg border border-line bg-fg/[0.035] p-5 shadow-2xl shadow-black/20 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-brand/20 text-brand">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
+                Rewrite your CV for this job
+              </h1>
+              <p className="mt-1 text-sm leading-6 text-muted">
+                Paste the job description, pick a language, and WorkZo rewrites
+                your CV to match: same jobs and dates, sharper wording.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-muted">
+                Job description
+              </span>
+              <textarea
+                value={jobDescription}
+                onChange={(e) => setJobDescription(e.target.value)}
+                className="min-h-[140px] w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm leading-6 outline-none transition focus:border-brand"
+                placeholder="Paste the job description here: this is what the rewrite targets."
+              />
+            </label>
+
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-muted">
+                    Target role
+                  </span>
+                  <input
+                    value={targetRole}
+                    onChange={(e) => setTargetRole(e.target.value)}
+                    className="w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm outline-none transition focus:border-brand"
+                    placeholder="e.g. Data Analyst"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-muted">
+                    Output language
+                  </span>
+                  <select
+                    value={outputLanguage}
+                    onChange={(e) => setOutputLanguage(e.target.value)}
+                    className="w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm font-bold outline-none transition focus:border-brand"
+                  >
+                    {OUTPUT_LANGUAGES.map((l) => (
+                      <option key={l.value} value={l.value}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCvTextExpanded((v) => !v)}
+                className="flex items-center justify-between rounded-lg border border-line bg-canvas-soft px-4 py-3 text-left text-sm font-bold text-muted transition hover:bg-canvas-soft"
+              >
+                <span className="flex items-center gap-2">
+                  <CheckCircle2
+                    className={cn(
+                      "h-4 w-4",
+                      cvReady ? "text-success" : "text-subtle",
+                    )}
+                  />
+                  {savedResumeProfile
+                    ? "CV loaded from your profile"
+                    : cvReady
+                      ? "CV text loaded"
+                      : "No CV text yet: add it below"}
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform",
+                    cvTextExpanded && "rotate-180",
+                  )}
+                />
+              </button>
+
+              {cvTextExpanded && (
+                <textarea
+                  value={cvText}
+                  onChange={(e) => {
+                    setCvText(e.target.value);
+                    setSavedResumeProfile(undefined);
+                  }}
+                  className="min-h-[140px] w-full rounded-lg border border-line bg-canvas-soft px-4 py-3 text-sm leading-6 outline-none transition focus:border-brand"
+                  placeholder="Upload a CV during onboarding or paste CV text here."
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={() => void handleAiRewrite()}
+                disabled={aiRewriteLoading || !jdReady || !cvReady}
+                title={
+                  !jdReady
+                    ? "Paste a job description first"
+                    : !cvReady
+                      ? "Add your CV text first"
+                      : undefined
+                }
+                className="mt-1 inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-brand to-brand px-5 py-3.5 text-sm font-black text-on-brand shadow-lg shadow-brand/20 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {aiRewriteLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                {aiRewriteLoading
+                  ? "Rewriting your CV…"
+                  : aiRewriteApplied
+                    ? "Rewrite again"
+                    : "Rewrite for this job"}
+              </button>
+              {!jdReady && (
+                <p className="text-xs text-subtle">
+                  Paste a job description above to enable the rewrite.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {aiRewriteError && (
+            <p className="mt-4 rounded-xl border border-warning/20 bg-warning/10 px-4 py-2.5 text-sm font-bold text-warning">
+              {aiRewriteError}
+            </p>
+          )}
+          {aiRewriteApplied && !aiRewriteError && (
+            <p className="mt-4 rounded-xl border border-success/20 bg-success/10 px-4 py-2.5 text-sm font-bold text-success">
+              Rewritten for this job description in {outputLanguage}. Same jobs,
+              dates, and companies: only wording changed. Review before
+              downloading.
+            </p>
+          )}
+        </section>
+
+        {/* ── Step 2: your result ───────────────────────────────────────── */}
+        <section className="mx-auto mt-6 max-w-6xl rounded-lg border border-line bg-fg/[0.03] p-5 shadow-2xl shadow-black/20 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex rounded-lg border border-line bg-canvas-soft p-1">
+              <button
+                type="button"
+                onClick={() => setViewMode("text")}
+                className={cn(
+                  "rounded-xl px-4 py-2 text-sm font-black transition",
+                  viewMode === "text"
+                    ? "bg-brand text-on-brand"
+                    : "text-muted hover:text-on-brand",
+                )}
+              >
+                Editable text
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("preview")}
+                className={cn(
+                  "rounded-xl px-4 py-2 text-sm font-black transition",
+                  viewMode === "preview"
+                    ? "bg-brand text-on-brand"
+                    : "text-muted hover:text-on-brand",
+                )}
+              >
+                Template preview
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {(aiRewriteApplied || atsDirty) && (
+                <button
+                  type="button"
+                  onClick={handleRevertRewrite}
+                  className="rounded-full border border-line px-3.5 py-2 text-xs font-black text-muted transition hover:bg-fg/10"
+                >
+                  Reset to original
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/5 px-3.5 py-2 text-xs font-black text-fg transition hover:bg-fg/10"
+              >
+                <Copy className="h-3.5 w-3.5" />{" "}
+                {copyConfirmed ? "Copied!" : "Copy"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadHtml()}
+                className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/5 px-3.5 py-2 text-xs font-black text-fg transition hover:bg-fg/10"
+              >
+                <Download className="h-3.5 w-3.5" /> HTML
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePrintPdf()}
+                className="inline-flex items-center gap-2 rounded-full bg-brand px-3.5 py-2 text-xs font-black text-on-brand transition hover:bg-brand"
+              >
+                <Printer className="h-3.5 w-3.5" /> PDF
+              </button>
+            </div>
+          </div>
+
+          {viewMode === "text" ? (
+            <textarea
+              value={atsText}
+              onChange={(event) => {
+                setAtsText(event.target.value);
+                setAtsDirty(true);
+              }}
+              className="mt-4 min-h-[480px] w-full resize-y overflow-auto whitespace-pre-wrap rounded-xl border border-line bg-canvas-soft p-5 font-sans text-sm leading-7 text-fg outline-none transition placeholder:text-subtle focus:border-brand focus:bg-canvas-soft"
+              placeholder="Upload or paste a CV to generate an improved version. You can edit this text before copying or downloading."
+              spellCheck={true}
+            />
+          ) : (
+            <div className="mt-4">
+              <div className="mb-3 flex flex-wrap gap-2">
+                {templates.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setTemplate(item.id)}
+                    className={cn(
+                      "rounded-xl border px-3.5 py-2 text-xs font-black transition",
+                      template === item.id
+                        ? "border-brand/70 bg-brand/15 text-on-brand"
+                        : "border-line bg-canvas-soft text-muted hover:border-brand/40",
+                    )}
+                    title={item.description}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              <div className="max-h-[75vh] overflow-auto rounded-xl border border-line bg-white">
+                <iframe
+                  title="CV template preview"
+                  srcDoc={htmlPreview}
+                  className="h-[1120px] w-full bg-white"
+                />
+              </div>
+            </div>
+          )}
+
+          <p className="mt-3 text-xs leading-5 text-subtle">
+            {viewMode === "text"
+              ? "Editable text version. Changes here are used when you copy the CV text."
+              : "Template preview and PDF are generated from the structured CV data."}
+          </p>
+        </section>
+
+        {/* ── Step 3: why this works (collapsed insights) ────────────────── */}
+        <section className="mx-auto mt-6 max-w-6xl space-y-4">
+          <CollapsibleSection
+            eyebrow="Recruiter scan"
+            title={phaseA.recruiterScan.decision}
+            defaultOpen={false}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <p className="text-sm leading-6 text-muted">
+                {phaseA.recruiterScan.firstImpression}
+              </p>
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-brand/20 bg-canvas-soft text-center">
+                <p className="text-xl font-black text-muted">
+                  {phaseA.readinessScore}
+                </p>
+                <p className="-mt-1 text-[9px] font-black text-subtle">READY</p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-success/15 bg-success/[0.06] p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-black text-success">
+                  <CheckCircle2 className="h-4 w-4" /> What works
+                </div>
+                <div className="space-y-2">
+                  {phaseA.recruiterScan.strengths.map((item) => (
+                    <p key={item} className="text-sm leading-6 text-muted">
+                      • {item}
+                    </p>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-lg border border-warning/15 bg-warning/[0.06] p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-black text-warning">
+                  <AlertTriangle className="h-4 w-4" /> Recruiter concerns
+                </div>
+                <div className="space-y-2">
+                  {phaseA.recruiterScan.concerns.map((item) => (
+                    <p key={item} className="text-sm leading-6 text-muted">
+                      • {item}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-line bg-canvas-soft p-4">
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-muted">
+                  <Gauge className="h-4 w-4" /> Current
+                </div>
+                <p className="mt-2 text-2xl font-black">
+                  {phaseA.interviewProbability.current}%
+                </p>
+                <p className="mt-1 text-xs text-subtle">
+                  Interview probability estimate
+                </p>
+              </div>
+              <div className="rounded-lg border border-line bg-canvas-soft p-4">
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-muted">
+                  <Target className="h-4 w-4" /> After CV fix
+                </div>
+                <p className="mt-2 text-2xl font-black text-muted">
+                  {phaseA.interviewProbability.afterCvFix}%
+                </p>
+                <p className="mt-1 text-xs text-subtle">
+                  If missing proof is added
+                </p>
+              </div>
+              <div className="rounded-lg border border-line bg-canvas-soft p-4">
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-muted">
+                  <Sparkles className="h-4 w-4" /> After prep
+                </div>
+                <p className="mt-2 text-2xl font-black text-success">
+                  {phaseA.interviewProbability.afterInterviewPrep}%
+                </p>
+                <p className="mt-1 text-xs text-subtle">
+                  With interview stories ready
+                </p>
+              </div>
+            </div>
+          </CollapsibleSection>
+
+          {jobDescription.trim() && cvText.trim() && (
+            <CollapsibleSection
+              eyebrow="ATS optimization"
+              title={`Keyword match: ${atsScore}%`}
+              defaultOpen={false}
+            >
+              <p className="text-sm leading-6 text-muted">
+                {atsScore >= 75
+                  ? "Strong keyword coverage. Your CV includes most JD requirements."
+                  : atsScore >= 50
+                    ? "Moderate coverage. Adding the missing keywords could significantly improve ATS pass rate."
+                    : "Low keyword coverage. Many JD requirements are not reflected in your CV."}
+              </p>
+
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-fg/10">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500",
+                    atsScore >= 75
+                      ? "bg-success"
+                      : atsScore >= 50
+                        ? "bg-warning"
+                        : "bg-danger",
+                  )}
+                  style={{ width: `${atsScore}%` }}
+                />
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-success/15 bg-success/[0.06] p-4">
+                  <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-success">
+                    Matched ({atsKeywords.matched.length})
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {atsKeywords.matched.map((kw) => (
+                      <span
+                        key={kw}
+                        className="rounded-lg border border-success/20 bg-success/10 px-2 py-0.5 text-[11px] font-black text-success"
+                      >
+                        {kw}
+                      </span>
+                    ))}
+                    {atsKeywords.matched.length === 0 && (
+                      <p className="text-xs text-subtle">None yet</p>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-warning/15 bg-warning/[0.06] p-4">
+                  <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-warning">
+                    Partial ({atsKeywords.partial.length})
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {atsKeywords.partial.map((kw) => (
+                      <span
+                        key={kw}
+                        className="rounded-lg border border-warning/20 bg-warning/10 px-2 py-0.5 text-[11px] font-black text-warning"
+                      >
+                        {kw}
+                      </span>
+                    ))}
+                    {atsKeywords.partial.length === 0 && (
+                      <p className="text-xs text-subtle">None</p>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-danger/15 bg-danger/[0.06] p-4">
+                  <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-danger">
+                    Missing ({atsKeywords.missing.length})
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {atsKeywords.missing.map((kw) => (
+                      <span
+                        key={kw}
+                        className="rounded-lg border border-danger/20 bg-danger/10 px-2 py-0.5 text-[11px] font-black text-danger"
+                      >
+                        {kw}
+                      </span>
+                    ))}
+                    {atsKeywords.missing.length === 0 && (
+                      <p className="text-xs text-subtle">None missing</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {atsKeywords.missing.length > 0 && (
+                <div className="mt-4 rounded-xl border border-line bg-canvas-soft p-4">
+                  <p className="text-xs font-black text-fg">Quick fix</p>
+                  <p className="mt-1 text-sm leading-6 text-muted">
+                    Add these terms naturally to your CV where you genuinely
+                    have experience:{" "}
+                    <span className="font-bold text-warning">
+                      {atsKeywords.missing.slice(0, 5).join(", ")}
+                    </span>
+                    . Only add terms that reflect real experience: never
+                    keyword-stuff.
+                  </p>
+                </div>
+              )}
+            </CollapsibleSection>
+          )}
+
+          <CollapsibleSection
+            eyebrow="Deeper analysis"
+            title={phaseB.companyDNA.label}
+            defaultOpen={false}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <p className="text-sm leading-6 text-muted">
+                {phaseB.companyDNA.description}
+              </p>
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-brand/20 bg-canvas-soft text-center">
+                <p className="text-xl font-black text-muted">
+                  {phaseB.trustAudit.overall}
+                </p>
+                <p className="-mt-1 text-[9px] font-black text-subtle">TRUST</p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-line bg-canvas-soft p-4">
+                <p className="text-sm font-black text-muted">
+                  Company DNA rules
+                </p>
+                <div className="mt-3 space-y-3">
+                  {phaseB.companyDNA.dimensions.map((item) => (
+                    <div key={item.label}>
+                      <div className="mb-1 flex justify-between text-xs font-black">
+                        <span className="text-muted">{item.label}</span>
+                        <span className="text-brand">
+                          {item.score}% / {item.target}%
+                        </span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-fg/10">
+                        <div
+                          className="h-full rounded-full bg-brand"
+                          style={{ width: `${item.score}%` }}
+                        />
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-subtle">
+                        {item.note}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-line bg-canvas-soft p-4">
+                <p className="text-sm font-black text-success">Trust audit</p>
+                <div className="mt-3 space-y-2">
+                  {phaseB.trustAudit.dimensions.map((item) => (
+                    <p
+                      key={item.label}
+                      className="text-sm leading-6 text-muted"
+                    >
+                      <span className="font-black text-fg">{item.label}:</span>{" "}
+                      {item.score}%{" "}
+                      <span
+                        className={
+                          item.delta >= 0 ? "text-success" : "text-warning"
+                        }
+                      >
+                        ({item.delta >= 0 ? "+" : ""}
+                        {item.delta})
+                      </span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-line bg-canvas-soft p-4">
+              <p className="text-sm font-black text-fg">Evidence engine</p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                {phaseB.evidenceEngine.summary}
+              </p>
+              <div className="mt-4 space-y-3">
+                {phaseB.evidenceEngine.items.slice(0, 4).map((item) => (
+                  <div
+                    key={item.text}
+                    className="rounded-xl border border-line bg-fg/[0.03] p-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-black text-fg">
+                        {item.score}% evidence
+                      </p>
+                      <p className="text-xs text-muted">
+                        {item.ownership ? "✓ Ownership" : "⚠ Ownership"} ·{" "}
+                        {item.metric ? "✓ Metric" : "⚠ Metric"} ·{" "}
+                        {item.result ? "✓ Result" : "⚠ Result"}
+                      </p>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      {item.text}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-muted">
+                      Recruiter hears: {item.recruiterHeard}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-success/15 bg-success/[0.06] p-4">
+              <p className="text-sm font-black text-success">
+                Top 10% rewrite target
+              </p>
+              <p className="mt-3 text-xs font-black uppercase tracking-[0.18em] text-subtle">
+                Current weak line
+              </p>
+              <p className="mt-1 text-sm leading-6 text-muted">
+                {phaseB.top10Rewrite.weakestLine}
+              </p>
+              <p className="mt-3 text-xs font-black uppercase tracking-[0.18em] text-subtle">
+                Elite version
+              </p>
+              <p className="mt-1 text-sm leading-6 text-success">
+                {phaseB.top10Rewrite.eliteLine}
+              </p>
+            </div>
+          </CollapsibleSection>
+        </section>
+      </main>
+    </PremiumFeatureGate>
+  );
+}

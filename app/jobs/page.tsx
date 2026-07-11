@@ -11,6 +11,7 @@ import {
   Copy,
   ExternalLink,
   FileText,
+  FileUp,
   Globe2,
   Loader2,
   MapPin,
@@ -19,9 +20,10 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  UserRound,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   normalizeSetupCvText,
   normalizeSetupJobDescription,
@@ -33,6 +35,11 @@ import {
 } from "@/lib/workzoInterviewSetup";
 import { buildPhaseAInsights } from "@/lib/workzoCareerSuitePhaseA";
 import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
+import { createSupabaseBrowserClient } from "@/utils/supabase/client";
+import { persistCvSource, resolveCvSource } from "@/lib/workzoCvSource";
+import { extractSkills as extractJobSkills } from "@/lib/jobs/normalize";
+import type { JobMatchResult } from "@/lib/jobs/types";
+import type { ResumeProfile } from "@/lib/workzoResumeParser";
 
 type LiveJob = {
   id: string;
@@ -46,6 +53,10 @@ type LiveJob = {
   source: string;
   logoUrl: string | null;
   matchReason: string;
+  match?: JobMatchResult;
+  remoteType?: "remote" | "hybrid" | "onsite" | "unknown";
+  skills?: string[];
+  stale?: boolean;
 };
 
 type RecentSearch = {
@@ -269,6 +280,12 @@ function JobActionLink({ href, children, onClick }: { href: string; children: Re
 }
 
 export default function JobsWorkspacePage() {
+  const cvFileRef = useRef<HTMLInputElement | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [signedIn, setSignedIn] = useState(false);
+  const [cvFileName, setCvFileName] = useState("");
+  const [cvProfile, setCvProfile] = useState<ResumeProfile | null>(null);
+  const [uploadingCv, setUploadingCv] = useState(false);
   const [setup, setSetup] = useState<WorkZoInterviewSetup | null>(null);
   const [cvText, setCvText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -284,19 +301,46 @@ export default function JobsWorkspacePage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const latestSetup = readLatestInterviewSetup();
-    const cv = normalizeSetupCvText(latestSetup);
-    const jd = normalizeSetupJobDescription(latestSetup);
-    const role = normalizeSetupTargetRole(latestSetup) || "Data Analyst";
-    const market = cleanLocation(normalizeSetupTargetMarket(latestSetup) || "Remote");
+    let active = true;
 
-    setSetup(latestSetup);
-    setCvText(cv);
-    setJobDescription(jd);
-    setTargetRole(role);
-    setTargetMarket(market);
-    setKeywords(extractKeywords(cv, jd, role));
-    setRecentSearches(readRecentSearches());
+    async function hydrate() {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data } = await supabase.auth.getUser();
+        if (!active) return;
+        if (!data.user) {
+          setSignedIn(false);
+          return;
+        }
+
+        setSignedIn(true);
+        const latestSetup = readLatestInterviewSetup();
+        const source = resolveCvSource();
+        const cv = source.rawCvText || normalizeSetupCvText(latestSetup);
+        const jd = source.jobDescription || normalizeSetupJobDescription(latestSetup);
+        const role = source.targetRole || normalizeSetupTargetRole(latestSetup) || "Data Analyst";
+        const market = cleanLocation(source.targetMarket || normalizeSetupTargetMarket(latestSetup) || "Remote");
+
+        setSetup(latestSetup);
+        setCvText(cv);
+        setCvProfile(source.profile);
+        setCvFileName(source.fileName || source.profile?.basics?.name || "");
+        setJobDescription(jd);
+        setTargetRole(role);
+        setTargetMarket(market);
+        setKeywords(extractKeywords(cv, jd, role));
+        setRecentSearches(readRecentSearches());
+      } catch {
+        if (active) setSignedIn(false);
+      } finally {
+        if (active) setAuthLoading(false);
+      }
+    }
+
+    void hydrate();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const keywordList = useMemo(
@@ -319,6 +363,59 @@ export default function JobsWorkspacePage() {
     [cvText, jobDescription, targetRole, targetMarket, setup],
   );
 
+  async function handleCvUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadingCv(true);
+    setMessage("");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch("/api/cv", {
+        method: "POST",
+        body: form,
+        credentials: "include",
+      });
+      const data = await response.json().catch(() => null);
+      if (response.status === 401) {
+        setSignedIn(false);
+        throw new Error("Please sign in before uploading your CV.");
+      }
+      if (!response.ok) throw new Error(data?.error || "Could not read that CV.");
+
+      const rawCvText = String(
+        data?.text || data?.cvText || data?.content || data?.resumeText || data?.extractedText || "",
+      ).trim();
+      const profile = (data?.resumeProfile || data?.profile || null) as ResumeProfile | null;
+      if (!rawCvText && !profile) throw new Error("No readable CV content was found.");
+
+      const next = persistCvSource({
+        rawCvText,
+        profile,
+        fileName: file.name,
+        targetRole: targetRole || profile?.basics?.headline || "",
+        jobDescription,
+        targetMarket,
+        origin: "jobs-page-upload",
+        source: "jobs-page-upload",
+        needsReupload: false,
+      });
+
+      setCvText(next.rawCvText);
+      setCvProfile(next.profile);
+      setCvFileName(file.name);
+      if (!targetRole.trim() && next.targetRole) setTargetRole(next.targetRole);
+      setKeywords(extractKeywords(next.rawCvText, jobDescription, targetRole || next.targetRole));
+      setMessage("CV updated. Job matching now uses this verified profile across WorkZo.");
+    } catch (uploadError) {
+      setMessage(uploadError instanceof Error ? uploadError.message : "Could not read that CV.");
+    } finally {
+      setUploadingCv(false);
+      if (cvFileRef.current) cvFileRef.current.value = "";
+    }
+  }
+
   async function handleFindLiveJobs() {
     setLoading(true);
     setMessage("");
@@ -328,28 +425,54 @@ export default function JobsWorkspacePage() {
     setRecentSearches(recent);
 
     try {
-      const response = await fetch("/api/jobs", {
+      const isRemote = /remote/i.test(targetMarket);
+      const response = await fetch("/api/jobs/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           role: targetRole,
           location: cleanLocation(targetMarket),
+          remote: isRemote ? "remote" : undefined,
           keywords: keywordList,
+          cvText,
+          skills: extractJobSkills(cvText, 20),
         }),
       });
 
       const data = await response.json().catch(() => null);
-      const nextJobs = dedupeJobs(Array.isArray(data?.jobs) ? data.jobs : []);
+      const rawJobs = Array.isArray(data?.jobs) ? data.jobs : [];
+      // Map the WorkZoJob + match contract onto the card's shape.
+      const mapped: LiveJob[] = rawJobs.map((j: Record<string, unknown>, i: number) => {
+        const match = (j.match as JobMatchResult) || undefined;
+        return {
+          id: String(j.id || `job-${i}`),
+          title: String(j.title || "Untitled role"),
+          company: String(j.company || "Company not listed"),
+          location: String(j.location || "Location not specified"),
+          description: String(j.description || ""),
+          applyUrl: String(j.applyUrl || ""),
+          postedAt: (j.postedAt as string) || null,
+          employmentType: (j.employmentType as string) || null,
+          source: String(j.sourceReference || j.provider || "Live search"),
+          logoUrl: (j.logoUrl as string) || null,
+          matchReason: match?.reasons?.[0] || "Relevant role from live search.",
+          match,
+          remoteType: j.remoteType as LiveJob["remoteType"],
+          skills: Array.isArray(j.skills) ? (j.skills as string[]) : [],
+          stale: Boolean(j.stale),
+        };
+      });
+      const nextJobs = dedupeJobs(mapped);
       setJobs(nextJobs);
 
       if (data?.live === false) {
-        setMessage("Live jobs are not connected yet. Use the smart job-board links below.");
+        setMessage(data?.message || "Live jobs are not connected yet. Use the smart job-board links below.");
       } else if (data?.success === false) {
         setMessage(data?.error || "Live job search failed. Use the job-board links below.");
       } else if (!nextJobs.length) {
         setMessage("No live jobs found. Try a broader role, fewer keywords, or a specific city/country.");
       } else {
-        setMessage(`Found ${nextJobs.length} live job suggestions.`);
+        setMessage(`Found ${nextJobs.length} matched roles, ranked against your CV.`);
       }
     } catch {
       setJobs([]);
@@ -483,6 +606,41 @@ INTERVIEW TIP:
     }
   }
 
+  if (authLoading) {
+    return (
+      <main className="min-h-screen bg-canvas px-4 py-10 text-fg">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-line bg-surface/70 p-8">
+          <div className="h-6 w-48 animate-pulse rounded bg-fg/10" />
+          <div className="mt-5 h-32 animate-pulse rounded-2xl bg-fg/5" />
+        </div>
+      </main>
+    );
+  }
+
+  if (!signedIn) {
+    return (
+      <main className="min-h-screen bg-canvas px-4 py-10 text-fg">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-line bg-surface/70 p-8 shadow-2xl shadow-black/10">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-brand/20 bg-brand/10 text-brand">
+            <UserRound className="h-5 w-5" />
+          </div>
+          <h1 className="mt-5 text-3xl font-black tracking-tight">Sign in to find and prepare for jobs</h1>
+          <p className="mt-3 text-sm leading-7 text-muted">
+            WorkZo reuses your saved CV, target role, and application context so every job match is based on the same verified profile.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Link href="/login?next=/jobs" className="inline-flex items-center justify-center rounded-xl bg-brand px-5 py-3 text-sm font-black text-on-brand">
+              Sign in
+            </Link>
+            <Link href="/signup" className="inline-flex items-center justify-center rounded-xl border border-line bg-fg/5 px-5 py-3 text-sm font-black text-fg">
+              Create account
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <PremiumFeatureGate feature="job_assist" title="Job Assist is a Premium feature" description="Job fit scoring, gaps, and likely interview questions are included in Premium.">
       <main className="min-h-screen bg-canvas px-4 py-5 text-fg sm:px-5">
@@ -521,6 +679,39 @@ INTERVIEW TIP:
 
         <section className="mt-5 grid gap-5 lg:grid-cols-[360px_1fr]">
           <aside className="space-y-5 lg:sticky lg:top-5 lg:self-start">
+            <div className="rounded-lg border border-line bg-fg/[0.04] p-5">
+              <input
+                ref={cvFileRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp"
+                onChange={handleCvUpload}
+                className="hidden"
+              />
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-muted">CV memory</p>
+                  <h2 className="mt-2 text-lg font-black">
+                    {cvFileName ? cvFileName : cvText.trim() ? "Saved CV loaded" : "Add your CV"}
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-muted">
+                    {cvText.trim()
+                      ? `${cvProfile?.experience?.length || 0} roles and ${cvProfile?.skills?.length || 0} skills are available for matching.`
+                      : "Upload once and WorkZo will reuse it across job search, CV, cover letter, and interview tools."}
+                  </p>
+                </div>
+                {cvText.trim() ? <CheckCircle2 className="h-5 w-5 shrink-0 text-success" /> : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => cvFileRef.current?.click()}
+                disabled={uploadingCv}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-canvas-soft px-4 py-2.5 text-sm font-black text-fg hover:bg-fg/[0.06] disabled:opacity-60"
+              >
+                {uploadingCv ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+                {uploadingCv ? "Reading CV…" : cvText.trim() ? "Replace CV" : "Upload CV"}
+              </button>
+            </div>
+
             <div className="rounded-lg border border-line bg-fg/[0.04] p-5">
               <h2 className="text-xl font-black">Search setup</h2>
               <p className="mt-2 text-sm leading-6 text-muted">
@@ -776,9 +967,38 @@ INTERVIEW TIP:
                       ) : null}
                     </div>
 
-                    <div className="mt-3 rounded-lg border border-success/15 bg-success/[0.06] px-3 py-2 text-sm leading-6 text-success">
-                      {job.matchReason}
-                    </div>
+                    {job.match ? (
+                      <div className="mt-3 rounded-lg border border-line bg-canvas px-3 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg text-sm font-black ${
+                              job.match.score >= 85 ? "bg-success/15 text-success"
+                                : job.match.score >= 68 ? "bg-brand/15 text-brand"
+                                : job.match.score >= 50 ? "bg-warning/15 text-warning"
+                                : "bg-danger/15 text-danger"
+                            }`}>{job.match.score}</span>
+                            <div>
+                              <p className="text-sm font-black capitalize">{job.match.recommendation.replace(/_/g, " ")}</p>
+                              <p className="text-[11px] text-subtle">Matched against your CV</p>
+                            </div>
+                          </div>
+                          {job.stale ? <span className="rounded-full bg-fg/10 px-2 py-0.5 text-[10px] font-black text-subtle">30+ days old</span> : null}
+                        </div>
+                        {job.match.matchedRequirements.length > 0 && (
+                          <p className="mt-2.5 text-[11px] leading-5"><span className="font-black text-success">Strong: </span><span className="text-muted">{job.match.matchedRequirements.slice(0, 5).join(", ")}</span></p>
+                        )}
+                        {job.match.partiallyMatchedRequirements.length > 0 && (
+                          <p className="mt-1 text-[11px] leading-5"><span className="font-black text-warning">Partial: </span><span className="text-muted">{job.match.partiallyMatchedRequirements.slice(0, 4).join(", ")}</span></p>
+                        )}
+                        {job.match.missingCriticalRequirements.length > 0 && (
+                          <p className="mt-1 text-[11px] leading-5"><span className="font-black text-danger">Missing: </span><span className="text-muted">{job.match.missingCriticalRequirements.slice(0, 4).join(", ")}</span></p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="mt-3 rounded-lg border border-success/15 bg-success/[0.06] px-3 py-2 text-sm leading-6 text-success">
+                        {job.matchReason}
+                      </div>
+                    )}
 
                     <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted">{summarizeDescription(job.description)}</p>
 

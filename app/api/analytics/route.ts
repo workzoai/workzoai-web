@@ -158,7 +158,6 @@ type PartnerTrialSummary = {
   reason?: string;
 };
 
-
 function cleanText(value: unknown, max = 500) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
@@ -174,6 +173,25 @@ function cleanMetadata(value: unknown) {
   } catch {
     return {};
   }
+}
+
+type FounderAnalyticsCache = {
+  key: string;
+  expiresAt: number;
+  payload: unknown;
+};
+const FOUNDER_ANALYTICS_CACHE_TTL_MS = Math.max(
+  5_000,
+  Number(process.env.FOUNDER_ANALYTICS_CACHE_TTL_MS || 60_000),
+);
+let founderAnalyticsCache: FounderAnalyticsCache | null = null;
+
+function getFounderCacheKey(request: Request) {
+  const url = new URL(request.url);
+  return JSON.stringify({
+    all: url.searchParams.get("all") === "1",
+    snapshot: url.searchParams.get("snapshot") === "1",
+  });
 }
 
 function getSupabaseAdmin() {
@@ -679,8 +697,6 @@ function buildPaidSubscriptionSummary(
   };
 }
 
-
-
 function buildPartnerTrialSummary(
   offers: PartnerTrialOfferRow[] = [],
   grants: PartnerTrialGrantRow[] = [],
@@ -704,16 +720,33 @@ function buildPartnerTrialSummary(
     const active = related.filter((grant) => {
       const expires = new Date(String(grant.expires_at || "")).getTime();
       const used = Number(grant.interviews_used || 0);
-      const limit = Number(grant.interviews_limit || offer.interviews_limit || 0);
+      const limit = Number(
+        grant.interviews_limit || offer.interviews_limit || 0,
+      );
       return expires > now && used < limit;
     });
-    const completed = related.filter((grant) => Number(grant.interviews_used || 0) >= Number(grant.interviews_limit || offer.interviews_limit || 0));
+    const completed = related.filter(
+      (grant) =>
+        Number(grant.interviews_used || 0) >=
+        Number(grant.interviews_limit || offer.interviews_limit || 0),
+    );
     const expired = related.filter((grant) => {
       const expires = new Date(String(grant.expires_at || "")).getTime();
-      return Boolean(expires && expires <= now) && Number(grant.interviews_used || 0) < Number(grant.interviews_limit || offer.interviews_limit || 0);
+      return (
+        Boolean(expires && expires <= now) &&
+        Number(grant.interviews_used || 0) <
+          Number(grant.interviews_limit || offer.interviews_limit || 0)
+      );
     });
-    const interviewsUsed = related.reduce((sum, grant) => sum + Number(grant.interviews_used || 0), 0);
-    const interviewsLimit = related.reduce((sum, grant) => sum + Number(grant.interviews_limit || offer.interviews_limit || 0), 0);
+    const interviewsUsed = related.reduce(
+      (sum, grant) => sum + Number(grant.interviews_used || 0),
+      0,
+    );
+    const interviewsLimit = related.reduce(
+      (sum, grant) =>
+        sum + Number(grant.interviews_limit || offer.interviews_limit || 0),
+      0,
+    );
 
     return {
       id: offer.id,
@@ -739,12 +772,25 @@ function buildPartnerTrialSummary(
       const offer = offerById.get(String(grant.trial_id || ""));
       const expires = new Date(String(grant.expires_at || "")).getTime();
       const used = Number(grant.interviews_used || 0);
-      const limit = Number(grant.interviews_limit || offer?.interviews_limit || 0);
-      const daysRemaining = expires ? Math.max(0, Math.ceil((expires - now) / 86400000)) : 0;
-      const status = used >= limit && limit > 0 ? "completed" : expires <= now ? "expired" : used > 0 ? "used" : "activated";
+      const limit = Number(
+        grant.interviews_limit || offer?.interviews_limit || 0,
+      );
+      const daysRemaining = expires
+        ? Math.max(0, Math.ceil((expires - now) / 86400000))
+        : 0;
+      const status =
+        used >= limit && limit > 0
+          ? "completed"
+          : expires <= now
+            ? "expired"
+            : used > 0
+              ? "used"
+              : "activated";
       return {
         status,
-        label: String(offer?.label || offer?.target || grant.email || "Partner trial"),
+        label: String(
+          offer?.label || offer?.target || grant.email || "Partner trial",
+        ),
         target: String(offer?.target || ""),
         scope: String(offer?.scope || "email"),
         email: grant.email || undefined,
@@ -755,7 +801,10 @@ function buildPartnerTrialSummary(
         timestamp: grant.activated_at || grant.created_at,
       };
     })
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    )
     .slice(0, 12);
 
   return {
@@ -764,11 +813,26 @@ function buildPartnerTrialSummary(
     totalOffers: offers.length,
     invitationsSent: offers.length,
     activatedTrials: grants.length,
-    activeTrials: offerSummaries.reduce((sum, offer) => sum + offer.activeCount, 0),
-    completedTrials: offerSummaries.reduce((sum, offer) => sum + offer.completedCount, 0),
-    expiredTrials: offerSummaries.reduce((sum, offer) => sum + offer.expiredCount, 0),
-    interviewsUsed: offerSummaries.reduce((sum, offer) => sum + offer.interviewsUsed, 0),
-    interviewsLimit: offerSummaries.reduce((sum, offer) => sum + offer.interviewsLimit, 0),
+    activeTrials: offerSummaries.reduce(
+      (sum, offer) => sum + offer.activeCount,
+      0,
+    ),
+    completedTrials: offerSummaries.reduce(
+      (sum, offer) => sum + offer.completedCount,
+      0,
+    ),
+    expiredTrials: offerSummaries.reduce(
+      (sum, offer) => sum + offer.expiredCount,
+      0,
+    ),
+    interviewsUsed: offerSummaries.reduce(
+      (sum, offer) => sum + offer.interviewsUsed,
+      0,
+    ),
+    interviewsLimit: offerSummaries.reduce(
+      (sum, offer) => sum + offer.interviewsLimit,
+      0,
+    ),
     recentActivity,
     offers: offerSummaries,
     ...(reason ? { reason } : {}),
@@ -778,27 +842,42 @@ function buildPartnerTrialSummary(
 async function readPartnerTrialSummary(
   supabase: ReturnType<typeof getSupabaseAdmin>,
 ): Promise<PartnerTrialSummary> {
-  if (!supabase) return buildPartnerTrialSummary([], [], false, "supabase_not_configured");
+  if (!supabase)
+    return buildPartnerTrialSummary([], [], false, "supabase_not_configured");
 
   try {
     const [offersResult, grantsResult] = await Promise.all([
       supabase
         .from("workzo_partner_trials")
-        .select("id, code, scope, target, plan, interviews_limit, duration_days, label, is_active, redeemed_count, created_at, updated_at")
+        .select(
+          "id, code, scope, target, plan, interviews_limit, duration_days, label, is_active, redeemed_count, created_at, updated_at",
+        )
         .order("created_at", { ascending: false })
         .limit(500),
       supabase
         .from("workzo_partner_trial_grants")
-        .select("id, trial_id, email, plan, interviews_limit, interviews_used, activated_at, expires_at, created_at")
+        .select(
+          "id, trial_id, email, plan, interviews_limit, interviews_used, activated_at, expires_at, created_at",
+        )
         .order("activated_at", { ascending: false })
         .limit(5000),
     ]);
 
     if (offersResult.error) {
-      return buildPartnerTrialSummary([], [], false, offersResult.error.message);
+      return buildPartnerTrialSummary(
+        [],
+        [],
+        false,
+        offersResult.error.message,
+      );
     }
     if (grantsResult.error) {
-      return buildPartnerTrialSummary((offersResult.data || []) as PartnerTrialOfferRow[], [], false, grantsResult.error.message);
+      return buildPartnerTrialSummary(
+        (offersResult.data || []) as PartnerTrialOfferRow[],
+        [],
+        false,
+        grantsResult.error.message,
+      );
     }
 
     return buildPartnerTrialSummary(
@@ -1158,6 +1237,7 @@ function buildAnalyticsResponse(
 export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as AnalyticsBody;
+
     const supabase = getSupabaseAdmin();
     if (!supabase)
       return NextResponse.json({
@@ -1220,6 +1300,19 @@ export async function GET(request: Request) {
         { status: 404 },
       );
     }
+
+    const cacheKey = getFounderCacheKey(request);
+    if (
+      founderAnalyticsCache &&
+      founderAnalyticsCache.key === cacheKey &&
+      founderAnalyticsCache.expiresAt > Date.now()
+    ) {
+      return NextResponse.json({
+        ...(founderAnalyticsCache.payload as Record<string, unknown>),
+        cached: true,
+      });
+    }
+
     const supabase = getSupabaseAdmin();
     if (!supabase)
       return NextResponse.json({
@@ -1250,10 +1343,20 @@ export async function GET(request: Request) {
       return NextResponse.json({
         ok: true,
         configured: true,
-        summary: buildAnalyticsResponse([], usageSummary, false, paidSummary, partnerTrialSummary)
-          .summary,
-        metrics: buildAnalyticsResponse([], usageSummary, false, paidSummary, partnerTrialSummary)
-          .metrics,
+        summary: buildAnalyticsResponse(
+          [],
+          usageSummary,
+          false,
+          paidSummary,
+          partnerTrialSummary,
+        ).summary,
+        metrics: buildAnalyticsResponse(
+          [],
+          usageSummary,
+          false,
+          paidSummary,
+          partnerTrialSummary,
+        ).metrics,
         events: [],
         reason: "read_failed",
         error: error.message,
@@ -1268,15 +1371,19 @@ export async function GET(request: Request) {
     const url2 = new URL(request.url);
     const includeLocal = url2.searchParams.get("all") === "1";
 
-    return NextResponse.json(
-      buildAnalyticsResponse(
-        (data || []) as DbAnalyticsEvent[],
-        usageSummary,
-        includeLocal,
-        paidSummary,
-        partnerTrialSummary,
-      ),
+    const payload = buildAnalyticsResponse(
+      (data || []) as DbAnalyticsEvent[],
+      usageSummary,
+      includeLocal,
+      paidSummary,
+      partnerTrialSummary,
     );
+    founderAnalyticsCache = {
+      key: cacheKey,
+      expiresAt: Date.now() + FOUNDER_ANALYTICS_CACHE_TTL_MS,
+      payload,
+    };
+    return NextResponse.json(payload);
   } catch (error) {
     console.error("[WorkZo analytics] metrics route failed", error);
     return NextResponse.json({

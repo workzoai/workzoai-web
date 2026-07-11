@@ -7,7 +7,7 @@
  * icons through one shared map here.
  */
 
-import { FileSearch, FileText, MessageCircle, Sparkles, type LucideIcon } from "lucide-react";
+import { FileSearch, FileText, MessageCircle, PenLine, ShieldCheck, Sparkles, Target, Type, type LucideIcon } from "lucide-react";
 import type { FreeToolIconName } from "@/lib/free-tools";
 
 export const FREE_TOOL_ICONS: Record<FreeToolIconName, LucideIcon> = {
@@ -15,6 +15,10 @@ export const FREE_TOOL_ICONS: Record<FreeToolIconName, LucideIcon> = {
   Sparkles,
   FileText,
   MessageCircle,
+  PenLine,
+  Target,
+  Type,
+  ShieldCheck,
 };
 
 export function getFreeToolIcon(name: FreeToolIconName): LucideIcon {

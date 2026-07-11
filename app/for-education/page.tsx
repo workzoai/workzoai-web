@@ -1,208 +1,137 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import {
-  ArrowRight,
   BarChart3,
   BriefcaseBusiness,
   Building2,
   GraduationCap,
   Handshake,
+  MessagesSquare,
   ShieldCheck,
+  Sparkles,
+  Target,
   UsersRound,
-  GaugeCircle,
-  Layers,
-  Languages,
+  type LucideIcon,
 } from "lucide-react";
 import {
   MarketingShell,
   Reveal,
   Eyebrow,
   SectionHeading,
-  StatBand,
   FeatureCard,
   CTASection,
-  BackLink,
   PrimaryButton,
   GhostButton,
 } from "@/components/marketing/kit";
 import B2BLeadForm from "@/components/marketing/B2BLeadForm";
 
 export const metadata: Metadata = {
-  title: "For Education & Organizations, WorkZo AI",
+  title: "WorkZo AI for Education, Interview Readiness for Cohorts and Teams",
   description:
-    "Realistic, CV-aware interview practice for bootcamps, universities, training academies, enterprises, and recruitment agencies. One engine, every cohort, measurable readiness.",
+    "Give whole cohorts realistic, CV-aware interview practice with recruiter personas and shared readiness reports. Built for bootcamps, universities, training academies, coaches, and enterprise teams.",
+  keywords: [
+    "interview readiness for cohorts",
+    "ai interview practice for universities",
+    "bootcamp placement tool",
+    "career services software",
+    "mock interview platform for teams",
+  ],
+  alternates: { canonical: "/for-education" },
 };
 
-const segments = [
-  { slug: "coding-bootcamps", label: "Coding Bootcamps", desc: "Get every cohort placement-ready before demo day.", icon: BriefcaseBusiness },
-  { slug: "universities-career-services", label: "Universities & Career Services", desc: "Practice for every student, not just the ones who book a slot.", icon: GraduationCap },
-  { slug: "training-academies", label: "Training Academies", desc: "Turn certifications into confident, interview-ready stories.", icon: UsersRound },
-  { slug: "enterprise-hiring", label: "Enterprise Hiring", desc: "One fair preparation standard across teams and locations.", icon: Building2 },
-  { slug: "recruitment-agencies", label: "Recruitment Agencies", desc: "Send candidates into client interviews genuinely ready.", icon: Handshake },
-  { slug: "admin-dashboard", label: "Admin Dashboard", desc: "Track readiness across cohorts, teams, and programs.", icon: BarChart3 },
-  { slug: "security-privacy", label: "Security & Privacy", desc: "GDPR-friendly, transparent, managed rollout.", icon: ShieldCheck },
+type Solution = { slug: string; label: string; description: string; icon: LucideIcon };
+
+const SOLUTIONS: Solution[] = [
+  { slug: "coding-bootcamps", label: "Coding Bootcamps", description: "Prepare graduates for technical interviews, HR screens, and hiring days.", icon: BriefcaseBusiness },
+  { slug: "universities-career-services", label: "Universities and Career Services", description: "Help students build interview confidence before internships and graduate roles.", icon: GraduationCap },
+  { slug: "training-academies", label: "Training Academies", description: "Support learners across certification, reskilling, and career programs.", icon: Sparkles },
+  { slug: "enterprise-hiring", label: "Enterprise Hiring", description: "Standardize interview preparation for internal mobility and talent programs.", icon: Building2 },
+  { slug: "recruitment-agencies", label: "Recruitment Agencies", description: "Help candidates practice before client interviews and final submissions.", icon: Handshake },
+  { slug: "students", label: "For Students", description: "Help first-time job seekers walk in ready for interview day.", icon: UsersRound },
+  { slug: "career-changers", label: "For Career Changers", description: "Coach clients to reframe experience for the role they want next.", icon: Target },
+  { slug: "career-coaches", label: "For Career Coaches", description: "Give every client realistic reps between your sessions.", icon: MessagesSquare },
+  { slug: "admin-dashboard", label: "Admin Dashboard", description: "Track engagement, usage, readiness trends, and progress across groups.", icon: BarChart3 },
+  { slug: "security-privacy", label: "Security and Privacy", description: "Review GDPR-friendly data handling, privacy controls, and enterprise readiness.", icon: ShieldCheck },
 ];
 
-const pillars = [
-  { icon: GaugeCircle, title: "Measurable readiness", text: "Every session produces a scored report, so you can see who's ready for a hiring partner and who needs another round of coaching." },
-  { icon: Layers, title: "One engine, every role", text: "Interviews are built from the job description, so the same platform covers technical, business, support, and customer-facing roles." },
-  { icon: Languages, title: "Any market, any language", text: "Practice in the language and interview culture of the target market, useful for international students and roles abroad." },
-];
-
-const capabilities = [
-  { icon: BarChart3, title: "Cohort rejection-risk heatmaps", text: "See where a cohort is weak, communication, evidence, job fit, as a live heatmap, with the top reasons candidates would be rejected." },
-  { icon: GaugeCircle, title: "WorkZo Readiness Index", text: "One comparable readiness score per learner and per cohort, benchmarked against the wider WorkZo network rather than a guess." },
-  { icon: GraduationCap, title: "Curriculum insights", text: "Weak interview patterns become concrete workshop and coaching actions, with the percentage of students affected." },
-  { icon: Handshake, title: "Vetted shortlist portal", text: "Share an opt-in, bias-aware talent pipeline with employer partners: readiness bands, skills, languages, and interview evidence, no public ranking." },
-  { icon: UsersRound, title: "Human-in-the-loop review", text: "Flag exceptional or at-risk candidates for a human read. Your team gets a review queue and an instant Slack, Teams, or ATS alert." },
-  { icon: Layers, title: "Company interview templates", text: "Learners practice the real thing, SAP, Bosch, BMW, Siemens, Amazon, Google and more, with the right rounds and recruiter tone." },
-];
-
-export default function ForEducationOverview() {
+export default function ForEducationOverviewPage() {
   return (
     <MarketingShell>
-      <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8">
-        <BackLink href="/">Back home</BackLink>
-      </div>
-
       {/* Hero */}
-      <section className="mx-auto max-w-7xl px-4 pb-16 pt-8 text-center sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-7xl px-4 pb-12 pt-12 sm:px-6 lg:px-8 lg:pt-16">
         <Reveal>
-          <div className="flex justify-center"><Eyebrow icon={GraduationCap}>For Education & Organizations</Eyebrow></div>
-          <h1 className="mx-auto mt-5 max-w-4xl text-4xl font-black leading-[1.03] tracking-tight sm:text-5xl lg:text-6xl">
-            Interview readiness for your whole cohort, not just the confident few.
+          <Eyebrow icon={GraduationCap}>For Education</Eyebrow>
+          <h1 className="mt-5 max-w-3xl text-4xl font-black leading-[1.03] tracking-tight sm:text-5xl lg:text-[3.5rem]">
+            Interview readiness for whole cohorts, not just individuals.
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-muted">
-            WorkZo AI gives every student, learner, or candidate realistic, CV-aware interview practice, and gives your team the readiness signals to coach the people who need it, before the deadline.
+          <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
+            WorkZo AI gives every learner realistic, CV-aware interviews with recruiter personas, follow-ups,
+            and a live trust score. Your team gets a shared report per person, so coaching time goes to
+            whoever needs it most. Pick the solution that fits your program.
           </p>
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <PrimaryButton href="#contact">Request a demo</PrimaryButton>
             <GhostButton href="/pricing">See plans</GhostButton>
           </div>
         </Reveal>
-
-        <Reveal delay={100} className="mx-auto mt-14 max-w-4xl">
-          <StatBand
-            stats={[
-              { value: "1 engine", label: "for every role, industry, and language" },
-              { value: "11", label: "recruiter personas across the full loop" },
-              { value: "Group view", label: "readiness and engagement at a glance" },
-            ]}
-          />
-        </Reveal>
       </section>
 
-      {/* Pillars */}
-      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
-        <div className="grid gap-5 md:grid-cols-3">
-          {pillars.map((p, i) => (
-            <Reveal key={p.title} delay={i * 70}>
-              <FeatureCard icon={p.icon} title={p.title}>{p.text}</FeatureCard>
+      {/* Solutions grid */}
+      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <SectionHeading
+          eyebrow="Who it is for"
+          title="Built for the teams that get people hired."
+          intro="Every solution runs on the same engine: realistic interviews from each person's CV and target role, with reports your team can coach from."
+        />
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {SOLUTIONS.map((s, i) => (
+            <Reveal key={s.slug} delay={i * 50}>
+              <FeatureCard icon={s.icon} title={s.label} href={`/for-education/${s.slug}`}>
+                {s.description}
+              </FeatureCard>
             </Reveal>
           ))}
         </div>
       </section>
 
-      {/* Segments */}
-      <section className="border-y border-line bg-canvas-soft">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <Reveal>
-            <SectionHeading
-              eyebrow="Solutions"
-              title="Built for how your program actually works"
-              intro="Pick your context to see how WorkZo fits, what it measures, and how a pilot gets started."
-            />
-          </Reveal>
-          <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {segments.map((s, i) => {
-              const Icon = s.icon;
-              return (
-                <Reveal key={s.slug} delay={(i % 3) * 60}>
-                  <Link
-                    href={`/for-education/${s.slug}`}
-                    className="group flex h-full flex-col rounded-2xl border border-line bg-surface/70 p-6 transition hover:-translate-y-1 hover:border-brand/30 hover:bg-surface"
-                  >
-                    <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand/10 text-brand transition group-hover:bg-brand group-hover:text-on-brand">
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <h3 className="mt-5 text-lg font-black tracking-tight">{s.label}</h3>
-                    <p className="mt-2 flex-1 text-sm leading-6 text-muted">{s.desc}</p>
-                    <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-black text-brand">
-                      Explore <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                    </span>
-                  </Link>
-                </Reveal>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Talent intelligence layer */}
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <Reveal>
-          <SectionHeading
-            eyebrow="The intelligence layer"
-            title="Talent intelligence, not just practice"
-            intro="Beyond per-student reports, WorkZo turns every interview into cohort-level signal your team, and your employer partners, can act on."
-          />
-        </Reveal>
-        <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {capabilities.map((c, i) => {
-            const Icon = c.icon;
-            return (
-              <Reveal key={c.title} delay={(i % 3) * 60}>
-                <div className="flex h-full flex-col rounded-2xl border border-line bg-surface/70 p-6">
-                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand/10 text-brand">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <h3 className="mt-5 text-lg font-black tracking-tight">{c.title}</h3>
-                  <p className="mt-2 flex-1 text-sm leading-6 text-muted">{c.text}</p>
-                </div>
-              </Reveal>
-            );
-          })}
-        </div>
-      </section>
-
       {/* How a pilot works */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
-        <Reveal>
-          <SectionHeading eyebrow="Getting started" title="From first conversation to live cohort" />
-        </Reveal>
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
+      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <SectionHeading eyebrow="How it works" title="From first practice to interview-ready." />
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
           {[
-            { t: "Scope the pilot", d: "We map your target roles, cohort size, and timeline, then set up a shared minute pool and the recruiter personas that fit your placement partners." },
-            { t: "Run practice at scale", d: "Learners complete realistic interviews against their own CV and the target role, as many times as they need, in the browser." },
-            { t: "Coach from readiness", d: "Your team reviews group-level readiness, flags who needs help before the deadline, and shapes workshops around the real gaps." },
-          ].map((s, i) => (
-            <Reveal key={s.t} delay={i * 80}>
-              <div className="relative h-full rounded-2xl border border-line bg-surface p-6">
-                <span className="text-sm font-black tabular-nums text-brand">{String(i + 1).padStart(2, "0")}</span>
-                <h3 className="mt-3 text-lg font-black tracking-tight">{s.t}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted">{s.d}</p>
+            ["Set the target", "Each person uploads their CV and a target job description. The interview is built around that role, not a generic bank."],
+            ["Practise realistically", "Learners run voice or text interviews with recruiter personas matched to the role and company style, with real follow-ups."],
+            ["Coach from the report", "Your team sees a scored breakdown per person, the weakest moments, and a focused plan, so sessions go straight to what matters."],
+          ].map(([title, text], i) => (
+            <Reveal key={title} delay={i * 80}>
+              <div className="h-full rounded-2xl border border-line bg-surface/60 p-6">
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-brand/10 text-sm font-black text-brand">
+                  {i + 1}
+                </span>
+                <h3 className="mt-4 text-lg font-black tracking-tight">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted">{text}</p>
               </div>
             </Reveal>
           ))}
         </div>
       </section>
 
-      <section id="contact" className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+      {/* Lead form */}
+      <section id="contact" className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <SectionHeading
-          eyebrow="Request a demo"
-          title="Tell us about your program"
-          intro="We reply within one business day. Pilots start small: your cohort gets full access via invitation, and you get completion reports every week."
+          eyebrow="Talk to us"
+          title="Start a managed pilot."
+          intro="Tell us about your cohort and we will scope a pilot with a shared minute pool and the recruiter personas that fit your placements."
         />
         <div className="mt-8">
-          <B2BLeadForm source="education" />
+          <B2BLeadForm source="education-overview" />
         </div>
       </section>
 
       <CTASection
-        title="Let's shape a pilot for your program"
-        intro="Tell us your cohort size, target roles, and timeline. We'll help you start small and prove the value before any deeper rollout."
+        title="Give your next cohort a real edge."
+        intro="Realistic interview practice for everyone, with reports your team can coach from."
         primary={{ href: "#contact", label: "Request a demo" }}
-        secondary={{ href: "/resources", label: "Browse resources" }}
+        secondary={{ href: "/pricing", label: "See plans" }}
       />
     </MarketingShell>
   );

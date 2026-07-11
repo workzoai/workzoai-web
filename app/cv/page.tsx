@@ -26,15 +26,10 @@ import {
   type CvTemplate,
 } from "@/lib/workzoWorkspaceGenerators";
 import { syncCandidateIdentityFromSetup } from "@/lib/workzoCandidateIdentity";
-import {
-  normalizeSetupCvText,
-  normalizeSetupJobDescription,
-  normalizeSetupTargetMarket,
-  normalizeSetupTargetRole,
-  readLatestInterviewSetup,
-} from "@/lib/workzoInterviewSetup";
+import { readLatestInterviewSetup } from "@/lib/workzoInterviewSetup";
 import type { ResumeProfile } from "@/lib/workzoResumeParser";
 import CvSourcePanel from "@/components/CvSourcePanel";
+import { resolveCvSource } from "@/lib/workzoCvSource";
 import {
   debugCvPipeline,
   debugCvProfile,
@@ -44,11 +39,13 @@ import { buildPhaseAInsights } from "@/lib/workzoCareerSuitePhaseA";
 import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
 import {
   completeResumeProfile,
-  isLowQualityResumeProfile,
-  keepBetterProfile,
   mergePreservingOriginalStructure,
   resumeProfileHasMinimumStructure,
 } from "@/lib/workzoResumeProfileManager";
+import {
+  guardResumeAgainstSource,
+  formatResumeProfileText,
+} from "@/lib/workzoResumeFactGuard";
 
 const templates: Array<{ id: CvTemplate; label: string; description: string }> =
   [
@@ -224,6 +221,16 @@ export default function CvWorkspacePage() {
   const [aiRewriteLoading, setAiRewriteLoading] = useState(false);
   const [aiRewriteError, setAiRewriteError] = useState("");
   const [aiRewriteApplied, setAiRewriteApplied] = useState(false);
+  // True once the user has typed in the editable CV box (or an AI rewrite has
+  // populated it). While dirty, the auto-baseline effect below must never
+  // overwrite the text, and the preview/PDF/copy read from this text instead
+  // of the raw upload. Reset to false only on an explicit revert or a fresh
+  // upload, so edits can never be silently discarded.
+  const [atsDirty, setAtsDirty] = useState(false);
+  // The exact text the last AI rewrite produced. Used to tell an untouched
+  // rewrite (use its structured profile for best fidelity) apart from a
+  // rewrite the user then hand-edited (re-parse the edited text instead).
+  const [lastRewriteText, setLastRewriteText] = useState("");
   const [savedResumeProfile, setSavedResumeProfile] = useState<
     ResumeProfile | undefined
   >(undefined);
@@ -241,311 +248,70 @@ export default function CvWorkspacePage() {
   const [viewMode, setViewMode] = useState<"text" | "preview">("text");
   const [cvTextExpanded, setCvTextExpanded] = useState(false);
   const [copyConfirmed, setCopyConfirmed] = useState(false);
+  // The user must always be able to correct a mis-parsed CV. Previously the
+  // upload panel was hidden the moment *any* CV was in the setup store, so a
+  // wrong name or a missing job left the user with no way out of this page.
+  const [showReplacePanel, setShowReplacePanel] = useState(false);
 
   useEffect(() => {
+    // ────────────────────────────────────────────────────────────────────────
+    // CV RESOLUTION — read only. Never re-parse.
+    //
+    // This page used to: read the interview *setup* store, run a heuristic
+    // `isLowQualityProfile` check on the profile it found, and — whenever that
+    // check failed — POST the flattened CV text to /api/cv/structure to rebuild
+    // the profile from scratch.
+    //
+    // That fallback fired constantly, because the setup store is written by
+    // several unrelated flows and resolved by `updatedAt` recency: any later
+    // save that carried no resumeProfile made the good profile disappear. The
+    // text re-parse then reconstructed the CV from a two-column PDF flattened
+    // into one column, which is precisely where the wrong name, the missing
+    // jobs, and the doubled education section came from.
+    //
+    // The vision extractor already parsed this CV correctly at upload time.
+    // We read that result. If it is not there, we ask for the file again
+    // rather than guessing.
+    // ────────────────────────────────────────────────────────────────────────
+    const source = resolveCvSource();
     const setup = readLatestInterviewSetup();
-    debugCvPipeline("cv.page.setup.loaded", {
-      hasSetup: Boolean(setup),
-      setupKeys:
-        setup && typeof setup === "object"
-          ? Object.keys(setup).slice(0, 40)
-          : [],
-      cvChars: normalizeSetupCvText(setup).length,
-      hasResumeProfile: Boolean(setup?.resumeProfile),
-    });
-    debugCvText("cv.page.setup.cvText", normalizeSetupCvText(setup));
-    debugCvProfile("cv.page.setup.resumeProfile", setup?.resumeProfile);
-
     syncCandidateIdentityFromSetup(setup);
-    const storedCvText = normalizeSetupCvText(setup);
-    const rawStoredCvText = String(
-      (setup as Record<string, unknown> | null)?.rawCvText ||
-        (setup as Record<string, unknown> | null)?.uploadedCvText ||
-        (setup as Record<string, unknown> | null)?.content ||
-        storedCvText ||
-        "",
-    );
-    setRawCvText(rawStoredCvText);
-    setCvText(storedCvText);
-    setJobDescription(normalizeSetupJobDescription(setup));
-    setTargetRole(normalizeSetupTargetRole(setup));
-    setTargetMarket(normalizeSetupTargetMarket(setup));
 
-    const profile = setup?.resumeProfile;
+    debugCvPipeline("cv.page.source.resolved", {
+      origin: source.origin,
+      name: source.profile?.basics?.name || null,
+      experience: source.profile?.experience?.length ?? 0,
+      education: source.profile?.education?.length ?? 0,
+      rawChars: source.rawCvText.length,
+      needsReupload: source.needsReupload,
+    });
 
-    function isLowQualityProfile(p: unknown): boolean {
-      if (!p || typeof p !== "object" || !("basics" in p)) return true;
-      const prof = p as ResumeProfile;
+    setJobDescription(source.jobDescription);
+    setTargetRole(source.targetRole);
+    setTargetMarket(source.targetMarket);
+    setRawCvText(source.rawCvText);
 
-      const rawName = prof.basics?.name?.trim() || "";
-      const name = rawName.toLowerCase();
-      if (
-        !name ||
-        name === "candidate" ||
-        name === "professional" ||
-        name === "unknown"
-      )
-        return true;
-
-      const normalizedName = name
-        .replace(/[^a-z0-9]+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      const skillNames = (prof.skills || []).map((s) =>
-        String(s)
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, " ")
-          .replace(/\s+/g, " ")
-          .trim(),
-      );
-      if (skillNames.includes(normalizedName)) return true;
-
-      // Also reject if the name exactly matches one of the candidate's own
-      // project titles: this is the specific failure mode where a project
-      // name like "YouTube API And NLP" or "GANS E-Scooter Service" ends up
-      // in basics.name instead of the real human name.
-      const projectNames = (prof.projects || []).map((proj) =>
-        String(proj?.name || "")
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, " ")
-          .replace(/\s+/g, " ")
-          .trim(),
-      );
-      if (normalizedName && projectNames.includes(normalizedName)) return true;
-
-      // Reject names containing tech/project acronyms that essentially never
-      // appear in a real human name (API, NLP, RAG, GCP, SQL, etc.): these
-      // are strong signals the "name" is actually a project title or skill
-      // phrase that slipped past the other checks.
-      if (
-        /\b(API|NLP|RAG|GCP|SQL|ITIL|ITSM|CRM|ERP|SDK|CSS|HTML|JSON|REST|AWS)\b/.test(
-          rawName,
-        )
-      )
-        return true;
-
-      if (
-        /\b(project management|resource planning|software development|cost planning|data analysis|machine learning|process improvement|team training|customer support|technical support|stakeholder management|communication|leadership|python|sql|excel|tableau|power bi|salesforce|sap|erp|crm|public relations|time management|critical thinking|effective communication|generative ai|data engineering|data visualization|machine learning|web scraping|cloud functions|api integration|process improvement)\b/i.test(
-          rawName,
-        )
-      )
-        return true;
-      if (
-        /\b(manager|engineer|designer|developer|analyst|consultant|specialist|coordinator|administrator|support|officer|director|lead|intern|project|software|data|technical|customer|enterprise|resource|planning|relations|communication|management|specialist)\b/i.test(
-          rawName,
-        )
-      )
-        return true;
-
-      const headline = prof.basics?.headline || "";
-      if (/\b(gmbh|ag|ltd|llc|inc|corp)\b/i.test(headline)) return true;
-      if (headline.trim().split(/\s+/).length === 1 && headline.length < 12)
-        return true;
-
-      const exp = prof.experience || [];
-      if (exp.length > 0) {
-        const allTitlesTruncated = exp.every(
-          (e) => !e.title || e.title.trim().split(/\s+/).length <= 1,
-        );
-        if (allTitlesTruncated) return true;
-        const hasBadTitle = exp.some((e) => /^\d{4}/.test(e.title || ""));
-        if (hasBadTitle) return true;
-        const hasDuplicateCompany = exp.some((e) => {
-          const c = e.company || "";
-          const parts = c.split(/\s*[•|]\s*/);
-          return parts.length >= 2 && parts[0].trim() === parts[1]?.trim();
-        });
-        if (hasDuplicateCompany) return true;
-      }
-
-      return false;
-    }
-
-    // RESTRUCTURE: reuse the (vision) structured profile whenever it has usable
-    // structure — real experience or education entries. A weak *name* is repaired
-    // below via the name override; it must NOT cause us to discard the entire
-    // structured CV and fall back to the flattening re-parse (/api/cv/structure),
-    // which is exactly what garbled experience, skills, and dates. Only genuinely
-    // structure-less input (nothing but noise) proceeds to the re-parse fallback.
-    const structuredProfile =
-      profile && typeof profile === "object" && "basics" in profile
-        ? (profile as ResumeProfile)
-        : null;
-    const hasUsableStructure =
-      !!structuredProfile &&
-      ((Array.isArray(structuredProfile.experience) &&
-        structuredProfile.experience.some(
-          (e) => (e?.company || "").trim() || (e?.title || "").trim(),
-        )) ||
-        (Array.isArray(structuredProfile.education) &&
-          structuredProfile.education.some((e) =>
-            (e?.institution || e?.degree || "").toString().trim(),
-          )));
-
-    if (structuredProfile && hasUsableStructure) {
-      const completed = completeResumeProfile(
-        profile as ResumeProfile,
-        storedCvText,
-      );
-      // Enforce the authoritative candidate name from the setup store.
-      // The setup store's candidateName was set by the name_override pipeline
-      // which is more reliable than what the AI parser put in basics.name.
-      // This prevents "Public Relations", "Matplotlib Seaborn Tableau" etc.
-      // from slipping through isLowQualityProfile and corrupting the rewritten CV.
-      const storedCandidateName = String(
-        (setup as Record<string, unknown>)?.candidateName ||
-          (setup as Record<string, unknown>)?.name ||
-          "",
-      ).trim();
-      if (
-        storedCandidateName &&
-        storedCandidateName.toLowerCase() !== "candidate" &&
-        storedCandidateName !== completed.basics?.name
-      ) {
-        const nameWords = storedCandidateName.split(/\s+/);
-        // Only use stored name if it looks like a real human name (2+ words, no role keywords)
-        const looksHuman =
-          nameWords.length >= 2 &&
-          nameWords.length <= 5 &&
-          !/\b(public|relations|management|engineer|analyst|specialist|manager|developer|coordinator)\b/i.test(
-            storedCandidateName,
-          );
-        if (looksHuman) {
-          completed.basics = { ...completed.basics, name: storedCandidateName };
-        }
-      }
-      const completedWithRaw = {
-        ...completed,
-        rawText: completed.rawText || rawStoredCvText || storedCvText,
-        previewText:
-          completed.previewText ||
-          (rawStoredCvText || storedCvText).slice(0, 1200),
-      } as ResumeProfile;
-      setSavedResumeProfile(completedWithRaw);
-      setCvText(renderResumeProfilePlainText(completedWithRaw) || storedCvText);
-      setProfileNeedsReupload(false);
-      debugCvProfile("cv.page.savedResumeProfile.set", completedWithRaw);
+    if (!source.profile) {
+      // No trustworthy structured CV. Show CvSourcePanel. Keep any raw text
+      // around so the user can see what we had, but never feed it to a rewrite.
+      setCvText(source.rawCvText);
+      setProfileRecovering(false);
+      setProfileNeedsReupload(source.needsReupload);
       return;
     }
 
-    const s = setup as Record<string, unknown> | null;
-    const rawText =
-      (s?.rawCvText as string) ||
-      (s?.uploadedCvText as string) ||
-      (s?.content as string) ||
-      rawStoredCvText ||
-      storedCvText;
-    if (rawText && !rawCvText) setRawCvText(rawText);
+    const completed = completeResumeProfile(source.profile, source.rawCvText);
+    const profileWithRaw = {
+      ...completed,
+      rawText: completed.rawText || source.rawCvText,
+      previewText: completed.previewText || source.rawCvText.slice(0, 1200),
+    } as ResumeProfile;
 
-    debugCvPipeline("cv.page.profile.recovery", {
-      reason: profile ? "low_quality_profile" : "no_profile",
-      name: (profile as ResumeProfile | undefined)?.basics?.name,
-      rawChars: rawText?.length ?? 0,
-    });
-
-    const textForAi = rawText?.trim() || "";
-    if (textForAi.length > 200) {
-      setProfileRecovering(true);
-      debugCvPipeline("cv.page.profile.ai_reparse", {
-        chars: textForAi.length,
-      });
-      fetch("/api/cv/structure", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          cvText: textForAi,
-          layoutText: textForAi,
-          targetRole: normalizeSetupTargetRole(setup),
-          targetMarket: normalizeSetupTargetMarket(setup),
-          // Pass any already-known name so the structure route doesn't re-derive
-          // a wrong name from the pasted/layout text when the profile exists.
-          candidateName:
-            (profile as ResumeProfile | undefined)?.basics?.name || "",
-          fileName:
-            ((setup as Record<string, unknown>)?.fileName as string) || "",
-        }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          const aiProfile = data?.resumeProfile || data?.profile;
-          if (
-            aiProfile &&
-            typeof aiProfile === "object" &&
-            "basics" in aiProfile
-          ) {
-            const best = keepBetterProfile(
-              aiProfile as ResumeProfile,
-              profile as ResumeProfile | undefined,
-              textForAi,
-            );
-            if (best && !isLowQualityResumeProfile(best)) {
-              const bestWithRaw = {
-                ...best,
-                rawText: best.rawText || textForAi,
-                previewText: best.previewText || textForAi.slice(0, 1200),
-              } as ResumeProfile;
-              setSavedResumeProfile(bestWithRaw);
-              setRawCvText(textForAi);
-              setCvText(renderResumeProfilePlainText(bestWithRaw) || textForAi);
-              setProfileRecovering(false);
-              setProfileNeedsReupload(false);
-              debugCvProfile("cv.page.savedResumeProfile.ai_reparse", bestWithRaw);
-              const cleanLines: string[] = [];
-              const b = best.basics || {};
-              if (b.name) cleanLines.push(`Candidate name: ${b.name}`);
-              if (b.headline) cleanLines.push(`Headline: ${b.headline}`);
-              const ct = [b.email, b.phone, b.location]
-                .filter(Boolean)
-                .join(" • ");
-              if (ct) cleanLines.push(`Contact: ${ct}`);
-              if (best.summary) cleanLines.push(`Summary: ${best.summary}`);
-              if (best.experience?.length) {
-                cleanLines.push("Experience:");
-                best.experience.slice(0, 6).forEach((e) => {
-                  const t = [e.title, e.company, e.dates]
-                    .filter(Boolean)
-                    .join(" • ");
-                  if (t) cleanLines.push(`- ${t}`);
-                  e.bullets
-                    ?.slice(0, 4)
-                    .forEach((bl: string) => cleanLines.push(`  • ${bl}`));
-                });
-              }
-              if (best.education?.length) {
-                cleanLines.push("Education:");
-                best.education.slice(0, 4).forEach((e) => {
-                  const l = [e.degree, e.institution, e.dates]
-                    .filter(Boolean)
-                    .join(" • ");
-                  if (l) cleanLines.push(`- ${l}`);
-                });
-              }
-              if (best.skills?.length)
-                cleanLines.push(
-                  `Skills: ${best.skills.slice(0, 24).join(", ")}`,
-                );
-              if (best.languages?.length)
-                cleanLines.push(`Languages: ${best.languages.join(", ")}`);
-              // Do NOT replace cvText with this derived profile summary.
-              // cvText must remain the original uploaded/raw CV text. Feeding a
-              // derived summary back into /api/cv or /api/copilot causes the
-              // global corruption loop seen in testing: missing jobs, duplicate
-              // education, raw structured lines inside experience, and project
-              // bullets moving into work history.
-              return;
-            }
-          }
-          setProfileRecovering(false);
-          setProfileNeedsReupload(!resumeProfileHasMinimumStructure(profile));
-        })
-        .catch(() => {
-          setProfileRecovering(false);
-          setProfileNeedsReupload(!resumeProfileHasMinimumStructure(profile));
-        });
-    } else {
-      setProfileNeedsReupload(!resumeProfileHasMinimumStructure(profile));
-    }
+    setSavedResumeProfile(profileWithRaw);
+    setCvText(renderResumeProfilePlainText(profileWithRaw) || source.rawCvText);
+    setProfileRecovering(false);
+    setProfileNeedsReupload(false);
+    debugCvProfile("cv.page.savedResumeProfile.set", profileWithRaw);
   }, []);
 
   // `baselineInput` feeds the auto-generated "improved CV" baseline. It must
@@ -583,37 +349,53 @@ export default function CvWorkspacePage() {
   // `resumeInput` feeds the template/preview/download: this is the one that
   // SHOULD reflect the rewrite (and its language) once applied.
   const resumeInput = useMemo(
-    () => ({
-      cvText:
-        rawCvText ||
-        savedResumeProfile?.rawText ||
-        (aiRewriteApplied && atsText.trim()
+    () => {
+      // The editable box wins whenever the user has taken it over: either by
+      // typing (atsDirty) or by applying an AI rewrite. When it wins, it is
+      // the cvText source and rawCvText/savedResumeProfile must NOT override
+      // it, otherwise edits never reach the preview, PDF, or copy.
+      const usingEditedText =
+        (atsDirty || aiRewriteApplied) && atsText.trim().length > 0;
+      // Only trust the rewrite's structured profile while the text still
+      // matches the rewrite verbatim. Once the user hand-edits it, drop to
+      // re-parsing the edited text so their changes actually show up.
+      const useRewriteProfile =
+        aiRewriteApplied &&
+        !!rewrittenResumeProfile &&
+        atsText.trim() === lastRewriteText.trim();
+
+      return {
+        cvText: usingEditedText
           ? atsText
-          : savedResumeProfile
-            ? renderResumeProfilePlainText(savedResumeProfile)
-            : cvText),
-      // Prefer the AI's own structured profile from the rewrite when we have
-      // one: this is the fix for the rewrite corrupting the candidate name,
-      // dropping jobs/projects, and losing education. Only fall back to
-      // re-parsing the plain text (resumeProfile: undefined, which makes
-      // buildResumeJson call extractResumeProfile on cvText) when the AI
-      // didn't return structured JSON for some reason: e.g. an older
-      // cached response, or the JSON path failed and the route fell back
-      // to plain text.
-      resumeProfile:
-        aiRewriteApplied && atsText.trim()
-          ? rewrittenResumeProfile || undefined
+          : rawCvText ||
+            savedResumeProfile?.rawText ||
+            (savedResumeProfile
+              ? renderResumeProfilePlainText(savedResumeProfile)
+              : cvText),
+        // Prefer the AI's own structured profile from the rewrite when we have
+        // one and the text is unchanged: this is the fix for the rewrite
+        // corrupting the candidate name, dropping jobs/projects, and losing
+        // education. For manual edits (or an edited rewrite) we pass undefined,
+        // which makes buildResumeJson re-parse the edited text via
+        // extractResumeProfile, so every edit is reflected downstream.
+        resumeProfile: usingEditedText
+          ? useRewriteProfile
+            ? rewrittenResumeProfile || undefined
+            : undefined
           : savedResumeProfile,
-      jobDescription,
-      targetRole,
-      targetMarket,
-      template,
-    }),
+        jobDescription,
+        targetRole,
+        targetMarket,
+        template,
+      };
+    },
     [
       cvText,
       rawCvText,
       atsText,
+      atsDirty,
       aiRewriteApplied,
+      lastRewriteText,
       savedResumeProfile,
       rewrittenResumeProfile,
       jobDescription,
@@ -628,12 +410,24 @@ export default function CvWorkspacePage() {
       "cv.page.generateImprovedCv.inputProfile",
       baselineInput.resumeProfile,
     );
+
+    // Do not manufacture a fake "Candidate / Professional" CV when the
+    // canonical profile was rejected. That hides the real parser issue and
+    // poisons downstream pages. Force the user back through CvSourcePanel.
+    if (!baselineInput.resumeProfile) {
+      debugCvText("cv.page.generateImprovedCv.skipped", "No verified CV profile available.");
+      return "";
+    }
+
     const output = generateImprovedCv(baselineInput);
     debugCvText("cv.page.generateImprovedCv.outputText", output);
     return output;
   }, [baselineInput]);
 
   const resumeJson = useMemo(() => {
+    if (!resumeInput.resumeProfile && !atsText.trim()) {
+      return buildResumeJson({ ...resumeInput, cvText: "" });
+    }
     const output = buildResumeJson(resumeInput);
     debugCvProfile("cv.page.buildResumeJson.outputProfile", output.profile, {
       summary: output.summary,
@@ -643,7 +437,7 @@ export default function CvWorkspacePage() {
       skillsCount: output.skills.length,
     });
     return output;
-  }, [resumeInput]);
+  }, [resumeInput, atsText]);
   const htmlPreview = useMemo(
     () => generateResumeHtml(resumeInput),
     [resumeInput],
@@ -942,11 +736,15 @@ export default function CvWorkspacePage() {
   );
 
   useEffect(() => {
+    // Once the user has taken over the editable box, the baseline must never
+    // overwrite their text. It re-syncs only after an explicit revert or a
+    // fresh upload, both of which set atsDirty back to false.
+    if (atsDirty) return;
     setAtsText(improvedCv || "");
     setAiRewriteApplied(false);
     setAiRewriteError("");
     setRewrittenResumeProfile(undefined);
-  }, [improvedCv]);
+  }, [improvedCv, atsDirty]);
 
   useEffect(() => {
     if (!resumeJson?.profile?.basics?.name) return;
@@ -1061,12 +859,8 @@ export default function CvWorkspacePage() {
       const rewritten = (data.output || "").trim();
       if (!rewritten) throw new Error("AI rewrite returned no content.");
 
-      setAtsText(rewritten);
-      // If the AI returned a structured profile alongside the plain text,
-      // use it directly for the template/preview/download path: this is
-      // what actually fixes the dropped-job/wrong-name/lost-project bugs,
-      // since the model fills in each field explicitly instead of a regex
-      // parser having to infer structure from prose after the fact.
+      // Merge the model's structured output over the true parsed profile,
+      // keeping the original structure as the base.
       let mergedProfile = savedResumeProfile
         ? mergePreservingOriginalStructure(
             completeResumeProfile(savedResumeProfile, rawCvText || savedResumeProfile.rawText || cvText),
@@ -1074,7 +868,9 @@ export default function CvWorkspacePage() {
               ? data.resumeProfile
               : undefined,
           )
-        : undefined;
+        : data.resumeProfile && typeof data.resumeProfile === "object"
+          ? (data.resumeProfile as ResumeProfile)
+          : undefined;
       // Final name safety: if the merged profile still has a wrong name,
       // restore it from savedResumeProfile which has the correct name.
       if (
@@ -1090,7 +886,39 @@ export default function CvWorkspacePage() {
           },
         };
       }
-      setRewrittenResumeProfile(mergedProfile);
+
+      // Guard the model output against fabrication before it reaches the
+      // preview, PDF, editable text, or copy. This is entity-free and works
+      // for any CV and JD: titles/companies/dates/education come from the
+      // real CV, a skill survives only if the CV evidences it, and every
+      // bullet must trace to a source bullet (re-homed to the right entry if
+      // the model moved it). Skills and bullets are reordered by relevance to
+      // the target role, so the rewrite stays targeted without inventing.
+      const cvSource = rawCvText || savedResumeProfile?.rawText || cvText;
+      // For a genuine cross-language rewrite, mergePreservingOriginalStructure
+      // re-imposes the original-language titles/education and unions the source
+      // skills back in, which would strip the translation before the guard runs.
+      // Feed the guard the model's RAW structured profile in that case (the
+      // guard's translated branch restores identity/structure from the source
+      // itself, so anti-fabrication still holds), and always tell the guard
+      // which language was requested so it stops reverting to the source text.
+      const isTranslated =
+        !!outputLanguage && outputLanguage.trim().toLowerCase() !== "english";
+      const candidateForGuard =
+        isTranslated && data.resumeProfile && typeof data.resumeProfile === "object"
+          ? (data.resumeProfile as ResumeProfile)
+          : mergedProfile;
+      const safeProfile = guardResumeAgainstSource(
+        candidateForGuard,
+        { profile: savedResumeProfile, text: cvSource },
+        { jobDescription, targetRole, outputLanguage },
+      );
+      const safeText = formatResumeProfileText(safeProfile) || rewritten;
+
+      setRewrittenResumeProfile(safeProfile);
+      setAtsText(safeText);
+      setLastRewriteText(safeText);
+      setAtsDirty(true);
       setAiRewriteApplied(true);
     } catch (err) {
       setAiRewriteError(
@@ -1105,6 +933,8 @@ export default function CvWorkspacePage() {
 
   function handleRevertRewrite() {
     setAtsText(improvedCv || "");
+    setAtsDirty(false);
+    setLastRewriteText("");
     setAiRewriteApplied(false);
     setAiRewriteError("");
     setRewrittenResumeProfile(undefined);
@@ -1181,7 +1011,35 @@ export default function CvWorkspacePage() {
             there is no stored CV. Let them upload or paste one right
             here. This also loads the full experience section, which is
             what feeds the rewrite. */}
-        {!cvReady && (
+        {/* Identity escape hatch. If the parsed name or experience is wrong,
+            the only correct action is to re-parse the original file — never to
+            re-parse the flattened text. */}
+        {cvReady && !showReplacePanel && (
+          <section className="mx-auto mb-4 max-w-6xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-fg/[0.02] px-4 py-3">
+              <p className="text-sm text-muted">
+                Working from{" "}
+                <span className="font-black text-fg">
+                  {savedResumeProfile?.basics?.name || "your CV"}
+                </span>
+                {savedResumeProfile?.experience?.length
+                  ? ` • ${savedResumeProfile.experience.length} roles`
+                  : ""}
+                {savedResumeProfile?.education?.length
+                  ? ` • ${savedResumeProfile.education.length} education entries`
+                  : ""}
+              </p>
+              <button
+                onClick={() => setShowReplacePanel(true)}
+                className="rounded-lg border border-line px-3 py-1.5 text-xs font-black text-fg hover:border-brand"
+              >
+                Not right? Upload the CV again
+              </button>
+            </div>
+          </section>
+        )}
+
+        {(!cvReady || showReplacePanel) && (
           <section className="mx-auto mb-6 max-w-6xl">
             <CvSourcePanel
               requireJobDescription
@@ -1195,6 +1053,10 @@ export default function CvWorkspacePage() {
                 setSavedResumeProfile(r.resumeProfile);
                 setJobDescription(r.jobDescription);
                 setTargetRole(r.targetRole);
+                setAtsDirty(false);
+                setLastRewriteText("");
+                setProfileNeedsReupload(false);
+                setShowReplacePanel(false);
               }}
             />
           </section>
@@ -1376,13 +1238,13 @@ export default function CvWorkspacePage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {aiRewriteApplied && (
+              {(aiRewriteApplied || atsDirty) && (
                 <button
                   type="button"
                   onClick={handleRevertRewrite}
                   className="rounded-full border border-line px-3.5 py-2 text-xs font-black text-muted transition hover:bg-fg/10"
                 >
-                  Revert to original
+                  Reset to original
                 </button>
               )}
               <button
@@ -1413,7 +1275,10 @@ export default function CvWorkspacePage() {
           {viewMode === "text" ? (
             <textarea
               value={atsText}
-              onChange={(event) => setAtsText(event.target.value)}
+              onChange={(event) => {
+                setAtsText(event.target.value);
+                setAtsDirty(true);
+              }}
               className="mt-4 min-h-[480px] w-full resize-y overflow-auto whitespace-pre-wrap rounded-xl border border-line bg-canvas-soft p-5 font-sans text-sm leading-7 text-fg outline-none transition placeholder:text-subtle focus:border-brand focus:bg-canvas-soft"
               placeholder="Upload or paste a CV to generate an improved version. You can edit this text before copying or downloading."
               spellCheck={true}

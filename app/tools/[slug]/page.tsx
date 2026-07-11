@@ -78,7 +78,7 @@ export default async function FreeToolPage({
       />
 
       <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8">
-        <BackLink href="/tools">All free tools</BackLink>
+        <BackLink href="/tools">All career tools</BackLink>
       </div>
 
       {/* Hero */}
@@ -91,12 +91,12 @@ export default async function FreeToolPage({
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">{tool.hero.subheading}</p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <PrimaryButton href="#try-tool">{tool.hero.primaryCta}</PrimaryButton>
-            <GhostButton href="/tools">Explore all free tools</GhostButton>
+            <GhostButton href="/tools">Explore all career tools</GhostButton>
           </div>
         </Reveal>
       </section>
 
-      {/* The actual free tool, runs inline, no login required */}
+      {/* The interactive tool. Sign-in keeps CV memory and results connected across WorkZo. */}
       <section id="try-tool" className="mx-auto max-w-3xl px-4 pb-8 sm:px-6 lg:px-8">
         <FreeToolRunner tool={tool} />
       </section>
@@ -144,9 +144,9 @@ export default async function FreeToolPage({
         </div>
       </section>
 
-      {/* Related free tools */}
+      {/* Related career tools */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="More free tools" title="Keep preparing, it's all free." />
+        <SectionHeading eyebrow="More career tools" title="Keep building your application." />
         <div className="mt-10 grid gap-4 sm:grid-cols-3">
           {related.map((other) => (
             <FeatureCard
@@ -164,7 +164,7 @@ export default async function FreeToolPage({
             href="/tools"
             className="inline-flex items-center gap-2 text-sm font-black text-brand transition hover:text-brand-strong"
           >
-            View all free tools <ArrowRight className="h-4 w-4" />
+            View all career tools <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </section>
@@ -173,7 +173,7 @@ export default async function FreeToolPage({
         title={tool.cta.heading}
         intro={tool.cta.subheading}
         primary={{ href: "/pricing", label: "Compare plans" }}
-        secondary={{ href: "/onboarding", label: "Try a free interview" }}
+        secondary={{ href: "/onboarding", label: "Start interview preparation" }}
       />
     </MarketingShell>
   );

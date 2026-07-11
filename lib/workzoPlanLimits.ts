@@ -13,6 +13,10 @@ export type WorkZoFeatureKey =
   | "job_assist"
   | "ats_optimization"
   | "career_brain"
+  // LinkedIn Career Optimizer, tiered Analyze -> Improve -> Master.
+  | "linkedin_analyze"
+  | "linkedin_rewrite"
+  | "linkedin_recruiter_sim"
   | "performance_tracking"
   | "hiring_readiness"
   | "video_recruiter"
@@ -119,6 +123,7 @@ export const WORKZO_PLAN_LIMITS: Record<WorkZoPlanType, WorkZoPlanLimits> = {
       "AI Resume Tailor",
       "Cover Letter Generator",
       "Interview Question Generator",
+      "Professional Summary Generator",
     ],
     notIncluded: [
       "Full recruiter debrief (hiring committee memo, shadow scores)",
@@ -292,6 +297,13 @@ export function getWorkZoFeatureRequiredPlan(feature: WorkZoFeatureKey): WorkZoP
       return "free";
     case "improve_cv":
     case "cover_letter":
+    // Analyze tier: the consistency + JD-match engines are deterministic and
+    // cost nothing to run, so they stay free. They are NOT login-free, though:
+    // both read the parsed CV, and the CV lives behind auth. This is the one
+    // place the "every free tool works without login" rule cannot hold, because
+    // the thing that makes the feature differentiated is the thing that
+    // requires an account.
+    case "linkedin_analyze":
       return "free";
     case "interview_history":
     case "advanced_reports":
@@ -301,6 +313,8 @@ export function getWorkZoFeatureRequiredPlan(feature: WorkZoFeatureKey): WorkZoP
     case "performance_tracking":
     case "hiring_readiness":
     case "exports":
+    // Improve tier: rewriting the headline and About section costs an LLM call.
+    case "linkedin_rewrite":
       return "premium";
     case "video_recruiter":
     case "premium_personas":
@@ -309,6 +323,8 @@ export function getWorkZoFeatureRequiredPlan(feature: WorkZoFeatureKey): WorkZoP
     case "replay_intelligence":
     case "priority_models":
     case "early_access":
+    // Master tier: item 10, the recruiter simulation. Reserved, not yet built.
+    case "linkedin_recruiter_sim":
       return "premium_pro";
     default:
       return "premium";

@@ -276,7 +276,7 @@ export default async function HistoryPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted hover:text-fg">
             <ArrowLeft className="h-4 w-4" />
-            Settings
+            Dashboard
           </Link>
           <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-black text-on-brand hover:bg-brand">
             <RotateCcw className="h-4 w-4" />

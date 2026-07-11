@@ -26,7 +26,7 @@ import { FileUp, Loader2, ClipboardPaste, AlertTriangle, CheckCircle2 } from "lu
 import { structureResumeProfileFromCv } from "@/lib/workzoCvClient";
 import { extractResumeProfileComplex, normalizeResumeText, type ResumeProfile } from "@/lib/workzoResumeParser";
 import { completeResumeProfile } from "@/lib/workzoResumeProfileManager";
-import { saveLatestInterviewSetup } from "@/lib/workzoInterviewSetup";
+import { persistCvSource } from "@/lib/workzoCvSource";
 
 export type CvSourceResult = {
   cvText: string;
@@ -98,22 +98,19 @@ export default function CvSourcePanel({
     const completed = completeResumeProfile({ ...profile, rawText: profile.rawText || rawCvText }, rawCvText);
     const resolvedRole = targetRole.trim() || completed.basics?.headline || "General Role";
 
-    // Persist a canonical setup so the whole app, not just this page,
-    // sees the uploaded CV. Keep raw CV text raw in cvText fields.
-    saveLatestInterviewSetup({
-      cvText: rawCvText,
-      uploadedCvText: rawCvText,
-      resumeText: rawCvText,
+    // Persist to the canonical profile store AND the interview setup store in
+    // one call. Writing only the setup store was the original defect: Improve
+    // CV read the canonical store's absence as "no profile" and re-parsed the
+    // flattened text, which is what produced wrong names, dropped jobs, and
+    // duplicated education.
+    persistCvSource({
+      profile: completed,
       rawCvText,
-      resumeProfile: completed,
+      fileName: sourceFileName,
       jobDescription: jobDescription.trim(),
-      jdText: jobDescription.trim(),
       targetRole: resolvedRole,
-      role: resolvedRole,
-      candidateName: completed.basics?.name || "",
-      candidateHeadline: completed.basics?.headline || "",
       source: "feature-page-cv-upload",
-    } as Parameters<typeof saveLatestInterviewSetup>[0]);
+    });
 
     onLoaded({
       cvText: rawCvText,

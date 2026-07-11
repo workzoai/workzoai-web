@@ -61,8 +61,8 @@ export default function DashboardSettingsPage() {
     <main className="min-h-screen bg-canvas px-4 py-5 text-fg sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <header className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-canvas/90 p-4 shadow-2xl shadow-black/20">
-          <Link href="/history" className="inline-flex items-center gap-2 text-sm font-black text-muted hover:text-fg"><ArrowLeft className="h-4 w-4" />Back to dashboard</Link>
-          <Link href="/history" className="flex items-center gap-3"><Image src="/workzo_icon.png" alt="WorkZo AI" width={42} height={42} className="rounded-lg" /><div><p className="text-lg font-black">WorkZo <span className="text-brand">AI</span></p><p className="text-[10px] font-black uppercase tracking-[0.22em] text-brand">Workspace</p></div></Link>
+          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-black text-muted hover:text-fg"><ArrowLeft className="h-4 w-4" />Back to dashboard</Link>
+          <Link href="/dashboard" className="flex items-center gap-3"><Image src="/workzo_icon.png" alt="WorkZo AI" width={42} height={42} className="rounded-lg" /><div><p className="text-lg font-black">WorkZo <span className="text-brand">AI</span></p><p className="text-[10px] font-black uppercase tracking-[0.22em] text-brand">Workspace</p></div></Link>
         </header>
 
         <section className="mt-6 rounded-lg border border-line bg-gradient-to-br from-brand/15 via-brand/10 to-white/[0.03] p-6 sm:p-8">

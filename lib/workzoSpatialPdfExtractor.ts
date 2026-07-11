@@ -10,6 +10,8 @@
  * This file contains no user-specific names, companies, schools, or CV samples.
  */
 
+import { createRequire } from "module";
+
 export type WorkZoSpatialTextItem = {
   text: string;
   x: number;
@@ -181,15 +183,51 @@ async function loadPdfJs(): Promise<any | null> {
     "pdfjs-dist/build/pdf.js",
   ];
 
+  const normalize = (mod: any) =>
+    mod?.getDocument ? mod : mod?.default?.getDocument ? mod.default : null;
+
+  let lastError: unknown = null;
+
+  // 1. require via createRequire resolves the real installed pdfjs-dist from
+  //    node_modules at runtime. Under Next.js server bundling a plain dynamic
+  //    import of pdfjs-dist is frequently rewritten or externalized and then
+  //    throws at runtime, which is what was silently dropping every multi-column
+  //    CV to the naive flattener. This path needs pdfjs-dist listed in
+  //    serverExternalPackages (see next.config) so it stays a real node module.
+  try {
+    // Anchor resolution at the project root. The anchor file need not exist;
+    // createRequire only uses it as the base for bare-specifier resolution.
+    const nodeRequire = createRequire(`${process.cwd()}/workzo-pdf-resolver.js`);
+    for (const specifier of candidates) {
+      try {
+        const mod = normalize(nodeRequire(specifier));
+        if (mod) return mod;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+  } catch (error) {
+    lastError = error;
+  }
+
+  // 2. Fall back to dynamic import for runtimes where require is unavailable.
   for (const specifier of candidates) {
     try {
-      // Keep this dynamic so projects without pdfjs-dist still compile and use fallback.
-      const mod = await import(/* webpackIgnore: true */ specifier);
-      return mod;
-    } catch {
-      // try next candidate
+      const mod = normalize(await import(/* webpackIgnore: true */ specifier));
+      if (mod) return mod;
+    } catch (error) {
+      lastError = error;
     }
   }
+
+  // Make the failure LOUD instead of silently degrading to the naive flattener.
+  // If you see this line, layout-aware extraction is OFF and multi-column CVs
+  // will be scrambled: install pdfjs-dist and add it to serverExternalPackages.
+  console.error(
+    "[workzoSpatialPdfExtractor] pdfjs-dist failed to load server-side; " +
+      "layout-aware extraction is DISABLED and multi-column CVs will be flattened.",
+    lastError,
+  );
   return null;
 }
 

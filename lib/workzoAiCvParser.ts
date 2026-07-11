@@ -627,7 +627,10 @@ function coerceEducation(items: unknown): ResumeEducation[] {
         const isMultiYear = /\b(master|mba|msc|bachelor|bsc|phd|diploma|degree|bootcamp|programme|program)\b/i.test(degreeText);
         if (isMultiYear) {
           // Keep the entry but flag the dates as unverified, better than dropping the degree
-          return { ...item, dates: `${startYear} (dates unverified - check original CV)` };
+          // Keep only the year we can trust. Previously this wrote an internal
+          // QA note into the rendered `dates` field, so it printed on the user's
+          // exported CV. Never leak internal flags into user-facing output.
+          return { ...item, dates: String(startYear), datesUnverified: true };
         }
       }
     }

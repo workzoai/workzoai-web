@@ -1,16 +1,17 @@
-WorkZo first-turn interview stuck fix
+Replace these files in your project:
 
-Replace:
-1. app/interview/page.tsx
-2. app/api/interview/reply/route.ts
+1) app/api/linkedin/analyze/route.ts
+2) app/api/linkedin/rewrite/route.ts
+3) app/linkedin/page.tsx
+4) lib/workzoLinkedInEngine.ts
 
-What this fixes:
-- Browser speech recognition sometimes keeps short answers like "I'm good, how are you?" as interim text, not final text.
-- The old code submitted only final text, so the interview stayed active but never moved forward.
-- This version falls back to stable interim text and treats first-turn small talk as a valid answer.
-- The reply API also has an opening guard so the first answer always moves into the real intro question.
+What changed:
+- LinkedIn Optimizer now accepts 1 to 5 target JDs.
+- Single JD still works like before.
+- Multi-JD corpus mode filters keywords with >=60% support across active target postings.
+- Rewrite route uses the corpus but still forbids unsupported CV claims.
+- UI has an Add another JD flow and explains single-JD vs multi-JD mode.
 
 After replacing:
-Ctrl + C
-Remove-Item -Recurse -Force .next
-npm run dev -- -p 3007
+- Run npm run build.
+- Test with 1 JD and with 3-5 similar JDs.

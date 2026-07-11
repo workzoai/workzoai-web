@@ -35,6 +35,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useSearchParams } from "next/navigation";
 import UpgradeModal from "@/components/premium/UpgradeModal";
 import PremiumUsageBadge from "@/components/premium/PremiumUsageBadge";
+import CvIdentityConfirm from "@/components/CvIdentityConfirm";
 import {
   recordWorkZoInterviewStarted,
   recordWorkZoTavusInterviewStarted,
@@ -76,6 +77,7 @@ import {
   getCandidateDisplayName,
 } from "@/lib/workzoInterviewSetup";
 import type { ResumeProfile } from "@/lib/workzoResumeParser";
+import { applyConfirmedCvIdentity } from "@/lib/workzoCvSource";
 import dynamic from "next/dynamic";
 
 // Lazy-load Monaco: doesn't affect initial bundle for non-technical users
@@ -206,6 +208,8 @@ type InterviewSetup = {
   candidateName: string;
   targetRole: string;
   targetCompany?: string;
+  targetMarket?: string;
+  country?: string;
   recruiterId: string;
   recruiterName: string;
   recruiterTitle: string;
@@ -5198,6 +5202,8 @@ function InterviewPageInner() {
     jobDescription: "",
   });
   const [status, setStatus] = useState<InterviewStatus>("idle");
+  const [identityConfirmOpen, setIdentityConfirmOpen] = useState(false);
+  const identityConfirmedStartRef = useRef(false);
 
   // Dev-mode: ?engine=browser forces browser engine (no Vapi credits spent).
   // Only active in development, production ignores this param entirely.
@@ -7919,6 +7925,15 @@ function InterviewPageInner() {
 
     const restoredSnapshot = recoveredSessionRef.current;
 
+    if (!restoredSnapshot && !identityConfirmedStartRef.current) {
+      const latestSetup = buildSetupFromStorage();
+      setSetup(latestSetup);
+      setupRef.current = latestSetup;
+      setIdentityConfirmOpen(true);
+      return;
+    }
+    identityConfirmedStartRef.current = false;
+
     if (restoredSnapshot) {
       const restoredSetup = restoredSnapshot.setup;
       setSetup(restoredSetup);
@@ -8747,7 +8762,29 @@ function InterviewPageInner() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-canvas text-fg lg:h-screen lg:overflow-hidden">
+    <>
+      <CvIdentityConfirm
+        open={identityConfirmOpen}
+        profile={setup.resumeProfile as { basics?: { name?: string; headline?: string } } | null | undefined}
+        initialRole={setup.targetRole}
+        onCancel={() => setIdentityConfirmOpen(false)}
+        onConfirm={({ name, role }) => {
+          applyConfirmedCvIdentity({
+            name,
+            targetRole: role,
+            jobDescription: setupRef.current.jobDescription,
+            targetMarket: setupRef.current.targetMarket || setupRef.current.country,
+            source: "pre-interview-identity-confirm",
+          });
+          const nextSetup = buildSetupFromStorage();
+          setSetup(nextSetup);
+          setupRef.current = nextSetup;
+          setIdentityConfirmOpen(false);
+          identityConfirmedStartRef.current = true;
+          void startInterview();
+        }}
+      />
+      <main className="min-h-screen overflow-x-hidden bg-canvas text-fg lg:h-screen lg:overflow-hidden">
       <section className="grid min-h-screen grid-rows-[64px_1fr] lg:h-full lg:min-h-0 lg:grid-rows-[70px_1fr]">
         <header className="flex items-center justify-between gap-2 border-b border-line px-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-2 sm:gap-5">
@@ -10076,5 +10113,6 @@ function InterviewPageInner() {
         </div>
       )}
     </main>
+    </>
   );
 }

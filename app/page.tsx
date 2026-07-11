@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import type { SVGProps } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -9,8 +10,12 @@ import {
   BarChart3,
   CheckCircle2,
   ChevronDown,
+  Compass,
   FileText,
+  LayoutTemplate,
+  Mail,
   Mic,
+  PenLine,
   PlayCircle,
   ShieldCheck,
   Sparkles,
@@ -21,6 +26,25 @@ import {
 import WorkZoFooter from "@/components/WorkZoFooter";
 import AuthNavButton from "@/components/auth/AuthNavButton";
 import { getWorkZoDisplayPrices } from "@/lib/workzoLocalizedPricing";
+
+function LinkedinIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z" />
+      <rect width="4" height="12" x="2" y="9" />
+      <circle cx="4" cy="4" r="2" />
+    </svg>
+  );
+}
 
 const trustItems = [
   "Reads the CV. Knows the role.",
@@ -33,6 +57,7 @@ const quickFeatures = [
   { title: "Role and Market Aware", text: "DACH, US, and UK recruiters behave differently. So does WorkZo.", icon: FileText },
   { title: "Live Copilot", text: "Mid-session guidance on what to say, and what not to.", icon: Zap },
   { title: "Trust Score Timeline", text: "See the exact question where the recruiter's confidence dropped.", icon: BarChart3 },
+  { title: "LinkedIn vs Your CV", text: "Every mismatch a recruiter would spot, and the keywords your CV already proves.", icon: UserRound },
 ];
 
 const TESTIMONIALS = [
@@ -929,6 +954,7 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
 export default function LandingPage() {
   const localizedPlans = useMemo(() => getWorkZoDisplayPrices("monthly"), []);
   const glowRef = useRef<HTMLDivElement>(null);
+  const bentoRef = useRef<HTMLDivElement>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
 
   useEffect(() => {
@@ -950,7 +976,7 @@ export default function LandingPage() {
       cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
         if (glowRef.current) {
-          glowRef.current.style.background = `radial-gradient(700px at ${e.clientX}px ${e.clientY}px, rgba(29, 78, 216, 0.11), transparent 75%)`;
+          glowRef.current.style.background = `radial-gradient(700px at ${e.clientX}px ${e.clientY}px, rgba(20, 184, 166, 0.12), transparent 75%)`;
         }
       });
     };
@@ -961,15 +987,81 @@ export default function LandingPage() {
     };
   }, []);
 
+  // Cinematic scroll reveal: fade and lift sections in as they enter view.
+  // Fallback reveals everything if IntersectionObserver is unavailable, so
+  // content is never left hidden.
+  useEffect(() => {
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>(".wz-reveal"));
+    if (!nodes.length) return;
+    if (typeof IntersectionObserver === "undefined") {
+      nodes.forEach((n) => n.classList.add("is-visible"));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            io.unobserve(entry.target);
+          }
+        });
+      },
+      { rootMargin: "0px 0px -12% 0px", threshold: 0.12 },
+    );
+    nodes.forEach((n) => io.observe(n));
+    return () => io.disconnect();
+  }, []);
+
+  // Subtle scroll parallax on the hero bento: it drifts slightly slower than
+  // the page, adding depth. Disabled on small screens and for reduced motion.
+  useEffect(() => {
+    const el = bentoRef.current;
+    if (!el) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const small = window.matchMedia?.("(max-width: 1024px)").matches;
+    if (reduce || small) return;
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const rect = el.getBoundingClientRect();
+        const vh = window.innerHeight || 1;
+        const centerOffset = rect.top + rect.height / 2 - vh / 2;
+        const shift = Math.max(-46, Math.min(46, centerOffset * -0.06));
+        el.style.setProperty("--wz-parallax", `${shift}px`);
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-canvas text-fg">
+      {/* No-JS safeguard: never leave scroll-reveal content hidden */}
+      <noscript>
+        <style>{`.wz-reveal{opacity:1 !important;transform:none !important}`}</style>
+      </noscript>
       {/* Cursor glow overlay */}
       <div ref={glowRef} className="pointer-events-none fixed inset-0 z-50 transition-[background] duration-200 ease-out" />
 
       {/* ── Hero ── */}
       <section className="relative isolate overflow-hidden">
-        {/* Cinematic glow: deep blue spotlight from above, fades to nothing */}
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_110%_65%_at_50%_-5%,rgba(37,99,235,0.38)_0%,rgba(14,50,140,0.18)_40%,transparent_70%)]" />
+        {/* Cinematic glow: teal spotlight from above, gently breathing */}
+        <div className="wz-glow-breathe pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_110%_65%_at_50%_-5%,rgba(13,148,136,0.38)_0%,rgba(6,95,120,0.18)_40%,transparent_70%)]" />
+        {/* Slow drifting gradient wash for depth */}
+        <div className="wz-hero-bg pointer-events-none absolute inset-0 -z-10" />
+        {/* Ambient orbs */}
+        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div className="wz-float-orb absolute -left-28 top-16 h-[26rem] w-[26rem] rounded-full bg-[radial-gradient(circle,rgba(20,184,166,0.30),transparent_70%)] blur-3xl" style={{ animationDelay: "0s" }} />
+          <div className="wz-float-orb absolute -right-16 top-4 h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgba(8,145,178,0.24),transparent_70%)] blur-3xl" style={{ animationDelay: "-4.5s" }} />
+          <div className="wz-float-orb absolute left-1/3 top-72 h-[22rem] w-[22rem] rounded-full bg-[radial-gradient(circle,rgba(45,212,191,0.20),transparent_70%)] blur-3xl" style={{ animationDelay: "-9s" }} />
+        </div>
         <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-3">
             <div className="relative h-[42px] w-[42px] shrink-0 overflow-hidden rounded-xl">
@@ -991,26 +1083,58 @@ export default function LandingPage() {
               </button>
 
               {/* Invisible bridge prevents hover gap between button and menu */}
-              <div className="absolute left-0 top-full h-3 w-full" />
-              <div className="invisible absolute left-0 top-full z-50 mt-1 w-72 translate-y-1 rounded-lg border border-line bg-canvas/95 p-3 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
-                {[
-                  ["How it works", "/features/interview-practice", "See how the recruiter reads the CV and where offers are lost."],
-                  ["Improve CV", "/features/improve-cv", "View CV optimization details before upgrading."],
-                  ["Cover Letter", "/features/cover-letter", "See how tailored letters are generated."],
-                  ["Job Assist", "/features/job-assist", "Understand role-preparation tools."],
-                  ["Results Report", "/features/results-intelligence", "Preview trust, score, and weak-answer reports."],
-                  ["Free CV Review", "/tools/cv-review", "Free · instant AI feedback on your CV."],
-                  ["Interview Question Generator", "/tools/interview-questions", "Free · realistic questions for any role."],
-                ].map(([title, href, text]) => (
+              <div className="absolute left-0 top-full h-3 w-[760px]" />
+              <div className="invisible absolute left-0 top-full z-50 mt-1 w-[760px] translate-y-1 rounded-2xl border border-line bg-canvas/95 p-6 opacity-0 shadow-2xl shadow-black/30 backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+                <div className="grid gap-3 md:grid-cols-2">
+                  {[
+                    ["Improve CV", "/cv", "Rewrite and optimize your CV now.", PenLine, "Free"],
+                    ["ATS Resume Checker", "/tools/ats-checker", "Score your resume against ATS and job keywords.", ShieldCheck, "Free"],
+                    ["Cover Letter", "/cover-letter", "Generate a tailored letter for any role.", Mail, "Free"],
+                    ["LinkedIn Optimizer", "/linkedin", "Check your LinkedIn against your CV and the job.", LinkedinIcon, "New"],
+                    ["Resume Templates", "/resume-templates", "Clean, ATS-friendly resume templates.", LayoutTemplate, "Free"],
+                  ].map(([title, href, text, Icon, badge]) => {
+                    const FeatureIcon = Icon as typeof Compass;
+                    const badgeLabel = badge as string;
+                    return (
+                      <Link
+                        key={title as string}
+                        href={href as string}
+                        className="group/item grid grid-cols-[48px_1fr] gap-3 rounded-xl p-3 transition hover:bg-fg/10"
+                      >
+                        <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand/10 text-brand transition group-hover/item:bg-brand group-hover/item:text-on-brand">
+                          <FeatureIcon className="h-5 w-5" />
+                        </span>
+                        <span>
+                          <span className="flex items-center gap-2 text-sm font-black text-fg">
+                            {title as string}
+                            {badgeLabel ? (
+                              <span
+                                className={
+                                  badgeLabel === "New"
+                                    ? "rounded-full bg-warning/15 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-warning"
+                                    : "rounded-full bg-success/15 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-success"
+                                }
+                              >
+                                {badgeLabel}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="mt-0.5 block text-xs leading-5 text-muted">{text as string}</span>
+                        </span>
+                      </Link>
+                    );
+                  })}
+
                   <Link
-                    key={title}
-                    href={href}
-                    className="block rounded-xl px-3 py-2.5 transition hover:bg-fg/10 cursor-pointer"
+                    href="/features"
+                    className="grid place-items-center rounded-xl border border-line bg-fg/[0.03] p-3 text-sm font-black text-fg transition hover:bg-fg/10"
                   >
-                    <span className="block text-sm font-black text-fg">{title}</span>
-                    <span className="mt-0.5 block text-xs leading-5 text-muted">{text}</span>
+                    <span className="inline-flex items-center gap-2">
+                      All features
+                      <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                    </span>
                   </Link>
-                ))}
+                </div>
               </div>
             </div>
 
@@ -1099,16 +1223,16 @@ export default function LandingPage() {
 
         <div className="mx-auto max-w-7xl px-4 pb-20 pt-14 sm:px-6 lg:px-8 lg:pb-24 lg:pt-20">
           <div className="flex flex-col items-center text-center">
-            <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.02] tracking-tight sm:text-4xl lg:text-[68px]">
-              Find out why the offer went to someone else.<br className="hidden sm:block" /> Before a real recruiter shows you.
+            <h1 className="wz-in mt-6 max-w-4xl text-4xl font-black leading-[1.02] tracking-tight sm:text-4xl lg:text-[68px]" style={{ animationDelay: "0.05s" }}>
+              Find out why the offer went to <span className="wz-gradient-text">someone else</span>.<br className="hidden sm:block" /> Before a real recruiter shows you.
             </h1>
 
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-muted sm:text-xl">
+            <p className="wz-in mt-6 max-w-2xl text-lg leading-8 text-muted sm:text-xl" style={{ animationDelay: "0.18s" }}>
               WorkZo reads the CV, the role, and the company. Then it asks the exact questions a recruiter would, with follow-ups, pressure, and a live trust score that shows exactly where the interview turned.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/onboarding" className="inline-flex items-center justify-center gap-2 rounded-lg bg-fg px-7 py-4 text-base font-black text-canvas shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-brand hover:text-on-brand">
+            <div className="wz-in mt-8 flex flex-col gap-3 sm:flex-row" style={{ animationDelay: "0.3s" }}>
+              <Link href="/onboarding" className="wz-sheen relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-lg bg-fg px-7 py-4 text-base font-black text-canvas shadow-xl shadow-black/20 transition hover:scale-[1.02] hover:bg-brand hover:text-on-brand">
                 See Where Offers Are Lost
                 <ArrowRight className="h-5 w-5" />
               </Link>
@@ -1118,7 +1242,7 @@ export default function LandingPage() {
               </Link>
             </div>
 
-            <div className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2">
+            <div className="wz-in mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2" style={{ animationDelay: "0.42s" }}>
               {trustItems.map((item) => (
                 <div key={item} className="flex items-center gap-2 text-sm font-semibold text-muted">
                   <CheckCircle2 className="h-4 w-4 text-success" />
@@ -1128,14 +1252,16 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="mt-16 lg:mt-20">
-            <PlatformBento />
+          <div className="wz-reveal mt-16 lg:mt-20">
+            <div ref={bentoRef} className="wz-parallax">
+              <PlatformBento />
+            </div>
           </div>
         </div>
       </section>
 
       {/* ── Trust Bar ── */}
-      <section className="px-4 py-8 sm:px-6 lg:px-8">
+      <section className="wz-reveal px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {[
@@ -1157,7 +1283,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Real Interview Walkthrough ── */}
-      <section id="how" className="px-4 py-14 sm:px-6 lg:px-8">
+      <section id="how" className="wz-reveal px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl">
           <div className="text-center">
             <SectionLabel>How it works</SectionLabel>
@@ -1230,7 +1356,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Why Good Candidates Get Rejected ── */}
-      <section className="px-4 py-14 sm:px-6 lg:px-8">
+      <section className="wz-reveal px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>The problem</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
@@ -1286,7 +1412,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Results Preview ── */}
-      <section className="px-4 py-14 sm:px-6 lg:px-8">
+      <section className="wz-reveal px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>Your report</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
@@ -1397,7 +1523,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Why WorkZo ── */}
-      <section id="features" className="px-4 py-20 sm:px-6 lg:px-8">
+      <section id="features" className="wz-reveal px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>Why WorkZo</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">More than interview questions.</h2>
@@ -1406,7 +1532,7 @@ export default function LandingPage() {
           </p>
         </div>
 
-        <div className="mx-auto mt-12 grid max-w-7xl gap-5 md:grid-cols-4">
+        <div className="mx-auto mt-12 grid max-w-7xl gap-5 sm:grid-cols-2 lg:grid-cols-5">
           {quickFeatures.map((card) => {
             const Icon = card.icon;
             return (
@@ -1423,7 +1549,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Why WorkZo Is Different ── */}
-      <section className="px-4 py-14 sm:px-6 lg:px-8">
+      <section className="wz-reveal px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <SectionLabel>The difference</SectionLabel>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-3xl">
@@ -1467,7 +1593,7 @@ export default function LandingPage() {
       <TestimonialsSection />
 
       {/* ── Pricing ── */}
-      <section className="px-4 py-20 sm:px-6 lg:px-8" id="pricing">
+      <section className="wz-reveal px-4 py-20 sm:px-6 lg:px-8" id="pricing">
         <div className="mx-auto max-w-7xl">
           <div className="mx-auto max-w-3xl text-center">
             <SectionLabel>Pricing</SectionLabel>
@@ -1488,7 +1614,7 @@ export default function LandingPage() {
                 price: localizedPlans.free.amount,
                 suffix: "",
                 text: "Perfect for trying one realistic AI interview before committing.",
-                features: ["1 complete AI voice interview", "CV-aware recruiter questions", "Basic interview report", "Basic STAR scorecard", "Improve CV & Cover Letter, free", "Free CV Review & Interview Question Generator", "Standard recruiter personas"],
+                features: ["1 complete AI voice interview", "CV-aware recruiter questions", "Basic interview report", "Basic STAR scorecard", "Improve CV & Cover Letter, free", "Free CV Review, Summary Generator & Interview Questions", "Standard recruiter personas"],
                 cta: "Get Started",
                 href: "/onboarding",
                 featured: false,
@@ -1599,7 +1725,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FAQ ── */}
-      <section className="px-4 py-14 sm:px-6 lg:px-8">
+      <section className="wz-reveal px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl">
           <div className="mb-10 text-center">
             <SectionLabel>FAQ</SectionLabel>
