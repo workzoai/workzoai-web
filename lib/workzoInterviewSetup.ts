@@ -1,6 +1,7 @@
 "use client";
 
 import { cleanHumanName, completeResumeProfile, enforceCanonicalCandidateName, isLowQualityResumeProfile } from "@/lib/workzoResumeProfileManager";
+import { readActiveJobDescription } from "@/lib/workzoJobDescriptionSource";
 
 export type JobMemoryProfile = {
   targetRole?: string;
@@ -476,7 +477,21 @@ export function readLatestInterviewSetup(): WorkZoInterviewSetup | null {
       return scoreSetup(b) - scoreSetup(a);
     })[0] || null;
 
-  return sanitizeInterviewSetup(selected);
+  const sanitized = sanitizeInterviewSetup(selected);
+  if (!sanitized) return null;
+
+  // The user-owned JD is the canonical cross-feature value. Overlay it at the
+  // shared setup reader so every consumer (interview, copilot, cover letter,
+  // CV tools, career plan, and dashboards) sees the same persisted JD after a
+  // refresh instead of whichever legacy setup object happened to win.
+  const activeJobDescription = readActiveJobDescription();
+  return activeJobDescription
+    ? {
+        ...sanitized,
+        jobDescription: activeJobDescription,
+        jdText: activeJobDescription,
+      }
+    : sanitized;
 }
 
 export function saveLatestInterviewSetup(setup: WorkZoInterviewSetup): WorkZoInterviewSetup {

@@ -17,9 +17,11 @@ export function createJobFingerprint(job: WorkZoJob): string {
 // Preferred source order when the same vacancy appears more than once.
 const PROVIDER_RANK: Record<WorkZoJob["provider"], number> = {
   ats: 0,
-  adzuna: 1,
-  jooble: 2,
-  apify: 3,
+  active_jobs_db: 1,
+  jsearch: 2,
+  adzuna: 3,
+  jooble: 4,
+  apify: 5,
 };
 
 function freshness(job: WorkZoJob): number {

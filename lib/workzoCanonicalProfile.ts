@@ -14,7 +14,7 @@ import { determineCanonicalIdentity, healSpacedHeaders, resolveTargetHeadline } 
  * stamped with a different version is discarded and rebuilt with the current
  * parser, so fixes actually reach existing users instead of only new ones.
  */
-export const WORKZO_CV_ENGINE_VERSION = "cv-engine-v4.0-languages-dedupe-identity";
+export const WORKZO_CV_ENGINE_VERSION = "cv-engine-v6.0-segmenter-role-company-shape-mononym-preamble-guard";
 
 export type WorkZoCanonicalProfile = ResumeProfile & {
   canonicalVersion?: string;
@@ -171,13 +171,103 @@ export function normalizeCanonicalProfile(profile: any): WorkZoCanonicalProfile 
     if (rawText.trim().length > 80) {
       try {
         const reparsed = extractResumeProfileComplex(rawText);
+        const educationScore = (items: any[] = []) =>
+          items.reduce((score, item) => {
+            const degree = String(item?.degree || "");
+            const institution = String(item?.institution || "");
+            const suspicious = degree.length > 180 || /\b(completed|experience|customer|technical skills|summary)\b/i.test(degree);
+            return score + (degree ? 12 : 0) + (institution ? 14 : 0) + (item?.dates ? 8 : 0) - (suspicious ? 40 : 0);
+          }, 0);
+        const projectScore = (items: any[] = []) =>
+          items.length * 20 + items.reduce((score, item) => score + (Array.isArray(item?.bullets) ? item.bullets.length * 6 : 0), 0);
+        const cachedEducation = Array.isArray(profile.education) ? profile.education : [];
+        const parsedEducation = Array.isArray(reparsed.education) ? reparsed.education : [];
+        const cachedProjects = Array.isArray(profile.projects) ? profile.projects : [];
+        const parsedProjects = Array.isArray(reparsed.projects) ? reparsed.projects : [];
+
         refreshed = {
           ...profile,
-          // Prefer freshly parsed fields when the new parser found something.
+          // Use the richer current parse, but never replace a good cached
+          // section with a structurally worse parse from a multi-column PDF.
           languages: reparsed.languages?.length ? reparsed.languages : profile.languages,
-          education: reparsed.education?.length ? reparsed.education : profile.education,
-          experience: reparsed.experience?.length ? reparsed.experience : profile.experience,
-          projects: reparsed.projects?.length ? reparsed.projects : profile.projects,
+          education: educationScore(parsedEducation) > educationScore(cachedEducation)
+            ? parsedEducation
+            : cachedEducation.length ? cachedEducation : parsedEducation,
+          experience: (() => {
+            const cachedExperience = Array.isArray(profile.experience) ? profile.experience : [];
+            const parsedExperience = Array.isArray(reparsed.experience) ? reparsed.experience : [];
+            if (!cachedExperience.length) return parsedExperience;
+            if (!parsedExperience.length) return cachedExperience;
+
+            const rawNorm = String(rawText || "")
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/\s+/g, " ")
+              .trim();
+            const normText = (value: unknown) => String(value || "")
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/[^a-z0-9]+/g, " ")
+              .trim();
+            const exactInRaw = (value: unknown) => {
+              const n = normText(value);
+              return !!n && rawNorm.replace(/[^a-z0-9]+/g, " ").includes(n);
+            };
+            const companyKey = (value: unknown) => normText(value)
+              .replace(/\b(gmbh|ag|se|ug|kg|ohg|ltd|llc|inc|corp|co|plc|bv|nv|group)\b/g, "")
+              .trim();
+            const parsedByCompany = new Map<string, any>();
+            parsedExperience.forEach((entry: any) => {
+              const key = companyKey(entry?.company);
+              if (key && !parsedByCompany.has(key)) parsedByCompany.set(key, entry);
+            });
+
+            const merged = cachedExperience.map((saved: any, index: number) => {
+              const parsed = parsedByCompany.get(companyKey(saved?.company)) || parsedExperience[index];
+              if (!parsed) return saved;
+              const savedExact = exactInRaw(saved?.title);
+              const parsedExact = exactInRaw(parsed?.title);
+              const title = savedExact && parsedExact
+                ? (String(saved?.title || "").length >= String(parsed?.title || "").length ? saved.title : parsed.title)
+                : savedExact ? saved.title : parsedExact ? parsed.title : (saved?.title || parsed?.title || "");
+              const savedBullets = Array.isArray(saved?.bullets) ? saved.bullets : [];
+              const parsedBullets = Array.isArray(parsed?.bullets) ? parsed.bullets : [];
+              return {
+                ...saved,
+                title,
+                company: saved?.company || parsed?.company || "",
+                location: saved?.location || parsed?.location || "",
+                dates: saved?.dates || parsed?.dates || "",
+                bullets: parsedBullets.length > savedBullets.length ? parsedBullets : savedBullets,
+              };
+            });
+            const seen = new Set(merged.map((entry: any) => companyKey(entry?.company)).filter(Boolean));
+            parsedExperience.forEach((entry: any) => {
+              const key = companyKey(entry?.company);
+              if (key && !seen.has(key)) merged.push(entry);
+            });
+            return merged;
+          })(),
+          projects: (() => {
+            const keyOf = (value: unknown) => String(value || "")
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/[^a-z0-9]+/g, " ")
+              .trim();
+            const byName = new Map<string, any>();
+            for (const project of [...cachedProjects, ...parsedProjects]) {
+              const key = keyOf(project?.name);
+              if (!key) continue;
+              const existing = byName.get(key);
+              const existingBullets = Array.isArray(existing?.bullets) ? existing.bullets.length : 0;
+              const nextBullets = Array.isArray(project?.bullets) ? project.bullets.length : 0;
+              if (!existing || nextBullets > existingBullets) byName.set(key, project);
+            }
+            return Array.from(byName.values());
+          })(),
           skills: reparsed.skills?.length ? reparsed.skills : profile.skills,
         };
       } catch {
@@ -190,7 +280,15 @@ export function normalizeCanonicalProfile(profile: any): WorkZoCanonicalProfile 
       rawText,
       fileName: profile.fileName || "",
     });
-    if (rebuilt) return rebuilt;
+    if (rebuilt) {
+      // normalizeCanonicalProfile is also called for profiles coming from the
+      // shared CV source and interview setup, not only through
+      // getSavedCanonicalProfile(). Persist the migration here so every entry
+      // point receives the same versioned profile and the next render does not
+      // rebuild again with canonicalVersion "(none)".
+      persistNormalizedCanonicalProfile(rebuilt);
+      return rebuilt;
+    }
 
     // buildCanonicalProfile returns null whenever it cannot CONFIRM the identity.
     // That must never destroy the profile: it left the Improve CV page with
@@ -219,7 +317,7 @@ export function normalizeCanonicalProfile(profile: any): WorkZoCanonicalProfile 
 
     if (!recoveredName && !hasEvidence) return null;
 
-    return {
+    const recovered = {
       ...(refreshed as ResumeProfile),
       basics: {
         ...(profile.basics || {}),
@@ -233,6 +331,8 @@ export function normalizeCanonicalProfile(profile: any): WorkZoCanonicalProfile 
       fileName: profile.fileName || "",
       updatedAt: new Date().toISOString(),
     } as WorkZoCanonicalProfile;
+    persistNormalizedCanonicalProfile(recovered);
+    return recovered;
   }
 
   if (isUsableCanonicalProfile(profile) && profile.basics?.name) return profile as WorkZoCanonicalProfile;
@@ -326,6 +426,42 @@ export function clearCanonicalProfile(): void {
   }
 }
 
+function persistNormalizedCanonicalProfile(profile: WorkZoCanonicalProfile): void {
+  if (!canUseBrowserStorage()) return;
+
+  const canonicalJson = JSON.stringify(profile);
+  for (const storage of storageTargets()) {
+    safeSet(storage, CANONICAL_PROFILE_STORAGE_KEY, canonicalJson);
+    safeSet(storage, "workzo_resume_profile", canonicalJson);
+    safeSet(storage, "workzo_ai_resume_profile", canonicalJson);
+
+    const existingSharedRaw = safeGet(storage, SHARED_SOURCE_STORAGE_KEY);
+    let existingShared: Record<string, unknown> = {};
+    if (existingSharedRaw) {
+      try {
+        const parsed = JSON.parse(existingSharedRaw);
+        if (parsed && typeof parsed === "object") existingShared = parsed;
+      } catch {}
+    }
+
+    const rawCvText = profile.rawText || String(existingShared.rawCvText || "");
+    const nextShared = {
+      ...existingShared,
+      profile,
+      rawCvText,
+      fileName: profile.fileName || String(existingShared.fileName || ""),
+      source: "canonical",
+      origin: "canonical",
+      needsReupload: false,
+      hasCv: true,
+      hasProfile: true,
+      updatedAt: new Date().toISOString(),
+    };
+    safeSet(storage, SHARED_SOURCE_STORAGE_KEY, JSON.stringify(nextShared));
+    if (rawCvText) safeSet(storage, "workzo_raw_cv_text", rawCvText);
+  }
+}
+
 export function getSavedCanonicalProfile(): WorkZoCanonicalProfile | null {
   for (const storage of storageTargets()) {
     for (const key of [CANONICAL_PROFILE_STORAGE_KEY, "workzo_resume_profile", "workzo_ai_resume_profile"]) {
@@ -334,7 +470,19 @@ export function getSavedCanonicalProfile(): WorkZoCanonicalProfile | null {
       try {
         const parsed = JSON.parse(raw);
         const normalized = normalizeCanonicalProfile(parsed);
-        if (normalized) return normalized;
+        if (normalized) {
+          // A stale profile must be written back immediately. Previously the
+          // rebuilt object was returned only in memory, so every page load saw
+          // canonicalVersion as missing and rebuilt again. Persisting here also
+          // keeps workzo_cv_source and the legacy profile keys in sync.
+          if (
+            parsed?.canonicalVersion !== WORKZO_CV_ENGINE_VERSION ||
+            parsed?.updatedAt !== normalized.updatedAt
+          ) {
+            persistNormalizedCanonicalProfile(normalized);
+          }
+          return normalized;
+        }
       } catch {}
     }
   }

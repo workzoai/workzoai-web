@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import PremiumFeatureGate from "@/components/PremiumFeatureGate";
@@ -28,6 +28,12 @@ import {
 } from "@/lib/workzoWorkspaceGenerators";
 import { syncCandidateIdentityFromSetup } from "@/lib/workzoCandidateIdentity";
 import { readLatestInterviewSetup } from "@/lib/workzoInterviewSetup";
+import {
+  clearJobDescription,
+  commitJobDescription,
+  purgeLegacySharedJobDescriptions,
+  readActiveJobDescription,
+} from "@/lib/workzoJobDescriptionSource";
 import type { ResumeProfile } from "@/lib/workzoResumeParser";
 import CvSourcePanel from "@/components/CvSourcePanel";
 import { resolveCvSource } from "@/lib/workzoCvSource";
@@ -40,14 +46,12 @@ import { buildPhaseAInsights } from "@/lib/workzoCareerSuitePhaseA";
 import { buildPhaseBInsights } from "@/lib/workzoCareerSuitePhaseB";
 import {
   completeResumeProfile,
-  mergePreservingOriginalStructure,
   resumeProfileHasMinimumStructure,
 } from "@/lib/workzoResumeProfileManager";
 import {
-  guardResumeAgainstSource,
-  formatResumeProfileText,
   repairParsedResume,
 } from "@/lib/workzoResumeFactGuard";
+import { guardRewrittenResume } from "@/lib/workzoCanonicalGuard";
 
 const templates: Array<{ id: CvTemplate; label: string; description: string }> =
   [
@@ -238,6 +242,20 @@ function CvWorkspaceContent() {
   // from the uploaded resume are not lost after the profile is rendered cleanly.
   const [rawCvText, setRawCvText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
+  // Skip persistence on the initial browser render. The saved JD is restored
+  // in a mount effect immediately afterwards; writing the initial empty state
+  // first would erase shared memory before restoration completes.
+  const jobDescriptionPersistenceReadyRef = useRef(false);
+  // The JD in this field IS the job description, for every surface. Committing it
+  // keeps /cv, /copilot, the cover letter, and the interview on one owned value.
+  useEffect(() => {
+    if (!jobDescriptionPersistenceReadyRef.current) {
+      jobDescriptionPersistenceReadyRef.current = true;
+      return;
+    }
+    if (jobDescription.trim()) commitJobDescription(jobDescription);
+    else clearJobDescription();
+  }, [jobDescription]);
   const [targetRole, setTargetRole] = useState("");
   const [targetMarket, setTargetMarket] = useState("global");
   const [outputLanguage, setOutputLanguage] = useState("English");
@@ -268,7 +286,13 @@ function CvWorkspaceContent() {
   const [rewrittenResumeProfile, setRewrittenResumeProfile] = useState<
     ResumeProfile | undefined
   >(undefined);
-  const [profileRecovering, setProfileRecovering] = useState(false);
+  const [profileRecovering, setProfileRecovering] = useState(true);
+  // Prevent the baseline generator from running during the first render before
+  // browser storage has been resolved. Without this guard, useMemo sees an
+  // undefined profile, logs profile:null and creates the misleading
+  // "No verified CV profile available" result even when the profile is loaded
+  // a moment later by the mount effect.
+  const [cvSourceResolved, setCvSourceResolved] = useState(false);
   const [profileNeedsReupload, setProfileNeedsReupload] = useState(false);
   const [viewMode, setViewMode] = useState<"text" | "preview">("text");
   const [cvTextExpanded, setCvTextExpanded] = useState(false);
@@ -279,6 +303,8 @@ function CvWorkspaceContent() {
   const [showReplacePanel, setShowReplacePanel] = useState(false);
 
   useEffect(() => {
+    setProfileRecovering(true);
+    setCvSourceResolved(false);
     // ────────────────────────────────────────────────────────────────────────
     // CV RESOLUTION — read only. Never re-parse.
     //
@@ -298,6 +324,9 @@ function CvWorkspaceContent() {
     // We read that result. If it is not there, we ask for the file again
     // rather than guessing.
     // ────────────────────────────────────────────────────────────────────────
+    // Clear any foreign JD left in the legacy shared keys before anything reads them.
+    purgeLegacySharedJobDescriptions();
+
     const source = resolveCvSource();
     const setup = readLatestInterviewSetup();
     syncCandidateIdentityFromSetup(setup);
@@ -311,7 +340,10 @@ function CvWorkspaceContent() {
       needsReupload: source.needsReupload,
     });
 
-    setJobDescription(source.jobDescription);
+    // Do NOT inherit whatever JD happens to be in the shared interview setup.
+    // That bucket is written by the jobs board too, which is how a job the user
+    // never pasted ended up targeting every CV rewrite. Only a user-owned JD.
+    setJobDescription(readActiveJobDescription());
     setTargetRole(source.targetRole);
     setTargetMarket(source.targetMarket);
     setRawCvText(source.rawCvText);
@@ -322,6 +354,7 @@ function CvWorkspaceContent() {
       setCvText(source.rawCvText);
       setProfileRecovering(false);
       setProfileNeedsReupload(source.needsReupload);
+      setCvSourceResolved(true);
       return;
     }
 
@@ -337,6 +370,7 @@ function CvWorkspaceContent() {
     setCvText(renderResumeProfilePlainText(profileWithRaw) || source.rawCvText);
     setProfileRecovering(false);
     setProfileNeedsReupload(false);
+    setCvSourceResolved(true);
     debugCvProfile("cv.page.savedResumeProfile.set", profileWithRaw);
   }, []);
 
@@ -432,6 +466,10 @@ function CvWorkspaceContent() {
   );
 
   const improvedCv = useMemo(() => {
+    // Browser-backed CV state is resolved in the mount effect. Do not attempt
+    // generation against the intentionally empty first-render state.
+    if (!cvSourceResolved || profileRecovering) return "";
+
     debugCvProfile(
       "cv.page.generateImprovedCv.inputProfile",
       baselineInput.resumeProfile,
@@ -448,7 +486,7 @@ function CvWorkspaceContent() {
     const output = generateImprovedCv(baselineInput);
     debugCvText("cv.page.generateImprovedCv.outputText", output);
     return output;
-  }, [baselineInput]);
+  }, [baselineInput, cvSourceResolved, profileRecovering]);
 
   const resumeJson = useMemo(() => {
     if (!resumeInput.resumeProfile && !atsText.trim()) {
@@ -888,92 +926,27 @@ function CvWorkspaceContent() {
       const rewritten = (data.output || "").trim();
       if (!rewritten) throw new Error("AI rewrite returned no content.");
 
-      // Merge the model's structured output over the true parsed profile,
-      // keeping the original structure as the base.
-      let mergedProfile = savedResumeProfile
-        ? mergePreservingOriginalStructure(
-            completeResumeProfile(savedResumeProfile, rawCvText || savedResumeProfile.rawText || cvText),
-            data.resumeProfile && typeof data.resumeProfile === "object"
-              ? data.resumeProfile
-              : undefined,
-          )
-        : data.resumeProfile && typeof data.resumeProfile === "object"
-          ? (data.resumeProfile as ResumeProfile)
-          : undefined;
-      // Final name safety: if the merged profile still has a wrong name,
-      // restore it from savedResumeProfile which has the correct name.
-      if (
-        mergedProfile &&
-        savedResumeProfile?.basics?.name &&
-        mergedProfile.basics?.name !== savedResumeProfile.basics.name
-      ) {
-        mergedProfile = {
-          ...mergedProfile,
-          basics: {
-            ...mergedProfile.basics,
-            name: savedResumeProfile.basics.name,
-          },
-        };
-      }
-
-      // Guard the model output against fabrication before it reaches the
-      // preview, PDF, editable text, or copy. This is entity-free and works
-      // for any CV and JD: titles/companies/dates/education come from the
-      // real CV, a skill survives only if the CV evidences it, and every
-      // bullet must trace to a source bullet (re-homed to the right entry if
-      // the model moved it). Skills and bullets are reordered by relevance to
-      // the target role, so the rewrite stays targeted without inventing.
-      const cvSource = rawCvText || savedResumeProfile?.rawText || cvText;
-      // For a genuine cross-language rewrite, mergePreservingOriginalStructure
-      // re-imposes the original-language titles/education and unions the source
-      // skills back in, which would strip the translation before the guard runs.
-      // Feed the guard the model's RAW structured profile in that case (the
-      // guard's translated branch restores identity/structure from the source
-      // itself, so anti-fabrication still holds), and always tell the guard
-      // which language was requested so it stops reverting to the source text.
-      const isTranslated =
-        !!outputLanguage && outputLanguage.trim().toLowerCase() !== "english";
-      const candidateForGuard =
-        isTranslated && data.resumeProfile && typeof data.resumeProfile === "object"
-          ? (data.resumeProfile as ResumeProfile)
-          : mergedProfile;
-      const guardedProfile = guardResumeAgainstSource(
-        candidateForGuard,
-        { profile: savedResumeProfile, text: cvSource },
-        { jobDescription, targetRole, outputLanguage },
-      );
-
-      // Preserve every verified source section after the targeted rewrite.
-      // The AI may improve the summary, skill ordering, and evidence bullets,
-      // but it is not allowed to drop languages, jobs, education, dates, or
-      // certifications from the uploaded CV. This also deduplicates education
-      // through completeResumeProfile/mergePreservingOriginalStructure.
-      const repairedOriginalProfile = savedResumeProfile
-        ? repairParsedResume(
-            completeResumeProfile(savedResumeProfile, cvSource),
-            cvSource,
-          )
-        : undefined;
-      const mergedSafeProfile = repairedOriginalProfile
-        ? mergePreservingOriginalStructure(repairedOriginalProfile, guardedProfile)
-        : guardedProfile;
-
-      // Final deterministic contract for every CV and every JD:
-      // - headline = the user's explicit target role
-      // - languages = the complete verified source list
-      // AI may never overwrite either with a CV headline, education label, or a
-      // partial list returned by the model.
-      const safeProfile: ResumeProfile = {
-        ...mergedSafeProfile,
-        basics: {
-          ...mergedSafeProfile.basics,
-          headline: targetRole.trim() || mergedSafeProfile.basics.headline,
-        },
-        languages: repairedOriginalProfile?.languages?.length
-          ? repairedOriginalProfile.languages
-          : mergedSafeProfile.languages,
-      };
-      const safeText = formatResumeProfileText(safeProfile) || rewritten;
+      // SINGLE SOURCE OF TRUTH.
+      // This used to be ~110 lines of merge/guard/preserve logic living inline
+      // in this React page, which meant the fact guard protected exactly one
+      // screen and nothing else in the product. It now lives in
+      // lib/workzoCanonicalGuard.ts and runs identically on the server, so the
+      // CV page, /api/cv, the interview engine, the cover letter, and the
+      // LinkedIn optimizer all enforce the same contract:
+      //   AI may change  -> summary, bullet wording, skill ordering
+      //   AI may not touch -> title, company, dates, location, education,
+      //                       certifications, project names, languages,
+      //                       candidate name, headline
+      const { profile: safeProfile, text: guardedText } = guardRewrittenResume({
+        rewrittenProfile: data.resumeProfile,
+        rewrittenText: rewritten,
+        sourceProfile: savedResumeProfile,
+        sourceText: rawCvText || savedResumeProfile?.rawText || cvText,
+        targetRole,
+        jobDescription,
+        outputLanguage,
+      });
+      const safeText = guardedText || rewritten;
 
       setRewrittenResumeProfile(safeProfile);
       setAtsText(safeText);

@@ -22,6 +22,9 @@ export type Fixture = {
     noDuplicateEducation?: boolean;
     skills?: string[]; // must survive verbatim (esp. CamelCase)
     verbatimExperience?: boolean; // rendered bullets must equal source bullets
+    headline?: string;
+    minProjects?: number;
+    experienceTitles?: string[];
   };
 };
 
@@ -175,6 +178,49 @@ export function runChecks(r: PipeResult): CheckResult[] {
       if (missing.length || added.length) bad += ` [${rj.company}: missing=${missing.length} altered/added=${added.length}]`;
     }
     push("experience_verbatim", bad ? "fail" : "pass", bad || undefined);
+  }
+
+  // 11) Header headline must stay a short professional title, not summary prose.
+  if (f.expect?.headline) {
+    const actual = r.canonical?.basics?.headline ?? r.render.profile?.basics?.headline ?? r.parse?.basics?.headline ?? "";
+    const ok = norm(actual) === norm(f.expect.headline);
+    push("headline_exact", ok ? "pass" : "fail", ok ? undefined : `headline=${JSON.stringify(actual)} expected=${JSON.stringify(f.expect.headline)}`);
+  }
+
+  // 12) Projects and exact experience identities survive parsing.
+  if (f.expect?.minProjects != null) {
+    const projects = r.canonical?.projects ?? r.render.profile?.projects ?? r.parse?.projects ?? [];
+    push("projects_count", projects.length >= f.expect.minProjects ? "pass" : "fail", `got ${projects.length}, expected >= ${f.expect.minProjects}`);
+  }
+  if (f.expect?.experienceTitles?.length) {
+    const actual = r.render.experience.map((e) => norm(e.title));
+    const missing = f.expect.experienceTitles.filter((title) => !actual.includes(norm(title)));
+    push("experience_titles_exact", missing.length ? "fail" : "pass", missing.length ? `missing titles: ${JSON.stringify(missing)}; actual=${JSON.stringify(r.render.experience.map((e) => e.title))}` : undefined);
+  }
+
+  // 13) No AI-preamble / meta-instruction text survives into the rendered CV.
+  //     This is a generic property: a real CV never contains an assistant
+  //     preamble ("Here's a customized version of your achievements…", "Sure,
+  //     I've updated…", "As requested…"). Such lines are leaked LLM output from a
+  //     prior tailoring pass and must never appear as a bullet, summary, or
+  //     project line. The pattern is structural (a class of phrasings), not a
+  //     sample value, so it holds for every CV in every language.
+  {
+    const AI_PREAMBLE =
+      /^\s*(sure|certainly|of course|absolutely|great|okay|here(?:'?s| is)\b|below is|i(?:'?ve| have)\b|i(?:'?ll| will)\b|as requested|as an ai|note:|let me\b)/i;
+    const META_REWRITE =
+      /\b(customi[sz]ed|tailored|updated|optimi[sz]ed|revised|improved|enhanced)\s+(version|copy)\b|\bversion of your\b|\byour (resume|cv|achievements|experience|bullet)/i;
+    const isGarbage = (s = "") => AI_PREAMBLE.test(s) || META_REWRITE.test(s);
+    const hits: string[] = [];
+    for (const e of r.render.experience) for (const b of e.bullets || []) if (isGarbage(b)) hits.push(b);
+    for (const p of (r.render.profile?.projects ?? r.canonical?.projects ?? []) as any[])
+      for (const b of p.bullets || []) if (isGarbage(b)) hits.push(b);
+    const summary = String(r.canonical?.summary ?? r.render.profile?.summary ?? r.parse?.summary ?? "");
+    if (isGarbage(summary)) hits.push(summary);
+    if (r.render.experience.length || summary) {
+      push("no_ai_preamble", hits.length === 0 ? "pass" : "fail",
+        hits.length === 0 ? undefined : `leaked meta text: ${JSON.stringify(hits.slice(0, 3))}`);
+    }
   }
 
   return out;

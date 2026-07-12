@@ -212,6 +212,12 @@ export type UnifiedRecruiterInput = {
     jobMemoryProfile?: unknown;
     // Technical mode: candidate's live code and language
     codeSnapshot?: string;
+    /** What the candidate's program actually printed, or the error it threw. */
+    codeOutput?: string;
+    /** Deterministic pass/fail from the test harness or the SQL reference. */
+    codeVerdict?: string;
+    /** The problem they were asked to solve. */
+    codeChallenge?: string;
     codeLanguage?: string;
     // Pre-computed recruiter brain state from recruiterBrainEngine.ts
     // Injected by /api/interview/reply/route.ts before each LLM call.
@@ -4133,8 +4139,19 @@ This is not a translation task, think, reason, and respond natively in ${toLangu
   const verifiedEmployersLine = verifiedEmployers.length
     ? `VERIFIED EMPLOYERS (from CV, never challenge these as unverified): ${verifiedEmployers.join(", ")}\n`
     : "";
-  const codeSnapshot = cleanText(setup.codeSnapshot).slice(0, 2000);
+  // Truncation used to be SILENT at 2000 chars. A Java or C++ solution exceeds
+  // that easily, and the recruiter then reasoned about code that had been cut
+  // off mid-function, with no idea it was incomplete. If we must truncate, say so.
+  const CODE_LIMIT = 6000;
+  const rawCode = cleanText(setup.codeSnapshot);
+  const codeTruncated = rawCode.length > CODE_LIMIT;
+  const codeSnapshot = codeTruncated
+    ? `${rawCode.slice(0, CODE_LIMIT)}\n\n/* ...TRUNCATED. Do not comment on completeness or missing code below this line. */`
+    : rawCode;
   const codeLanguage = cleanText(setup.codeLanguage) || "code";
+  const codeOutput = cleanText(setup.codeOutput).slice(0, 1200);
+  const codeVerdict = cleanText(setup.codeVerdict).slice(0, 400);
+  const codeChallenge = cleanText(setup.codeChallenge).slice(0, 800);
   const recentTranscript = (input.transcript || [])
     .slice(-8)
     .map((item) => `${item.role}: ${cleanText(item.text)}`)
@@ -4361,12 +4378,16 @@ ${jobDescription.slice(0, 5500) || "No job description provided."}
 Recent transcript:
 ${recentTranscript || "No prior transcript."}
 
-${codeSnapshot ? `CANDIDATE'S CURRENT CODE (${codeLanguage}):
+${codeSnapshot ? `${codeChallenge ? `THE PROBLEM YOU SET THEM:\n${codeChallenge}\n\n` : ""}CANDIDATE'S CURRENT CODE (${codeLanguage}):
 \`\`\`${codeLanguage}
 ${codeSnapshot}
 \`\`\`
-
+${codeOutput ? `\nWHAT IT ACTUALLY PRINTED WHEN RUN:\n${codeOutput}\n` : ""}${codeVerdict ? `\nAUTOMATED RESULT (this is FACT, the code was executed, not read):\n${codeVerdict}\n` : ""}
 TECHNICAL CODE RULES:
+- The AUTOMATED RESULT above, when present, is ground truth. It came from running the code against real test cases, not from reading it. Never contradict it, and never claim the code passes when it says it failed, however elegant the code looks.
+- When a test failed, do not read out the failure. Ask the candidate to run it and tell you what happened, then probe the specific case: "Try it with an empty list, what do you get?"
+- When every test passed, do not stop there: that is the moment to ask about complexity, edge cases, and what they would change at 10x the input size.
+- If it says TRUNCATED, the code was cut for length. Do NOT comment on missing code, unclosed functions, or completeness.
 - The candidate is in Technical Interview Mode. React to their code AND their spoken answer together.
 - If code is present but they gave no spoken explanation, ask them to walk you through their approach.
 - If the code has an obvious logical flaw, do NOT point it out directly. Ask: "Walk me through your logic here."

@@ -1,0 +1,44 @@
+Haritha Vijayakumar
+Project Management
+harithavijayakumar30@gmail.com | +49 176 69487448 | Zweierweg 15, 97094, Würzburg | LinkedIn.com/in/harithavijayakumar30
+PROFESSIONAL SUMMARY
+Detail-oriented IT Support Specialist and aspiring Data Analyst with over 4 years of experience in technical support and customer-facing roles. After a planned career break due to relocation and maternity, completed a Data Science Bootcamp in Germany to enhance technical skills in Python, SQL, and data visualization. Fluent in English and conversational in German (B1, actively improving), with a strong passion for problem-solving, process improvement, and user support in dynamic IT environments.
+CORE SKILLS
+Python, SQL, Tableau, Matplotlib, Seaborn, Sklearn, TensorFlow, API integration, Web Scraping, GCP, LangChain, Retrieval-Augmented Generation (RAG)
+PROFESSIONAL EXPERIENCE
+Technical Support Engineer | Zoho Corp | 2018 - 2020
+- Resolved 90% of customer issues in ManageEngine ServiceDesk Plus (on-premises) using ITIL/ITSM best practices.
+- Improved product stability by 25% through SQL-based troubleshooting and cross-team collaboration.
+- Automated processes with Python, cutting resolution times by 15%.
+- Built a knowledge base, boosting first-call resolution by 30% and enhancing customer satisfaction.
+Application Engineer | CSS Corp | 2016 - 2018
+- Delivered technical support for Belkin and Linksys network products, assisting clients with configuration, troubleshooting, and performance optimization.
+- Utilized networking expertise to resolve complex issues with routers, switches, and wireless access points.
+- Collaborated with internal teams for seamless product integration, enhancing customer satisfaction.
+- Conducted technical trainings and managed escalations to improve product knowledge and issue resolution.
+- Proactively improved product performance through problem-solving and continuous optimization.
+PROJECTS
+Magist
+- Conducted a feasibility study on entering the Brazilian market using SQL, Python, and Tableau.
+- Analyzed market trends, competition, and business opportunities to form data-driven recommendations for a potential partnership with Magist.
+- Presented findings to inform strategic decision-making and support business growth initiatives.
+Cultural Evolution & Popularity Of Indian Classical Dance
+- Analyzed the cultural evolution and popularity of Indian classical dance forms using Python, YouTube API, and NLP.
+- Collected and analyzed video data, performing sentiment analysis on viewer comments to assess engagement and cultural trends.
+- Visualized patterns with pandas, Seaborn, and Text Blob, highlighting the impact of digital platforms on traditional art forms globally.
+- Analyzed the cultural evolution and popularity of Indian classical dance forms using Python,
+- YouTube API, and NLP.
+GANS E-Scooter Service
+- Developed a data automation pipeline for GANS, an e-scooter startup, using web scraping, REST APIs, and MySQL to collect and store city demographic, weather, and flight data.
+- Automated data extraction and storage on Google Cloud Platform (GCP) with cloud functions and scheduled daily updates.
+- Showcased expertise in data pipeline development, cloud computing, and database management.
+- APIs, and MySQL to collect and store city demographic, weather, and flight data.
+- Developed a data automation pipeline for GANS, an e-scooter startup, using web scraping, REST
+Harithavijayakumar
+Itsupportspecialist / Dataanalyst
+- ITSUPPORTSPECIALIST / DATAANALYST.
+EDUCATION
+Data Science Bootcamp | WBS CODING SCHOOL | 2024
+Bachelors in Science (Computer Science) | SRM ARTS & SCIENCE COLLEGE | 2012-2015
+LANGUAGES
+English - FLUENT, German: Conversational technical support and customer-facing roles. After a planned career, German - Conversational

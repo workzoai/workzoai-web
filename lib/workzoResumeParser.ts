@@ -181,10 +181,10 @@ function isLikelyCompanyPhrase(line: string): boolean {
 }
 
 const EDUCATION_ORG_RE =
-  /\b(university|universität|universitaet|fachhochschule|college|school|institute|academy|hochschule|coding school|arts and science|engineering college|technical university|polytechnic|conservatory|seminary|faculty|campus|lycée|lycee|gymnasium|realschule|grundschule|gesamtschule|berufsschule|fachschule|berufsakademie|duale hochschule)\b/i;
+  /\b(university|universit[äa]t|universitaet|universidad|universidade|universit[ée]|universit[àa]|fachhochschule|college|school|institute|instituto|istituto|academy|academia|hochschule|coding school|arts and science|engineering college|technical university|polytechnic|polit[ée]cnico|politecnico|conservatory|seminary|faculty|facult[éy]|facultad|faculdade|campus|escuela|escola|[ée]cole|scuola|ateneo|lyc[ée]e|gymnasium|realschule|grundschule|gesamtschule|berufsschule|fachschule|berufsakademie|duale hochschule)\b/i;
 
 const DEGREE_RE =
-  /\b(master|masters|master's|bachelor|bachelors|bachelor's|degree|phd|mba|b\.sc|m\.sc|bsc|msc|bootcamp|diploma|certificate|certification|computer science|data science|aeronautical engineering|space science and technology)\b/i;
+  /\b(master|masters|master's|m[aá]ster|maestr[íi]a|ma[îi]trise|bachelor|bachelors|bachelor's|degree|grado|graduaç[ãa]o|graduacao|bacharelado|licenciatura|licen[cç]e|licenza|laurea|diplomatura|phd|doctorado|doutorado|dottorato|mba|b\.sc|m\.sc|bsc|msc|bootcamp|dipl[oô]ma|diplom|certificate|certificat[eo]|certification|computer science|data science|aeronautical engineering|space science and technology|formaç[ãa]o profissional|formaci[óo]n profesional)\b/i;
 
 const ACTION_RE =
   /\b(responsible|support|supported|collaborate|collaborated|improve|improved|design|designed|develop|developed|install|installed|engineered|participated|assisted|fabricated|resolved|automated|built|delivered|utilized|conducted|managed|created|implemented|provided|analyzed|analysed|presented|collected|visualized|visualised|showcased|configured|troubleshot|led|owned|maintained|coordinated|optimized|optimised|reduced|increased|prepared|identified|monitored)\b/i;
@@ -666,10 +666,25 @@ function decompactKnownPhrases(value = "", wasSpacedCaps = false) {
 }
 
 function normalizedHeader(line: string) {
-  return compactSpacedCaps(line).replace(/[^a-zA-ZäöüÄÖÜß]/g, "").toLowerCase();
+  // Fold accents to base ASCII so a header matches regardless of language and
+  // diacritics: "EXPÉRIENCE" -> "experience", "FORMAÇÃO" -> "formacao",
+  // "LÍNGUAS" -> "linguas", "FÄHIGKEITEN" -> "fahigkeiten". The previous version
+  // kept only a-z plus German umlauts and DELETED every other accent, so Italian,
+  // Spanish, French, and Portuguese headers were mangled and never matched — which
+  // is why those CVs never sectioned. German umlauts fold too (ä->a, ö->o, ü->u,
+  // ß->ss); the section lexicon below carries the folded German forms.
+  return compactSpacedCaps(line)
+    .normalize("NFD")
+    .replace(/\u00df/g, "ss")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z]/g, "")
+    .toLowerCase();
 }
 
-function findSectionKind(line: string): ResumeSectionKind | null {
+// Exported so workzoCvTextSanitizer uses the SAME multilingual section lexicon
+// as the parser. Two different section definitions in one pipeline is how
+// boundaries drift.
+export function findSectionKind(line: string): ResumeSectionKind | null {
   const key = normalizedHeader(line);
 
   // ── Pluralization-tolerant matching ──────────────────────────────────────────
@@ -688,14 +703,14 @@ function findSectionKind(line: string): ResumeSectionKind | null {
     return keyVariants.some((variant) => re.test(variant));
   }
 
-  if (matches(/^(profilesummary|profile|professionalprofile|summary|professionalsummary|beruflichesprofil|profil|kurzprofil|profilübersicht|profiluebersicht|kurzuebersicht|kurzübersicht|persönlichesprofil|persoenlichesprofil)$/)) return "summary";
-  if (matches(/^(experience|workexperience|professionalexperience|employmenthistory|workhistory|careerhistory|berufserfahrung|berufserfahrungen|arbeitserfahrung|praxis|erfolge|erfolgebeimkunden|keyachievements|achievements|highlights|results|erfolgeundergebnisse)$/)) return "experience";
-  if (matches(/^(education|bildung|bildungsweg|ausbildung|studium|schulbildung|akademischerwerdegang|werdegang|academicbackground)$/)) return "education";
-  if (matches(/^(skills|skill|coreskills|technicalskills|expertise|kompetenzen|kenntnisse|fachkenntnisse|fähigkeiten|faehigkeiten)$/)) return "skills";
-  if (matches(/^(projects|project|projectexperience|selectedprojects|projekte|projektarbeit)$/)) return "projects";
-  if (matches(/^(languages|language|languageskills|sprachen|sprachkenntnisse)$/)) return "languages";
-  if (matches(/^(contact|contacts|personaldetails|personalinformation|kontakt|kontaktdaten)$/)) return "contact";
-  if (matches(/^(certifications|certification|certificates|certificate|licenses|license|training|courses|course|zertifikate|weiterbildung)$/)) return "certifications";
+  if (matches(/^(profilesummary|profile|professionalprofile|summary|professionalsummary|beruflichesprofil|profil|kurzprofil|profilubersicht|kurzubersicht|personlichesprofil|profilo|perfil|resumen|resumo|riepilogo|sommario|sintesi|apropos)$/)) return "summary";
+  if (matches(/^(experience|workexperience|professionalexperience|employmenthistory|workhistory|careerhistory|berufserfahrung|berufserfahrungen|arbeitserfahrung|praxis|erfolge|erfolgebeimkunden|keyachievements|achievements|highlights|results|esperienza|esperienzalavorativa|esperienzeprofessionali|experiencia|experienciaprofesional|experienciaprofissional|experienceprofessionnelle|experiencesprofessionnelles|parcoursprofessionnel|percorsoprofessionale|trajetoriaprofissional)$/)) return "experience";
+  if (matches(/^(education|bildung|bildungsweg|ausbildung|studium|schulbildung|akademischerwerdegang|werdegang|academicbackground|formazione|formacion|formation|formacao|educacion|educacao|istruzione|estudios|escolaridade|scolarite|percorsoformativo)$/)) return "education";
+  if (matches(/^(skills|skill|coreskills|technicalskills|expertise|kompetenzen|kenntnisse|fachkenntnisse|fahigkeiten|competenze|competencias|competences|habilidades|aptitudes|conocimientos|capacidades|savoirfaire|competencetecniche)$/)) return "skills";
+  if (matches(/^(projects|project|projectexperience|selectedprojects|projekte|projektarbeit|progetti|proyectos|projets|projetos)$/)) return "projects";
+  if (matches(/^(languages|language|languageskills|sprachen|sprachkenntnisse|lingue|idiomas|langues|linguas)$/)) return "languages";
+  if (matches(/^(contact|contacts|personaldetails|personalinformation|kontakt|kontaktdaten|contatti|contacto|contato|coordonnees|datospersonales|dadospessoais)$/)) return "contact";
+  if (matches(/^(certifications|certification|certificates|certificate|licenses|license|training|courses|course|zertifikate|weiterbildung|certificazioni|certificaciones|certificacoes|corsi|cursos)$/)) return "certifications";
   return null;
 }
 
@@ -1030,7 +1045,7 @@ function extractBasics(lines: string[], rawText: string) {
 
   return {
     name,
-    headline: headlineLine ? titleCase(headlineLine) : "Professional",
+    headline: headlineLine ? titleCase(headlineLine) : "",
     email,
     phone,
     linkedin,
@@ -1054,11 +1069,26 @@ function extractSummary(lines: string[], sections: SectionMap) {
 
   const headerIndex = lines.findIndex((line) => findSectionKind(line) === "summary");
   if (headerIndex >= 0) {
-    const afterHeader = lines.slice(headerIndex + 1, Math.min(lines.length, headerIndex + 28));
-    candidatePools.push(afterHeader);
+    // Stop at the NEXT section header, not a fixed line count. The old version
+    // scanned 28 lines past the summary heading and relied on English ACTION_RE
+    // to stop at experience bullets — so a French/Spanish/German CV (whose verbs
+    // aren't in the English list) had its experience bullets swallowed into the
+    // summary, which then made the experience extractor drop them as "summary
+    // duplicates". A section ends at the next section header in every language.
+    let end = headerIndex + 1;
+    while (end < lines.length && !findSectionKind(lines[end])) end++;
+    candidatePools.push(lines.slice(headerIndex + 1, end));
   }
 
-  candidatePools.push(lines);
+  // Fallback pool: ONLY the header/intro block above the first recognized
+  // section. A CV with no "Summary" heading sometimes puts an intro paragraph
+  // directly under the name — but scanning the whole document instead pulled
+  // EXPERIENCE bullets into the summary (e.g. a German CV with no summary
+  // section), which then made the experience extractor drop those same bullets
+  // as "summary duplicates". Bounding the fallback to the header block fixes
+  // both: the summary never steals section content, and bullets stay put.
+  const firstSectionIndex = lines.findIndex((line) => findSectionKind(line) !== null);
+  candidatePools.push(firstSectionIndex > 0 ? lines.slice(0, firstSectionIndex) : []);
 
   for (const pool of candidatePools) {
     const summaryLines: string[] = [];
@@ -1093,8 +1123,12 @@ function normalizeSkillToken(value = "") {
   let clean = cleanLine(value)
     // Strip any "Category: " prefix, handles "Programming: Python", "Machine Learning: Sklearn" etc.
     .replace(/^[A-Za-z][A-Za-z\s&]+:\s*/g, "")
-    // Also strip known category labels without colon
-    .replace(/^(skills|core skills|technical skills|expertise|tools|programming|machine learning|data visualization|data visualisation|data engineering|generative ai|3d cad tools|3d printing|product lifecycle management|visualization)\s*[:：]?\s*/i, "")
+    // Also strip known category labels without colon — but ONLY when real content
+    // follows the label (the \s+(?=\S) tail). Without that guard this reduced a
+    // STANDALONE skill that happens to equal a category name ("Machine Learning",
+    // "Data Engineering", "Generative AI", "Data Visualization") to an empty
+    // string, silently dropping a real skill from every CV that listed one.
+    .replace(/^(skills|core skills|technical skills|expertise|tools|programming|machine learning|data visualization|data visualisation|data engineering|generative ai|3d cad tools|3d printing|product lifecycle management|visualization)\s*[:：]?\s+(?=\S)/i, "")
     .replace(/\bTensor Flow\b/gi, "TensorFlow")
     .replace(/\bLang Chain\b/gi, "LangChain")
     .replace(/\bScikit Learn\b/gi, "scikit-learn")
@@ -1147,8 +1181,13 @@ function isPollutedSkill(value = "") {
   if (/^(english|german|deutsch|french|spanish|arabic|hindi|tamil|dutch|italian|portuguese)\s+(fluent|native|conversational|basic|professional|a1|a2|b1|b2|c1|c2)$/i.test(clean)) return true;
   // Reject bare language names without proficiency (from colon split leaving "Fluent" or "Conversational")
   if (/^(fluent|native|conversational|professional|basic|a1|a2|b1|b2|c1|c2)$/i.test(clean)) return true;
-  // Reject bare category labels that become orphans after colon split
-  if (/^(programming|visualization|visualisation|machine learning|data engineering|generative ai|soft skills|3d cad tools|product lifecycle)$/i.test(clean)) return true;
+  // Reject bare category labels that become orphans after a colon split. NOTE:
+  // "machine learning", "data engineering", and "generative ai" were removed
+  // from this list — they are legitimate skills people list verbatim, and
+  // rejecting them dropped a real skill from every CV (any language) that named
+  // one. The remaining entries are labels that are almost never a standalone
+  // skill.
+  if (/^(programming|visualization|visualisation|soft skills|3d cad tools|product lifecycle)$/i.test(clean)) return true;
   return false;
 }
 
@@ -1272,13 +1311,35 @@ export function separateLanguagesFromSkills(skills: string[]): { skills: string[
 function extractSkills(rawText: string, sections: SectionMap, allLines: string[]) {
   const explicitSource = [
     ...sections.skills,
-    ...allLines.filter((line) => isSkillCategory(line) || /^(technical|programming|visualization|tools|soft skills|machine learning|data engineering|generative ai|3d cad tools|3d printing|product lifecycle management)\b/i.test(line)),
+    // Fallback for skill lines that leaked outside a detected skills section.
+    // This must match skill-category LABELS ("Technical Skills: ...",
+    // "Programming: ...") — NOT job-title lines that merely begin with the same
+    // word ("Technical Support Engineer"). The distinguishing shape is the
+    // colon: a category label declares its members after a colon; a role title
+    // has none. Exact standalone category headers are still caught by
+    // isSkillCategory.
+    ...allLines.filter(
+      (line) =>
+        isSkillCategory(line) ||
+        (/^(technical|programming|visualization|tools|soft skills|machine learning|data engineering|generative ai|3d cad tools|3d printing|product lifecycle management)\b/i.test(line) &&
+          line.includes(":")),
+    ),
   ];
 
   const splitTokens = splitGroupedSkillEntries(explicitSource);
   const { skills: explicit } = separateLanguagesFromSkills(splitTokens);
 
-  const dictionary = SKILL_DICTIONARY.filter((skill) => new RegExp(`\\b${escapeRegExp(skill)}\\b`, "i").test(rawText)).map(normalizeSkillToken);
+  // Scan for dictionary skills ONLY within the declared skills area (the skills
+  // section plus any leaked skill-category labels) — NOT the summary or any
+  // other prose. Scanning prose harvested phrases like "Technical Support" out
+  // of a summary sentence ("experience in technical support and customer-facing
+  // roles") and listed them as skills the candidate never declared; the render
+  // then dropped them, so parse and render disagreed. A skill is a fact the CV
+  // states in its skills area; we never infer skills from prose.
+  const skillsScanText = [...sections.skills, ...explicitSource].join(" \n ");
+  const dictionary = SKILL_DICTIONARY.filter((skill) =>
+    new RegExp(`\\b${escapeRegExp(skill)}\\b`, "i").test(skillsScanText),
+  ).map(normalizeSkillToken);
   return unique([...explicit, ...dictionary].filter((skill) => !isPollutedSkill(skill))).slice(0, 28);
 }
 
@@ -1637,135 +1698,256 @@ function repairProjectsFromGlobalLines(lines: string[], projects: ResumeProject[
   return repaired.filter((project) => project.bullets.length || project.name !== "Selected Project");
 }
 
-function extractExperience(sections: SectionMap, lines: string[], projects: ResumeProject[], summary: string) {
-  const projectBulletSet = new Set(projects.flatMap((project) => project.bullets.map((bullet) => cleanLine(bullet).toLowerCase())));
-  const source = (sections.experience.length ? sections.experience : lines).map(cleanLine).filter(Boolean);
-  const jobs: ResumeExperience[] = [];
-  const companyAnchors: Array<{ index: number; company: string; location: string; dates: string }> = [];
+// ─────────────────────────────────────────────────────────────────────────────
+// EXPERIENCE EXTRACTION — deterministic block segmenter (WorkZo CV v11)
+//
+// One model for every layout instead of anchor-scanning + a stack of special
+// cases. The section is cut into ENTRIES; each entry is a short header region
+// (1–3 lines carrying title / company / dates / location in ANY order) followed
+// by its bullet lines. Field roles are resolved deterministically from the
+// header region only, and EVERY non-header content line becomes a bullet — so a
+// job can never silently lose its bullets, and a title/company can never bleed
+// in from a neighbouring job. Handles: "Title | Company | Dates" one-liners,
+// "Company / Dates" then "Title", "Title / Dates" then "Company", stacked
+// entries, and non-English headers (e.g. German "Softwareentwickler").
+// ─────────────────────────────────────────────────────────────────────────────
 
-  function normalizeCompanyFromLine(line: string) {
-    const parsed = parseCompanyLine(line, { allowEducationOrg: true });
-    if (parsed) return parsed;
+// A TRUE legal-entity suffix. Unlike COMPANY_WORD_RE (which also contains soft
+// words like "software", "services", "systems", "solutions", "technologies"
+// that appear inside ordinary role titles such as "Software Engineer"), this set
+// is only the incorporation types that never occur inside a job title. It lets us
+// tell a company line from a role line by SHAPE, not by shared vocabulary.
+const STRONG_LEGAL_SUFFIX_RE = /\b(gmbh|ag|ug|kg|ohg|ltd|llc|inc|corp|corporation|co|plc|bv|nv|pvt|private limited|limited|se|sarl|oy|ab|as|sa|spa)\b/i;
 
-    // ── Fallback anchor detection ────────────────────────────────────────────
-    // parseCompanyLine requires a legal-entity suffix (Inc, GmbH, Ltd, Solutions,
-    // etc.) via COMPANY_WORD_RE. Many real and placeholder company names have
-    // NO such suffix (e.g. "ExampleCo", "Google", "Spotify", "Acme").
-    //
-    // Generic fallback: a line containing a date range, where the text before
-    // the date is short (1-4 words), capitalized, and not itself a role title,
-    // section header, degree, or bullet, is almost certainly a "Company |
-    // Dates" or "Company, Dates" job/education anchor line.
+/** parseCompanyLine, but never matches a line that is actually a dedicated role
+ *  title. parseCompanyLine reads "software" as a company word, so "Senior
+ *  Software Engineer" wrongly yields company "Senior"; this guards against that. */
+function companyFromLine(line: string) {
+  if (isDedicatedRoleLine(removeDate(line))) return null;
+  return parseCompanyLine(line, { allowEducationOrg: false });
+}
+
+/** A header line that is essentially JUST a role title (not a company, short). */
+const ROLE_TITLE_CONNECTIVES = new Set(["and", "&", "/", "-", "of", "the", "für", "und"]);
+function isDedicatedRoleLine(value = ""): boolean {
+  const clean = removeDate(cleanLine(value)).replace(/[|·]+$/g, "").trim();
+  if (!clean) return false;
+  if (/[.!?]$/.test(clean)) return false; // a sentence/bullet, not a title label
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 8) return false;
+  if (!ROLE_RE.test(clean)) return false;
+  if (STRONG_LEGAL_SUFFIX_RE.test(clean)) return false; // "Acme GmbH" is a company, not a title
+  if (findSectionKind(clean)) return false;
+  // A role TITLE has title-label shape: it does not START with an action verb,
+  // and every non-connective word is capitalised. This distinguishes
+  // "Technical Support Engineer" (title) from "Supported a team of engineers"
+  // (a bullet that merely contains a role word). NOTE: ROLE_RE / ACTION_RE
+  // overlap on words like "support", so shape — not vocabulary — decides.
+  if (ACTION_RE.test((words[0] || "").toLowerCase())) return false;
+  const nonConnective = words.filter((w) => !ROLE_TITLE_CONNECTIVES.has(w.toLowerCase()));
+  if (!nonConnective.every((w) => /^[\p{Lu}\d(]/u.test(w))) return false;
+  return true;
+}
+
+/** A short capitalized proper-noun phrase (a company name without a legal
+ *  suffix, e.g. "Google", "Zoho Corp"), used only to recognise a
+ *  "Company + Dates" header line when parseCompanyLine's suffix rule misses. */
+function shortProperNounLine(value = ""): boolean {
+  const clean = removeDate(cleanLine(value)).replace(/[|·,]+$/g, "").trim();
+  if (!clean || clean.length < 2 || clean.length > 60) return false;
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 4) return false;
+  if (!/^[A-ZÀ-Ö][A-Za-zÀ-ÖØ-öø-ÿ&.'-]*$/.test(words[0])) return false;
+  if (isContactLine(clean) || findSectionKind(clean) || DEGREE_RE.test(clean)) return false;
+  if (ROLE_RE.test(clean) || ACTION_RE.test(clean)) return false;
+  return true;
+}
+
+/** A "Title | Company | Dates" style one-liner: has a pipe/middot separator and
+ *  at least one field that is a role, a company, or a date. */
+function hasSeparatorHeaderShape(value = ""): boolean {
+  const clean = cleanLine(value);
+  if (!/[|·]/.test(clean)) return false;
+  const parts = clean.split(/\s*[|·]\s*/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 2) return false;
+  return parts.some(
+    (part) => isDedicatedRoleLine(part) || companyFromLine(part) || extractDate(part),
+  );
+}
+
+/** True when a line is structural (a header field), not body prose. Structural
+ *  lines start/continue entries; everything else is a bullet. */
+function isStructuralHeaderLine(value = ""): boolean {
+  const clean = cleanLine(value);
+  if (!clean) return false;
+  if (hasSeparatorHeaderShape(clean)) return true;
+  if (companyFromLine(clean)) return true;
+  if (isDedicatedRoleLine(clean)) return true;
+  const withoutDate = removeDate(clean).replace(/[|·,]+$/g, "").trim();
+  // "Company/Title + Dates": a date plus a short proper-noun / role remainder.
+  if (extractDate(clean) && (shortProperNounLine(withoutDate) || isDedicatedRoleLine(withoutDate) || !withoutDate)) {
+    if (!ACTION_RE.test(clean)) return true;
+  }
+  return false;
+}
+
+/** Split header lines into their component fields and assign each to a role
+ *  (title / company / dates / location) deterministically. Never invents. */
+function resolveHeaderFields(headerLines: string[]): {
+  title: string;
+  company: string;
+  dates: string;
+  location: string;
+} {
+  const fields = { title: "", company: "", dates: "", location: "" };
+
+  const segments: string[] = [];
+  for (const line of headerLines) {
     const clean = cleanLine(line);
-    const date = extractDate(clean);
-    if (!date) return null;
-    if (ACTION_RE.test(clean) || isSkillCategory(clean) || isProbablyBullet(clean)) return null;
-    if (DEGREE_RE.test(clean) && !ROLE_RE.test(clean)) return null;
-
-    const withoutDate = removeDate(clean).replace(/[|·,]+$/g, "").trim();
-    if (!withoutDate || withoutDate.length < 2 || withoutDate.length > 60) return null;
-
-    const words = withoutDate.split(/\s+/).filter(Boolean);
-    if (words.length === 0 || words.length > 4) return null;
-    // First word must look like a proper noun (capitalized)
-    if (!/^[A-ZÀ-Ö][A-Za-zÀ-ÖØ-öø-ÿ&.'-]*$/.test(words[0])) return null;
-    if (isContactLine(withoutDate)) return null;
-    if (ROLE_RE.test(withoutDate)) return null;
-
-    return { company: titleCase(withoutDate), location: "", dates: normalizeDate(date) };
+    if (!clean) continue;
+    if (/[|·]/.test(clean)) segments.push(...clean.split(/\s*[|·]\s*/));
+    else segments.push(clean);
   }
 
-  for (let i = 0; i < source.length; i += 1) {
-    const parsed = normalizeCompanyFromLine(source[i] || "");
-    if (!parsed) continue;
-    const around = source.slice(Math.max(0, i - 4), Math.min(source.length, i + 8)).join(" ");
-    if (!ROLE_RE.test(around) && !ACTION_RE.test(around) && !extractDate(around)) continue;
-    if (EDUCATION_ORG_RE.test(parsed.company) && !/intern|working student|research|engineer|designer|developer|analyst/i.test(around)) continue;
-    companyAnchors.push({ index: i, ...parsed });
+  type Seg = { raw: string; noDate: string };
+  const segs: Seg[] = [];
+  for (const rawSeg of segments) {
+    const seg = cleanLine(rawSeg);
+    if (!seg) continue;
+    const date = extractDate(seg);
+    if (date && !fields.dates && !DEGREE_RE.test(seg)) fields.dates = normalizeDate(date);
+    const noDate = removeDate(seg).replace(/^[,|:·\-\s]+|[,|:·\-\s]+$/g, "").trim();
+    if (noDate) segs.push({ raw: seg, noDate });
   }
 
-  // ── Stacked-titles pattern detection ──────────────────────────────────────────
-  // Some CV templates list ALL job titles together right after the FIRST
-  // company/date anchor, with the dated entries for the OTHER roles following
-  // later with no title line of their own:
-  //
-  //   ExampleCo | Jan 2020 - Present   <- anchor 0
-  //   PR Manager                       <- title for anchor 0
-  //   PR Specialist                    <- title for anchor 1
-  //   Communications Coordinator (Intern) <- title for anchor 2
-  //   [bullets for PR Manager...]
-  //   ExampleCo | Jun 2017 - Dec 2019   <- anchor 1 (no title nearby)
-  //   ExampleCo | Jun 2016 - May 2017   <- anchor 2 (no title nearby)
-  //
-  // Detect this by checking: does anchor 0 have 2+ consecutive title-like
-  // lines immediately after it? If so, and if anchors 1..N have no title of
-  // their own within their normal search window, pair titles[1..N] with
-  // anchors[1..N] in order.
-  const stackedTitleAssignments = new Map<number, string>(); // anchorIndex -> title
+  const claimed = new Set<number>();
 
-  if (companyAnchors.length >= 2) {
-    const first = companyAnchors[0];
-    const stackedTitles: string[] = [];
-    for (let j = first.index + 1; j <= Math.min(source.length - 1, first.index + companyAnchors.length + 1); j += 1) {
-      const line = source[j] || "";
-      if (!line || findSectionKind(line) || isProbablyBullet(line)) break;
-      if (parseCompanyLine(line, { allowEducationOrg: true })) break;
-      const title = extractTitleFromLine(line);
-      if (!title) break;
-      stackedTitles.push(title);
+  // PASS 1 — unambiguous fields: legal-suffix companies and dedicated role
+  // titles. Claiming these first stops a non-English title (e.g.
+  // "Softwareentwickler") from greedily taking the company slot before the real
+  // company ("Beispiel GmbH") is seen.
+  segs.forEach((seg, i) => {
+    const asCompany = companyFromLine(seg.raw);
+    if (asCompany && !fields.company && !isDedicatedRoleLine(seg.noDate)) {
+      fields.company = asCompany.company;
+      if (asCompany.location && !fields.location) fields.location = asCompany.location;
+      claimed.add(i);
+    }
+  });
+  segs.forEach((seg, i) => {
+    if (claimed.has(i)) return;
+    if (isDedicatedRoleLine(seg.noDate) && !fields.title) {
+      fields.title = titleCase(seg.noDate);
+      claimed.add(i);
+    }
+  });
+
+  // PASS 2 — leftovers: a location fragment; otherwise fill the still-empty slot
+  // (title preferred, then company) so a non-English title or a suffix-less
+  // company name is never dropped.
+  segs.forEach((seg, i) => {
+    if (claimed.has(i)) return;
+    if (isLocationLine(seg.noDate) && !fields.location) {
+      fields.location = titleCase(seg.noDate);
+      claimed.add(i);
+      return;
+    }
+    if (!fields.title) {
+      fields.title = titleCase(seg.noDate);
+      claimed.add(i);
+    } else if (!fields.company && shortProperNounLine(seg.noDate)) {
+      fields.company = titleCase(seg.noDate);
+      claimed.add(i);
+    }
+  });
+
+  return fields;
+}
+
+function headerHasCompany(headerLines: string[]): boolean {
+  return headerLines.some((line) => !!companyFromLine(line));
+}
+
+type ExperienceEntry = { header: string[]; bullets: string[] };
+
+/** Cut the experience section into entries. New entry starts at a structural
+ *  line once the current entry has bullets (body ended) OR when a SECOND
+ *  company appears in the same header (two companies = two jobs). */
+function segmentExperienceEntries(source: string[]): ExperienceEntry[] {
+  const entries: ExperienceEntry[] = [];
+  let current: ExperienceEntry | null = null;
+  let sawBullet = false;
+
+  const isBulletLine = (line: string) => !isStructuralHeaderLine(line) && isProbablyBullet(line);
+
+  for (const raw of source) {
+    const line = cleanLine(raw);
+    // Skip section headers, pure contact lines (email/url/phone — NOT year-bearing
+    // company lines: isContactLine() trips on any 4-digit number, i.e. every date),
+    // and skill-category headers.
+    if (!line || findSectionKind(line) || isSkillCategory(line)) continue;
+    if (/@|https?:|www\.|linkedin|github|xing/i.test(line)) continue;
+    if (DEGREE_RE.test(line) && EDUCATION_ORG_RE.test(line)) continue; // education row that leaked in
+
+    const bullet = isBulletLine(line);
+
+    if (!current) {
+      current = { header: bullet ? [] : [line], bullets: bullet ? [line] : [] };
+      sawBullet = bullet;
+      continue;
     }
 
-    // Only apply if we found at least as many stacked titles as there are anchors,
-    // and at least 2 titles (otherwise this isn't the "stacked" pattern).
-    if (stackedTitles.length >= 2 && stackedTitles.length >= companyAnchors.length) {
-      companyAnchors.forEach((anchor, idx) => {
-        if (stackedTitles[idx]) stackedTitleAssignments.set(anchor.index, stackedTitles[idx]);
-      });
+    if (bullet) {
+      current.bullets.push(line);
+      sawBullet = true;
+      continue;
+    }
+
+    if (isStructuralHeaderLine(line)) {
+      const isCompany = !!companyFromLine(line) || shortProperNounLine(removeDate(line));
+      const startsNewEntry = sawBullet || (isCompany && headerHasCompany(current.header));
+      if (startsNewEntry) {
+        entries.push(current);
+        current = { header: [line], bullets: [] };
+        sawBullet = false;
+      } else {
+        current.header.push(line);
+      }
+      continue;
+    }
+
+    // Non-bullet, non-structural line.
+    if (sawBullet) {
+      // After a job's bullets, a non-bullet line most often BEGINS the next
+      // job's header — e.g. a bare company name with no legal suffix and no date
+      // ("Desigual", "Zalando") in a company-above-title layout. Such a line is
+      // not "structural" on its own, so without this it would be swallowed as a
+      // trailing bullet and the next job would render with no company. If the
+      // line looks like a header start (a short proper-noun company or a role
+      // title), close the current entry and open a new one. A genuine wrapped
+      // bullet continuation (lower-case / multi-word prose) fails both tests and
+      // is still kept as a soft bullet, so nothing is dropped.
+      const noDate = removeDate(line);
+      if (shortProperNounLine(noDate) || isDedicatedRoleLine(noDate)) {
+        entries.push(current);
+        current = { header: [line], bullets: [] };
+        sawBullet = false;
+      } else {
+        current.bullets.push(line);
+      }
+    } else {
+      current.header.push(line);
     }
   }
+  if (current) entries.push(current);
+  return entries;
+}
 
-  function findTitle(anchorIndex: number) {
-    if (stackedTitleAssignments.has(anchorIndex)) {
-      return stackedTitleAssignments.get(anchorIndex)!;
-    }
-
-    const same = extractTitleFromLine(source[anchorIndex] || "");
-    if (same) return same;
-
-    // "Title above company" is the most common layout (title + dates on one
-    // line, company on the next). Check the line directly ABOVE the anchor
-    // first, so we don't scan forward past this job's bullets and grab the
-    // NEXT job's title (which put e.g. "CAD Designer" onto the Cummins entry).
-    const above = extractTitleFromLine(source[anchorIndex - 1] || "");
-    if (above && !isProbablyBullet(source[anchorIndex - 1] || "")) return above;
-
-    // Forward scan, but STOP at the first bullet: bullets mean this job's body
-    // has started, so any title-like line after them belongs to the next job.
-    for (let j = anchorIndex + 1; j <= Math.min(source.length - 1, anchorIndex + 4); j += 1) {
-      const line = source[j] || "";
-      if (parseCompanyLine(line, { allowEducationOrg: true }) || findSectionKind(line)) break;
-      if (isProbablyBullet(line)) break;
-      const title = extractTitleFromLine(line);
-      if (title) return title;
-    }
-    // Wider backward scan as a last resort.
-    for (let j = anchorIndex - 2; j >= Math.max(0, anchorIndex - 3); j -= 1) {
-      const line = source[j] || "";
-      const title = extractTitleFromLine(line);
-      if (title && !isProbablyBullet(line)) return title;
-    }
-    return "Professional Experience";
-  }
-
-  function findDate(anchorIndex: number, existingDate = "") {
-    if (existingDate && /-|present/i.test(existingDate)) return existingDate;
-    for (let j = anchorIndex - 2; j <= Math.min(source.length - 1, anchorIndex + 4); j += 1) {
-      if (j < 0) continue;
-      const date = extractDate(source[j] || "");
-      if (date && !DEGREE_RE.test(source[j] || "")) return normalizeDate(date);
-    }
-    return existingDate;
-  }
+function extractExperience(sections: SectionMap, lines: string[], projects: ResumeProject[], summary: string) {
+  const projectBulletSet = new Set(
+    projects.flatMap((project) => project.bullets.map((bullet) => cleanLine(bullet).toLowerCase())),
+  );
+  const source = (sections.experience.length ? sections.experience : lines).map(cleanLine).filter(Boolean);
 
   function bulletBelongsToSummary(line: string) {
     const clean = cleanLine(line).toLowerCase();
@@ -1775,156 +1957,54 @@ function extractExperience(sections: SectionMap, lines: string[], projects: Resu
   function bulletBelongsToProject(line: string) {
     const clean = cleanLine(cleanBullet(line)).toLowerCase();
     if (projectBulletSet.has(clean)) return true;
-    // Generic: check if this bullet line references any known project name from the parsed projects
     return projects.some((project) => {
       const nameParts = project.name.split(/\s+/).filter((part) => part.length > 3);
-      return nameParts.length > 0 && nameParts.some((part) => new RegExp(`\\b${part}\\b`, "i").test(line));
+      return nameParts.length > 0 && nameParts.some((part) => new RegExp(`\\b${escapeRegExp(part)}\\b`, "i").test(line));
     });
   }
 
-  function collectBullets(anchorIndex: number, nextAnchorIndex: number) {
-    const bullets: string[] = [];
-    // Skip only the leading title/date header lines that sit BETWEEN the
-    // company anchor and the first bullet, and stop the moment a bullet or the
-    // next job begins. The old loop advanced `start` for ANY title/date line in
-    // the +5 window, so it jumped over this job's bullets and landed on the
-    // NEXT job's title line — which dropped every bullet for jobs whose title
-    // sits above (not below) the company anchor.
-    let start = anchorIndex + 1;
-    for (let j = anchorIndex + 1; j <= Math.min(source.length - 1, anchorIndex + 5); j += 1) {
-      const line = source[j] || "";
-      if (!line) { start = j + 1; continue; }
-      if (isProbablyBullet(line)) break; // body started
-      if (parseCompanyLine(line, { allowEducationOrg: true })) break; // next job
-      if (extractDate(line) || (ROLE_RE.test(line) && line.length < 100)) {
-        start = j + 1; // a leading title/date line for THIS job
-        continue;
-      }
-      break; // first ordinary line ends the header
-    }
+  const entries = segmentExperienceEntries(source);
+  const jobs: ResumeExperience[] = [];
 
-    const end = nextAnchorIndex > anchorIndex ? nextAnchorIndex - 1 : Math.min(source.length - 1, anchorIndex + 42);
-    for (let j = start; j <= end; j += 1) {
-      const line = source[j] || "";
-      if (!line || findSectionKind(line) || isContactLine(line) || isSkillCategory(line)) continue;
-      if (parseCompanyLine(line, { allowEducationOrg: true })) break;
-      if (DEGREE_RE.test(line) || EDUCATION_ORG_RE.test(line)) continue;
-      if (ROLE_RE.test(line) && line.length < 90 && !ACTION_RE.test(line)) continue;
-      if (!isProbablyBullet(line)) continue;
-      if (bulletBelongsToSummary(line) || bulletBelongsToProject(line)) continue;
-      bullets.push(...splitLongBullet(line));
-    }
-    return unique(bullets).slice(0, 14);
-  }
+  for (const entry of entries) {
+    const fields = resolveHeaderFields(entry.header);
 
-  /**
-   * collectStackedTitles
-   *
-   * Some CV templates list a job's title, then immediately list the titles
-   * of OTHER roles at the same company before any bullets appear, e.g.:
-   *
-   *   ExampleCo | January 2020 - Present
-   *   PR Manager
-   *   PR Specialist
-   *   Communications Coordinator (Intern)
-   *   [bullets for PR Manager only]
-   *   ExampleCo | June 2017 - December 2019    <- no title here
-   *   ExampleCo | June 2016 - May 2017          <- no title here
-   *
-   * This collects ALL consecutive role-title lines immediately after an
-   * anchor (before any bullet or section break), in order.
-   */
-  function collectStackedTitles(anchorIndex: number): string[] {
-    const titles: string[] = [];
-    const sameLineTitle = extractTitleFromLine(source[anchorIndex] || "");
-    if (sameLineTitle) titles.push(sameLineTitle);
-
-    for (let j = anchorIndex + 1; j <= Math.min(source.length - 1, anchorIndex + 8); j += 1) {
-      const line = source[j] || "";
-      if (!line) continue;
-      if (parseCompanyLine(line, { allowEducationOrg: true }) || findSectionKind(line)) break;
-      if (isProbablyBullet(line)) break; // bullets start, stop collecting titles
-      const title = extractTitleFromLine(line);
-      if (!title) break; // first non-title, non-bullet line ends the stack
-      titles.push(title);
-    }
-    return unique(titles);
-  }
-
-  companyAnchors.forEach((anchor, index) => {
-    const next = companyAnchors[index + 1]?.index ?? source.length;
-    const title = findTitle(anchor.index);
-    const bullets = collectBullets(anchor.index, next);
-    jobs.push({
-      title,
-      company: anchor.company,
-      location: anchor.location,
-      dates: findDate(anchor.index, anchor.dates),
-      bullets,
-    });
-  });
-
-  // ── Stacked-titles pairing ────────────────────────────────────────────────
-  // If the FIRST anchor has multiple stacked titles immediately after it
-  // (more than the number of jobs that already have a real title), and
-  // SUBSEQUENT jobs have "Professional Experience" as a placeholder title,
-  // pair the extra titles with those jobs in order: titles[1] -> jobs[1],
-  // titles[2] -> jobs[2], etc. This is generic, it only fires when the
-  // stacked-title pattern is detected and there are placeholder titles to fill.
-  if (companyAnchors.length >= 2 && jobs.length >= 2) {
-    const stackedTitles = collectStackedTitles(companyAnchors[0].index);
-    if (stackedTitles.length >= 2) {
-      let titleCursor = 1; // titles[0] already used for jobs[0]
-      for (let i = 1; i < jobs.length && titleCursor < stackedTitles.length; i += 1) {
-        if (jobs[i].title === "Professional Experience") {
-          jobs[i].title = stackedTitles[titleCursor];
-          titleCursor += 1;
-        }
-      }
-    }
-  }
-
-  // ── Redistribute shared bullet blocks between adjacent jobs ──────────────────
-  // Some CVs write achievements for multiple roles as one continuous block
-  // positioned entirely before the SECOND company's anchor line (a common PDF
-  // text-extraction artefact for stacked "Company / Dates / Title" entries).
-  // The result: the first job absorbs every bullet, the next job has none -
-  // even though some of those bullets plausibly belong to the second role.
-  //
-  // Generic heuristic, no hardcoded content: if a job has a substantial number
-  // of bullets (6+) and the immediately following job has zero, split the
-  // block so the later portion (which is positionally closer to the next
-  // job's anchor in the original CV) moves to that job. This keeps the first
-  // few (most senior-sounding / role-defining) bullets with the donor and
-  // gives the tail, often more generic support/ops bullets, to the
-  // recipient, which matches how CVs are typically written (headline
-  // achievements first, supporting duties later).
-  const MIN_BULLETS_TO_SPLIT = 6;
-  const MAX_BULLETS_PER_JOB = 9;
-  for (let i = 0; i < jobs.length - 1; i += 1) {
-    const donor = jobs[i];
-    const recipient = jobs[i + 1];
-    if (recipient.bullets.length > 0) continue;
-    if (donor.bullets.length < MIN_BULLETS_TO_SPLIT) continue;
-
-    // Split roughly in half, but cap each side at MAX_BULLETS_PER_JOB
-    const splitPoint = Math.max(
-      MIN_BULLETS_TO_SPLIT - 2,
-      Math.min(donor.bullets.length - 1, Math.ceil(donor.bullets.length / 2)),
+    // Any header line that resolved to nothing structural is real content that
+    // was mis-grouped — fold it back in as a bullet so it is never lost.
+    const leftoverHeader = entry.header.filter(
+      (line) =>
+        !isStructuralHeaderLine(line) &&
+        isProbablyBullet(line) &&
+        !bulletBelongsToSummary(line) &&
+        !bulletBelongsToProject(line),
     );
 
-    const donorShare = donor.bullets.slice(0, splitPoint).slice(0, MAX_BULLETS_PER_JOB);
-    const recipientShare = donor.bullets.slice(splitPoint).slice(0, MAX_BULLETS_PER_JOB);
+    const bullets = unique(
+      [...leftoverHeader, ...entry.bullets]
+        .filter((line) => !findSectionKind(line) && !isContactLine(line) && !isSkillCategory(line))
+        .filter((line) => !(DEGREE_RE.test(line) || EDUCATION_ORG_RE.test(line)))
+        .filter((line) => isProbablyBullet(line))
+        .filter((line) => !bulletBelongsToSummary(line) && !bulletBelongsToProject(line))
+        .flatMap((line) => splitLongBullet(line)),
+    ).slice(0, 14);
 
-    if (!recipientShare.length) continue;
+    const title = fields.title || "Professional Experience";
+    if (!fields.company && !bullets.length && !fields.title) continue;
 
-    donor.bullets = donorShare;
-    recipient.bullets = recipientShare;
+    jobs.push({
+      title,
+      company: fields.company,
+      location: fields.location,
+      dates: fields.dates,
+      bullets,
+    });
   }
 
+  // A job survives if it has a company, real bullets, or a real (non-placeholder)
+  // title. Dedupe by company+dates so a repeated anchor never doubles an entry.
   return unique(
-    jobs.filter((job) => job.company && (job.bullets.length || job.title !== "Professional Experience")),
-    (job) => `${job.company}|${job.dates}`,
+    jobs.filter((job) => job.company || job.bullets.length || job.title !== "Professional Experience"),
+    (job) => `${job.company.toLowerCase()}|${job.dates}`,
   ).slice(0, 8);
 }
 
@@ -2562,7 +2642,9 @@ function wzPickHeadline(baseHeadline: string, experience: ResumeExperience[], li
   if (fromExperience) return titleCase(fromExperience);
   const fromHeader = lines.slice(0, 80).find((line) => wzLooksLikeStrongHeadline(line));
   if (fromHeader) return titleCase(fromHeader);
-  return "Professional";
+  // No fabricated placeholder. An unknown headline is empty, and the headline
+  // contract decides what to show.
+  return "";
 }
 
 export function extractResumeProfileComplex(rawText = ""): ResumeProfile {
@@ -2654,3 +2736,7 @@ export function extractResumeProfileComplex(rawText = ""): ResumeProfile {
     ].filter(Boolean).join("\\n"),
   };
 }
+
+
+
+

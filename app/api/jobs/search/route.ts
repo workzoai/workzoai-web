@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
         success: true,
         live: false,
         message:
-          "No job providers are configured. Add ADZUNA_APP_ID and ADZUNA_APP_KEY to enable live search. Jooble is optional.",
+          "No job providers are configured. Add RAPIDAPI_KEY with RAPIDAPI_ACTIVEJOBS_HOST and/or RAPIDAPI_JSEARCH_HOST, or add Adzuna credentials.",
         jobs: [],
         providersConfigured: outcome.providersConfigured,
       });
@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
       jobs: outcome.jobs,
       providersUsed: outcome.providersUsed,
       providerErrors: outcome.providerErrors,
+      providersConfigured: outcome.providersConfigured,
       count: outcome.jobs.length,
       searchedAt: new Date().toISOString(),
       freshnessWindowDays: 30,

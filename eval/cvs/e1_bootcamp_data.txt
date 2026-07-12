@@ -1,0 +1,3 @@
+Junior Data Analyst. Career changer, graduate of an intensive Data Science Bootcamp.
+Completed a 16-week bootcamp covering Python, SQL, pandas, and Tableau. Built three portfolio projects: a churn prediction model in scikit-learn, an ETL pipeline, and a Tableau dashboard.
+Previously worked in retail. Seeking my first role in data. Entry-level.

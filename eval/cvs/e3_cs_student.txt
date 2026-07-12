@@ -1,0 +1,3 @@
+Working student, BSc Computer Science, 5th semester.
+Coursework in algorithms, data structures, and distributed systems. Internship building microservices in Java. Familiar with Docker and Kubernetes.
+Seeking a working student position or graduate software engineer role.

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { offerJobDescriptionFromJob } from "@/lib/workzoJobDescriptionSource";
 import { useSearchParams } from "next/navigation";
 import PremiumFeatureGate from "@/components/PremiumFeatureGate";
 import {
@@ -289,6 +290,14 @@ function dedupeJobs(jobs: LiveJob[]) {
 }
 
 function saveSelectedJobForNextStep(job: LiveJob, currentSetup: WorkZoInterviewSetup | null) {
+  // The job's JD becomes a PENDING OFFER. The user sees it and chooses. It is
+  // never installed behind their back.
+  offerJobDescriptionFromJob({
+    text: job.description || "",
+    title: job.title,
+    company: job.company,
+  });
+
   const nextSetup = saveLatestInterviewSetup({
     ...(currentSetup || {}),
     selectedJob: job,
@@ -296,8 +305,14 @@ function saveSelectedJobForNextStep(job: LiveJob, currentSetup: WorkZoInterviewS
     role: job.title || currentSetup?.role || currentSetup?.targetRole || "Target Role",
     targetCompany: job.company || currentSetup?.targetCompany || "",
     companyName: job.company || currentSetup?.companyName || "",
-    jobDescription: job.description || currentSetup?.jobDescription || "",
-    jdText: job.description || currentSetup?.jdText || "",
+    // DO NOT write the job's description into the shared interview setup.
+    // Onboarding, /cv, /copilot and the interview engine all read this bucket,
+    // so doing that made ONE selected job silently become the job description
+    // for the entire product: every CV rewrite and cover letter from then on was
+    // targeted at a job the user never pasted. The job description now has an
+    // owner. The jobs board may only OFFER one.
+    jobDescription: currentSetup?.jobDescription || "",
+    jdText: currentSetup?.jdText || "",
     targetMarket: cleanLocation(job.location || currentSetup?.targetMarket || "Remote"),
     country: cleanLocation(job.location || currentSetup?.country || "Remote"),
     source: "jobs-page-selected-job",
@@ -539,12 +554,20 @@ function JobsWorkspaceContent() {
       } else if (data?.success === false) {
         setMessage(data?.error || "Live job search failed. Use the job-board links below.");
       } else if (!nextJobs.length) {
-        setMessage("No live jobs found. Try a broader role, fewer keywords, or a specific city/country.");
+        const errors = Array.isArray(data?.providerErrors)
+          ? data.providerErrors.map((item: { provider?: string; error?: string }) => `${item.provider || "provider"}: ${item.error || "failed"}`).join(" | ")
+          : "";
+        setMessage(errors
+          ? `No live jobs found. Provider diagnostics: ${errors}`
+          : "No live jobs found. Try a broader role, fewer keywords, or a specific city/country.");
       } else {
         const used = Array.isArray(data?.providersUsed) && data.providersUsed.length
-        ? ` from ${data.providersUsed.map((name: string) => name === "adzuna" ? "Adzuna" : name === "jooble" ? "Jooble" : name).join(" + ")}`
+        ? ` from ${data.providersUsed.map((name: string) => name === "active_jobs_db" ? "Active Jobs DB" : name === "jsearch" ? "JSearch" : name === "adzuna" ? "Adzuna" : name === "jooble" ? "Jooble" : name).join(" + ")}`
         : "";
-      setMessage(`Found ${nextJobs.length} live openings${used}. Search relevance is prioritized; CV match explains strengths and gaps.`);
+      const failed = Array.isArray(data?.providerErrors) && data.providerErrors.length
+        ? ` Some sources failed: ${data.providerErrors.map((item: { provider?: string }) => item.provider || "provider").join(", ")}.`
+        : "";
+      setMessage(`Found ${nextJobs.length} live openings${used}. Search relevance is prioritized; CV match explains strengths and gaps.${failed}`);
       }
     } catch {
       setJobs([]);

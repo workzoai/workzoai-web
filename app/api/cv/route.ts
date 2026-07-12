@@ -14,6 +14,8 @@ import {
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
 import { enforceCanonicalCandidateName } from "@/lib/workzoResumeProfileManager";
 import { finalizeCanonicalCvProfile } from "@/lib/workzoCvGlobalFinalizer";
+import { guardCanonicalParse } from "@/lib/workzoCanonicalGuard";
+import { sanitizeExtractedCvText } from "@/lib/workzoCvTextSanitizer";
 import { extractPdfTextLayoutAware } from "@/lib/workzoSpatialPdfExtractor";
 
 const require = createRequire(import.meta.url);
@@ -70,8 +72,35 @@ function normalizeUploadFileName(fileName = "") {
   );
 }
 
-function normalizeCvText(value: string) {
-  return cleanExtractedCvText(normalizeResumeText(value || ""));
+/**
+ * Deterministic repair of the extracted text, BEFORE the parser and BEFORE any
+ * AI call. Every defect seen in a broken WorkZo CV (wrap fragments, duplicate
+ * lines, the header band echoed into the projects section, sidebar values that
+ * absorbed body prose) is already present in the raw extraction. The AI does
+ * not invent them and the fact guard does not fail: the guard faithfully
+ * preserves corrupt source data. Fixing the text fixes everything downstream.
+ */
+function sanitizeCvText(value: string, candidateName = "") {
+  const report = sanitizeExtractedCvText(value, { candidateName });
+  if (report.warnings.length) {
+    console.log("[WorkZo CV Pipeline] api.cv.text_sanitizer", {
+      warnings: report.warnings,
+      removedFragments: report.removedFragments.length,
+      removedDuplicates: report.removedDuplicates.length,
+      removedHeaderEchoes: report.removedHeaderEchoes.length,
+      trimmedBleeds: report.trimmedBleeds.length,
+    });
+  }
+  return report.text || value;
+}
+
+function normalizeCvText(value: string, candidateName = "") {
+  // Single funnel for every entry path (upload, paste, JSON, fallback), so the
+  // sanitizer cannot be bypassed by adding a new caller later.
+  return sanitizeCvText(
+    cleanExtractedCvText(normalizeResumeText(value || "")),
+    candidateName,
+  );
 }
 
 // BUG FIXED, ROOT CAUSE: buildInterviewCvContext() (client-side, onboarding
@@ -832,7 +861,12 @@ function mapAffindaProfile(
     rawText,
     basics: {
       name: lockedName || parserName || "",
-      headline: headline || experience[0]?.title || "Professional",
+      // "Professional" was a fabricated placeholder. It surfaced as the CV
+      // headline and, downstream, as a JOB TITLE ("Professional | Zoho Corp |
+      // 2018 - 2020"). An unknown headline is empty. The headline contract in
+      // the finalizer (explicit target role, else the CV's own headline) is the
+      // only thing allowed to fill it.
+      headline: headline || experience[0]?.title || "",
       email,
       phone,
       location,
@@ -1111,10 +1145,22 @@ function buildResponse(input: {
   // rejects layout markers, section headers, skills, roles, companies, and
   // schools from name/headline, moves education out of experience, and dedupes.
   // mergeCvProfile() and api.cv.name_override are removed from this path.
-  const finalizedProfile = finalizeCanonicalCvProfile(input.resumeProfile as any, {
+  // STAGE 1 GUARD. Previously the fact guard ran ONLY inside app/cv/page.tsx,
+  // so /api/cv handed an unguarded profile to Supabase, /api/copilot,
+  // /api/interview/reply and /api/linkedin/*. The guard now runs here, which
+  // means every surface inherits the same canonical, repaired profile.
+  const guardedProfile = guardCanonicalParse({
+    profile: input.resumeProfile,
+    rawText: input.rawCvText,
+    fileName: input.fileName || "",
+    candidateName: input.candidateName || "",
+  });
+
+  const finalizedProfile = finalizeCanonicalCvProfile(guardedProfile as any, {
     rawText: input.rawCvText,
     fileName: input.fileName || "",
     selectedName: input.candidateName || "",
+    targetRole: input.targetRole || "",
     source: input.source,
     confidence: input.confidence,
   }) as ResumeProfile;
@@ -1122,14 +1168,6 @@ function buildResponse(input: {
   // The finalizer is the last profile-changing function. Freeze so no later
   // stage can mutate name, headline, experience, or education.
   const resumeProfile = Object.freeze(finalizedProfile) as ResumeProfile;
-
-  const finalizerConfidence = (resumeProfile as any).confidence || {};
-  debugCvPipeline("api.cv.finalizer.identity_decision", {
-    fileName: input.fileName,
-    selectedName: resumeProfile.basics?.name || "",
-    selectedNameSource: finalizerConfidence.nameSource || "unknown",
-    rejectedCandidates: finalizerConfidence.rejectedNameCandidates || [],
-  });
 
   const cleanProfileText = buildProfileText(resumeProfile, input.rawCvText);
 
@@ -1183,6 +1221,7 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
         body.cvText ||
         "",
     ),
+    String(body.candidateName || ""),
   );
   const jd = normalizeResumeText(String(body.jobDescription || ""));
   const existingProfile = body.resumeProfile || body.profile;
@@ -1488,7 +1527,11 @@ export async function POST(request: Request) {
         fileType,
       });
 
-      const cleanedCv = normalizeCvText(extracted);
+      // The upload path is multipart, so there is no JSON body here. The client
+      // may send the onboarding name alongside the file; when it does not, the
+      // sanitizer falls back to the header band's own first line.
+      const uploadCandidateName = String(formData.get("candidateName") || "");
+      const cleanedCv = normalizeCvText(extracted, uploadCandidateName);
       if (!cleanedCv.trim())
         return NextResponse.json(
           { error: "CV uploaded, but no readable text was found." },

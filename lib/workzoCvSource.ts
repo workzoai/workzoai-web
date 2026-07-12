@@ -1,5 +1,6 @@
-import type { ResumeProfile } from "@/lib/workzoResumeParser";
-import { getSavedCanonicalProfile, isUsableCanonicalProfile, normalizeCanonicalProfile } from "@/lib/workzoCanonicalProfile";
+import { extractResumeProfileComplex, type ResumeProfile } from "@/lib/workzoResumeParser";
+import { buildCanonicalProfile, getSavedCanonicalProfile, isUsableCanonicalProfile, normalizeCanonicalProfile, WORKZO_CV_ENGINE_VERSION } from "@/lib/workzoCanonicalProfile";
+import { readActiveJobDescription } from "@/lib/workzoJobDescriptionSource";
 import {
   normalizeSetupCvText,
   normalizeSetupJobDescription,
@@ -109,7 +110,29 @@ function removeKeys(keys: string[]): void {
 
 function usableProfile(value: unknown): ResumeProfile | null {
   if (!value || typeof value !== "object") return null;
-  const normalized = normalizeCanonicalProfile(value);
+
+  // Some older storage records contain the canonical CV under `profile`, while
+  // newer keys store the profile directly. Passing the wrapper itself to the
+  // canonical normalizer made it look unversioned (`cached: "(none)"`) and
+  // triggered a rebuild on every page visit.
+  const candidate =
+    "profile" in (value as Record<string, unknown>) &&
+    (value as Record<string, unknown>).profile &&
+    typeof (value as Record<string, unknown>).profile === "object"
+      ? (value as Record<string, unknown>).profile
+      : value;
+
+  // Fast path for an already-current canonical profile. This avoids running the
+  // migration logic repeatedly when the same profile is read from the shared,
+  // canonical and legacy storage keys during a single render.
+  if (
+    (candidate as any)?.canonicalVersion === WORKZO_CV_ENGINE_VERSION &&
+    isUsableCanonicalProfile(candidate)
+  ) {
+    return candidate as ResumeProfile;
+  }
+
+  const normalized = normalizeCanonicalProfile(candidate);
   if (normalized && isUsableCanonicalProfile(normalized)) return normalized as ResumeProfile;
   return null;
 }
@@ -153,24 +176,56 @@ function normalizeSource(input?: Partial<WorkZoCvSourceResolution> | null): Work
 
 export function resolveCvSource(): WorkZoCvSourceResolution {
   const packed = readJson<Partial<WorkZoCvSourceResolution>>([CV_SOURCE_KEY]);
-  const canonical = getSavedCanonicalProfile();
-  const legacyProfile = usableProfile(readJson<ResumeProfile>(PROFILE_KEYS));
   const setup = readLatestInterviewSetup();
-  const setupProfile = usableProfile(setup?.resumeProfile);
+
+  // Resolve profiles lazily in strict priority order. Previously every possible
+  // source was normalized on every page load, including the old unversioned
+  // resumeProfile embedded in interview setup. That produced repeated
+  // `cache_stale cached: (none)` warnings even after the canonical cache had
+  // already been migrated successfully.
+  const packedProfile = usableProfile(packed?.profile);
+  const canonical = packedProfile ? null : getSavedCanonicalProfile();
+  const setupProfile = packedProfile || canonical ? null : usableProfile(setup?.resumeProfile);
+  const legacyProfile = packedProfile || canonical || setupProfile
+    ? null
+    : usableProfile(readJson<ResumeProfile>(PROFILE_KEYS));
 
   // Priority: explicit shared source -> canonical profile -> latest interview setup -> legacy keys.
-  const profile = usableProfile(packed?.profile) || canonical || setupProfile || legacyProfile;
+  let profile = packedProfile || canonical || setupProfile || legacyProfile;
   const rawCvText =
     packed?.rawCvText ||
     profile?.rawText ||
     normalizeSetupCvText(setup) ||
     readString(RAW_CV_KEYS, "");
+
+  // Last-resort recovery for accounts that still have the uploaded CV text but
+  // lost every structured-profile key during an earlier migration. This runs
+  // only when no usable profile exists. The recovered profile is persisted
+  // below, so it is not reparsed on every page visit.
+  if (!profile && rawCvText.trim().length > 80) {
+    try {
+      const reparsed = extractResumeProfileComplex(rawCvText);
+      profile = buildCanonicalProfile({
+        profile: reparsed,
+        rawText: rawCvText,
+        fileName: packed?.fileName || setup?.fileName || readString(FILE_KEYS, ""),
+      });
+    } catch (error) {
+      try {
+        console.warn("[WorkZo] cv.profile.recovery_failed", {
+          message: error instanceof Error ? error.message : String(error),
+        });
+      } catch {}
+    }
+  }
+  // The latest interview setup is the authoritative JD source. A previously
+  // selected live job may still exist in the shared CV-source cache; letting
+  // that packed value win caused the old Megaport JD to reappear after users
+  // pasted a different description.
+  const activeJobDescription = readActiveJobDescription();
+  const setupJobDescription = normalizeSetupJobDescription(setup);
   const jobDescription =
-    packed?.jobDescription || normalizeSetupJobDescription(setup) || readString(JD_KEYS, "");
-  // The explicit shared target-role key and the latest onboarding/interview
-  // setup are authoritative. `workzo_cv_source` may contain an older value
-  // copied from the CV headline, so it must not override a role the user
-  // explicitly selected later.
+    activeJobDescription || setupJobDescription || packed?.jobDescription || readString(JD_KEYS, "");
   const targetRole =
     normalizeSetupTargetRole(setup) ||
     readString(ROLE_KEYS, "") ||
@@ -179,7 +234,7 @@ export function resolveCvSource(): WorkZoCvSourceResolution {
   const targetMarket =
     packed?.targetMarket || normalizeSetupTargetMarket(setup) || readString(MARKET_KEYS, "Global");
   const fileName = packed?.fileName || setup?.fileName || readString(FILE_KEYS, "");
-  const origin: WorkZoCvSourceOrigin = packed?.profile
+  const origin: WorkZoCvSourceOrigin = packedProfile
     ? "canonical"
     : canonical
       ? "canonical/localStorage"

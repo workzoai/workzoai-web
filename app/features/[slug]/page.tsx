@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { CheckCircle2, Lock, Quote, Sparkles } from "lucide-react";
+import { CheckCircle2, FileText, Lock, Quote, Sparkles, UploadCloud, WandSparkles } from "lucide-react";
 import {
-  MarketingShell, Reveal, Eyebrow, BackLink, PrimaryButton, GhostButton, CTASection,
+  MarketingShell, Reveal, Eyebrow, BackLink, GhostButton,
 } from "@/components/marketing/kit";
+import AuthAwareFeatureCTA from "@/components/marketing/AuthAwareFeatureCTA";
 
 export const dynamic = "force-static";
 
@@ -16,6 +17,9 @@ type Feature = {
   example: string;
   cta: string;
   destination: string;
+  needsCv: boolean;
+  needsJd: boolean;
+  steps?: string[];
 };
 
 const features: Record<string, Feature> = {
@@ -28,6 +32,8 @@ const features: Record<string, Feature> = {
     example: "Instead of a generic question, WorkZo can ask: \u2018You mentioned customer escalations in your CV. How would you handle a similar stakeholder conflict in this target role?\u2019",
     cta: "Start interview practice",
     destination: "/onboarding",
+    needsCv: true,
+    needsJd: false,
   },
   "improve-cv": {
     eyebrow: "Improve CV",
@@ -38,6 +44,8 @@ const features: Record<string, Feature> = {
     example: "Current: \u2018Handled support tickets.\u2019 Improved: \u2018Resolved 40+ technical support tickets weekly while improving first-response quality and customer satisfaction.\u2019",
     cta: "Improve my CV",
     destination: "/cv",
+    needsCv: true,
+    needsJd: true,
   },
   "linkedin-optimizer": {
     eyebrow: "AI LinkedIn Career Optimizer",
@@ -48,6 +56,9 @@ const features: Record<string, Feature> = {
     example: "Power BI is missing from your profile. So is Tableau. Only one of those is a gap: your CV proves Tableau, so add it today. Nothing in your CV supports Power BI, so WorkZo will not write it for you.",
     cta: "Check my LinkedIn",
     destination: "/linkedin",
+    needsCv: true,
+    needsJd: false,
+    steps: ["Use your saved CV or upload one", "Paste or import your LinkedIn profile", "Review mismatches, missing keywords, and recruiter risks", "Upgrade only when you want AI rewrites and advanced simulation"],
   },
   "cover-letter": {
     eyebrow: "Cover Letter",
@@ -58,6 +69,8 @@ const features: Record<string, Feature> = {
     example: "WorkZo doesn't only write a letter. It shows why your experience matches the job and where the letter may sound weak to a hiring manager.",
     cta: "Generate my cover letter",
     destination: "/cover-letter",
+    needsCv: true,
+    needsJd: true,
   },
   "job-assist": {
     eyebrow: "Job Assist",
@@ -68,6 +81,8 @@ const features: Record<string, Feature> = {
     example: "For a role asking for SQL, stakeholder communication, and Power BI, WorkZo can show what your CV proves, what is missing, and what the recruiter will likely ask.",
     cta: "Find live jobs",
     destination: "/jobs",
+    needsCv: true,
+    needsJd: false,
   },
   "ats-checker": {
     eyebrow: "ATS Resume Checker",
@@ -78,6 +93,8 @@ const features: Record<string, Feature> = {
     example: "Instead of only giving a score, WorkZo explains which requirements are proven, partially proven, or missing from your CV.",
     cta: "Check my resume",
     destination: "/tools/ats-checker",
+    needsCv: true,
+    needsJd: true,
   },
   "resume-templates": {
     eyebrow: "Resume Templates",
@@ -88,6 +105,8 @@ const features: Record<string, Feature> = {
     example: "You see a real resume page with typography, spacing, headings, and bullet hierarchy before selecting it.",
     cta: "Choose a resume template",
     destination: "/resume-templates",
+    needsCv: false,
+    needsJd: false,
   },
   "results-intelligence": {
     eyebrow: "Results Intelligence",
@@ -98,6 +117,8 @@ const features: Record<string, Feature> = {
     example: "You say: \u2018I usually do what my manager asks.\u2019 The recruiter hears: \u2018May lack autonomy unless they clarify ownership and decision-making.\u2019",
     cta: "View results intelligence",
     destination: "/results",
+    needsCv: false,
+    needsJd: false,
   },
 };
 
@@ -134,7 +155,7 @@ export default async function FeaturePage({ params }: { params: Promise<{ slug: 
             <h1 className="mt-5 max-w-3xl text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl">{feature.title}</h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">{feature.description}</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <PrimaryButton href={`/login?redirect=${encodeURIComponent(`${feature.destination}?from=landing`)}`}>{feature.cta}</PrimaryButton>
+              <AuthAwareFeatureCTA destination={feature.destination} label={feature.cta} featureSlug={slug} />
               <GhostButton href="/">Back to home</GhostButton>
             </div>
           </div>
@@ -173,6 +194,61 @@ export default async function FeaturePage({ params }: { params: Promise<{ slug: 
         </div>
       </section>
 
+      {slug === "linkedin-optimizer" ? (
+        <section className="mx-auto max-w-6xl px-4 pb-8 sm:px-6 lg:px-8">
+          <Reveal>
+            <div className="rounded-2xl border border-line bg-canvas p-6 sm:p-8">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-brand">LinkedIn Optimizer by plan</p>
+              <h2 className="mt-3 text-2xl font-black tracking-tight">Three clear levels, with the basic audit available on Free.</h2>
+              <div className="mt-6 grid gap-4 lg:grid-cols-3">
+                {[
+                  { name: "Free", label: "Basic audit", items: ["CV vs LinkedIn consistency score", "Missing skills and keyword gaps", "Title and experience mismatch warnings", "Action checklist you can apply manually"] },
+                  { name: "Premium", label: "AI optimization", items: ["Everything in Free", "AI headline rewrite", "AI About-section rewrite", "Experience and keyword improvements based on verified CV facts"] },
+                  { name: "Premium Pro", label: "Recruiter simulation", items: ["Everything in Premium", "Recruiter search simulation", "Multi-role profile variants", "Advanced discoverability and positioning guidance"] },
+                ].map((plan) => (
+                  <div key={plan.name} className="rounded-xl border border-line bg-surface/50 p-5">
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">{plan.name}</p>
+                    <h3 className="mt-2 text-lg font-black text-fg">{plan.label}</h3>
+                    <ul className="mt-4 space-y-2">
+                      {plan.items.map((item) => <li key={item} className="flex gap-2 text-sm leading-6 text-fg"><CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-success" />{item}</li>)}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-5 text-sm leading-6 text-muted">The current product gate is feature-based rather than a hidden monthly counter: Free can audit, Premium can generate rewrites, and Premium Pro unlocks the advanced recruiter-simulation layer.</p>
+            </div>
+          </Reveal>
+        </section>
+      ) : null}
+
+      {/* How it works */}
+      <section className="mx-auto max-w-6xl px-4 pb-8 sm:px-6 lg:px-8">
+        <Reveal>
+          <div className="rounded-2xl border border-line bg-canvas p-6 sm:p-8">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-brand">How it works</p>
+            <h2 className="mt-3 text-2xl font-black tracking-tight">Understand the feature first. Sign in only when you are ready to use it.</h2>
+            <div className="mt-6 grid gap-4 md:grid-cols-4">
+              {(feature.steps || [
+                feature.needsCv ? "Use your saved CV or upload one" : "Open the feature workspace",
+                feature.needsJd ? "Paste the job description you want to target" : "Choose the goal or settings",
+                "Run the feature and review the result",
+                "Save, edit, download, or continue to the next career step",
+              ]).map((step, index) => (
+                <div key={step} className="rounded-xl border border-line bg-surface/50 p-4">
+                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand/10 text-xs font-black text-brand">{index + 1}</span>
+                  <p className="mt-3 text-sm font-bold leading-6 text-fg">{step}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 flex flex-wrap gap-3 text-xs font-bold text-muted">
+              <span className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2"><UploadCloud className="h-4 w-4" /> {feature.needsCv ? "CV required" : "CV optional"}</span>
+              <span className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2"><FileText className="h-4 w-4" /> {feature.needsJd ? "Job description required" : "Job description optional"}</span>
+              <span className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2"><WandSparkles className="h-4 w-4" /> Saved account data is reused</span>
+            </div>
+          </div>
+        </Reveal>
+      </section>
+
       {/* Example */}
       <section className="mx-auto max-w-6xl px-4 pb-8 sm:px-6 lg:px-8">
         <Reveal>
@@ -190,12 +266,16 @@ export default async function FeaturePage({ params }: { params: Promise<{ slug: 
         </Reveal>
       </section>
 
-      <CTASection
-        title="Ready to try it?"
-        intro="Run a realistic interview and see the difference for yourself."
-        primary={{ href: `/login?redirect=${encodeURIComponent(`${feature.destination}?from=landing`)}`, label: feature.cta }}
-        secondary={{ href: "/onboarding", label: "Start free" }}
-      />
+      <section className="mx-auto max-w-6xl px-4 pb-20 pt-8 text-center sm:px-6 lg:px-8">
+        <div className="rounded-[2rem] border border-brand/20 bg-brand/[0.07] px-6 py-10 sm:px-10">
+          <h2 className="text-3xl font-black tracking-tight">Ready to try it?</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-muted">Already signed in? You will go straight to the tool. New users sign in once and return to this exact feature.</p>
+          <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <AuthAwareFeatureCTA destination={feature.destination} label={feature.cta} featureSlug={slug} />
+            <GhostButton href="/pricing">Compare plans</GhostButton>
+          </div>
+        </div>
+      </section>
     </MarketingShell>
   );
 }

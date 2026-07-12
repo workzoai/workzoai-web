@@ -167,13 +167,32 @@ function looksLikeHumanName(value: string): boolean {
   return true;
 }
 
+// A single-word name (mononym). Many people legitimately have one-word names
+// (e.g. "Prince", "Madonna", and many Indonesian, Tamil, or Brazilian names), so
+// a one-word header line must not be auto-rejected. This stays strict — it
+// reuses the same structural noise filter that rejects section, skill, role, and
+// company tokens — so it accepts a bare given name without ever grabbing a
+// headline ("Analyst"), a skill ("Python"), or a section word.
+function looksLikeMononymName(value: string): boolean {
+  const v = compactSpacedName(value);
+  const ws = words(v);
+  if (ws.length !== 1) return false;
+  if (looksLikeSectionOrNoise(v)) return false;
+  const tok = ws[0];
+  if (tok.length < 2 || tok.length > 20) return false;
+  const alphaRatio = (v.match(/[\p{L}]/gu)?.length || 0) / Math.max(1, v.length);
+  if (alphaRatio < 0.85) return false;
+  if (!/^\p{Lu}/u.test(v)) return false; // a name starts with a capital
+  return true;
+}
+
 function canonicalNameKey(value: string): string {
   return words(value).join(" ");
 }
 
 function candidateScore(c: IdentityCandidate): { value: string; source: IdentitySource; score: number; valid: boolean } {
   const value = compactSpacedName(c.value || "");
-  const valid = looksLikeHumanName(value);
+  const valid = looksLikeHumanName(value) || looksLikeMononymName(value);
   if (!valid) return { value, source: c.source, score: 0, valid: false };
   const base = typeof c.confidence === "number" ? c.confidence : 0.5;
   const weight: Record<IdentitySource, number> = {
@@ -206,7 +225,19 @@ function inferNameFromFilename(filename?: string | null): string {
 
 export function extractHeaderNameCandidates(text: string): string[] {
   const healed = healSpacedHeaders(text || "");
-  const lines = healed.split(/\r?\n/).map(normalizeCandidate).filter(Boolean).slice(0, 35);
+  const allLines = healed.split(/\r?\n/).map(normalizeCandidate).filter(Boolean);
+  // Bound the scan to the header block — everything ABOVE the first section
+  // header. Otherwise the scan reaches into sections like "CORE SKILLS" and a
+  // skill line ("Team Collaboration") can be picked as the candidate's name. A
+  // section header here is a short line that contains a section word (this also
+  // catches "CORE SKILLS", where "core" is not itself a section word).
+  const isSectionHeader = (l: string) => {
+    const ws = words(l);
+    return ws.length >= 1 && ws.length <= 3 && ws.some((w) => SECTION_WORDS.has(w));
+  };
+  const firstSection = allLines.findIndex(isSectionHeader);
+  const lines = (firstSection >= 0 ? allLines.slice(0, firstSection) : allLines).slice(0, 35);
+
   const out: string[] = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -217,6 +248,15 @@ export function extractHeaderNameCandidates(text: string): string[] {
       if (looksLikeHumanName(joined)) out.push(titleCaseName(joined));
     }
   }
+
+  // Mononym fallback: only when no multi-word name was found in the header block,
+  // accept a one-word name from the first non-contact line. Bounded this tightly
+  // so it never fires when a normal two-part name is present.
+  if (!out.length) {
+    const firstContent = lines.find((l) => !EMAIL_RE.test(l) && !URL_RE.test(l) && !PHONE_RE.test(l));
+    if (firstContent && looksLikeMononymName(firstContent)) out.push(titleCaseName(firstContent));
+  }
+
   return Array.from(new Set(out));
 }
 
@@ -271,62 +311,135 @@ export function determineCanonicalIdentity(input: {
   };
 }
 
-export function resolveTargetHeadline(input: { aiHeadline?: string | null; rawText?: string | null; selectedName?: string | null }): string {
-  const ai = normalizeCandidate(input.aiHeadline || "");
-  const isBad = !ai || ai.length > 75 || /[.!?]/.test(ai) || /\b(with|over|experience|passionate|detail-oriented|results-driven|born|raised)\b/i.test(ai);
-  if (!isBad) return ai;
 
-  const lines = healSpacedHeaders(input.rawText || "").split(/\r?\n/).map(normalizeCandidate).filter(Boolean).slice(0, 12);
-  const selectedKey = canonicalNameKey(input.selectedName || "");
-  for (const line of lines) {
-    if (!line || canonicalNameKey(line) === selectedKey) continue;
+const HEADLINE_SECTION_RE = /^(?:contact|contacts|kontakt|profile|profil|summary|professional summary|profile summary|about me|objective|experience|work experience|professional experience|employment history|berufserfahrung|education|bildung|ausbildung|projects?|projekte|skills?|expertise|languages?|sprachen|certifications?|references?)$/i;
+const HEADLINE_CONTACT_RE = /(?:@|https?:\/\/|www\.|linkedin|github)/i;
+const HEADLINE_STREET_RE = /\b(?:street|st\.?|road|rd\.?|avenue|ave\.?|lane|ln\.?|drive|dr\.?|boulevard|blvd\.?|way|weg|straße|strasse|str\.?|platz|gasse|allee|ring|rue|via|calle|rua)\b/i;
+const HEADLINE_POSTAL_RE = /\b\d{4,6}\b/;
 
-    // NOTE: do NOT use looksLikeSectionOrNoise() here. That filter exists to
-    // reject NAME candidates, and it deliberately rejects role-shaped lines
-    // ("if the line contains a role word and is short -> noise"). Using it here
-    // discarded the very line we are hunting for, so a real headline such as
-    // "JUNIOR CUSTOMER SUCCESS MANAGER" was thrown away and the placeholder
-    // "Professional" was returned, which then propagated into the target role.
-    //
-    // A headline must instead only reject: contact lines, section headers, and
-    // pure skill lines.
-    if (/[@\d]|https?:|www\./.test(line)) continue;              // contact details
-    const ws = words(line);
-    if (ws.every((w) => SECTION_WORDS.has(w))) continue;          // "PROFILE SUMMARY"
-    if (ws.every((w) => SKILL_WORDS.has(w))) continue;            // a skills line
+/**
+ * Remove contact/location bleed from a role line without maintaining a city or
+ * country list. The cut is driven by structural address evidence: street +
+ * house number, postal code, email, URL, or phone. This works across markets.
+ */
+function stripHeadlineContactBleed(value: string): string {
+  let text = normalizeCandidate(value);
+  if (!text) return "";
 
-    // PASS 1: a known role word is the strongest signal, so prefer it.
-    if (ws.some((w) => ROLE_WORDS.has(w)) && line.length <= 75) return line;
+  const hardContact = text.search(/(?:@|https?:\/\/|www\.|linkedin|github)/i);
+  if (hardContact > 0) text = text.slice(0, hardContact).trim();
+
+  // "Role Streetname 15, 97094 City" -> "Role". Require both a house
+  // number and either a postal code or street token so years in job titles are
+  // never mistaken for an address.
+  const addressMatch = text.match(/^(.*?\S)\s+([\p{L}.'’-]{2,}\s+\d{1,5}[A-Za-z]?(?:\s*[,·|-]\s*|\s+)(?:\d{4,6}\b|[\p{L}.'’-]{2,}))(?:.*)$/u);
+  if (addressMatch && (HEADLINE_STREET_RE.test(addressMatch[2]) || HEADLINE_POSTAL_RE.test(addressMatch[2]))) {
+    text = addressMatch[1].trim();
+  } else {
+    // Postal-code-only fallback, but only after at least one role-like token.
+    const postal = text.search(/\s+\d{4,6}\b/);
+    if (postal > 0 && words(text.slice(0, postal)).some((w) => ROLE_WORDS.has(w))) {
+      const beforePostal = text.slice(0, postal).trim();
+      // Drop the likely street + house-number immediately before the postal code.
+      text = beforePostal.replace(/\s+[\p{L}.'’-]{2,}(?:\s+[\p{L}.'’-]{2,}){0,2}\s+\d{1,5}[A-Za-z]?$/u, "").trim();
+    }
   }
 
-  // PASS 2: STRUCTURAL fallback, no role vocabulary at all.
-  //
-  // ROLE_WORDS can never enumerate every job on earth: Sommelier, Paramedic,
-  // Actuary, Midwife, Welder, Elektriker, Infirmiere are all real headlines that
-  // no word list will contain. So instead of asking "is this a known job title?"
-  // we ask "does this line have the SHAPE of a headline?", which holds for any
-  // role in any language:
-  //   - sits in the first few lines, directly under the name
-  //   - short (2 to 8 words), a label rather than a sentence
-  //   - no contact details, no sentence punctuation, not first person
-  //   - not a section header, not a list of skills
-  for (const line of lines) {
-    if (!line || canonicalNameKey(line) === selectedKey) continue;
-    if (/[@\d]|https?:|www\./.test(line)) continue;
-    if (/[.!?]/.test(line)) continue;                       // a sentence, not a title
-    if (/\b(i|my|we|our|ich|mein|je|yo|eu)\b/i.test(line)) continue; // prose
-    if (line.length > 75) continue;
-    const ws2 = words(line);
-    if (ws2.length < 1 || ws2.length > 8) continue;
-    if (ws2.every((w) => SECTION_WORDS.has(w))) continue;
-    if (ws2.some((w) => SECTION_WORDS.has(w)) && ws2.length <= 2) continue;
-    if (ws2.every((w) => SKILL_WORDS.has(w))) continue;
-    // A skills line is usually comma separated with several entries.
-    if ((line.match(/,/g) || []).length >= 2) continue;
-    return line;
-  }
-
-  return ai && ai.length <= 75 ? ai : "Professional";
+  return text.replace(/[|·,;:-]+$/g, "").replace(/\s{2,}/g, " ").trim();
 }
 
-export const __workzoCvIdentityEngineVersion = "3.1.0-global";
+const HEADLINE_WORDS = new Set([
+  // seniority/modifiers
+  "junior", "senior", "lead", "principal", "staff", "associate", "assistant", "deputy", "chief", "head", "global", "regional", "international", "technical", "digital", "commercial", "professional", "graduate", "trainee", "intern",
+  // functions/domains
+  "customer", "client", "success", "support", "service", "services", "data", "business", "product", "project", "program", "programme", "portfolio", "account", "sales", "marketing", "finance", "financial", "operations", "operation", "human", "resources", "people", "software", "systems", "system", "network", "cloud", "security", "cyber", "quality", "research", "machine", "learning", "artificial", "intelligence", "frontend", "backend", "fullstack", "full", "stack", "mobile", "web", "application", "applications", "implementation", "onboarding", "relationship", "relations", "communications", "communication", "content", "brand", "design", "graphic", "user", "experience", "process", "supply", "chain", "office", "administrative", "clinical", "health", "healthcare",
+  // role nouns
+  ...Array.from(ROLE_WORDS),
+  "architect", "owner", "founder", "representative", "advisor", "adviser", "controller", "planner", "officer", "executive", "technician", "administrator", "coordinator", "recruiter", "scientist", "researcher", "nurse", "doctor", "teacher", "writer", "editor", "developer", "engineer", "analyst", "consultant", "specialist", "manager", "director",
+  // common non-English role pieces
+  "kunden", "erfolg", "technischer", "support", "daten", "wissenschaftler", "entwickler", "ingenieur", "berater", "managerin", "spezialist", "spezialistin", "responsable", "ingenieur", "analyste", "consultant", "consultante", "desarrollador", "ingeniero", "analista", "especialista", "gerente"
+]);
+
+/** Split a fully concatenated decorative title using a vocabulary-backed DP.
+ * It is only used for lines made almost entirely of single-letter tokens, so it
+ * cannot alter normal prose or ordinary job titles. Unknown leftovers are kept
+ * as one token rather than guessed. */
+function segmentDecorativeHeadline(compact: string): string {
+  const lower = compact.toLowerCase().replace(/[^\p{L}]/gu, "");
+  if (lower.length < 5 || lower.length > 80) return compact;
+  const memo = new Map<number, { score: number; words: string[] } | null>();
+  const vocab = [...HEADLINE_WORDS].sort((a, b) => b.length - a.length);
+
+  const walk = (index: number): { score: number; words: string[] } | null => {
+    if (index === lower.length) return { score: 0, words: [] };
+    if (memo.has(index)) return memo.get(index)!;
+    let best: { score: number; words: string[] } | null = null;
+    for (const word of vocab) {
+      if (!lower.startsWith(word, index)) continue;
+      const tail = walk(index + word.length);
+      if (!tail) continue;
+      const score = tail.score + word.length * word.length;
+      if (!best || score > best.score) best = { score, words: [word, ...tail.words] };
+    }
+    memo.set(index, best);
+    return best;
+  };
+
+  const result = walk(0);
+  if (!result || result.words.length < 2) return compact;
+  return result.words.map((w) => w.toUpperCase()).join(" ");
+}
+
+function decodeDecorativeHeadlineLine(line: string): string {
+  const trimmed = line.trim();
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  if (tokens.length < 5) return "";
+  const letterTokens = tokens.filter((t) => /^[\p{L}]$/u.test(t)).length;
+  if (letterTokens / tokens.length < 0.82) return "";
+  const compact = tokens.filter((t) => /^[\p{L}]$/u.test(t)).join("");
+  return segmentDecorativeHeadline(compact);
+}
+
+function headlineQuality(value: string): number {
+  const line = stripHeadlineContactBleed(value);
+  if (!line || line.length > 90 || /[.!?]/.test(line) || HEADLINE_CONTACT_RE.test(line)) return -100;
+  const ws = words(line);
+  if (!ws.length || ws.length > 10) return -50;
+  if (HEADLINE_SECTION_RE.test(line) || ws.every((w) => SECTION_WORDS.has(w))) return -100;
+  let score = 20 - Math.abs(4 - ws.length);
+  score += ws.filter((w) => ROLE_WORDS.has(w) || HEADLINE_WORDS.has(w)).length * 8;
+  if (ws.length === 1) score -= 10; // "MANAGER" is valid but less informative than a full title.
+  if (/\b(with|over|experience|passionate|detail-oriented|results-driven|born|raised)\b/i.test(line)) score -= 30;
+  return score;
+}
+
+export function resolveTargetHeadline(input: { aiHeadline?: string | null; rawText?: string | null; selectedName?: string | null }): string {
+  const selectedKey = canonicalNameKey(input.selectedName || "");
+  const candidates: string[] = [];
+  const ai = stripHeadlineContactBleed(normalizeCandidate(input.aiHeadline || ""));
+  if (ai) candidates.push(ai);
+
+  const originalLines = String(input.rawText || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean).slice(0, 18);
+  const healedLines = healSpacedHeaders(input.rawText || "").split(/\r?\n/).map(normalizeCandidate).filter(Boolean).slice(0, 18);
+
+  // Prefer a recoverable decorative title over a one-word AI fragment.
+  for (const line of originalLines) {
+    const decoded = decodeDecorativeHeadlineLine(line);
+    if (decoded) candidates.push(decoded);
+  }
+  candidates.push(...healedLines);
+
+  const scored = candidates
+    .map(stripHeadlineContactBleed)
+    .filter(Boolean)
+    .filter((line) => canonicalNameKey(line) !== selectedKey)
+    .filter((line) => !HEADLINE_CONTACT_RE.test(line))
+    .filter((line) => !HEADLINE_SECTION_RE.test(line))
+    .map((line, index) => ({ line, score: headlineQuality(line) - index * 0.25 }))
+    .sort((a, b) => b.score - a.score);
+
+  const best = scored.find((candidate) => candidate.score > 0)?.line || "";
+  return best || (ai && headlineQuality(ai) > 0 ? ai : "Professional");
+}
+
+export const __workzoCvIdentityEngineVersion = "3.2.0-global-headline-integrity";

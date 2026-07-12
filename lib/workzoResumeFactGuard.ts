@@ -87,6 +87,22 @@ function norm(value: unknown): string {
     .trim();
 }
 
+// Dedup key for a language entry. A language is identified by its NAME only; the
+// proficiency marker may be written many ways ("English (C1)", "English - C1",
+// "English: Fluent", "English, native"), and two different renderings of the
+// same language must collapse to one. Keying on norm(value).split(/[-:]/) failed
+// because "(C1)" parentheses and a bare name produced different keys, so the
+// same language survived twice. This keys on the base name (everything before
+// the first level separator, letters only), which is language- and
+// format-agnostic and never merges two genuinely different languages.
+function languageKey(value: unknown): string {
+  return norm(value)
+    .split(/[(\-:,·|/]/)[0]
+    .replace(/[^a-z\s]/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+}
+
 function clean(value: unknown, max = 600): string {
   return String(value ?? "")
     .replace(/\u0000/g, " ")
@@ -345,6 +361,167 @@ function extractDateRanges(text: string): string[] {
   return out;
 }
 
+
+function recoverEducationDatesFromText(education: EduRow[], sourceText: string): EduRow[] {
+  if (!education.length || !sourceText.trim()) return education;
+  const lines = sourceText.replace(/\r/g, "\n").split(/\n+/).map((line) => clean(line, 260)).filter(Boolean);
+  const key = (value = "") => norm(value).replace(/[^a-z0-9]+/g, " ").trim();
+  const tokens = (value = "") => key(value).split(/\s+/).filter((token) => token.length > 2);
+  const matches = (line: string, value: string) => {
+    const wanted = tokens(value);
+    if (!wanted.length) return false;
+    const hay = ` ${key(line)} `;
+    return wanted.filter((token) => hay.includes(` ${token} `)).length >= Math.min(2, wanted.length);
+  };
+  const dateOnLine = (line: string) => {
+    const range = extractDateRanges(line)[0];
+    if (range) return range;
+    const single = line.match(/\b((?:19|20)\d{2})\b/);
+    return single?.[1] || "";
+  };
+
+  return education.map((entry) => {
+    if (entry.dates) return entry;
+    const institutionAnchors = entry.institution
+      ? lines.map((line, index) => ({ line, index })).filter(({ line }) => matches(line, entry.institution))
+      : [];
+    const degreeAnchors = entry.degree
+      ? lines.map((line, index) => ({ line, index })).filter(({ line }) => matches(line, entry.degree))
+      : [];
+    const anchors = institutionAnchors.length ? institutionAnchors : degreeAnchors;
+
+    for (const { index } of anchors) {
+      const nearby: Array<{ distance: number; date: string }> = [];
+      for (let candidateIndex = Math.max(0, index - 4); candidateIndex <= Math.min(lines.length - 1, index + 4); candidateIndex += 1) {
+        const date = dateOnLine(lines[candidateIndex]);
+        if (date) nearby.push({ distance: Math.abs(candidateIndex - index), date });
+      }
+      nearby.sort((a, b) => a.distance - b.distance || (b.date.includes("-") ? 1 : 0) - (a.date.includes("-") ? 1 : 0));
+      if (nearby[0]?.date) return { ...entry, dates: nearby[0].date };
+    }
+    return entry;
+  });
+}
+
+function recoverProjectsFromText(projects: ResumeProfile["projects"], sourceText: string): ResumeProfile["projects"] {
+  if (!sourceText.trim()) return projects;
+  const reparsed = extractResumeProfile(sourceText).projects || [];
+  const score = (items: ResumeProfile["projects"]) =>
+    items.length * 30 + items.reduce((sum, project) => sum + (project.bullets?.length || 0) * 8, 0);
+  if (!reparsed.length || score(reparsed) <= score(projects || [])) return projects;
+
+  const existingByName = new Map((projects || []).map((project) => [norm(project.name), project]));
+  return reparsed.map((project) => {
+    const existing = existingByName.get(norm(project.name));
+    if (!existing) return project;
+    return {
+      ...project,
+      ...existing,
+      name: existing.name || project.name,
+      bullets: (existing.bullets?.length || 0) >= (project.bullets?.length || 0)
+        ? existing.bullets
+        : project.bullets,
+    };
+  });
+}
+
+
+
+type ExperienceRow = NonNullable<ResumeProfile["experience"]>[number];
+
+function experienceIdentityKey(value: unknown): string {
+  return norm(value).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function dateIdentityKey(value: unknown): string {
+  const text = norm(value)
+    .replace(/present|current|heute|aktuell/g, "present")
+    .replace(/[–—−]/g, "-");
+  const years = text.match(/(?:19|20)\d{2}/g) || [];
+  return years.join("-") || text.replace(/[^a-z0-9]+/g, "");
+}
+
+function experienceEntryNoise(entry: ExperienceRow): boolean {
+  const title = clean(entry.title, 180);
+  const company = clean(entry.company, 180);
+  const dates = clean(entry.dates, 80);
+  const combined = `${title} ${company}`.trim();
+  if (!combined && !dates && !(entry.bullets || []).length) return true;
+  if (/^(experience|work experience|professional experience|employment history|career history|berufserfahrung)$/i.test(combined)) return true;
+  return false;
+}
+
+function mergeExperienceRows(a: ExperienceRow, b: ExperienceRow): ExperienceRow {
+  const prefer = (left = "", right = "") => {
+    const l = clean(left, 220), r = clean(right, 220);
+    if (!l) return r;
+    if (!r) return l;
+    const lk = experienceIdentityKey(l), rk = experienceIdentityKey(r);
+    if (lk === rk) return l.length >= r.length ? l : r;
+    if (lk.includes(rk)) return l;
+    if (rk.includes(lk)) return r;
+    return l;
+  };
+  return {
+    title: prefer(a.title, b.title),
+    company: prefer(a.company, b.company),
+    location: prefer(a.location, b.location),
+    dates: prefer(a.dates, b.dates),
+    bullets: dedupe(
+      [...(a.bullets || []), ...(b.bullets || [])]
+        .map((bullet) => cleanBullet(bullet))
+        .filter(Boolean),
+      (bullet) => norm(bullet).replace(/[^a-z0-9]+/g, " ").trim(),
+    ).slice(0, 12),
+  };
+}
+
+/**
+ * Merge parser-created duplicate/fragmented employment rows without collapsing
+ * genuine promotions. Rows merge only when they share strong factual identity:
+ * same normalized date range plus same/contained company or title, or when one
+ * adjacent row is a complementary fragment missing title/company.
+ */
+function repairExperienceStructure(experience: ExperienceRow[]): ExperienceRow[] {
+  const input = (experience || [])
+    .map((entry) => ({
+      title: clean(entry.title, 180),
+      company: clean(entry.company, 180),
+      location: clean(entry.location, 160),
+      dates: clean(entry.dates, 80),
+      bullets: dedupe((entry.bullets || []).map(cleanBullet).filter(Boolean), (bullet) => norm(bullet)),
+    }))
+    .filter((entry) => !experienceEntryNoise(entry));
+
+  const output: ExperienceRow[] = [];
+  for (const row of input) {
+    const company = experienceIdentityKey(row.company);
+    const title = experienceIdentityKey(row.title);
+    const dates = dateIdentityKey(row.dates);
+
+    let match = -1;
+    for (let i = 0; i < output.length; i += 1) {
+      const existing = output[i];
+      const eCompany = experienceIdentityKey(existing.company);
+      const eTitle = experienceIdentityKey(existing.title);
+      const eDates = dateIdentityKey(existing.dates);
+      const sameDates = !!dates && !!eDates && dates === eDates;
+      const sameCompany = !!company && !!eCompany && (company === eCompany || company.includes(eCompany) || eCompany.includes(company));
+      const sameTitle = !!title && !!eTitle && (title === eTitle || title.includes(eTitle) || eTitle.includes(title));
+      const exactIdentity = (sameCompany && sameDates) || (sameTitle && sameDates) || (sameCompany && sameTitle);
+      const complementaryAdjacent = i === output.length - 1 && sameDates && (
+        (!row.company && !!row.title && !!existing.company && !existing.title) ||
+        (!row.title && !!row.company && !!existing.title && !existing.company)
+      );
+      if (exactIdentity || complementaryAdjacent) { match = i; break; }
+    }
+
+    if (match >= 0) output[match] = mergeExperienceRows(output[match], row);
+    else output.push(row);
+  }
+
+  return output.slice(0, 20);
+}
 /** Recover dropped experience dates from the raw text, but only when the
  *  number of date ranges matches the number of entries, so it never guesses. */
 function repairExperienceDates<T extends { dates?: string }>(
@@ -387,7 +564,7 @@ function recoverLanguagesFromText(sourceText: string): string[] {
     })
     .filter(Boolean);
 
-  return dedupe(candidates, (value) => norm(value).split(/[-:]/)[0]);
+  return dedupe(candidates, (value) => languageKey(value));
 }
 
 /** Public entry point: repair a parsed profile's structural defects. Safe to
@@ -401,13 +578,17 @@ export function repairParsedResume(
   return {
     ...p,
     skills: repairSkills(p.skills || []),
-    education: repairEducation((p.education || []) as EduRow[]) as ResumeProfile["education"],
-    experience: repairExperienceDates(p.experience || [], sourceText),
+    education: recoverEducationDatesFromText(
+      repairEducation((p.education || []) as EduRow[]),
+      sourceText,
+    ) as ResumeProfile["education"],
+    experience: repairExperienceDates(repairExperienceStructure(p.experience || []), sourceText),
+    projects: recoverProjectsFromText(p.projects || [], sourceText),
     languages: dedupe(
       [...(p.languages || []), ...recoverLanguagesFromText(sourceText)]
         .map((language) => clean(language, 100))
         .filter(Boolean),
-      (language) => norm(language).split(/[-:]/)[0],
+      (language) => languageKey(language),
     ).slice(0, 12),
   };
 }
@@ -441,14 +622,93 @@ function pickSource(
       + Math.min(30, Math.floor((p.summary?.length || 0) / 20));
   };
 
-  // Do not choose by job count alone. Two parses can contain the same employers
-  // while one has lost every bullet, language, or project detail. Prefer the
-  // structurally richer source so Improve CV never starts from a stripped CV.
-  const best =
-    sourceCompletenessScore(fromText) > sourceCompletenessScore(fromProvided)
-      ? fromText
-      : fromProvided || fromText;
-  return best || candidate;
+  // Build a HYBRID source instead of selecting one entire parse. Selecting the
+  // richer parse wholesale was unsafe: a multi-column text parse could contain
+  // more bullets while shortening or changing a factual job title, and it could
+  // also drop projects that were present in the saved canonical profile.
+  if (fromProvided && fromText) {
+    const rawNorm = norm(sourceText);
+    const exactInRaw = (value: unknown) => {
+      const n = norm(value);
+      return !!n && rawNorm.includes(n);
+    };
+    const companyKey = (value: unknown) =>
+      norm(value)
+        .replace(/\b(gmbh|ag|se|ug|kg|ohg|ltd|llc|inc|corp|co|plc|bv|nv|group)\b/g, "")
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+
+    const parsedByCompany = new Map<string, ResumeExperience>();
+    (fromText.experience || []).forEach((entry) => {
+      const key = companyKey(entry.company);
+      if (key && !parsedByCompany.has(key)) parsedByCompany.set(key, entry);
+    });
+
+    const experience = (fromProvided.experience || []).map((saved, index) => {
+      const parsed = parsedByCompany.get(companyKey(saved.company)) || fromText.experience?.[index];
+      if (!parsed) return saved;
+
+      const savedTitleExact = exactInRaw(saved.title);
+      const parsedTitleExact = exactInRaw(parsed.title);
+      const title = savedTitleExact && parsedTitleExact
+        ? (clean(saved.title, 180).length >= clean(parsed.title, 180).length ? saved.title : parsed.title)
+        : savedTitleExact
+          ? saved.title
+          : parsedTitleExact
+            ? parsed.title
+            : saved.title || parsed.title;
+
+      const savedBullets = saved.bullets || [];
+      const parsedBullets = parsed.bullets || [];
+      return {
+        title,
+        company: saved.company || parsed.company,
+        location: saved.location || parsed.location,
+        dates: saved.dates || parsed.dates,
+        bullets: parsedBullets.length > savedBullets.length ? parsedBullets : savedBullets,
+      };
+    });
+    // Include genuine parsed jobs only when the saved profile did not contain
+    // a matching company at all.
+    const savedCompanies = new Set(experience.map((entry) => companyKey(entry.company)).filter(Boolean));
+    for (const parsed of fromText.experience || []) {
+      const key = companyKey(parsed.company);
+      if (key && !savedCompanies.has(key)) experience.push(parsed);
+    }
+
+    const projectKey = (value: unknown) => norm(value).replace(/[^a-z0-9]+/g, " ").trim();
+    const projectsByName = new Map<string, ResumeProfile["projects"][number]>();
+    for (const project of [...(fromProvided.projects || []), ...(fromText.projects || [])]) {
+      const key = projectKey(project.name);
+      if (!key) continue;
+      const existing = projectsByName.get(key);
+      if (!existing || (project.bullets?.length || 0) > (existing.bullets?.length || 0)) {
+        projectsByName.set(key, project);
+      }
+    }
+
+    const education = sourceCompletenessScore({ ...fromProvided, experience: [], projects: [] } as ResumeProfile)
+      >= sourceCompletenessScore({ ...fromText, experience: [], projects: [] } as ResumeProfile)
+      ? fromProvided.education
+      : fromText.education;
+
+    return completeResumeProfile({
+      ...fromProvided,
+      basics: {
+        ...fromText.basics,
+        ...fromProvided.basics,
+      },
+      summary: fromProvided.summary || fromText.summary,
+      skills: dedupe([...(fromProvided.skills || []), ...(fromText.skills || [])], (v) => norm(v)),
+      experience,
+      projects: Array.from(projectsByName.values()),
+      education: education?.length ? education : (fromProvided.education || fromText.education),
+      languages: dedupe([...(fromProvided.languages || []), ...(fromText.languages || [])], (v) => languageKey(v)),
+      certifications: dedupe([...(fromProvided.certifications || []), ...(fromText.certifications || [])], (v) => norm(v)),
+    }, sourceText);
+  }
+
+  return fromProvided || fromText || candidate;
 }
 
 /* ------------------------------ bullet homing --------------------------- */
@@ -639,10 +899,10 @@ export function guardResumeAgainstSource(
     .filter(Boolean)
     .map((text) => ({ text, tokens: tokenSet(text), used: false }));
 
-  // Experience: language-invariant identity (company, location, dates) ALWAYS
-  // from the source. In translated mode the title and bullets come from the
-  // model (positionally bound) so the output is actually in the target
-  // language; in same-language mode bullets are re-homed by token overlap.
+  // Experience identity fields are immutable facts. Title, company, location, and dates
+  // always come from the canonical source in every output language. Only bullets
+  // may be rewritten or translated. This prevents role drift such as changing
+  // "Technical Support and Sales Engineer" into an unrelated sales title.
   const modelExp = candidate.experience || [];
   // Align the model's (possibly reordered / retitled) experience to the real
   // source entries by COMPANY. Company names are proper nouns, so they survive
@@ -663,7 +923,7 @@ export function guardResumeAgainstSource(
   const experience: ResumeExperience[] = (src.experience || []).map((job, i) => {
     const m = translated ? matchModelJob(job, i) : undefined;
     return {
-      title: clean(translated ? m?.title || job.title : job.title, 140),
+      title: clean(job.title, 140),
       company: clean(job.company, 160),
       location: clean(job.location, 160),
       dates: clean(job.dates, 90),
@@ -680,12 +940,20 @@ export function guardResumeAgainstSource(
 
   // Projects: names from the source, bullets re-homed the same way.
   const modelProj = candidate.projects || [];
-  const projects = (src.projects || []).map((project, i) => ({
-    name: clean(project.name, 160),
-    bullets: translated
-      ? homeBulletsPositional(project.bullets || [], modelProj[i]?.bullets || [], opts)
-      : homeBullets(project.bullets || [], pool, { ...opts, maxBulletsPerEntry: opts.maxBulletsPerEntry ?? 8 }),
-  }));
+  const modelProjectByName = new Map<string, (typeof modelProj)[number]>();
+  modelProj.forEach((project) => {
+    const key = norm(project?.name);
+    if (key && !modelProjectByName.has(key)) modelProjectByName.set(key, project);
+  });
+  const projects = (src.projects || []).map((project, i) => {
+    const modelProject = modelProjectByName.get(norm(project.name)) || modelProj[i];
+    return {
+      name: clean(project.name, 160),
+      bullets: translated
+        ? homeBulletsPositional(project.bullets || [], modelProject?.bullets || [], opts)
+        : homeBullets(project.bullets || [], pool, { ...opts, maxBulletsPerEntry: opts.maxBulletsPerEntry ?? 8 }),
+    };
+  });
 
   // Skills: every real source skill, plus any model skill the CV evidences.
   const jd = clean(opts.jobDescription, 8000);
@@ -750,14 +1018,17 @@ export function guardResumeAgainstSource(
         })),
         (e) => `${guardEduDegreeLevel(e.degree)}|${guardEduInstitutionKey(e.institution)}`,
       ).slice(0, 8),
-      languages: dedupe(
-        // Union of source and model languages. Taking source-only meant a CV
-        // whose languages were dropped upstream ended up showing just one.
-        [...(src.languages || []), ...(candidate.languages || [])]
-          .map((l) => clean(l, 80))
-          .filter(Boolean),
-        (l) => norm(l).split(/[-:]/)[0],
-      ).slice(0, 6),
+      languages: translated
+        ? (src.languages || []).map(
+            (sourceLanguage, index) =>
+              clean((candidate.languages || [])[index] || sourceLanguage, 80),
+          )
+        : dedupe(
+            [...(src.languages || []), ...(candidate.languages || [])]
+              .map((l) => clean(l, 80))
+              .filter(Boolean),
+            (l) => languageKey(l),
+          ).slice(0, 12),
       rawText: "",
       previewText: "",
     },

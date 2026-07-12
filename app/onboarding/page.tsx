@@ -17,6 +17,12 @@ import {
   X,
 } from "lucide-react";
 import { ChangeEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  clearJobDescription,
+  commitJobDescription,
+  purgeLegacySharedJobDescriptions,
+  readActiveJobDescription,
+} from "@/lib/workzoJobDescriptionSource";
 
 import { useInterviewStore } from "@/store/interviewStore";
 import { buildAndSaveInterviewSetup, structureResumeProfileFromCv } from "@/lib/workzoCvClient";
@@ -294,7 +300,7 @@ function buildCanonicalCvSetup(input: {
   const profile = input.profile || extractResumeProfileComplex(input.rawCvText);
   const companyBlueprint = buildWorkZoCompanyBlueprint({
     companyName: String(input.setup.companyName || input.setup.targetCompany || "Target company"),
-    targetRole: input.role || "General Role",
+    targetRole: input.role || profile.basics.headline || "General Role",
     jobDescription: input.jobDescription,
     cvText: input.rawCvText,
     market: input.market,
@@ -314,8 +320,8 @@ function buildCanonicalCvSetup(input: {
     previewText: profile.previewText,
     jobDescription: input.jobDescription,
     jdText: input.jobDescription,
-    targetRole: input.role || "General Role",
-    role: input.role || "General Role",
+    targetRole: input.role || profile.basics.headline || "General Role",
+    role: input.role || profile.basics.headline || "General Role",
     targetMarket: input.market || "global",
     country: input.market || "global",
     companyStyle: input.companyStyle,
@@ -626,6 +632,10 @@ export default function OnboardingPage() {
   const [role, setRole] = useState(setup.targetRole || "");
   const [companyName, setCompanyName] = useState(String(setup.companyName || setup.targetCompany || ""));
   const [jobDescription, setJobDescription] = useState(setup.jobDescription || "");
+  // Skip persistence on the initial browser render. The saved JD is restored
+  // in a mount effect immediately afterwards; writing the initial empty state
+  // first would erase shared memory before restoration completes.
+  const jobDescriptionPersistenceReadyRef = useRef(false);
   const [market, setMarket] = useState<Market>((setup.targetMarket as Market) || (setup.country as Market) || "Global");
   const [companyStyle, setCompanyStyle] = useState<CompanyStyle>((setup.companyStyle as CompanyStyle) || (setup.recruiterStyle as CompanyStyle) || "Realistic");
   const [recruiter, setRecruiter] = useState<RecruiterKey>(normalizeRecruiterKey(setup.recruiterPersonality));
@@ -718,6 +728,25 @@ export default function OnboardingPage() {
         recruiterPersonality: normalizeRecruiterKey(draft.recruiterPersonality),
         language: normalizeInterviewLanguage(draft.language) || interviewLanguage,
       }).then((nextSetup) => {
+        // Do not allow an older background enrichment request to overwrite a
+        // newer JD that the user has just pasted and saved. Several setup
+        // builders run asynchronously, so a slow response for the previous JD
+        // can otherwise arrive last and restore that stale description.
+        const latestSetup = readLatestInterviewSetup() as SetupState | null;
+        const draftUpdatedAt = Date.parse(String(draft.updatedAt || ""));
+        const latestUpdatedAt = Date.parse(String(latestSetup?.updatedAt || ""));
+        const latestJd = String(latestSetup?.jobDescription || latestSetup?.jdText || "").trim();
+
+        if (
+          latestSetup &&
+          Number.isFinite(latestUpdatedAt) &&
+          Number.isFinite(draftUpdatedAt) &&
+          latestUpdatedAt > draftUpdatedAt &&
+          latestJd !== jdText
+        ) {
+          return;
+        }
+
         const mergedSetup = {
           ...nextSetup, ...draft,
           recruiterMemoryProfile: nextSetup.recruiterMemoryProfile || draft.recruiterMemoryProfile,
@@ -738,7 +767,7 @@ export default function OnboardingPage() {
     const profile = (canonicalStored?.profile ?? null) || extractResumeProfileComplex(rawCvText);
     const fastBlueprint = buildWorkZoCompanyBlueprint({
       companyName: companyName || String(draft.companyName || draft.targetCompany || "Target company"),
-      targetRole: role || setup.targetRole || "General Role",
+      targetRole: role || profile.basics.headline || "General Role",
       jobDescription: jobDescription.trim(), cvText: rawCvText, market, companyStyle,
     });
     const canonicalSetup = {
@@ -751,8 +780,8 @@ export default function OnboardingPage() {
       cvContextText: buildInterviewCvContext(profile, rawCvText),
       previewText: profile.previewText, jobDescription: jobDescription.trim(),
       jdText: jobDescription.trim(),
-      targetRole: role || setup.targetRole || "General Role",
-      role: role || setup.targetRole || "General Role",
+      targetRole: role || profile.basics.headline || "General Role",
+      role: role || profile.basics.headline || "General Role",
       companyName: fastBlueprint.companyName, targetCompany: fastBlueprint.companyName,
       companyBlueprint: fastBlueprint, targetMarket: market, country: market,
       candidateName: profile.basics.name, candidateHeadline: profile.basics.headline,
@@ -763,6 +792,13 @@ export default function OnboardingPage() {
     saveCanonicalCvSetup(canonicalSetup, store);
     enrichSetupInBackground(canonicalSetup);
   }
+
+  useEffect(() => {
+    // One-time cleanup: existing users already have a foreign job description
+    // sitting in the legacy shared setup keys. Without this, the fix looks like
+    // it did nothing until they manually clear site data.
+    purgeLegacySharedJobDescriptions();
+  }, []);
 
   useEffect(() => {
     // Partner-org capture: a partner shares a coded signup link
@@ -789,7 +825,16 @@ export default function OnboardingPage() {
     setRestoredCvText((prev) => prev || String(restored.cvText || ""));
     setRole((prev) => prev || String(restored.targetRole || ""));
     setCompanyName((prev) => prev || String(restored.companyName || restored.targetCompany || ""));
-    setJobDescription((prev) => prev || String(restored.jobDescription || ""));
+    // JOB DESCRIPTION IS NOT RESTORED FROM THE SHARED SETUP.
+    //
+    // This line used to read `prev || restored.jobDescription`. That looks safe,
+    // but `prev` is "" again on every remount, so a JD written into the shared
+    // bucket by ANOTHER feature (the jobs board) reappeared in this field every
+    // time the page mounted, overwriting what the user had pasted.
+    //
+    // The JD now has an owner. Only a JD the USER committed is restored here.
+    // A JD proposed by the jobs board is an offer, surfaced separately.
+    setJobDescription((prev) => prev || readActiveJobDescription());
     const restoredMarket = (restored.targetMarket || restored.country) as Market | undefined;
     if (restoredMarket) setMarket((prev) => (prev === "Global" ? restoredMarket : prev));
     const restoredStyle = (restored.companyStyle || restored.recruiterStyle) as CompanyStyle | undefined;
@@ -803,6 +848,18 @@ export default function OnboardingPage() {
       setInterviewLanguage((prev) => (prev === "English" ? lang : prev));
     }
   }, []);
+
+  // Whatever the user has in the field IS the job description. Committing it here
+  // means /cv, /copilot, the cover letter, and the interview all read the same
+  // user-owned value, instead of whatever a different feature last wrote.
+  useEffect(() => {
+    if (!jobDescriptionPersistenceReadyRef.current) {
+      jobDescriptionPersistenceReadyRef.current = true;
+      return;
+    }
+    if (jobDescription.trim()) commitJobDescription(jobDescription);
+    else clearJobDescription();
+  }, [jobDescription]);
 
   useEffect(() => {
     trackWorkZoLaunchEvent({ event: "onboarding_viewed", role, market, recruiter: recruiterLabel(recruiter) });
@@ -846,7 +903,7 @@ export default function OnboardingPage() {
     if (!rawCvText.trim()) return extractResumeProfileComplex(rawCvText);
     setAiCvStructuringStatus("structuring");
     try {
-      const data = await structureResumeProfileFromCv({ cvText: rawCvText, jobDescription: jobDescription.trim(), targetRole: role || "General Role", targetMarket: market, fileName: uploadedFileName });
+      const data = await structureResumeProfileFromCv({ cvText: rawCvText, fileName: uploadedFileName });
       const profile = data?.resumeProfile && typeof data.resumeProfile === "object" ? (data.resumeProfile as ResumeProfile) : extractResumeProfileComplex(rawCvText);
       setAiResumeProfile(profile);
       setAiCvStructuringStatus(data?.ok ? "ready" : "fallback");
@@ -918,13 +975,13 @@ export default function OnboardingPage() {
       }
 
       setManualCv(rawCvText);
-      const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || setup.targetRole || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
+      const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || profile.basics.headline || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
       saveCanonicalCvSetup(canonicalSetup, store);
       debugCvProfile("onboarding.upload.canonical_saved", canonicalSetup.resumeProfile, { setupId: canonicalSetup.setupId });
       void buildAndSaveInterviewSetup({
         cvText: rawCvText,
         jobDescription: jobDescription.trim(),
-        targetRole: role || setup.targetRole || "General Role",
+        targetRole: role || profile.basics.headline || "General Role",
         targetMarket: market,
         companyStyle,
         recruiterPersonality: normalizeRecruiterKey(recruiter),
@@ -1432,7 +1489,7 @@ export default function OnboardingPage() {
                   const rawCvText = normalizeResumeText(nextCv);
                   if (!rawCvText.trim()) return;
                   const profile = extractResumeProfileComplex(rawCvText);
-                  const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || setup.targetRole || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
+                  const canonicalSetup = buildCanonicalCvSetup({ setup, rawCvText, jobDescription: jobDescription.trim(), role: role || profile.basics.headline || "General Role", market, companyStyle, recruiter: recruiter as RecruiterKey, language: interviewLanguage, profile });
                   saveCanonicalCvSetup(canonicalSetup, store);
                 }}
                 placeholder="Or paste your CV text here..."

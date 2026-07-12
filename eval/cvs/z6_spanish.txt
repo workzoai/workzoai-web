@@ -1,0 +1,22 @@
+Diego Fernández
+Analista de Datos
+diego.fernandez@example.com | Madrid, España
+
+PERFIL
+Analista de datos con experiencia en visualización y modelos predictivos.
+
+EXPERIENCIA PROFESIONAL
+Analista de Datos Senior | BBVA | 2020 - Presente
+- Desarrollé paneles interactivos para la dirección financiera.
+- Automaticé informes semanales ahorrando veinte horas al mes.
+Analista de Datos | Telefónica | 2017 - 2020
+- Construí modelos de predicción de abandono de clientes.
+
+FORMACIÓN
+Grado en Estadística | Universidad Complutense de Madrid | 2013 - 2017
+
+COMPETENCIAS
+Python, SQL, Tableau, Machine Learning
+
+IDIOMAS
+Español - Nativo, English - C1

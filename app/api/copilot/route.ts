@@ -337,12 +337,20 @@ function cleanSkillList(skills: unknown[]): string[] {
 }
 
 function clampRewrittenBullets(original: string[], proposed: unknown, minKeep = 1): string[] {
-  const clean = Array.isArray(proposed)
+  const source = (original || []).map((b) => sanitizeFieldText(b)).filter(Boolean);
+  const rewritten = Array.isArray(proposed)
     ? proposed.map((b) => sanitizeFieldText(b)).filter(Boolean)
     : [];
-  if (!original.length) return clean.slice(0, 5);
-  if (clean.length < Math.min(minKeep, original.length)) return original;
-  return clean.slice(0, Math.max(original.length, clean.length));
+
+  if (!source.length) return rewritten.slice(0, 5);
+  if (rewritten.length < Math.min(minKeep, source.length)) return source;
+
+  // A rewrite may improve wording, but it may never reduce the amount of
+  // verified experience/project evidence. Bind output positionally to the
+  // original list and fall back to the source bullet whenever the model omits
+  // that position. Extra model bullets are ignored because they have no
+  // corresponding verified source fact.
+  return source.map((sourceBullet, index) => rewritten[index] || sourceBullet);
 }
 
 function parseJsonLoose(raw: string): RewrittenResumeProfile | null {
@@ -590,7 +598,9 @@ function actionInstruction(action: CopilotAction) {
     "",
     "RULES:",
     "1. Do NOT invent companies, job titles, dates, employers, degrees, metrics, or achievements not in the original CV. Every fact must trace to real CV content, only the framing and emphasis change to match the JD.",
-    "2. NEVER DROP AN EMPLOYER. Keep every job entry that appears in the input, even if it has no bullets or only a placeholder bullet. Every employer in the input must appear in the output with the same company name, job title, and dates. If an employer has a placeholder bullet like '[Role responsibilities to be completed based on job description]', replace that placeholder with 2-3 real, JD-relevant bullets inferred from what that type of role would have done, but keep the employer.",
+    "2. NEVER DROP AN EMPLOYER. Keep every job entry that appears in the input, with the same company name, job title, and dates, even if it has NO bullets.",
+    "2a. If an employer has no bullets in the input, it must have NO bullets in the output. Return an empty bullets array for it. Do NOT infer, generate, or imagine what that type of role 'would have done'. You have no evidence for it, and a plausible invention on a CV is a false statement to an employer. An empty section the candidate can fill in is correct. A fluent fabrication is not.",
+    "2b. Never emit a placeholder, a bracketed instruction, or meta-commentary as a bullet (for example '[Role responsibilities to be completed]' or 'Here is a customized version of your achievements'). Bullets are the candidate's real content only.",
     "3. Keep the same structure: same section order, same jobs in the same order, but reorder bullets within a job by JD relevance, and reword every bullet toward the JD where genuine evidence supports it.",
     "4. If there is no job description provided, rewrite for general professional polish using the target role only.",
     "",

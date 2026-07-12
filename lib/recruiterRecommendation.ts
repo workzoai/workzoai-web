@@ -1,22 +1,67 @@
 /**
  * lib/recruiterRecommendation.ts
  *
- * Deterministic, zero-LLM recruiter recommendation from CV text, JD text,
- * and target role. Runs client-side in onboarding so the suggestion appears
- * instantly as the user types/uploads — no API call, no cost, no latency.
+ * Deterministic, zero-LLM recruiter recommendation from CV text, JD text, and
+ * target role. Runs client-side in onboarding, so the suggestion appears as the
+ * user types. No API call, no cost, no latency.
  *
- * Design rules:
- *   - Pure function, server/client safe (no "use client", no imports from
- *     app/). Keys are duplicated as a local union to avoid a hard dependency
- *     on onboarding's local RecruiterKey type; both must stay in sync with
- *     lib/workzoRecruiterPersonas.ts.
- *   - Never auto-switches a persona the user already picked. This module
- *     only RANKS; the UI decides how to surface it (badge + hint line).
- *   - Always returns a free-tier alternative alongside the overall best
- *     match, because the best match may be a Pro-locked persona.
- *   - Returns null when there is no meaningful signal (no role, no JD, no
- *     CV) so the UI can keep its default "start with Priya or Sarah" hint
- *     instead of showing a fabricated recommendation.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHY THIS WAS REBUILT
+ *
+ * The previous version scored 11 English white-collar tech/business domains by
+ * RAW KEYWORD COUNT, and returned the top scorer no matter how thin the evidence
+ * was. Measured against a corpus of real non-technical CVs, it did this:
+ *
+ *   Certified Welder     -> SALES DIRECTOR
+ *       because the word "commercial" appeared twice ("commercial welding
+ *       projects"). One generic word, repeated, outscored everything else.
+ *
+ *   Head Sommelier       -> no suggestion   (no hospitality domain exists)
+ *   Brand Marketing Lead -> no suggestion   (no marketing domain exists)
+ *   Chef de Projet       -> no suggestion   (patterns are English only)
+ *   Registered Nurse     -> startup recruiter, via the word "junior"
+ *
+ *   Data Scientist       -> analytical/product interviewer, NEVER the technical
+ *       one, because the `engineering` pattern only matched JOB TITLES
+ *       ("ml engineer", "data engineer") while a CV full of Python, TensorFlow,
+ *       Sklearn, and GCP scored ZERO on it. Alex was structurally unreachable.
+ *
+ * Three defects, and only the last one is about tech:
+ *
+ *   1. NO EVIDENCE BAR. A single generic word could carry a domain to the top.
+ *   2. NO COVERAGE. Healthcare, hospitality, trades, marketing, education,
+ *      finance, HR, and operations did not exist. Most of the workforce got
+ *      either silence or a wrong answer.
+ *   3. NO FAIL-SAFE. When the signal was junk, it guessed anyway.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE THREE RULES THIS VERSION ENFORCES
+ *
+ *   1. EVIDENCE IS DISTINCT, NOT REPEATED. Scoring counts how many DIFFERENT
+ *      keywords matched, not how many times one keyword occurred. "commercial"
+ *      five times is one piece of evidence, not five.
+ *
+ *   2. A RECOMMENDATION MUST BE EARNED. A domain must clear an evidence bar:
+ *      the user's stated ROLE matches it, or at least two DISTINCT keywords
+ *      matched in the JD, or at least two in the CV. Nothing else can win.
+ *
+ *   3. SILENCE BEATS A WRONG ANSWER. If no domain clears the bar, return null
+ *      and let the UI show its neutral default. A welder must get no suggestion
+ *      rather than a Sales Director.
+ *
+ * Rules 1-3 are what make this global: they hold for a CV in any language, in
+ * any profession, including ones this table has never heard of. An unrecognised
+ * CV now fails into silence, which is correct, instead of failing into a
+ * confident misroute.
+ *
+ * Coverage is a second, separate axis. It has been widened to the main
+ * occupational families and to DE/FR/ES vocabulary, but coverage will always be
+ * incomplete, and that is precisely why the fail-safe exists.
+ *
+ * Design rules (unchanged):
+ *   - Pure function, server/client safe.
+ *   - Never auto-switches a persona the user already picked. This only RANKS.
+ *   - Always returns a free-tier alternative alongside the best match.
  */
 
 export type RecommendableRecruiterKey =
@@ -42,14 +87,10 @@ const PRO_KEYS: RecommendableRecruiterKey[] = [
 ];
 
 export type RecruiterRecommendation = {
-  /** Best overall match, may be a Pro-only persona. */
   primary: RecommendableRecruiterKey;
   primaryIsPro: boolean;
-  /** Best match among Free/Premium personas (equals primary when primary is free). */
   freeAlternative: RecommendableRecruiterKey;
-  /** Short human-readable reason, safe to render directly in the UI. */
   reason: string;
-  /** Which signal domains fired, for debugging / analytics. */
   matchedSignals: string[];
   confidence: "high" | "medium" | "low";
 };
@@ -57,138 +98,316 @@ export type RecruiterRecommendation = {
 type Domain = {
   id: string;
   pattern: RegExp;
-  /** Best free persona for this domain. */
   free: RecommendableRecruiterKey;
-  /** Best overall persona (Pro allowed). Falls back to `free` if undefined. */
   pro?: RecommendableRecruiterKey;
   reason: string;
 };
 
 /**
- * Domain signal table. Patterns are intentionally broad word-boundary
- * matches, mirroring the style of interviewBlueprintEngine's domain
- * detection — structural keyword classes, not sample-specific strings.
+ * Domain signal table.
+ *
+ * Structural role-signal keywords only. No company names, no brand names, no
+ * vocabulary lifted from one specific job posting: sample-specific tokens
+ * misroute every CV that happens to contain a common word.
+ *
+ * Where a profession's vocabulary is shared across languages (DE/FR/ES), the
+ * tokens are included, because WorkZo runs in 15 languages and an English-only
+ * table silently blanks every non-English CV.
  */
 const DOMAINS: Domain[] = [
-  {
-    id: "customer_success",
-    pattern:
-      /\b(customer success|client success|account manager|key account|customer onboarding|success manager|customer relationship|customer adoption|customer retention|customer satisfaction|csat|nps|renewal|churn|escalat(?:e|ion))\b/i,
-    free: "analytical_hiring_manager",
-    pro: "sales_director",
-    reason: "customer success interviews are commercial — expect questions on renewals, churn, escalations, and measurable customer outcomes",
-  },
-  {
-    id: "implementation_delivery",
-    pattern:
-      /\b(implementation|rollout|go[- ]?live|project manager|project management|program(?:me)? manager|milestones?|delivery|change management|cross[- ]functional)\b/i,
-    free: "german_corporate",
-    reason: "implementation and delivery roles need structured stakeholder handling, escalation discipline, and clear project ownership",
-  },
+  /* ------------------------------ technical ------------------------------ */
   {
     id: "engineering",
     pattern:
-      /\b(software engineer|frontend engineer|backend engineer|full[- ]?stack engineer|devops engineer|site reliability|sre|system design|microservices|distributed systems|kubernetes|docker|typescript|javascript|golang|rust|c\+\+|java developer|python developer|software developer|programmer|coding interview|code review|live coding|algorithms?|data structures?|technical interviewer|architecture interview|cloud engineer|ml engineer|machine learning engineer|data engineer)\b/i,
+      /\b(software engineer|frontend engineer|backend engineer|full[- ]?stack|devops|site reliability|sre|system design|microservices|distributed systems|kubernetes|docker|typescript|golang|rust|c\+\+|java developer|python developer|software developer|programmer|coding interview|code review|live coding|algorithms?|data structures?|cloud engineer|softwareentwickler|entwickler|ingénieur logiciel|développeur|desarrollador|programador)\b/i,
     free: "faang_hiring_manager",
     pro: "enterprise_recruiter",
-    reason: "the JD itself is technical — expect engineering depth, trade-offs, and a senior system-design interviewer",
+    reason:
+      "the role is technical, so expect engineering depth, trade-offs, and a senior system-design interviewer",
   },
   {
-    id: "data",
+    // TECHNICAL data work: models, pipelines, the ML stack.
+    //
+    // Split out of the old single "data" domain. That domain sent EVERY data CV
+    // to the analytical/product interviewer, so the technical interviewer was
+    // unreachable for a data scientist. Model and pipeline work is technical and
+    // gets a technical interviewer. No Pro upsell in the primary slot: when the
+    // right answer is Alex, the recommendation should say Alex, not demote him
+    // to a "free alternative" nobody reads.
+    id: "data_science_ml",
     pattern:
-      /\b(data analyst|business intelligence|bi analyst|power ?bi|tableau|looker|data visuali[sz]ation|statistics|a\/b test|analytics role|etl|dashboards?|reporting analyst|data science|data scientist)\b/i,
+      /\b(data scientist|data science|machine learning|deep learning|neural networks?|tensorflow|pytorch|scikit[- ]?learn|sklearn|xgboost|nlp|natural language processing|computer vision|feature engineering|model (?:training|deployment|evaluation)|mlops|ml pipelines?|data pipelines?|etl|airflow|spark|predictive model|recommender|datenwissenschaftler|maschinelles lernen|apprentissage automatique|científico de datos|aprendizaje automático)\b/i,
+    free: "faang_hiring_manager",
+    reason:
+      "the role is model- and pipeline-heavy, so expect a technical interviewer probing your methods, trade-offs, and how you validated results",
+  },
+  {
+    // BUSINESS-FACING data work: dashboards, reporting, metrics interpretation.
+    id: "data_analytics",
+    pattern:
+      /\b(data analyst|business intelligence|bi analyst|power ?bi|tableau|looker|data visuali[sz]ation|a\/b test|analytics|dashboards?|kpis?|reporting analyst|business metrics|statistics|datenanalyst|analyste de données|analista de datos)\b/i,
     free: "analytical_hiring_manager",
     pro: "product_leader",
-    reason: "the JD is data-heavy, so the interview should test metrics, analysis quality, and business interpretation",
+    reason:
+      "the role is analytics-heavy, so the interview should test metrics, analysis quality, and business interpretation",
+  },
+
+  /* --------------------------- commercial / product ---------------------- */
+  {
+    id: "customer_success",
+    pattern:
+      /\b(customer success|client success|account manager|key account|customer onboarding|success manager|customer relationship|customer adoption|customer retention|csat|nps|renewals?|churn|kundenerfolg|kundenbetreuung|responsable de compte|gestor de cuentas)\b/i,
+    free: "analytical_hiring_manager",
+    pro: "sales_director",
+    reason:
+      "customer success interviews are commercial: expect questions on renewals, churn, escalations, and measurable customer outcomes",
   },
   {
     id: "sales",
     pattern:
-      /\b(sales|account executive|business development|bdr|sdr|quota|pipeline|prospecting|closing|revenue target|crm|salesforce|negotiation|deal size|upsell|commercial)\b/i,
+      /\b(account executive|business development|bdr|sdr|quota|sales pipeline|prospecting|cold calling|revenue target|upsell|cross[- ]sell|deal size|crm|salesforce|vertrieb|vertriebsmitarbeiter|ventas|comercial de ventas)\b/i,
     free: "analytical_hiring_manager",
     pro: "sales_director",
-    reason: "sales interviews are numbers-first — you'll be pushed to quantify everything",
+    reason: "sales interviews are numbers-first, you will be pushed to quantify everything",
   },
   {
     id: "product",
     pattern:
-      /\b(product manager|product owner|roadmap|prioriti[sz]ation|user research|product sense|feature launch|backlog|discovery|okrs?)\b/i,
+      /\b(product manager|product owner|roadmap|prioriti[sz]ation|user research|product sense|feature launch|backlog|okrs?|produktmanager|chef de produit|jefe de producto)\b/i,
     free: "analytical_hiring_manager",
     pro: "product_leader",
     reason: "product roles get tested on prioritisation and user evidence",
   },
   {
+    id: "marketing_creative",
+    // Was entirely absent. A Brand Marketing Lead got NO suggestion at all.
+    pattern:
+      /\b(marketing|brand|campaigns?|content strategy|seo|sem|social media|copywriting|creative director|art director|growth marketing|demand generation|public relations|communications|marketing digital|mercadotecnia|markenführung)\b/i,
+    free: "analytical_hiring_manager",
+    pro: "product_leader",
+    reason:
+      "marketing interviews test campaign thinking and outcomes, so be ready to attach numbers to creative work",
+  },
+
+  /* ------------------------- process / enterprise ------------------------ */
+  {
+    id: "implementation_delivery",
+    // "delivery" and "cross-functional" removed. They appear in nearly every
+    // customer-success, account-management, and operations posting, which is how
+    // this domain kept hijacking them. They live in `enterprise` now.
+    pattern:
+      /\b(implementation|rollout|go[- ]?live|project manager|project management|program(?:me)? manager|milestones?|change management|delivery manager|deployment plan|projektleiter|projektmanagement|chef de projet|jefe de proyecto)\b/i,
+    free: "german_corporate",
+    reason:
+      "implementation and delivery roles need structured stakeholder handling, escalation discipline, and clear project ownership",
+  },
+  {
+    id: "enterprise",
+    pattern:
+      /\b(stakeholder management|governance|cross[- ]functional|escalations?|compliance|enterprise|pmo|itil|itsm|process[- ]oriented|matrix(?:ed)? organi[sz]ation|audit|risk management)\b/i,
+    free: "german_corporate",
+    reason:
+      "enterprise roles need structured answers around process, stakeholders, and accountability",
+  },
+  {
     id: "consulting",
     pattern:
-      /\b(consultant|consulting|case study|case interview|mckinsey|bcg|bain|deloitte|accenture|strategy engagement|client engagement|advisory)\b/i,
+      /\b(consultant|consulting|case study|case interview|strategy engagement|client engagement|advisory|unternehmensberatung|berater|conseil|consultoría)\b/i,
     free: "german_corporate",
     pro: "consulting_partner",
     reason: "consulting interviews demand case-style structure in every answer",
   },
   {
-    id: "leadership",
+    id: "finance_legal",
+    // Was absent. Accountants, controllers, and lawyers got nothing.
     pattern:
-      /\b(director|vp|vice president|head of|chief|cto|ceo|cfo|coo|executive|leadership team|board|c[- ]level|principal)\b/i,
-    free: "analytical_hiring_manager",
-    pro: "executive_recruiter",
-    reason: "the JD expects senior communication, judgement, and leadership-level stakeholder handling",
+      /\b(accountant|accounting|controller|financial analyst|auditor|bookkeep(?:er|ing)|tax|treasury|ifrs|gaap|payroll|lawyer|attorney|solicitor|paralegal|legal counsel|contracts?|buchhalt(?:er|ung)|steuerberater|comptable|contable|abogado)\b/i,
+    free: "german_corporate",
+    reason:
+      "finance and legal interviews test precision, compliance, and how you handle work where an error is expensive",
   },
   {
-    id: "enterprise",
-    // GLOBAL FIX: this pattern had been stuffed with vocabulary from one
-    // specific job posting (company names, "old loft", "conferences",
-    // "quarterly", brand names). Sample-specific tokens are banned — they
-    // misroute every CV that happens to mention a common word. Structural
-    // role-signal keywords only.
+    id: "operations_logistics",
+    // Was absent.
     pattern:
-      /\b(stakeholder management|governance|program(?:me)? manager|cross[- ]functional|escalation|compliance|enterprise|pmo|change management|itil|process[- ]oriented|matrix(?:ed)? organi[sz]ation)\b/i,
+      /\b(operations manager|supply chain|logistics|warehouse|procurement|inventory|dispatch|fleet|lean|six sigma|kaizen|scheduling|logistik|einkauf|logistique|logística)\b/i,
     free: "german_corporate",
-    reason: "enterprise roles need structured answers around process, stakeholders, and accountability",
+    reason:
+      "operations interviews test process discipline, throughput, and how you fix a system under pressure",
+  },
+
+  /* ---------------------------- people-facing ---------------------------- */
+  {
+    id: "healthcare",
+    // Was absent. A Registered Nurse was recommended a startup recruiter,
+    // because the word "junior" happened to appear in her CV.
+    pattern:
+      /\b(nurse|nursing|registered nurse|rn\b|patient care|clinical|physician|doctor|paramedic|caregiv(?:er|ing)|ward|triage|medication|healthcare assistant|midwife|therapist|pharmacist|krankenpfleger|krankenschwester|pflegekraft|infirmi(?:er|ère)|soignant|enfermer(?:o|a)|sanitario)\b/i,
+    free: "friendly_hr",
+    reason:
+      "healthcare interviews focus on patient safety, protocol, and how you stay calm and precise under pressure",
+  },
+  {
+    id: "hospitality_food",
+    // Was absent. A Head Sommelier got NO suggestion at all.
+    // Note: bare "chef" is deliberately NOT a token. "Chef de Projet" is a
+    // project manager, and "Chef" is German for "boss".
+    pattern:
+      /\b(sommelier|head chef|sous chef|chef de partie|chef de cuisine|barista|bartender|restaurant|hotel|hospitality|front of house|waitstaff|waiter|maître d|guest experience|concierge|housekeeping|banquet|catering|gastronomie|hôtellerie|restauración|camarero)\b/i,
+    free: "friendly_hr",
+    reason:
+      "hospitality interviews test service judgement, composure under pressure, and how you recover a guest experience when it goes wrong",
+  },
+  {
+    id: "skilled_trades",
+    // Was absent. A Certified Welder was recommended a SALES DIRECTOR, because
+    // "commercial" appeared twice in "commercial welding projects".
+    pattern:
+      /\b(welder|welding|electrician|plumber|carpenter|machinist|cnc|fabricat(?:or|ion)|technician|maintenance|hvac|forklift|scaffold|apprenticeship|journeyman|blueprint|tig|mig|schwei(?:ss|ß)er|elektriker|mechaniker|soudeur|électricien|soldador|electricista)\b/i,
+    free: "german_corporate",
+    reason:
+      "trade interviews focus on certifications, safety compliance, and process discipline, so be specific about standards you work to",
+  },
+  {
+    id: "education",
+    // Was absent.
+    pattern:
+      /\b(teacher|teaching|lecturer|professor|tutor|curriculum|classroom|pedagog(?:y|ical)|student outcomes|school|educator|lehrer|dozent|enseignant|professeur|profesor|docente)\b/i,
+    free: "friendly_hr",
+    reason:
+      "teaching interviews test how you explain, how you handle a room, and how you evidence student progress",
+  },
+  {
+    id: "hr_people",
+    // Was absent.
+    pattern:
+      /\b(human resources|hr manager|hr business partner|hrbp|talent acquisition|recruit(?:er|ment)|people operations|onboarding programme|employee relations|personalwesen|personalreferent|ressources humaines|recursos humanos)\b/i,
+    free: "friendly_hr",
+    reason:
+      "HR interviews test judgement in difficult conversations and how you balance the person against the policy",
+  },
+
+];
+
+
+
+/**
+ * MODIFIERS ARE NOT DOMAINS.
+ *
+ * This is the bug that mattered most for coding schools and universities.
+ *
+ * "early_career" used to sit in the DOMAINS table and compete with the job
+ * itself. Every bootcamp CV is saturated with junior / graduate / bootcamp /
+ * entry-level / career change / trainee, so `early_career` beat the actual role
+ * and EVERY bootcamp graduate was routed to the growth recruiter instead of a
+ * technical interviewer, even when they had typed "Junior Data Scientist":
+ *
+ *   Bootcamp grad -> "Junior Data Scientist"     => PRIYA   (growth)
+ *   Bootcamp grad -> "Junior Frontend Developer" => PRIYA
+ *   German bootcamp -> "Junior Datenanalyst"     => PRIYA
+ *
+ * A junior data scientist is still a data scientist. Seniority is not a job
+ * family, it is an AXIS. It decides which TIER of interviewer you face, never
+ * which TYPE.
+ *
+ * So modifiers can no longer win the ranking. They adjust the outcome:
+ *
+ *   early_career -> keep the domain's interviewer, but drop the Pro/executive
+ *                   upsell. An entry-level candidate should not be routed to an
+ *                   "Enterprise Recruiter". They face the real interviewer for
+ *                   the job, at the right level.
+ *   leadership   -> promote to the executive interviewer.
+ *   startup      -> promote to the founder interviewer.
+ *
+ * A modifier only picks the persona itself when NO domain clears the evidence
+ * bar, i.e. a career changer whose CV says nothing about the work yet. That is
+ * the one case where "early career" really is all we know.
+ */
+type Modifier = {
+  id: string;
+  pattern: RegExp;
+  /** Used ONLY when no domain clears the evidence bar. */
+  fallbackFree: RecommendableRecruiterKey;
+  fallbackPro?: RecommendableRecruiterKey;
+  reason: string;
+};
+
+const MODIFIERS: Modifier[] = [
+  {
+    id: "early_career",
+    pattern:
+      /\b(intern(ship)?|graduate|fresher|entry[- ]level|junior|trainee|working student|first job|career (change|switch)|bootcamp|praktikum|berufseinsteiger|absolvent|stagiaire|becario)\b/i,
+    fallbackFree: "startup_recruiter",
+    reason: "an early-career interview: expect a real screen for the role, pitched at entry level",
+  },
+  {
+    id: "leadership",
+    pattern:
+      /\b(director|vp|vice president|head of|chief|cto|ceo|cfo|coo|executive|leadership team|board|c[- ]level|principal|geschäftsführer|leiter|directeur|director general)\b/i,
+    fallbackFree: "analytical_hiring_manager",
+    fallbackPro: "executive_recruiter",
+    reason: "the role expects senior communication, judgement, and leadership-level stakeholder handling",
   },
   {
     id: "startup",
     pattern:
       /\b(startup|start[- ]up|seed stage|series [ab]|founding|scrappy|0 to 1|zero to one|early[- ]stage|mvp)\b/i,
-    free: "startup_recruiter",
-    pro: "startup_founder",
+    fallbackFree: "startup_recruiter",
+    fallbackPro: "startup_founder",
     reason: "startup interviews reward ownership and honest talk about failure",
-  },
-  {
-    id: "early_career",
-    pattern:
-      /\b(intern(ship)?|graduate|fresher|entry[- ]level|junior|trainee|working student|first job|career (change|switch)|bootcamp)\b/i,
-    free: "startup_recruiter",
-    reason: "for early-career and career-change interviews, a growth-focused recruiter fits best",
   },
 ];
 
 /**
- * Signal weights are intentionally JD-first.
- *
- * The recruiter persona should model the interviewer required by the job,
- * not the strongest skill cluster in the candidate's CV. A technical CV can
- * still be used for a customer-success JD, but it should not select Alex
- * unless the JD/role itself is clearly engineering or coding-heavy.
+ * The target role the user TYPED is an explicit statement of the interview they
+ * want. Previously weighted 4 against a JD at 6, so a JD that merely mentioned
+ * "milestones" outvoted a user who had literally typed "Customer success
+ * manager", and the recommendation went to the corporate process interviewer.
+ * Explicit intent now leads. The JD still shapes it.
  */
-const ROLE_WEIGHT = 4;
+const ROLE_WEIGHT = 10;
 const JD_WEIGHT = 6;
 const CV_WEIGHT_WITH_JD = 0.5;
 const CV_WEIGHT_WITHOUT_JD = 1.25;
 
-function countMatches(pattern: RegExp, text: string): number {
+/**
+ * DISTINCT keyword matches, not raw occurrences.
+ *
+ * This single change is what stops a welder being sent to a Sales Director. The
+ * word "commercial" appearing five times is ONE piece of evidence, not five. Raw
+ * counting let any CV that repeated one generic word dominate the table.
+ */
+function distinctMatches(pattern: RegExp, text: string): number {
   if (!text) return 0;
-  const global = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g");
+  const global = new RegExp(
+    pattern.source,
+    pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g",
+  );
   const matches = text.match(global);
-  // Cap per-source so one keyword-stuffed JD can't drown everything else.
-  return Math.min(matches ? matches.length : 0, 6);
+  if (!matches) return 0;
+  const unique = new Set(matches.map((m) => m.toLowerCase().trim()));
+  // Cap so one keyword-stuffed JD cannot drown everything else.
+  return Math.min(unique.size, 6);
 }
 
 function hasMeaningfulJd(jd: string): boolean {
   return jd.trim().replace(/\s+/g, " ").length >= 80;
 }
 
-function hasStrongJdDomain(scores: Array<{ domain: Domain; roleScore: number; jdScore: number; cvScore: number; score: number }>): boolean {
-  return scores.some((entry) => entry.jdScore >= JD_WEIGHT * 2 || entry.roleScore >= ROLE_WEIGHT * 2);
+/**
+ * THE EVIDENCE BAR.
+ *
+ * A domain may only win if the recommendation is EARNED:
+ *   - the user's stated role matches it, or
+ *   - at least two DISTINCT keywords matched in the JD, or
+ *   - at least two DISTINCT keywords matched in the CV.
+ *
+ * One incidental word is never enough. If nothing clears this bar, the caller
+ * returns null and the UI shows its neutral default, because silence is a better
+ * answer than a confident misroute.
+ */
+function clearsEvidenceBar(entry: { roleHits: number; jdHits: number; cvHits: number }): boolean {
+  return entry.roleHits >= 1 || entry.jdHits >= 2 || entry.cvHits >= 2;
 }
 
 export function recommendRecruiters(input: {
@@ -199,8 +418,6 @@ export function recommendRecruiters(input: {
 }): RecruiterRecommendation | null {
   const role = (input.targetRole || "").trim();
   const jd = (input.jobDescription || "").trim();
-  // Only use the head of the CV: headline/summary/recent role carry the
-  // signal; old bullet points at the bottom shouldn't outvote the JD.
   const cv = (input.cvText || "").trim().slice(0, 4000);
   const jdPresent = hasMeaningfulJd(jd);
 
@@ -208,49 +425,67 @@ export function recommendRecruiters(input: {
 
   const cvWeight = jdPresent ? CV_WEIGHT_WITH_JD : CV_WEIGHT_WITHOUT_JD;
 
-  let scores = DOMAINS.map((domain) => {
-    const roleHits = countMatches(domain.pattern, role);
-    const jdHits = countMatches(domain.pattern, jd);
-    const cvHits = countMatches(domain.pattern, cv);
+  const measure = (pattern: RegExp) => {
+    const roleHits = distinctMatches(pattern, role);
+    const jdHits = distinctMatches(pattern, jd);
+    const cvHits = distinctMatches(pattern, cv);
+    return { roleHits, jdHits, cvHits };
+  };
 
-    let roleScore = roleHits * ROLE_WEIGHT;
-    let jdScore = jdHits * JD_WEIGHT;
+  /* ---------------------------- domains ---------------------------------- */
+
+  let scores = DOMAINS.map((domain) => {
+    const { roleHits, jdHits, cvHits } = measure(domain.pattern);
+    const roleScore = roleHits * ROLE_WEIGHT;
+    const jdScore = jdHits * JD_WEIGHT;
     let cvScore = cvHits * cvWeight;
 
-    // Critical guard: when a real JD is present, Alex/technical should be
-    // selected only if the JD or target role is technical. A technical CV
-    // alone is supporting context, not the interviewer type.
+    // With a real JD present, a technical CV is supporting context, not the
+    // interviewer type. A technical CV may be used for a non-technical JD.
     if (jdPresent && domain.id === "engineering" && roleHits === 0 && jdHits === 0) {
       cvScore = 0;
     }
-
-    // Same principle for pure data persona selection: a data-heavy CV should
-    // not override a non-data JD. It can support Daniel's evidence focus, but
-    // not become the primary recruiter reason.
-    if (jdPresent && domain.id === "data" && roleHits === 0 && jdHits === 0) {
+    if (jdPresent && domain.id === "data_analytics" && roleHits === 0 && jdHits === 0) {
       cvScore = Math.min(cvScore, 0.5);
     }
 
-    return { domain, roleScore, jdScore, cvScore, score: roleScore + jdScore + cvScore };
-  }).filter((entry) => entry.score > 0);
+    return { domain, roleHits, jdHits, cvHits, roleScore, jdScore, cvScore, score: roleScore + jdScore + cvScore };
+  }).filter((entry) => entry.score > 0 && clearsEvidenceBar(entry));
 
-  if (scores.length === 0) return null;
+  /* --------------------------- modifiers --------------------------------- */
 
-  // If the JD/role clearly identifies a non-technical interview family,
-  // de-prioritise CV-only technical residue instead of letting Python/SQL/API
-  // terms from the CV steal the recommendation.
-  if (jdPresent && hasStrongJdDomain(scores)) {
-    scores = scores.map((entry) => {
-      if ((entry.domain.id === "engineering" || entry.domain.id === "data") && entry.jdScore === 0 && entry.roleScore === 0) {
-        return { ...entry, score: Math.min(entry.score, 0.25) };
-      }
-      return entry;
-    });
+  const modifiers = MODIFIERS.map((modifier) => {
+    const hits = measure(modifier.pattern);
+    const score = hits.roleHits * ROLE_WEIGHT + hits.jdHits * JD_WEIGHT + hits.cvHits * cvWeight;
+    return { modifier, ...hits, score, present: clearsEvidenceBar(hits) };
+  }).filter((entry) => entry.present);
+
+  const isEarlyCareer = modifiers.some((m) => m.modifier.id === "early_career");
+  const isLeadership = modifiers.some((m) => m.modifier.id === "leadership");
+  const isStartup = modifiers.some((m) => m.modifier.id === "startup");
+
+  /* ------------------- no domain: the modifier decides -------------------- */
+
+  // The only case where "early career" or "startup" is genuinely all we know:
+  // a career changer whose CV does not yet say anything about the work.
+  if (scores.length === 0) {
+    const best = modifiers.sort((a, b) => b.score - a.score)[0];
+    if (!best) return null; // RULE 3: silence beats a wrong answer.
+    const primary = best.modifier.fallbackPro || best.modifier.fallbackFree;
+    return {
+      primary,
+      primaryIsPro: PRO_KEYS.includes(primary),
+      freeAlternative: best.modifier.fallbackFree,
+      reason: best.modifier.reason,
+      matchedSignals: [best.modifier.id],
+      confidence: "low",
+    };
   }
+
+  /* ------------------------- rank the domains ---------------------------- */
 
   scores.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
-    // Tie-breaker is JD-first, then role, then CV.
     if (b.jdScore !== a.jdScore) return b.jdScore - a.jdScore;
     if (b.roleScore !== a.roleScore) return b.roleScore - a.roleScore;
     return b.cvScore - a.cvScore;
@@ -259,35 +494,36 @@ export function recommendRecruiters(input: {
   let winner = scores[0];
   const runnerUp = scores[1];
 
-  // Customer success + implementation + senior stakeholder language should
-  // feel like a senior customer/enterprise interview, not a code interview.
+  // A customer-facing JD with implementation language in it is still a customer
+  // interview, not a process interview.
   const customer = scores.find((entry) => entry.domain.id === "customer_success");
   const delivery = scores.find((entry) => entry.domain.id === "implementation_delivery");
-  const leadership = scores.find((entry) => entry.domain.id === "leadership");
   if (jdPresent && customer && customer.score >= Math.max(winner.score * 0.72, 6)) {
     winner = customer;
-    if (leadership && leadership.score >= customer.score * 0.6) {
-      winner = { ...customer, domain: { ...customer.domain, pro: "executive_recruiter" } };
-    }
   } else if (jdPresent && delivery && delivery.score >= Math.max(winner.score * 0.8, 6)) {
     winner = delivery;
   }
 
-  // Seniority tiebreak: engineering + leadership both firing on a
-  // "Staff Engineer" role should stay technical, not go executive,
-  // unless leadership clearly dominates.
-  if (
-    winner.domain.id === "leadership" &&
-    runnerUp &&
-    runnerUp.domain.id === "engineering" &&
-    runnerUp.score >= winner.score * 0.75 &&
-    (runnerUp.jdScore > 0 || runnerUp.roleScore > 0)
-  ) {
-    winner = runnerUp;
-  }
+  /* ------------------ apply modifiers to the winning domain --------------- */
 
-  const primary = winner.domain.pro || winner.domain.free;
-  const primaryIsPro = PRO_KEYS.includes(primary);
+  let primary: RecommendableRecruiterKey = winner.domain.pro || winner.domain.free;
+  let reason = winner.domain.reason;
+
+  if (isEarlyCareer) {
+    // Keep the interviewer the JOB needs. Drop the Pro/executive upsell: an
+    // entry-level candidate faces the real interviewer for the role, at the
+    // right level, not an "Enterprise Recruiter". THIS is what sends a bootcamp
+    // graduate targeting a technical role to the technical interviewer.
+    primary = winner.domain.free;
+    reason = `${winner.domain.reason}. Pitched at entry level, but it is still a real screen for this role`;
+  }
+  if (isLeadership && !isEarlyCareer) {
+    primary = "executive_recruiter";
+    reason = `${winner.domain.reason}, at leadership level`;
+  }
+  if (isStartup && !isEarlyCareer && !isLeadership && !winner.domain.pro) {
+    primary = "startup_founder";
+  }
 
   const confidence: RecruiterRecommendation["confidence"] =
     winner.score >= 10 && (!runnerUp || winner.score >= runnerUp.score * 1.25)
@@ -298,10 +534,13 @@ export function recommendRecruiters(input: {
 
   return {
     primary,
-    primaryIsPro,
+    primaryIsPro: PRO_KEYS.includes(primary),
     freeAlternative: winner.domain.free,
-    reason: winner.domain.reason,
-    matchedSignals: scores.slice(0, 3).map((entry) => entry.domain.id),
+    reason,
+    matchedSignals: [
+      ...scores.slice(0, 2).map((entry) => entry.domain.id),
+      ...modifiers.map((m) => m.modifier.id),
+    ],
     confidence,
   };
 }

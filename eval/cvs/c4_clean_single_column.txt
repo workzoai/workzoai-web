@@ -1,0 +1,15 @@
+Tomas Nowak
+Backend Developer
+tomas@example.com
+SUMMARY
+Backend developer building payment systems.
+SKILLS
+Go, PostgreSQL, Kafka, gRPC
+EXPERIENCE
+Senior Backend Developer | Ledger Co | 2019 - 2024
+- Designed an idempotent payment ledger.
+- Migrated a monolith to event-driven services.
+EDUCATION
+MSc Computer Science | AGH Krakow | 2014-2019
+LANGUAGES
+Polish - Native, English - Fluent

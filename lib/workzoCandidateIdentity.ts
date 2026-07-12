@@ -48,7 +48,7 @@ function readStoredIdentity(): WorkZoCandidateIdentity | null {
 
     return {
       name: clean(parsed.name),
-      headline: clean(parsed.headline) || "Professional",
+      headline: clean(parsed.headline) || "",
       email: clean(parsed.email),
       phone: clean(parsed.phone),
       location: clean(parsed.location),
@@ -77,7 +77,9 @@ export function extractCandidateIdentity(setup?: WorkZoInterviewSetup | null): W
     clean(source?.candidateHeadline) ||
     clean(source?.targetRole) ||
     clean(source?.role) ||
-    "Professional";
+    // No placeholder. An unknown headline is empty, and stays empty, rather than
+    // being printed on the CV as a job title the candidate never held.
+    "";
 
   return {
     name,
@@ -94,7 +96,7 @@ export function saveCandidateIdentity(identity: Partial<WorkZoCandidateIdentity>
 
   const payload: WorkZoCandidateIdentity = {
     name: isGenericName(clean(identity.name)) ? "" : clean(identity.name),
-    headline: clean(identity.headline) || "Professional",
+    headline: clean(identity.headline) || "",
     email: clean(identity.email),
     phone: clean(identity.phone),
     location: clean(identity.location),

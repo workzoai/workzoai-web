@@ -1,0 +1,24 @@
+HARITHA VIJAYAKUMAR
+DATA SCIENTIST/ ANALYST
++49 176 69487448 harithavijayakumar30@gmail.com Zweierweg 15, 97094, Würzburg
+About Me
+Results-driven Junior Data Scientist with 4+ years of technical support experience, transitioning into data science to leverage expertise in Python, SQL, and machine learning. Skilled in building scalable data pipelines, performing complex data analysis, and developing machine learning models to solve business problems. Proven ability to derive actionable insights through data visualization and storytelling using tools like Tableau, Seaborn, and Matplotlib. Passionate about using data to drive decision-making and improve business outcomes. Actively seeking opportunities to apply my skills in real-world projects.
+Experience
+As a Tier 2 support for ManageEngine ServiceDesk Plus, utilizing my expertise in ITIL and ITSM processes to resolve 90% of customer issues and streamline workflows. I collaborated with cross-functional teams to identify recurring software bugs, improving product stability by 25%. I implemented SQL queries for troubleshooting and log analysis, and contributed to process automation using Python, reducing issue resolution time by 15%. Additionally, I developed a comprehensive knowledge base that improved first-call resolution rates by 30%, enhancing customer satisfaction.
+As an Application Engineer, I provided technical support and solutions for Belkin and Linksys network products, assisting clients with configuration, troubleshooting, and performance optimization. I leveraged my extensive networking training to resolve complex network issues related to routers, switches, and wireless access points. Additionally, I collaborated with internal teams to deliver seamless product integration and ensure customer satisfaction. My role involved conducting technical trainings, addressing escalations, and continuously enhancing product performance through proactive problem-solving.
+Zoho Corp 2018 - 2020 CSS Corp 2016 - 2018 Technical Support Enginner Application Engineer
+Education
+Completed an intensive bootcamp focused on data science, where I gained hands-on experience in Python, SQL, and Tableau. Developed skills in data visualization using Matplotlib and Seaborn, conducted A/B testing, and implemented data pipelines utilizing Google Cloud Platform (GCP) for real-time data processing. Gained practical knowledge in machine learning and generative AI, preparing me to tackle complex data challenges effectively.
+Developed a solid foundation in programming languages such as C, C++, and Java, along with SQL for database management. The curriculum included coursework in statistics, mathematics, and operating systems, enhancing my analytical skills.
+2024 2012-2015 Data Science Bootcamp Bachelors in Science (Computer Science) WBS Coding School SRM Arts & Science College
+Expertise
+Programming: Python, SQL
+Machine Learning: Sklearn, TensorFlow
+Data Visualization: Matplotlib, Seaborn, Tableau
+Data Engineering: API integration, Web Scraping, GCP
+Generative AI: LangChain, Retrieval-Augmented Generation (RAG)
+Language
+Projects Magist
+Conducted a feasibility study on entering the Brazilian market using SQL, Python, and Tableau. Analyzed trends, competitors, and business opportunities to make a data-driven recommendation on a potential deal with Magist. Presented findings to support decision-making.
+Cultural Evolution & Popularity of Indian Classical Dance
+Analyzed the cultural evolution and popularity of Indian classical dance forms using Python, YouTube API, and NLP. Collected video data and performed sentiment analysis on viewer comments to gain insights into audience engagement and cultural trends. Leveraged tools like pandas, Seaborn, and TextBlob to visualize patterns and identify how digital platforms impact traditional art forms globally.

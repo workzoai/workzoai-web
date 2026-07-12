@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft, RefreshCw, Users, UserCheck, CreditCard, Eye, Upload, Mic,
   PlayCircle, CheckCircle2, AlertTriangle, Radio, GraduationCap,
+  Activity, RotateCcw, FileText, Search, BarChart3, Save, CircleAlert,
 } from "lucide-react";
 
 type AnyRecord = Record<string, unknown>;
@@ -156,6 +157,109 @@ function BreakdownCard({ title, data }: { title: string; data: [string, number][
 }
 
 
+type ActivityTone = "success" | "info" | "warning" | "neutral" | "danger";
+type ActivityCategory = "interview" | "cv" | "jobs" | "navigation" | "system";
+type ActivityItem = {
+  key: string;
+  rawEvent: string;
+  title: string;
+  description: string;
+  category: ActivityCategory;
+  tone: ActivityTone;
+  icon: typeof Activity;
+  count: number;
+  timestamp?: string;
+  role?: string;
+  recruiter?: string;
+  source?: unknown;
+  referrer?: unknown;
+};
+
+const ACTIVITY_LABELS: Record<string, Omit<ActivityItem, "key" | "rawEvent" | "count">> = {
+  interview_started: { title: "Interview started", description: "A candidate entered the interview room.", category: "interview", tone: "info", icon: PlayCircle },
+  interview_completed: { title: "Interview completed", description: "The interview reached a completed result.", category: "interview", tone: "success", icon: CheckCircle2 },
+  interview_saved: { title: "Interview saved", description: "Interview progress and answers were saved.", category: "interview", tone: "neutral", icon: Save },
+  answer_quality_detected: { title: "Interview answers evaluated", description: "Candidate answers were assessed for quality and relevance.", category: "interview", tone: "info", icon: Activity },
+  state_recovery_available: { title: "Interview recovery available", description: "Saved interview progress was found and can be resumed.", category: "interview", tone: "warning", icon: RotateCcw },
+  active_interview_replaced: { title: "Previous interview replaced", description: "A new interview setup replaced the active saved session.", category: "interview", tone: "warning", icon: RotateCcw },
+  interview_room_viewed: { title: "Interview room opened", description: "A candidate opened the live interview room.", category: "interview", tone: "neutral", icon: Mic },
+  onboarding_viewed: { title: "Interview setup opened", description: "A candidate viewed interview onboarding.", category: "interview", tone: "neutral", icon: PlayCircle },
+  results_viewed: { title: "Interview results viewed", description: "A candidate opened their interview feedback.", category: "interview", tone: "success", icon: BarChart3 },
+  cv_uploaded: { title: "CV uploaded", description: "A candidate uploaded a CV for analysis.", category: "cv", tone: "info", icon: Upload },
+  cv_improved: { title: "CV improved", description: "A tailored or improved CV was generated.", category: "cv", tone: "success", icon: FileText },
+  cover_letter_generated: { title: "Cover letter generated", description: "A tailored cover letter was created.", category: "cv", tone: "success", icon: FileText },
+  jobs_searched: { title: "Live jobs searched", description: "A candidate searched for live job openings.", category: "jobs", tone: "info", icon: Search },
+  job_search: { title: "Live jobs searched", description: "A candidate searched for live job openings.", category: "jobs", tone: "info", icon: Search },
+  page_view: { title: "Page viewed", description: "A page was opened in WorkZo.", category: "navigation", tone: "neutral", icon: Eye },
+  error: { title: "Application error", description: "A tracked application error occurred.", category: "system", tone: "danger", icon: CircleAlert },
+};
+
+const ACTIVITY_TONES: Record<ActivityTone, string> = {
+  success: "border-success/30 bg-success/10 text-success",
+  info: "border-brand/30 bg-brand/10 text-brand",
+  warning: "border-warning/30 bg-warning/10 text-warning",
+  neutral: "border-line bg-fg/[0.04] text-muted",
+  danger: "border-danger/30 bg-danger/10 text-danger",
+};
+
+function humanizeEvent(raw: string) {
+  return raw
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function eventTimestamp(ev: AnyRecord): string | undefined {
+  const value = ev.timestamp || ev.receivedAt || ev.created_at;
+  return value ? String(value) : undefined;
+}
+
+function activityFromEvent(ev: AnyRecord, index: number): ActivityItem {
+  const rawEvent = String(ev.event || "event");
+  const configured = ACTIVITY_LABELS[rawEvent];
+  const timestamp = eventTimestamp(ev);
+  return {
+    key: `${rawEvent}:${timestamp || index}:${index}`,
+    rawEvent,
+    title: configured?.title || humanizeEvent(rawEvent),
+    description: configured?.description || "A tracked WorkZo activity occurred.",
+    category: configured?.category || "system",
+    tone: configured?.tone || "neutral",
+    icon: configured?.icon || Activity,
+    count: 1,
+    timestamp,
+    role: ev.role ? String(ev.role) : undefined,
+    recruiter: ev.recruiter ? String(ev.recruiter) : undefined,
+    source: ev.source,
+    referrer: ev.referrer,
+  };
+}
+
+function groupActivity(events: AnyRecord[]): ActivityItem[] {
+  const result: ActivityItem[] = [];
+  const groupedNames = new Set(["answer_quality_detected", "page_view"]);
+
+  events.slice(0, 120).forEach((ev, index) => {
+    const current = activityFromEvent(ev, index);
+    const previous = result[result.length - 1];
+    const currentTime = current.timestamp ? new Date(current.timestamp).getTime() : 0;
+    const previousTime = previous?.timestamp ? new Date(previous.timestamp).getTime() : 0;
+    const closeInTime = currentTime > 0 && previousTime > 0 && Math.abs(previousTime - currentTime) <= 30 * 60 * 1000;
+    const sameContext = previous?.rawEvent === current.rawEvent
+      && previous.role === current.role
+      && previous.recruiter === current.recruiter;
+
+    if (previous && groupedNames.has(current.rawEvent) && sameContext && closeInTime) {
+      previous.count += 1;
+      if (current.timestamp && (!previous.timestamp || currentTime > previousTime)) previous.timestamp = current.timestamp;
+      return;
+    }
+
+    result.push(current);
+  });
+
+  return result.slice(0, 60);
+}
+
 
 type PartnerTrialActivity = {
   status?: string;
@@ -291,6 +395,7 @@ export default function FounderAnalyticsClient() {
   const [error, setError] = useState("");
   const [includeLocal, setIncludeLocal] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [activityFilter, setActivityFilter] = useState<"all" | ActivityCategory>("all");
 
   const load = useCallback(async (withLocal: boolean) => {
     setLoading(true);
@@ -336,6 +441,13 @@ export default function FounderAnalyticsClient() {
     }
     return entries(agg);
   }, [s.trafficSources]);
+
+  const groupedActivity = useMemo(() => groupActivity(events), [events]);
+  const visibleActivity = useMemo(() =>
+    activityFilter === "all"
+      ? groupedActivity
+      : groupedActivity.filter((item) => item.category === activityFilter),
+  [activityFilter, groupedActivity]);
 
   return (
     <main className="min-h-screen bg-canvas text-fg">
@@ -430,27 +542,72 @@ export default function FounderAnalyticsClient() {
 
         {/* Recent activity */}
         <section className="rounded-2xl border border-line bg-surface/70 p-6">
-          <h3 className="text-sm font-black uppercase tracking-[0.14em] text-muted">Recent activity</h3>
-          {events.length === 0 ? (
-            <p className="mt-4 text-sm text-subtle">No recent events.</p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-[0.14em] text-muted">Recent activity</h3>
+              <p className="mt-1 text-sm text-subtle">Founder-friendly activity summaries. Repeated answer checks and page views are grouped automatically.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ["all", "All"],
+                ["interview", "Interviews"],
+                ["cv", "CV & letters"],
+                ["jobs", "Jobs"],
+                ["navigation", "Navigation"],
+                ["system", "System"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setActivityFilter(value)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-black transition ${
+                    activityFilter === value
+                      ? "border-brand/40 bg-brand/10 text-brand"
+                      : "border-line bg-canvas text-muted hover:text-fg"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {visibleActivity.length === 0 ? (
+            <p className="mt-4 text-sm text-subtle">No recent activity for this filter.</p>
           ) : (
-            <div className="mt-4 max-h-[420px] space-y-1.5 overflow-auto pr-1">
-              {events.slice(0, 60).map((ev, i) => {
-                const label = sourceLabel(ev.source, ev.referrer);
-                const chip = SOURCE_COLORS[label] || "border-line bg-fg/[0.05] text-muted";
+            <div className="mt-5 max-h-[520px] space-y-2 overflow-auto pr-1">
+              {visibleActivity.map((item) => {
+                const source = sourceLabel(item.source, item.referrer);
+                const sourceChip = SOURCE_COLORS[source] || "border-line bg-fg/[0.05] text-muted";
+                const Icon = item.icon;
+                const countSuffix = item.count > 1 ? ` · ${item.count} events grouped` : "";
                 return (
-                  <div key={i} className="flex items-center gap-3 rounded-lg border border-line/60 bg-canvas px-3 py-2 text-xs">
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand/70" />
-                    <span className="font-bold text-fg">{String(ev.event || "event")}</span>
-                    {ev.role ? <span className="text-muted">· {String(ev.role)}</span> : null}
-                    {ev.recruiter ? <span className="text-muted">· {String(ev.recruiter)}</span> : null}
-                    <span className={`ml-auto shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-black ${chip}`}>
-                      {label}
-                    </span>
-                    <span className="shrink-0 text-subtle">
-                      {ev.timestamp ? new Date(String(ev.timestamp)).toLocaleString() : ""}
-                    </span>
-                  </div>
+                  <article key={item.key} className="rounded-xl border border-line/70 bg-canvas px-4 py-3">
+                    <div className="flex items-start gap-3">
+                      <span className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg border ${ACTIVITY_TONES[item.tone]}`}>
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <p className="font-black text-fg">{item.title}</p>
+                          {item.count > 1 ? (
+                            <span className="rounded-md border border-brand/25 bg-brand/10 px-2 py-0.5 text-[10px] font-black text-brand">
+                              {item.count}
+                            </span>
+                          ) : null}
+                          {item.role ? <span className="text-xs text-muted">· {item.role}</span> : null}
+                          {item.recruiter ? <span className="text-xs text-muted">· {item.recruiter}</span> : null}
+                        </div>
+                        <p className="mt-1 text-xs text-subtle">{item.description}{countSuffix}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-black ${sourceChip}`}>{source}</span>
+                        <time className="text-[11px] text-subtle">
+                          {item.timestamp ? new Date(item.timestamp).toLocaleString() : ""}
+                        </time>
+                      </div>
+                    </div>
+                  </article>
                 );
               })}
             </div>

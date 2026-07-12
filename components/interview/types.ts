@@ -1,5 +1,7 @@
 "use client";
 
+import type { CodeWorkspaceState } from "./CodePanel";
+
 export type TranscriptRole = "recruiter" | "candidate" | "system";
 export type InterviewStatus = "idle" | "recruiter-speaking" | "listening" | "thinking" | "ended";
 export type PremiumVoiceStatus = "idle" | "not_configured" | "checking_microphone" | "connecting" | "connected" | "fallback" | "failed";
@@ -33,7 +35,7 @@ export type InterviewUiActions = {
   onClearTranscript: () => void;
   // Called by CodePanel whenever the candidate edits code.
   // noop when technical mode is off.
-  onCodeChange: (code: string, language: string) => void;
+  onCodeChange: (state: CodeWorkspaceState) => void;
 };
 
 export type InterviewLayoutProps = {

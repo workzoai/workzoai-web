@@ -368,12 +368,14 @@ function cleanVisibleHeadline(value = "") {
     .replace(/\bRole-Relevant Professional\b/gi, "Professional")
     .replace(/\s+with\s+.+$/i, "")
     .trim();
-  if (!headline || /unknown|candidate|profile/i.test(headline)) return "Professional";
+  // Empty, not a fabricated placeholder. A blank headline is a gap the user can
+  // fill. "Professional" is a lie that also ends up printed as a JOB TITLE.
+  if (!headline || /unknown|candidate|profile/i.test(headline)) return "";
   return headline;
 }
 
 function safeHeadline(profile: ResumeProfile, jd: JdSignal, matches: EvidenceMatch[]) {
-  const current = cleanVisibleHeadline(profile.basics.headline || "Professional");
+  const current = cleanVisibleHeadline(profile.basics.headline || "");
   const source = evidenceSource(profile);
 
   if (jd.family.id === "general") return current;
@@ -1556,7 +1558,7 @@ function cleanContactFieldV4(value = "", kind: "email" | "phone" | "linkedin" | 
   }
   if (kind === "headline") {
     const h = v.replace(/^[^A-Za-zÀ-ÖØ-öø-ÿ]+|[^A-Za-zÀ-ÖØ-öø-ÿ/ &|+-]+$/g, "").trim();
-    if (!h || SECTION_WORD_RE_V4.test(h) || EMAIL_RE_V4.test(h) || PHONE_RE_V4.test(h)) return "Professional";
+    if (!h || SECTION_WORD_RE_V4.test(h) || EMAIL_RE_V4.test(h) || PHONE_RE_V4.test(h)) return "";
     return h.length > 80 ? h.slice(0, 80).replace(/\s+\S*$/, "") : h;
   }
   if (SECTION_WORD_RE_V4.test(v) || EMAIL_RE_V4.test(v) || PHONE_RE_V4.test(v)) return "";
@@ -1843,9 +1845,26 @@ function globallyRepairProfileV4(profile: ResumeProfile, rawText = ""): ResumePr
   const phone = cleanContactFieldV4(profile.basics?.phone || raw.match(PHONE_RE_V4)?.[0] || "", "phone");
   const linkedin = cleanContactFieldV4(profile.basics?.linkedin || raw.match(/linkedin\.com\/in\/[a-z0-9._/-]+/i)?.[0] || "", "linkedin");
   const name = deriveCandidateNameV4({ ...profile, basics: { ...profile.basics, email } }, raw);
-  const headline = cleanContactFieldV4(profile.basics?.headline || "Professional", "headline");
+  const headline = cleanContactFieldV4(profile.basics?.headline || "", "headline");
   const rawExperience = parseExperienceFromRawV4(profile, raw);
-  const useRawExperience = rawExperience.length >= Math.max(1, (profile.experience || []).length) || (profile.experience || []).some((j) => !j.title || !j.company || /education|bootcamp|bachelor|project/i.test(`${j.title} ${j.company}`));
+  // TRUST the structured experience. The render must not discard a clean,
+  // structured profile and rebuild it from raw text — that path (a third,
+  // weaker parser) drops bullets and collapses distinct titles. Fall back to the
+  // raw re-derivation ONLY when the structured experience is unusable: absent,
+  // missing titles, carrying no bullets at all, or contaminated with education /
+  // project rows that leaked in as jobs. A mere tie or larger raw count is NOT a
+  // reason to overwrite good structured data.
+  const structured = profile.experience || [];
+  const structuredBulletCount = structured.reduce((n, j) => n + (j.bullets || []).length, 0);
+  const structuredContaminated = structured.some((j) =>
+    /\b(education|bootcamp|bachelor|master|diploma|degree)\b/i.test(`${j.title || ""} ${j.company || ""}`),
+  );
+  const structuredUsable =
+    structured.length > 0 &&
+    structured.every((j) => !!j.title) &&
+    structuredBulletCount > 0 &&
+    !structuredContaminated;
+  const useRawExperience = !structuredUsable && rawExperience.length >= 1;
   const repaired: ResumeProfile = {
     ...profile,
     rawText: raw || profile.rawText || "",
@@ -1959,12 +1978,20 @@ export function buildAtsCv(input: CvGenerationInput) {
       if (heading) out.push(heading);
       if (job.bullets.length) {
         job.bullets.forEach((bullet) => out.push(`- ${bullet}`));
-      } else {
-        // Explicit placeholder, without this, the AI rewrite silently drops
-        // employers with no bullets, violating the "same number of jobs" rule.
-        // The AI will replace this with real content from the JD.
-        out.push("- [Role responsibilities to be completed based on job description]");
       }
+      // A job with no bullets gets NO bullets. It previously got:
+      //   "- [Role responsibilities to be completed based on job description]"
+      // and the copilot prompt then instructed the model to replace that with
+      // "2-3 real, JD-relevant bullets inferred from what that type of role
+      // would have done". That is an instruction to invent work history. It put
+      // achievements on a candidate's CV that the candidate never claimed, and
+      // the placeholder itself leaked verbatim into rendered CVs when the model
+      // failed to replace it.
+      //
+      // An employer with no bullets is a DATA GAP, and the honest output for a
+      // data gap is an empty one the user can fill in, not a fluent lie. The
+      // employer is still preserved: see the "NEVER DROP AN EMPLOYER" rule,
+      // which no longer depends on a placeholder to work.
     });
   }
 

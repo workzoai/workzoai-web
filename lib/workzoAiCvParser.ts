@@ -7,6 +7,7 @@ import {
   type ResumeProfile,
   type ResumeProject,
 } from "@/lib/workzoResumeParser";
+import { resolveTargetHeadline } from "@/lib/workzoCvIdentityEngine";
 
 export type WorkZoCvParserSource =
   | "ai_structured_cv"
@@ -703,6 +704,243 @@ function extractProjectsFromRawText(rawText: string): ResumeProject[] {
     .slice(0, 8);
 }
 
+
+
+type RawLineInfo = { raw: string; text: string; indent: number; index: number };
+
+const HEADLINE_WORDS = [
+  "principal", "professional", "specialist", "consultant", "coordinator", "administrator",
+  "representative", "technician", "scientist", "researcher", "developer", "designer", "engineer",
+  "analyst", "manager", "director", "executive", "assistant", "associate", "intern", "trainee",
+  "customer", "success", "support", "technical", "software", "systems", "system", "network",
+  "product", "project", "program", "programme", "portfolio", "business", "marketing", "sales",
+  "account", "operations", "finance", "financial", "human", "resources", "resource", "data",
+  "science", "machine", "learning", "cloud", "security", "cybersecurity", "quality", "service",
+  "experience", "user", "interface", "frontend", "backend", "fullstack", "full", "stack", "senior",
+  "junior", "lead", "head", "chief", "officer", "it", "ux", "ui", "hr", "ai", "and"
+].sort((a, b) => b.length - a.length);
+
+function segmentJoinedHeadline(value: string): string {
+  const compact = value.toLowerCase().replace(/[^a-z]/g, "");
+  if (!compact || compact.length < 5) return value;
+  const memo = new Map<number, string[] | null>();
+  const walk = (index: number): string[] | null => {
+    if (index === compact.length) return [];
+    if (memo.has(index)) return memo.get(index)!;
+    for (const word of HEADLINE_WORDS) {
+      if (!compact.startsWith(word, index)) continue;
+      const tail = walk(index + word.length);
+      if (tail) { const result = [word, ...tail]; memo.set(index, result); return result; }
+    }
+    memo.set(index, null);
+    return null;
+  };
+  const words = walk(0);
+  if (!words || words.length < 2) return value;
+  return words.map((word) => word === "it" || word === "ui" || word === "ux" || word === "hr" || word === "ai"
+    ? word.toUpperCase()
+    : word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+
+function normalizeDecorativeText(value: string): string {
+  const original = String(value || "").replace(/[\t\u00a0]+/g, " ").trim();
+  if (!original) return "";
+
+  // Treat slash, pipe, ampersand and hyphen as word-group separators while
+  // deciding whether this is decorative letter spacing. Older logic required
+  // every token to be a single letter, so a perfectly valid headline such as
+  // "I T S U P P O R T / D A T A A N A L Y S T" was skipped because of "/".
+  const normalizedSeparators = original.replace(/\s*([/|&])\s*/g, "  $1  ");
+  const groups = normalizedSeparators.split(/\s{2,}/).map((g) => g.trim()).filter(Boolean);
+  const rebuilt: string[] = [];
+  let sawDecorativeLetters = false;
+
+  for (const group of groups) {
+    if (/^[/|&]$/.test(group)) {
+      rebuilt.push(group);
+      continue;
+    }
+    const tokens = group.split(/\s+/).filter(Boolean);
+    const letterTokens = tokens.filter((token) => /^\p{L}$/u.test(token));
+    if (tokens.length >= 3 && letterTokens.length / tokens.length >= 0.8) {
+      sawDecorativeLetters = true;
+      const joined = tokens.filter((token) => /^\p{L}$/u.test(token)).join("");
+      rebuilt.push(segmentJoinedHeadline(joined));
+    } else {
+      rebuilt.push(group.replace(/\s+/g, " "));
+    }
+  }
+
+  if (sawDecorativeLetters) {
+    return rebuilt
+      .join(" ")
+      .replace(/\s+([/|&])\s+/g, " $1 ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+  return original.replace(/\s+/g, " ");
+}
+
+function rawLineInfo(rawText: string): RawLineInfo[] {
+  return String(rawText || "")
+    .replace(/\r/g, "\n")
+    .split(/\n/)
+    .map((raw, index) => {
+      const leading = raw.match(/^[ \t]*/)?.[0] || "";
+      return {
+        raw,
+        text: normalizeDecorativeText(raw),
+        indent: leading.replace(/\t/g, "    ").length,
+        index,
+      };
+    })
+    .filter((line) => Boolean(line.text));
+}
+
+const GLOBAL_SECTION_RE = /^(contact|contacts|kontakt|profile|profile summary|professional summary|summary|about me|overview|skills|key skills|technical skills|core skills|expertise|experience|work experience|professional experience|employment history|berufserfahrung|education|academic history|bildung|bildungsweg|ausbildung|projects?|selected projects?|project experience|personal projects?|academic projects?|portfolio projects?|bootcamp projects?|data science projects?|case studies|selected work|portfolio|projekte|languages?|sprachen|sprachkenntnisse|certifications?|certificates?|licenses?|licences?|zertifikate|references?|referenzen)$/i;
+
+const ACADEMIC_LINE_RE = /\b(bachelor|master|mba|msc|phd|b\.?sc|m\.?sc|degree|diploma|certificate|bootcamp|university|college|school|hochschule|ausbildung)\b/i;
+
+const SENTENCE_START_RE = /^(achieved|analyzed|analysed|assisted|automated|built|collaborated|collected|conducted|configured|coordinated|created|delivered|designed|developed|implemented|improved|increased|led|managed|maintained|optimized|optimised|presented|provided|reduced|resolved|showcased|supported|trained|troubleshot|utilized|used|visualized|visualised|worked)\b/i;
+
+function isRoleLikeLine(value: string): boolean {
+  const text = clean(value);
+  if (!text || text.length < 3 || text.length > 110) return false;
+  if (GLOBAL_SECTION_RE.test(text) || CONTACT_RE.test(text) || YEAR_OR_DATE_RE.test(text)) return false;
+  if (/[.!?]$/.test(text) || SENTENCE_START_RE.test(text)) return false;
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length > 14) return false;
+  return ROLE_OR_HEADLINE_RE.test(text);
+}
+
+function extractHeaderHeadlineFromRawText(rawText: string, candidateName = ""): string {
+  const lines = rawLineInfo(rawText).slice(0, 36);
+  if (!lines.length) return "";
+  const sectionIndex = lines.findIndex((line) => GLOBAL_SECTION_RE.test(line.text));
+  const header = sectionIndex >= 0 ? lines.slice(0, sectionIndex) : lines.slice(0, 14);
+  const candidateKey = normalizeForCompare(candidateName);
+
+  let nameIndex = -1;
+  for (let i = 0; i < header.length; i++) {
+    const key = normalizeForCompare(header[i].text);
+    if (candidateKey && key === candidateKey) { nameIndex = i; break; }
+  }
+
+  // The line directly below the verified candidate name is the strongest
+  // layout signal and must win over sidebar skills such as "Project Management".
+  // Inspect only the next three non-contact lines before considering any broader
+  // header fallback. This works across names, roles, languages and templates.
+  if (nameIndex >= 0) {
+    let inspected = 0;
+    for (let i = nameIndex + 1; i < header.length && inspected < 3; i++) {
+      const text = clean(header[i].text);
+      if (!text || CONTACT_RE.test(text) || GLOBAL_SECTION_RE.test(text)) continue;
+      inspected += 1;
+      if (isRoleLikeLine(text)) return cleanHeadline(text);
+    }
+  }
+
+  // If the candidate name was not recovered from the text, only consider the
+  // first few header lines. Never scan the whole pre-section block because
+  // multi-column extraction may place sidebar skills there.
+  for (const line of header.slice(0, 6)) {
+    const text = clean(line.text);
+    if (!text || CONTACT_RE.test(text) || GLOBAL_SECTION_RE.test(text)) continue;
+    if (candidateKey && normalizeForCompare(text) === candidateKey) continue;
+    if (isRoleLikeLine(text)) return cleanHeadline(text);
+  }
+  return "";
+}
+
+function extractProjectsFromRawTextRobust(rawText: string): ResumeProject[] {
+  const lines = rawLineInfo(rawText);
+  const projectHeaderRe = /^(projects?|selected projects?|project experience|key projects?|personal projects?|academic projects?|portfolio projects?|bootcamp projects?|data science projects?|case studies|selected work|portfolio|projekte)$/i;
+  const stopRe = /^(experience|professional experience|work experience|employment history|berufserfahrung|education|academic history|bildung|bildungsweg|ausbildung|skills|key skills|technical skills|core skills|expertise|languages?|sprachen|sprachkenntnisse|certifications?|certificates?|zertifikate|contact|kontakt|summary|profile|professional summary|about me|references?|referenzen)$/i;
+  const start = lines.findIndex((line) => projectHeaderRe.test(line.text));
+  if (start < 0) return [];
+
+  const section: RawLineInfo[] = [];
+  for (let i = start + 1; i < lines.length && section.length < 100; i++) {
+    if (stopRe.test(lines[i].text)) break;
+    section.push(lines[i]);
+  }
+  if (!section.length) return [];
+
+  const projects: ResumeProject[] = [];
+  let current: ResumeProject | null = null;
+  const flush = () => {
+    if (!current) return;
+    current.bullets = unique(current.bullets || [], 10);
+    if (current.name && (current.bullets.length || current.name !== "Selected Project")) projects.push(current);
+    current = null;
+  };
+
+  for (const line of section) {
+    const text = clean(line.text.replace(/^[•●▪◦\-*]+\s*/, ""));
+    if (!text || CONTACT_RE.test(text) || GLOBAL_SECTION_RE.test(text)) continue;
+    const markerBullet = /^[ \t]*[•●▪◦\-*]/.test(line.raw) || /^\d+[.)]\s+/.test(line.text);
+    const sentenceLike = markerBullet || SENTENCE_START_RE.test(text) || text.split(/\s+/).length >= 11 || /[.!?]$/.test(text);
+
+    // Project names are short noun phrases. They are usually less indented than
+    // their bullets, but the semantic checks also support flattened extraction.
+    const titleCandidate = cleanProjectName(text);
+    const titleLike = Boolean(titleCandidate)
+      && !sentenceLike
+      && !ROLE_OR_HEADLINE_RE.test(text)
+      && !ACADEMIC_LINE_RE.test(text)
+      && !YEAR_OR_DATE_RE.test(text)
+      && text.split(/\s+/).length <= 12;
+
+    if (titleLike) {
+      flush();
+      current = { name: titleCandidate, bullets: [] };
+      continue;
+    }
+
+    if (!current) {
+      // Do not fabricate a project title from a bullet. Wait for a real title.
+      continue;
+    }
+    if (sentenceLike && text.length >= 12) current.bullets.push(text);
+  }
+  flush();
+  return projects.slice(0, 12);
+}
+
+function extractExperienceIdentityFromRawText(rawText: string): ResumeExperience[] {
+  const lines = rawLineInfo(rawText);
+  const experienceHeaderRe = /^(experience|professional experience|work experience|employment history|career history|berufserfahrung|praxis)$/i;
+  const stopRe = /^(education|academic history|bildung|bildungsweg|ausbildung|projects?|projekte|skills|expertise|languages?|sprachen|certifications?|contact|summary|profile|references?)$/i;
+  const start = lines.findIndex((line) => experienceHeaderRe.test(line.text));
+  const scoped = start >= 0 ? lines.slice(start + 1) : lines;
+  const section: RawLineInfo[] = [];
+  for (const line of scoped) {
+    if (start >= 0 && stopRe.test(line.text)) break;
+    section.push(line);
+    if (section.length >= 140) break;
+  }
+
+  const result: ResumeExperience[] = [];
+  for (let i = 0; i < section.length; i++) {
+    const line = section[i].text;
+    const dateMatch = line.match(/\b(?:19|20)\d{2}\b(?:\s*[-–—]\s*(?:present|current|today|heute|(?:19|20)\d{2}))?/i);
+    if (!dateMatch) continue;
+    const dates = clean(dateMatch[0]);
+    const beforeDate = clean(line.replace(dateMatch[0], "").replace(/[|·,;:\-–—]+$/g, ""));
+    const pipeParts = beforeDate.split(/\s*[|·]\s*/).map(clean).filter(Boolean);
+    const inlineTitle = pipeParts.length >= 2 && isRoleLikeLine(pipeParts[0]) ? pipeParts[0] : "";
+    const company = pipeParts.length >= 2 ? pipeParts[pipeParts.length - 1] : beforeDate;
+    if (!company || company.length > 80 || SENTENCE_START_RE.test(company) || ACADEMIC_LINE_RE.test(company)) continue;
+
+    const adjacent = [section[i + 1]?.text, section[i - 1]?.text, section[i + 2]?.text, section[i - 2]?.text]
+      .filter((value): value is string => Boolean(value));
+    const title = inlineTitle || adjacent.find((value) => isRoleLikeLine(value)) || "";
+    if (!title) continue;
+    result.push({ title: clean(title), company, location: "", dates, bullets: [] });
+  }
+  return result.slice(0, 12);
+}
+
 function extractJsonObject(raw: string): AiResumeJson | null {
   let text = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
   try { return JSON.parse(text) as AiResumeJson; } catch {}
@@ -982,13 +1220,228 @@ function cleanHeadline(value: string): string {
     .trim();
 }
 
+
+function normIdentity(value: string): string {
+  return clean(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function mergeExperienceIdentity(aiItems: ResumeExperience[], fallbackItems: ResumeExperience[]): ResumeExperience[] {
+  if (!fallbackItems.length) return aiItems;
+  return fallbackItems.map((original, index) => {
+    const companyKey = normIdentity(original.company || "");
+    const datesKey = normIdentity(original.dates || "");
+    const matched = aiItems.find((candidate) => {
+      const cCompany = normIdentity(candidate.company || "");
+      const cDates = normIdentity(candidate.dates || "");
+      return (companyKey && cCompany && companyKey === cCompany) || (datesKey && cDates && datesKey === cDates);
+    }) || aiItems[index];
+    return {
+      ...original,
+      title: original.title || matched?.title || "",
+      company: original.company || matched?.company || "",
+      location: original.location || matched?.location || "",
+      dates: original.dates || matched?.dates || "",
+      bullets: matched?.bullets?.length ? matched.bullets : original.bullets || [],
+    };
+  });
+}
+
+
+function mergeRawExperienceIdentity(baseItems: ResumeExperience[], rawItems: ResumeExperience[]): ResumeExperience[] {
+  if (!rawItems.length) return baseItems;
+  if (!baseItems.length) return rawItems;
+  const used = new Set<number>();
+  const merged = baseItems.map((base, index) => {
+    const companyKey = normIdentity(base.company || "");
+    const datesKey = normIdentity(base.dates || "");
+    let matchIndex = rawItems.findIndex((raw, rawIndex) => {
+      if (used.has(rawIndex)) return false;
+      const rawCompany = normIdentity(raw.company || "");
+      const rawDates = normIdentity(raw.dates || "");
+      return (companyKey && rawCompany && (companyKey === rawCompany || companyKey.includes(rawCompany) || rawCompany.includes(companyKey)))
+        || (datesKey && rawDates && datesKey === rawDates);
+    });
+    if (matchIndex < 0 && rawItems[index] && !used.has(index)) matchIndex = index;
+    if (matchIndex < 0) return base;
+    used.add(matchIndex);
+    const raw = rawItems[matchIndex];
+    const baseTitle = clean(base.title || "");
+    const rawTitle = clean(raw.title || "");
+    const baseKey = normIdentity(baseTitle);
+    const rawKey = normIdentity(rawTitle);
+    const rawIsMoreSpecific = rawTitle.length > baseTitle.length
+      && (rawKey.includes(baseKey) || baseKey.includes(rawKey) || baseTitle.split(/\s+/).length <= 2);
+    return {
+      ...base,
+      title: rawIsMoreSpecific || !baseTitle ? rawTitle : baseTitle,
+      company: base.company || raw.company || "",
+      location: base.location || raw.location || "",
+      dates: base.dates || raw.dates || "",
+      bullets: base.bullets || [],
+    };
+  });
+  rawItems.forEach((raw, index) => { if (!used.has(index)) merged.push(raw); });
+  return merged.slice(0, 12);
+}
+
+function extractLanguagesFromRawText(rawText: string): string[] {
+  const normalized = normalizeCvTextForParsing(rawText);
+  const lines = normalized.split(/\n+/).map(clean).filter(Boolean);
+  const languageHeaderRe = /^(languages?|sprachen|sprachkenntnisse|langues|idiomas|lingue|talen)$/i;
+  const stopRe = /^(summary|experience|education|skills|projects|certifications|contact|references)$/i;
+  const start = lines.findIndex((line) => languageHeaderRe.test(line));
+  const candidates: string[] = [];
+
+  if (start >= 0) {
+    for (let i = start + 1; i < Math.min(lines.length, start + 15); i++) {
+      const line = lines[i];
+      if (stopRe.test(line)) break;
+      candidates.push(...line.split(/[,;|]/).map(clean).filter(Boolean));
+    }
+  }
+
+  // Multi-column PDFs can place language rows far away from the heading. Recover
+  // explicit "Language: level" and "Language - level" pairs globally.
+  const level = '(?:native|mother tongue|fluent|professional|business|conversational|intermediate|basic|beginner|advanced|proficient|bilingual|a1|a2|b1|b2|c1|c2|muttersprache|fließend|fliessend|verhandlungssicher|fortgeschritten|mittelstufe|grundkenntnisse)';
+  const pairRe = new RegExp('\\b([A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ-]{2,20})\\s*(?:[:\\-–|()]|is|:)\\s*(' + level + ')\\b', 'gi');
+  for (const match of normalized.matchAll(pairRe)) candidates.push(`${match[1]} - ${match[2]}`);
+
+  const languageNameRe = /^(english|german|deutsch|french|français|spanish|español|italian|italiano|dutch|nederlands|portuguese|português|polish|polski|hindi|tamil|telugu|malayalam|arabic|mandarin|chinese|japanese|korean|russian|ukrainian|turkish|swedish|norwegian|danish|finnish|czech|romanian|hungarian|greek)(?:\s*[-:()]\s*.+)?$/i;
+  return unique(candidates
+    .map((item) => item.replace(/\s+/g, ' ').trim())
+    .filter((item) => languageNameRe.test(item)), 20);
+}
+
+
+function languageIdentityKey(value: string): string {
+  const normalized = normalizeForCompare(value);
+  const first = normalized.split(/\s+/)[0] || normalized;
+  const aliases: Record<string, string> = {
+    deutsch: "german", german: "german", allemand: "german", aleman: "german",
+    english: "english", englisch: "english", anglais: "english", ingles: "english",
+    french: "french", francais: "french", französisch: "french", franzosisch: "french",
+    spanish: "spanish", espanol: "spanish", spanisch: "spanish",
+    italian: "italian", italiano: "italian", italienisch: "italian",
+    portuguese: "portuguese", portugues: "portuguese", portugiesisch: "portuguese",
+    dutch: "dutch", nederlands: "dutch", niederlandisch: "dutch",
+    chinese: "chinese", mandarin: "chinese", chinesisch: "chinese",
+    japanese: "japanese", japanisch: "japanese",
+    arabic: "arabic", arabisch: "arabic",
+    russian: "russian", russisch: "russian",
+    turkish: "turkish", turkisch: "turkish",
+    polish: "polish", polski: "polish", polnisch: "polish",
+  };
+  return aliases[first] || first;
+}
+
+function languageDetailScore(value: string): number {
+  const text = clean(value);
+  let score = text.length;
+  if (/(?:a1|a2|b1|b2|c1|c2)/i.test(text)) score += 30;
+  if (/(?:native|mother tongue|fluent|professional|business|conversational|intermediate|basic|beginner|advanced|proficient|bilingual|muttersprache|fließend|fliessend|verhandlungssicher|fortgeschritten|grundkenntnisse)/i.test(text)) score += 20;
+  return score;
+}
+
+function mergeLanguagesGlobally(...groups: string[][]): string[] {
+  const best = new Map<string, string>();
+  for (const value of groups.flat()) {
+    const cleaned = clean(value);
+    if (!cleaned) continue;
+    const key = languageIdentityKey(cleaned);
+    if (!key) continue;
+    const current = best.get(key);
+    if (!current || languageDetailScore(cleaned) > languageDetailScore(current)) best.set(key, cleaned);
+  }
+  return [...best.values()].slice(0, 20);
+}
+
+function isContaminatedProjectIdentity(project: ResumeProject, profile: ResumeProfile): boolean {
+  const name = cleanProjectName(project?.name || "");
+  if (!name) return true;
+  const key = normalizeForCompare(name);
+  const candidateName = normalizeForCompare(profile.basics?.name || "");
+  const headline = normalizeForCompare(profile.basics?.headline || "");
+  if ((candidateName && key === candidateName) || (headline && key === headline)) return true;
+  if (GLOBAL_SECTION_RE.test(name) || SECTION_HEADER_RE.test(name)) return true;
+  const hasProjectSignal = /(project|dashboard|pipeline|analysis|analytics|classifier|model|prediction|forecast|scraper|crawler|sentiment|recommendation|clustering|segmentation|visualization|visualisation|app|platform|portfolio|case study|study|nlp|rag|machine learning|data science|ai|feasibility|prototype|research)/i.test(name);
+  const roleOnly = isRoleLikeLine(name) && !hasProjectSignal;
+  return roleOnly;
+}
+
+function mergeProjectsConservatively(aiItems: ResumeProject[], rawItems: ResumeProject[], fallbackItems: ResumeProject[]): ResumeProject[] {
+  const trusted = [...(aiItems || []), ...(fallbackItems || [])].filter((p) => cleanProjectName(p?.name || ''));
+  const raw = (rawItems || [])
+    .map((p) => ({ name: cleanProjectName(p?.name || ''), bullets: unique(p?.bullets || [], 10) }))
+    .filter((p) => p.name && p.bullets.length > 0);
+
+  // When AI or deterministic parsing already found project identities, raw text
+  // is used only to enrich matching projects. This prevents sidebar labels,
+  // education lines and individual bullets from becoming extra projects.
+  if (trusted.length) {
+    const merged = new Map<string, ResumeProject>();
+    for (const project of trusted) {
+      const name = cleanProjectName(project.name || '');
+      if (!name) continue;
+      const key = normalizeForCompare(name);
+      const rawMatch = raw.find((candidate) => {
+        const rawKey = normalizeForCompare(candidate.name);
+        return rawKey === key || rawKey.includes(key) || key.includes(rawKey);
+      });
+      const existing = merged.get(key);
+      merged.set(key, {
+        name,
+        bullets: unique([...(existing?.bullets || []), ...(project.bullets || []), ...(rawMatch?.bullets || [])], 10),
+      });
+    }
+    return [...merged.values()].slice(0, 10);
+  }
+
+  // If all structured sources missed the section, accept only raw candidates
+  // with at least one descriptive bullet and deduplicate near-identical names.
+  const merged = new Map<string, ResumeProject>();
+  for (const project of raw) {
+    const key = normalizeForCompare(project.name);
+    const existingKey = [...merged.keys()].find((k) => k === key || k.includes(key) || key.includes(k));
+    if (existingKey) {
+      const existing = merged.get(existingKey)!;
+      existing.bullets = unique([...(existing.bullets || []), ...(project.bullets || [])], 10);
+    } else {
+      merged.set(key, project);
+    }
+  }
+  return [...merged.values()].slice(0, 8);
+}
+
+function mergeProjectsPreservingOriginal(aiItems: ResumeProject[], rawItems: ResumeProject[], fallbackItems: ResumeProject[]): ResumeProject[] {
+  const sources = [...fallbackItems, ...rawItems, ...aiItems];
+  const merged = new Map<string, ResumeProject>();
+  for (const project of sources) {
+    const key = normIdentity(project.name || "");
+    if (!key) continue;
+    const existing = merged.get(key);
+    if (!existing) merged.set(key, { name: project.name, bullets: project.bullets || [] });
+    else merged.set(key, {
+      name: existing.name || project.name,
+      bullets: unique([...(existing.bullets || []), ...(project.bullets || [])], 8),
+    });
+  }
+  return [...merged.values()].slice(0, 12);
+}
+
 function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: string, fileName = "", knownHeadline = ""): ResumeProfile {
   const basics = ai.basics && typeof ai.basics === "object" ? ai.basics : {};
-  const experience = coerceExperience(ai.experience);
+  const aiExperience = coerceExperience(ai.experience);
+  const rawExperience = extractExperienceIdentityFromRawText(rawText);
+  const protectedExperience = mergeRawExperienceIdentity(fallback.experience || [], rawExperience);
+  const experience = mergeExperienceIdentity(aiExperience, protectedExperience.length ? protectedExperience : (fallback.experience || []));
   const education = coerceEducation(ai.education);
   const aiProjects = coerceProjects(ai.projects);
-  const rawProjects = extractProjectsFromRawText(rawText);
-  const projects = aiProjects.length ? aiProjects : rawProjects;
+  const rawProjects = mergeProjectsPreservingOriginal(
+    extractProjectsFromRawTextRobust(rawText),
+    extractProjectsFromRawText(rawText),
+    [],
+  );
+  const projects = mergeProjectsConservatively(aiProjects, rawProjects, fallback.projects || []);
 
   const aiName = clean(basics.name).toLowerCase();
   // Role-title pattern for skill filtering, matches ONLY when the skill
@@ -1027,7 +1480,11 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
     .map((s) => normalizeAiSkillToken(s));
   const skills = deduplicateSkills(rawSkills);
 
-  const languages = unique(asList(ai.languages), 12);
+  const languages = unique([
+    ...asList(ai.languages),
+    ...(fallback.languages || []),
+    ...extractLanguagesFromRawText(rawText),
+  ], 20);
   const certifications = unique(asList(ai.certifications), 12);
 
   const profile = {
@@ -1039,7 +1496,11 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
       // The deterministic parser correctly finds spaced-caps names (e.g. "JOHN
       // SMITH") even in sidebar-first PDFs where the AI gets confused.
       name: clean(basics.name) || fallback.basics?.name || "",
-      headline: cleanHeadline(clean(basics.headline) || experience[0]?.title || fallback.basics?.headline || knownHeadline || ""),
+      headline: resolveTargetHeadline({
+        aiHeadline: cleanHeadline(clean(basics.headline) || fallback.basics?.headline || experience[0]?.title || knownHeadline || ""),
+        rawText,
+        selectedName: clean(basics.name) || fallback.basics?.name || "",
+      }),
       // Clean email immediately at construction, never let a concatenated email through
       email: cleanEmailField(clean(basics.email) || fallback.basics?.email || extractEmail(rawText)),
       // Validate AI phone, if it looks like a postal code, year, or date, discard and extract from raw text
@@ -1063,7 +1524,7 @@ function buildProfileFromAi(ai: AiResumeJson, fallback: ResumeProfile, rawText: 
     education: education.length ? education : sortEducationByDate(fallback.education || []),
     skills: skills.length ? skills : deduplicateSkills(fallback.skills || []),
     projects: projects.length ? projects : (rawProjects.length ? rawProjects : fallback.projects || []),
-    languages: languages.length ? languages : fallback.languages || [],
+    languages,
     certifications: certifications.length ? certifications : fallback.certifications || [],
     strengths: unique(asList(ai.strengths), 12).length ? unique(asList(ai.strengths), 12) : fallback.strengths || [],
     additionalEvidence: unique(asList(ai.additionalEvidence), 18).length ? unique(asList(ai.additionalEvidence), 18) : fallback.additionalEvidence || [],
@@ -1113,7 +1574,14 @@ function sanitizeParsedProfileFields(profile: ResumeProfile, rawText: string, fi
   const fallback = extractResumeProfileComplex(rawText);
   const experience = Array.isArray(profile.experience) ? profile.experience : [];
   const education = Array.isArray(profile.education) ? profile.education : [];
-  const projects = Array.isArray(profile.projects) && profile.projects.length ? profile.projects : extractProjectsFromRawText(rawText);
+  const projects = mergeProjectsConservatively(
+    Array.isArray(profile.projects) ? profile.projects : [],
+    [
+      ...extractProjectsFromRawTextRobust(rawText),
+      ...extractProjectsFromRawText(rawText),
+    ],
+    Array.isArray(fallback.projects) ? fallback.projects : [],
+  );
 
   const headlineRaw = clean(profile.basics?.headline || '');
   const headlineLooksLikeSentence = headlineRaw.length > 100 ||
@@ -1121,9 +1589,13 @@ function sanitizeParsedProfileFields(profile: ResumeProfile, rawText: string, fi
       // Detect transition/career-change sentences: starts with common sentence openers
       /^(ex-|former|experienced|results-driven|detail-oriented|passionate|motivated|dedicated|highly|a tech|i am|skilled|seasoned)/i.test(headlineRaw);
   const headlineLooksLikeBullet = /^(led|managed|assisted|supported|coordinated|created|developed|implemented|improved|provided|responsible|collaborated|conducted)\b/i.test(headlineRaw) && headlineRaw.length > 60;
-  const safeHeadline = headlineLooksLikeSentence || headlineLooksLikeBullet
-    ? clean(experience[0]?.title || fallback.basics?.headline || 'Professional')
-    : headlineRaw;
+  const safeHeadline = resolveTargetHeadline({
+    aiHeadline: headlineLooksLikeSentence || headlineLooksLikeBullet
+      ? clean(fallback.basics?.headline || experience[0]?.title || "")
+      : headlineRaw,
+    rawText,
+    selectedName: profile.basics?.name || fallback.basics?.name || "",
+  });
 
   const cleanedSkills = deduplicateSkills((Array.isArray(profile.skills) ? profile.skills : [])
     .filter((skill) => clean(skill).length <= 60)
@@ -1131,11 +1603,18 @@ function sanitizeParsedProfileFields(profile: ResumeProfile, rawText: string, fi
     .filter((skill) => !/^(summary|experience|education|projects|skills|languages|contact)$/i.test(clean(skill)))
   );
 
+  const safeProjects = projects.filter((project) => !isContaminatedProjectIdentity(project, { ...profile, basics: { ...profile.basics, headline: safeHeadline || profile.basics?.headline || "" } } as ResumeProfile));
+
   return {
     ...profile,
     experience,
     education,
-    projects,
+    projects: safeProjects,
+    languages: mergeLanguagesGlobally(
+      Array.isArray(profile.languages) ? profile.languages : [],
+      fallback.languages || [],
+      extractLanguagesFromRawText(rawText),
+    ),
     skills: cleanedSkills.length ? cleanedSkills : deduplicateSkills(fallback.skills || []),
     basics: {
       ...profile.basics,
@@ -1273,6 +1752,10 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "You are a professional CV parser for WorkZo AI.",
             "Return ONLY valid JSON. Do not write markdown.",
             "Extract facts exactly from the CV. Do not invent anything.",
+            "ABSOLUTE RULE: where the source text is ambiguous or damaged by PDF extraction, leave the field EMPTY and record a warning. Never fill a gap with a plausible guess. A missing field is one click for the user to fix. A fabricated field is a false statement on a job application.",
+            "Extract ONLY from the CV text. Ignore any target role, job description, market, plan, or user preference even if supplied elsewhere.",
+            "This step creates the immutable canonical CV. Do not tailor, rewrite, shorten, promote, rename, or reinterpret any role, project, education entry, language, or skill.",
+            "Job titles, company names, dates, project names, degree names, institutions, and language levels must be copied exactly from the CV.",
             "",
             "CRITICAL, basics.name MUST be a real human person's full name (first + last).",
             "NEVER put any of the following in basics.name:",
@@ -1363,11 +1846,14 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
             "If the name is split across lines around a job title, combine person-name tokens only: FIRST / ROLE / LAST => FIRST LAST.",
             "Keep bullets factual. Split bullets only when the source clearly separates responsibilities.",
             "BULLETS ARE REQUIRED: If a job listing has any text below the title/company (responsibilities, achievements, tasks, any sentences), you MUST extract those as bullets. An empty bullets array [] is ONLY acceptable when the job listing has literally zero text underneath it, no sentences, no phrases, nothing. If there is ANY text below the role header, extract it as bullets. Never return bullets:[] when content exists.",
-            "BULLET ATTRIBUTION IN TWO-COLUMN PDFs, THIS IS THE MOST COMMON PARSING FAILURE: When a CV has two or more employers in a column layout, PDF extraction often produces all of one employer's bullets AND all of the next employer's bullets in a single block, with only the first employer's header visible before the block. The second employer's header appears AFTER the block. This causes naive parsers to assign ALL bullets to the first employer and leave the second with bullets:[]. YOU MUST NOT DO THIS. Rule: if you have N employers extracted and only M < N have bullets, the remaining N-M employers almost certainly had responsibilities in the original CV that were misattributed. Actively look for content clues within the bullet block to split it: different product names, different customer types, different tools, different responsibilities, different writing style. If you cannot find any distinguishing content clues, split the block roughly in half, the first half belongs to the first employer, the second half to the second. UNDER NO CIRCUMSTANCES should a second or third employer in a multi-employer CV have bullets:[] if there is any bullet content at all in the extracted text for that job's time period.",
-            "If PDF extraction placed a company header AFTER its own bullet content (which happens with two-column PDF templates), attribute the orphaned bullets to that company anyway, the header position in extracted text is unreliable; the bullet content is the ground truth. Example: if you see [CompanyA header] [10 bullets] [CompanyB header] with no bullets after CompanyB, some of those 10 bullets belong to CompanyB. Assign them based on content; if content is ambiguous, give the last 3-5 bullets to CompanyB.",
+            "BULLET ATTRIBUTION IN TWO-COLUMN PDFs: when a CV has two or more employers in a column layout, PDF extraction sometimes emits one employer's bullets and the next employer's bullets as a single block, with the second employer's header appearing after the block.",
+            "Split such a block ONLY on positive content evidence: a bullet names a product, customer type, tool, scope, or responsibility that clearly belongs to one of the two roles and not the other.",
+            "If there is no distinguishing content evidence, DO NOT GUESS. Never split a block by position, by bullet count, or by halves. Leave the bullets under the employer whose header precedes them and append 'ambiguous_bullet_attribution' to the warnings array. Attribution you cannot evidence from the text is fabrication, and a fabricated fact on a CV is worse than a missing one.",
+            "If PDF extraction placed a company header AFTER its own bullet content, you may re-home a bullet to that company ONLY when the bullet's content evidences it (its tools, products, customers, or scope match that role and not the preceding one). Never re-home a bullet on position alone and never move a fixed number of trailing bullets. If the content is ambiguous, leave the bullets where they are and add 'ambiguous_bullet_attribution' to warnings.",
             "",
             "SECTION HEADING vs JOB TITLE: A section heading (e.g. 'Customer Success Achievements', 'Awards and Recognition', 'Additional Information', 'Volunteer Work', 'Relevant Experience') is NOT a job title. Never add a section heading to the experience array as a job entry. A valid experience entry must have at minimum: a recognisable job title (a role a person would hold, e.g. 'Marketing Manager', 'Software Engineer') AND a company name OR employment dates. A section heading alone with neither company nor dates should be ignored as an experience entry, add its contents to strengths or additionalEvidence instead.",
-            "DATE SWAP DETECTION: In two-column PDFs, dates from the education or contact column sometimes get misattributed to the wrong experience entry because of PDF extraction order. Check: if you have two experience entries and their dates appear chronologically reversed (the first-listed job has older dates than the second-listed job, but by title/seniority/content the first job appears to be more recent), their dates are likely swapped, assign the more recent date range to the first (most senior) role and the older range to the second (more junior) role. Also check: if an experience date exactly matches an education entry's date range, that date was likely extracted from the education column and should be discarded in favour of re-reading the experience section for its actual dates.",
+            "DATES ARE FACTS: copy every date range exactly as it appears beside its own entry. Never swap, reorder, infer, or reconstruct a date range from job title, seniority, or chronological expectation. An unexpected date order is not evidence of a swap, real careers overlap and move sideways.",
+            "If an experience entry's date range is identical to an education entry's date range, it was probably picked up from the wrong column: set that experience entry's dates to an empty string and add 'uncertain_experience_dates' to the warnings array. Do NOT substitute a guessed date range.",
             "EDUCATION SECTION CAN CONTAIN JOB TITLES IN PLACEHOLDER CVs: Some CV templates list job titles, company names, or Lorem ipsum text under the EDUCATION header. If content under EDUCATION has date ranges AND looks like a job title rather than a degree name, keep it in experience, do not move it to education. A degree name contains words like Bachelor, Master, MBA, BSc, MSc, PhD, Diploma, Certificate, Associate's, or the name of a field of study. A job title contains words like Manager, Engineer, Analyst, Developer, Executive, Accountant, Designer. Do not confuse the two.",
             "SKILLS CATEGORY LABELS: Many CVs use a header-then-list format for skills, e.g. 'Technical Skills' followed by a list, or 'Teamwork and Communication Skills' followed by bullet points. The header line (e.g. 'Teamwork and Communication Skills', 'Testing and Debugging', 'Project and Time Management') is a CATEGORY LABEL, it is NOT itself a skill. Only extract the individual items listed beneath each category header as skills. Never extract a category header as a skill. If the CV has a skills section formatted as paragraphs describing competencies rather than a list, extract the core noun phrases from those paragraphs (e.g. 'debugging', 'project timeline management'), not the full sentence.",
             "CERTIFICATIONS AND AWARDS: Many CVs have sections named 'Awards and Certifications', 'Awards and Certification', 'Awards & Certifications', 'Short Courses', 'Courses', 'Achievements', 'Distinctions', 'Licences', 'Honours and Awards', 'Professional Development', 'Training and Certifications', or 'Continuing Education'. ALL of these must be extracted into the certifications array, NOT ignored. Each certification or award is one entry: the name of the cert/award/course. Include the year if present. Example: 'Digital Marketing Certification | 2029' → 'Digital Marketing Certification (2029)'. If the section is called 'References' and contains only 'Available on request.', skip it entirely.",
@@ -1381,9 +1867,6 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
           role: "user",
           content: [
             `File name: ${input.fileName || "uploaded CV"}`,
-            `Target role: ${input.targetRole || ""}`,
-            `Target market: ${input.targetMarket || ""}`,
-            `Language: ${input.language || ""}`,
             // If we already know the correct name (from a prior parse or filename),
             // tell the AI explicitly so it doesn't pick a skill/phrase instead.
             ...(input.candidateName ? [`Known candidate name (use this): ${input.candidateName}`] : []),

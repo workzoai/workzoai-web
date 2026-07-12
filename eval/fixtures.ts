@@ -8,6 +8,54 @@ import type { Fixture } from "./checks";
  */
 export const FIXTURES: Fixture[] = [
   {
+    name: "global layout facts: spaced headline, projects, exact role",
+    kind: "text",
+    role: "IT Support Analyst",
+    expect: {
+      name: "Haritha Vijayakumar",
+      headline: "Junior Customer Success Manager",
+      minExperience: 2,
+      everyJobHasBullets: true,
+      minEducation: 2,
+      minProjects: 3,
+      experienceTitles: ["Technical Support Engineer", "Technical Support and Sales Engineer"],
+    },
+    text: `H A R I T H A V I J A Y A K U M A R
+J U N I O R C U S T O M E R S U C C E S S M A N A G E R
+haritha@example.com | +49 176 0000000 | Würzburg, Germany
+
+PROFILE SUMMARY
+Detail-oriented technical support and sales specialist with more than four years of experience.
+
+WORK EXPERIENCE
+Zoho Corp 2018 - 2020
+Technical Support Engineer
+- Resolved customer issues using ITIL and ITSM best practices.
+- Automated processes with Python.
+CSS Corp 2016 - 2018
+Technical Support and Sales Engineer
+- Delivered technical support for networking products.
+- Conducted product demonstrations and managed escalations.
+
+PROJECTS
+Brazilian Market Feasibility Study
+- Conducted a feasibility study using SQL, Python, and Tableau.
+- Presented data-driven recommendations.
+Cultural Evolution and Popularity of Indian Classical Dance
+- Analyzed YouTube data and performed sentiment analysis.
+GANS E-Scooter Service
+- Developed a data pipeline using REST APIs, MySQL, and GCP.
+
+EDUCATION
+Data Science Bootcamp | WBS Coding School | 2024
+Bachelor of Science in Computer Science | SRM Arts and Science College | 2012 - 2015
+
+LANGUAGES
+English - Fluent
+German - Conversational`,
+  },
+
+  {
     name: "letter-spaced-header (Haritha-style)",
     kind: "text",
     role: "IT Specialist",
@@ -238,6 +286,73 @@ Analyzed large datasets to surface actionable business insights.`,
         { degree: "Bachelor's Degree in Aeronautical Engineering", institution: "P.B. College of Engineering, India", location: "India", dates: "2008 - 2012" },
       ],
       languages: ["German - B2", "English - C1"],
+    },
+  },
+
+  // The real-world corruption Haritha reported: a previously "tailored" CV was
+  // fed back in, so the AI profile carries leaked assistant preamble as a bullet
+  // ("Here's a customized version…"), a flipped headline, a role/company/date
+  // shift, an invented bullet, and an exploded, redundant skills list. The clean
+  // source text is authoritative. The generic checks assert the guard + render
+  // strip the meta text, keep every job's real bullets, keep companies clean,
+  // and don't emit a redundant skills dump.
+  {
+    name: "poisoned tailored-CV passthrough (real corruption)",
+    kind: "profile",
+    role: "IT Support Analyst",
+    expect: { minExperience: 2, everyJobHasBullets: true },
+    profile: {
+      basics: { name: "Haritha Vijayakumar", headline: "Professional" },
+      summary:
+        "Here's a customized version of your professional summary tailored to the role.",
+      skills: [
+        "Python", "SQL", "Communication", "Teamwork", "Leadership", "Problem Solving",
+        "Time Management", "Critical Thinking", "Adaptability", "Creativity",
+        "Team Collaboration", "Collaboration", "Attention to Detail", "Detail Oriented",
+        "Interpersonal Skills", "Verbal Communication", "Written Communication",
+        "Microsoft Office", "MS Office", "Organization", "Organizational Skills",
+      ],
+      experience: [
+        {
+          title: "Professional",
+          company: "Zoho Corp",
+          dates: "2018 - 2020",
+          bullets: [
+            "Here'sa customizedversion of your achievements rewritten for maximum impact.",
+            "Resolved customer issues using ITIL and ITSM best practices.",
+            "Automated processes with Python.",
+          ],
+        },
+        {
+          title: "Technical Support Engineer",
+          company: "CSS Corp",
+          dates: "2024",
+          bullets: [
+            "Delivered technical support for networking products.",
+            "Spearheaded a company-wide digital transformation initiative.",
+          ],
+        },
+      ],
+      projects: [],
+      education: [],
+      languages: ["English - Fluent"],
+      rawText: `Haritha Vijayakumar
+Project Management
+haritha@example.com | +49 176 0000000 | Würzburg, Germany
+
+PROFESSIONAL SUMMARY
+Detail-oriented IT support specialist with over four years of experience in technical support and customer-facing roles.
+
+CORE SKILLS
+Python, SQL, ITIL, ITSM
+
+PROFESSIONAL EXPERIENCE
+Technical Support Engineer | Zoho Corp | 2018 - 2020
+- Resolved customer issues using ITIL and ITSM best practices.
+- Automated processes with Python.
+Technical Support and Sales Engineer | CSS Corp | 2016 - 2018
+- Delivered technical support for networking products.
+- Conducted product demonstrations and managed escalations.`,
     },
   },
 ];

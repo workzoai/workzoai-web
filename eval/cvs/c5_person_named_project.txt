@@ -1,0 +1,13 @@
+Sara Lindqvist
+Data Scientist
+sara@example.com
+SUMMARY
+Data scientist working on recommender systems.
+EXPERIENCE
+Data Scientist | Fjord AI | 2021 - 2025
+- Built a ranking model serving four million users.
+PROJECTS
+Sara Lindqvist Portfolio Site
+- Built a static site to publish research notes.
+Turing Test Analyzer
+- Benchmarked dialogue models against human raters.

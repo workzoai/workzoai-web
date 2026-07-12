@@ -81,6 +81,9 @@ import { applyConfirmedCvIdentity } from "@/lib/workzoCvSource";
 import dynamic from "next/dynamic";
 
 // Lazy-load Monaco: doesn't affect initial bundle for non-technical users
+import { selectInterviewChallenge } from "@/lib/workzoInterviewCodeChallenge";
+import type { CodeWorkspaceState } from "@/components/interview/CodePanel";
+
 const CodePanel = dynamic(() => import("@/components/interview/CodePanel"), {
   ssr: false,
   loading: () => (
@@ -5331,9 +5334,39 @@ function InterviewPageInner() {
     id === "faang_hiring_manager" || id === "alex" || id.includes("faang") ||
     id === "enterprise_recruiter" || id === "david" || id.includes("kimura");
   const [technicalMode, setTechnicalMode] = useState(() => isTechnicalRecruiter(setup.recruiterId || ""));
+
+  // THE PROBLEM. The workspace used to open a blank editor with
+  // "# Write your solution here" and no question, while an 811-line question
+  // bank sat in workzoTechnicalAssessmentEngine.ts, referenced ZERO times from
+  // this file. Difficulty is inferred from the CV, so a bootcamp graduate gets a
+  // foundational problem and a senior engineer does not.
+  // NOTE: this page has its OWN local `InterviewSetup` type (line ~207), which is
+  // a narrower shape than lib's WorkZoInterviewSetup. It has targetRole and
+  // cvText, but no `role`, no `rawCvText`, and no session id. Only read fields
+  // that exist on it.
+  const codeChallenge = useMemo(
+    () =>
+      technicalMode
+        ? selectInterviewChallenge({
+            targetRole: setup.targetRole || "",
+            cvText: setup.cvText || "",
+          })
+        : null,
+    [technicalMode, setup.targetRole, setup.cvText],
+  );
+
+  // Stable per-session id for the code runner's rate limit. Without this the
+  // server falls back to IP, which collapses an entire classroom behind one
+  // school NAT into a single bucket, and the students throttle each other.
+  const [codeSessionId] = useState(
+    () => `wz-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`,
+  );
   const [codeSnapshot, setCodeSnapshot] = useState("");
   const [codeLanguage, setCodeLanguage] = useState("python");
   const codeSnapshotRef = useRef("");
+  const codeOutputRef = useRef("");
+  const codeVerdictRef = useRef("");
+  const codeChallengeRef = useRef("");
   const codeLanguageRef = useRef("python");
   // First-time user hint: shown after the recruiter's opening line, dismissed permanently
   const [showFirstTimeHint, setShowFirstTimeHint] = useState(false);
@@ -6277,6 +6310,9 @@ function InterviewPageInner() {
               ? {
                   codeSnapshot: codeSnapshotRef.current,
                   codeLanguage: codeLanguageRef.current,
+                  codeOutput: codeOutputRef.current,
+                  codeVerdict: codeVerdictRef.current,
+                  codeChallenge: codeChallengeRef.current,
                 }
               : {}),
             signals: {
@@ -6353,11 +6389,18 @@ function InterviewPageInner() {
     }
   }, []);
 
-  const handleCodeChange = useCallback((code: string, language: string) => {
-    setCodeSnapshot(code);
-    setCodeLanguage(language);
-    codeSnapshotRef.current = code;
-    codeLanguageRef.current = language;
+  const handleCodeChange = useCallback((state: CodeWorkspaceState) => {
+    setCodeSnapshot(state.code);
+    setCodeLanguage(state.language);
+    codeSnapshotRef.current = state.code;
+    codeLanguageRef.current = state.language;
+    // The output and the verdict are the two most useful signals in the whole
+    // workspace, and both used to be thrown away in the browser. Alex received
+    // the source and had to GUESS what it did. Now he knows what it printed and
+    // whether it passed.
+    codeOutputRef.current = state.output;
+    codeVerdictRef.current = state.verdict;
+    codeChallengeRef.current = state.challengePrompt;
   }, []);
 
   const startListening = useCallback(async () => {
@@ -9469,7 +9512,11 @@ function InterviewPageInner() {
               Code Workspace · Technical Mode
             </p>
             <div className="h-[340px] lg:h-[420px]">
-              <CodePanel onCodeChange={handleCodeChange} />
+              <CodePanel
+                onCodeChange={handleCodeChange}
+                challenge={codeChallenge}
+                sessionId={codeSessionId}
+              />
             </div>
           </div>
         )}

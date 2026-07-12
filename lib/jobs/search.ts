@@ -1,6 +1,8 @@
 import type { CandidateContext, JobProvider, JobSearchInput, RankedJob, WorkZoJob } from "@/lib/jobs/types";
 import { AdzunaProvider } from "@/lib/jobs/providers/adzuna";
 import { JoobleProvider } from "@/lib/jobs/providers/jooble";
+import { ActiveJobsDbProvider } from "@/lib/jobs/providers/activeJobsDb";
+import { JSearchProvider } from "@/lib/jobs/providers/jsearch";
 import { dedupeJobs } from "@/lib/jobs/dedupe";
 import { rankJob } from "@/lib/jobs/ranking";
 import { isExpired, isLikelySpam, isStale } from "@/lib/jobs/normalize";
@@ -41,9 +43,10 @@ export type JobSearchOutcome = {
 };
 
 function buildProviders(): JobProvider[] {
-  // Adzuna is primary, Jooble is coverage fallback. Apify/ATS can be added here
-  // later without touching the route or the page.
-  return [new AdzunaProvider(), new JoobleProvider()];
+  // Active Jobs DB adds direct ATS listings, while Adzuna and Jooble provide
+  // broader aggregator coverage. All providers run in parallel and normalize to
+  // the same WorkZoJob contract.
+  return [new ActiveJobsDbProvider(), new JSearchProvider(), new AdzunaProvider(), new JoobleProvider()];
 }
 
 export async function searchJobs(

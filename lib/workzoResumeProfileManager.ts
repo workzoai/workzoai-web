@@ -467,6 +467,24 @@ function cleanLocation(value: unknown): string {
   return raw;
 }
 
+// Deterministic detector for leaked assistant / meta-instruction text. When a
+// previously "AI-tailored" CV is fed back into the pipeline, the model's own
+// preamble ("Here's a customized version of your achievements…", "Sure, I've
+// updated…") can survive as a bullet or summary. This is not a fact about the
+// candidate and must be dropped. The patterns describe a CLASS of phrasing
+// (assistant preamble + "rewrite your <cv-part>" meta), not any one sample, so
+// they generalise; deterministic stripping is more reliable than asking the
+// model not to emit it. Kept conservative to avoid touching real bullets.
+const AI_PREAMBLE_LEAK_RE =
+  /^\s*(sure|certainly|of course|absolutely|great|okay|here(?:'?s| is)|below is|i(?:'?ve| have)|i(?:'?ll| will)|as requested|as an ai|note:|let me)\b/i;
+const META_REWRITE_RE =
+  /\b(customi[sz]ed|tailored|updated|optimi[sz]ed|revised|improved|enhanced)\s+(?:version|copy)\b|\bversion of your\b|\byour (?:resume|cv|achievements|experience|bullets?)\b/i;
+function isAiPreambleGarbage(value = ""): boolean {
+  const v = String(value || "").trim();
+  if (!v) return false;
+  return AI_PREAMBLE_LEAK_RE.test(v) || META_REWRITE_RE.test(v);
+}
+
 export function completeResumeProfile(profile: Partial<ResumeProfile> | null | undefined, rawText = ""): ResumeProfile {
   const p = (profile || {}) as Partial<ResumeProfile>;
   const basics = (p.basics || {}) as ResumeProfile["basics"];
@@ -521,7 +539,7 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
       location: cleanText(cleanLocation(basics.location), 200),
       linkedin: cleanText(basics.linkedin, 300),
     },
-    summary: cleanText(p.summary, 1800),
+    summary: isAiPreambleGarbage(p.summary) ? "" : cleanText(p.summary, 1800),
     experience: unique(Array.isArray(p.experience) ? p.experience : [], (e) => {
       // Deduplicate by company+title only (dates are unreliable from some parsers).
       // Also reject entries where title === company (parser artifact) or title is a date.
@@ -554,7 +572,7 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
       company: cleanText(e.company, 180),
       location: cleanText(e.location, 180),
       dates: cleanText(e.dates, 80),
-      bullets: Array.isArray(e.bullets) ? e.bullets.map((b) => cleanText(b, 500)).filter(Boolean).slice(0, 10) : [],
+      bullets: Array.isArray(e.bullets) ? e.bullets.map((b) => cleanText(b, 500)).filter(Boolean).filter((b) => !isAiPreambleGarbage(b)).slice(0, 10) : [],
     })),
     // ORDER MATTERS: normalize -> filter -> dedupe.
     //
@@ -632,7 +650,7 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
     ).slice(0, 100),
     projects: unique(Array.isArray(p.projects) ? p.projects : [], (proj) => proj.name || proj.bullets?.join(" ") || "").map((proj) => ({
       name: cleanText(proj.name, 180) || "Selected Project",
-      bullets: Array.isArray(proj.bullets) ? proj.bullets.map((b) => cleanText(b, 500)).filter(Boolean).slice(0, 10) : [],
+      bullets: Array.isArray(proj.bullets) ? proj.bullets.map((b) => cleanText(b, 500)).filter(Boolean).filter((b) => !isAiPreambleGarbage(b)).slice(0, 10) : [],
     })),
     languages: unique(Array.isArray(p.languages) ? p.languages.map((l) => cleanText(l, 90)).filter(Boolean) : [], (l) => l),
     certifications: unique(Array.isArray(p.certifications) ? p.certifications.map((c) => cleanText(c, 160)).filter(Boolean) : [], (c) => c),

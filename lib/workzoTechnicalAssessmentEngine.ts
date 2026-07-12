@@ -46,6 +46,20 @@ export type TechnicalQuestion = {
   correctOption?: number;             // 0-indexed, only for multiple_choice
   scoringGuide: string;               // what a good answer contains
   timeSeconds: number;                // suggested time limit
+
+  // ── Fields that turn a question into something GRADABLE ─────────────────
+  // Without these, "did my student solve it?" is answered by a language model
+  // reading the code, which is an opinion. With them it is answered by running
+  // the code, which is a fact. All optional: a question that lacks them still
+  // works, it just degrades honestly to "unverifiable" instead of faking a
+  // verdict it did not earn.
+
+  /** code questions: the function the candidate must define. */
+  entryPoint?: string;
+  /** code questions: executed against the candidate's function for a real pass/fail. */
+  tests?: Array<{ args: unknown[]; expected: unknown; hidden?: boolean }>;
+  /** sql questions: run on the same seeded data, then result sets are compared. */
+  referenceSolution?: string;
 };
 
 export type TechnicalAssessment = {
@@ -151,6 +165,11 @@ const DATA_ANALYST_QUESTIONS: TechnicalQuestion[] = [
       "Table: orders(order_id INT, customer_id INT, order_date DATE, total_amount DECIMAL, status VARCHAR)",
     scoringGuide:
       "Must include: SELECT customer_id, SUM(total_amount), FROM orders, WHERE status = 'completed', GROUP BY customer_id, ORDER BY SUM DESC. Bonus: alias, HAVING.",
+    // Run against the SAME seeded data as the candidate's query, then the result
+    // SETS are compared. Aliases and formatting are ignored, so this grades the
+    // answer, not the prose.
+    referenceSolution:
+      "SELECT customer_id, SUM(total_amount) AS revenue FROM orders WHERE status = 'completed' GROUP BY customer_id ORDER BY revenue DESC",
     timeSeconds: 180,
   },
   {
@@ -164,6 +183,8 @@ const DATA_ANALYST_QUESTIONS: TechnicalQuestion[] = [
       "Tables: customers(customer_id, name, country), orders(order_id, customer_id, order_date, total_amount)",
     scoringGuide:
       "Must JOIN both tables, filter by date (e.g. order_date >= NOW() - INTERVAL 90 DAY), GROUP BY customer_id, HAVING COUNT > 3. Return name and count.",
+    referenceSolution:
+      "SELECT c.name, COUNT(o.order_id) AS order_count FROM customers c JOIN orders o ON o.customer_id = c.customer_id WHERE o.order_date >= date('now','-90 day') GROUP BY c.customer_id, c.name HAVING COUNT(o.order_id) > 3",
     timeSeconds: 240,
   },
   {
@@ -250,6 +271,17 @@ const SOFTWARE_ENGINEER_QUESTIONS: TechnicalQuestion[] = [
     context: "Language: Python or JavaScript (your choice)",
     scoringGuide:
       "Optimal: hash map O(n). Acceptable: nested loop O(n²). Must handle edge cases: no solution, negative numbers, duplicates.",
+    entryPoint: "two_sum",
+    // The hidden cases are the ones that matter. The negative-numbers case and
+    // the no-solution case are exactly what a nested loop that allows i == j
+    // gets wrong, and exactly what a model reading the code waves through.
+    tests: [
+      { args: [[2, 7, 11, 15], 9], expected: [0, 1] },
+      { args: [[3, 2, 4], 6], expected: [1, 2] },
+      { args: [[-1, -2, -3, -4], -6], expected: [1, 3], hidden: true },
+      { args: [[3, 3], 6], expected: [0, 1], hidden: true },
+      { args: [[1, 2], 99], expected: null, hidden: true },
+    ],
     timeSeconds: 300,
   },
   {
@@ -291,10 +323,38 @@ const SOFTWARE_ENGINEER_QUESTIONS: TechnicalQuestion[] = [
     type: "code",
     difficulty: "foundational",
     question:
-      "Write a Python function that reads a CSV file of transactions (columns: date, amount, category) and returns a dictionary with total spending per category, sorted by total descending.",
-    context: "Assume CSV has a header row. Use standard library or pandas, your choice.",
+      "Write a function `spend_by_category(rows)` that takes a list of transactions, each a dict with keys `date`, `amount`, and `category`, and returns a list of [category, total] pairs sorted by total descending. Ignore rows whose amount is missing or not a number.",
+    // Reframed from "reads a CSV file" to "takes a list of rows". The sandbox has
+    // no filesystem, so the original question could never be RUN, only described.
+    // The skill being tested (aggregate, sort, handle dirty input) is identical,
+    // and now it is gradable.
+    context: "rows: list of dicts, e.g. {\"date\": \"2024-01-05\", \"amount\": 12.5, \"category\": \"groceries\"}. Some rows have a missing or invalid amount.",
     scoringGuide:
-      "Must: open/read CSV, aggregate by category, return sorted dict. Bonus: handles missing values, uses pandas groupby correctly or csv.DictReader.",
+      "Must: aggregate by category, sort descending by total, skip rows with a missing or non-numeric amount. Bonus: uses a dict accumulator rather than repeated scans; does not crash on an empty list.",
+    entryPoint: "spend_by_category",
+    tests: [
+      {
+        args: [[
+          { date: "2024-01-01", amount: 10, category: "food" },
+          { date: "2024-01-02", amount: 5, category: "transport" },
+          { date: "2024-01-03", amount: 20, category: "food" },
+        ]],
+        expected: [["food", 30], ["transport", 5]],
+      },
+      // The dirty-data case. This is the one that separates a real answer from a
+      // textbook one, and it is invisible to anyone eyeballing the code.
+      {
+        args: [[
+          { date: "2024-01-01", amount: 10, category: "food" },
+          { date: "2024-01-02", amount: null, category: "food" },
+          { date: "2024-01-03", amount: "oops", category: "transport" },
+          { date: "2024-01-04", amount: 4, category: "transport" },
+        ]],
+        expected: [["food", 10], ["transport", 4]],
+        hidden: true,
+      },
+      { args: [[]], expected: [], hidden: true },
+    ],
     timeSeconds: 240,
   },
 ];

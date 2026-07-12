@@ -2,7 +2,7 @@
 // a listing came from Adzuna, Jooble, Apify, or a future ATS feed, they all
 // normalize into WorkZoJob.
 
-export type JobProviderName = "adzuna" | "jooble" | "apify" | "ats";
+export type JobProviderName = "active_jobs_db" | "jsearch" | "adzuna" | "jooble" | "apify" | "ats";
 
 export type WorkZoJob = {
   id: string;
