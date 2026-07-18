@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordWorkZoSignIn } from "@/lib/workzoServerUsageEvent";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentWorkZoUserSubscription } from "@/lib/workzoSubscription";
@@ -68,7 +69,8 @@ export async function GET(request: Request) {
 
   try {
     const supabase = await createSupabaseServerClient();
-    const { error: verifyError } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
+    const { data: verified, error: verifyError } =
+      await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
 
     if (verifyError) {
       // Expired and already-used links land here, give the user a hint that
@@ -87,6 +89,14 @@ export async function GET(request: Request) {
     const resolvedPlan = subscription?.status === "premium" ? normalizeWorkZoPlan(subscription.plan_tier || subscription.plan) : "free";
     response.cookies.set("workzo_plan", resolvedPlan, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 30 });
     response.cookies.set("workzo_plan_type", resolvedPlan, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 30 });
+
+    // SIGN-IN FUNNEL STEP. Second (and last) path that establishes a session.
+    // See the note in app/auth/callback/route.ts.
+    await recordWorkZoSignIn({
+      userId: verified?.user?.id ?? null,
+      plan: resolvedPlan,
+      method: "email_confirm",
+    });
 
     response.cookies.set("workzo_after_login", "", {
       path: "/",

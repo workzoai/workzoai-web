@@ -1,0 +1,30 @@
+GRETA LINDQVIST
+Registered Nurse (RN)
+Malmo, Sweden | greta.lindqvist@example.com
+
+PROFILE
+Registered nurse with nine years on acute medical wards. Calm under pressure,
+trusted with the sickest patients on the ward, and the person new staff are
+paired with in their first week.
+
+EXPERIENCE
+
+Senior Staff Nurse, Skane University Hospital            2019 - present
+- Acute medical ward, 28 beds, typical caseload of 6 to 8 patients
+- Triage, medication administration, IV cannulation, wound care
+- Preceptor for newly qualified nurses, mentored 14 to date
+- Sat on the ward's patient safety committee for three years
+
+Staff Nurse, Malmo City Clinic                            2016 - 2019
+- General practice nursing, chronic disease reviews, immunisation clinics
+- Volunteered evenings with a health startup piloting an MVP triage app,
+  advising their clinical team on escalation criteria during the early-stage
+  rollout. Clinical advisory only, I am a nurse, not an engineer.
+
+SKILLS
+Acute care, triage, patient assessment, medication administration, wound care,
+IV therapy, clinical documentation, mentoring, infection control
+
+CERTIFICATIONS
+Registered Nurse, Swedish National Board of Health and Welfare
+Advanced Life Support (ALS), current

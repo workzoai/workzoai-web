@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordWorkZoSignIn } from "@/lib/workzoServerUsageEvent";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentWorkZoUserSubscription } from "@/lib/workzoSubscription";
 import { normalizeWorkZoPlan } from "@/lib/workzoPlanLimits";
@@ -45,7 +46,8 @@ export async function GET(request: Request) {
 
   try {
     const supabase = await createSupabaseServerClient();
-    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+    const { data: exchanged, error: exchangeError } =
+      await supabase.auth.exchangeCodeForSession(code);
 
     if (exchangeError) {
       console.error("Supabase auth callback exchange failed:", exchangeError.message);
@@ -59,6 +61,22 @@ export async function GET(request: Request) {
     const resolvedPlan = subscription?.status === "premium" ? normalizeWorkZoPlan(subscription.plan_tier || subscription.plan) : "free";
     response.cookies.set("workzo_plan", resolvedPlan, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 30 });
     response.cookies.set("workzo_plan_type", resolvedPlan, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 30 });
+
+    // SIGN-IN FUNNEL STEP. This is the single choke point for magic-link and
+    // OAuth sign-in (the login page offers only signInWithOtp / signInWithOAuth).
+    // Without this the founder dashboard cannot see sign-ins at all: usage
+    // events were only written by product actions, so a user who signed in and
+    // bounced left no trace. Awaited so the row is written before we redirect,
+    // but it can never throw or block auth. See lib/workzoServerUsageEvent.ts.
+    await recordWorkZoSignIn({
+      userId: exchanged?.user?.id ?? null,
+      plan: resolvedPlan,
+      // A provider on the identity means OAuth; a magic link has none.
+      method: exchanged?.user?.app_metadata?.provider &&
+        exchanged.user.app_metadata.provider !== "email"
+        ? "oauth"
+        : "magic_link",
+    });
 
     response.cookies.set("workzo_after_login", "", {
       path: "/",

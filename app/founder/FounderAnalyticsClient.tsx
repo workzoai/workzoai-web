@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft, RefreshCw, Users, UserCheck, CreditCard, Eye, Upload, Mic,
   PlayCircle, CheckCircle2, AlertTriangle, Radio, GraduationCap,
-  Activity, RotateCcw, FileText, Search, BarChart3, Save, CircleAlert,
+  Activity, RotateCcw, FileText, Search, BarChart3, Save, CircleAlert, LogIn,
 } from "lucide-react";
 
 type AnyRecord = Record<string, unknown>;
@@ -158,7 +158,7 @@ function BreakdownCard({ title, data }: { title: string; data: [string, number][
 
 
 type ActivityTone = "success" | "info" | "warning" | "neutral" | "danger";
-type ActivityCategory = "interview" | "cv" | "jobs" | "navigation" | "system";
+type ActivityCategory = "interview" | "cv" | "jobs" | "navigation" | "system" | "auth";
 type ActivityItem = {
   key: string;
   rawEvent: string;
@@ -185,6 +185,7 @@ const ACTIVITY_LABELS: Record<string, Omit<ActivityItem, "key" | "rawEvent" | "c
   interview_room_viewed: { title: "Interview room opened", description: "A candidate opened the live interview room.", category: "interview", tone: "neutral", icon: Mic },
   onboarding_viewed: { title: "Interview setup opened", description: "A candidate viewed interview onboarding.", category: "interview", tone: "neutral", icon: PlayCircle },
   results_viewed: { title: "Interview results viewed", description: "A candidate opened their interview feedback.", category: "interview", tone: "success", icon: BarChart3 },
+  sign_in: { title: "Signed in", description: "A visitor signed in.", category: "auth", tone: "info", icon: LogIn },
   cv_uploaded: { title: "CV uploaded", description: "A candidate uploaded a CV for analysis.", category: "cv", tone: "info", icon: Upload },
   cv_improved: { title: "CV improved", description: "A tailored or improved CV was generated.", category: "cv", tone: "success", icon: FileText },
   cover_letter_generated: { title: "Cover letter generated", description: "A tailored cover letter was created.", category: "cv", tone: "success", icon: FileText },
@@ -505,7 +506,12 @@ export default function FounderAnalyticsClient() {
           <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-muted">Audience</p>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Kpi icon={Users} label="Unique visitors" value={fmt(s.uniqueVisitors)} sub={`${fmt(s.activeVisitors7d)} active in 7d`} />
-            <Kpi icon={UserCheck} label="Signed-in users" value={fmt(s.signedInUsers)} sub={`${fmt(s.activeSignedInUsers7d)} active in 7d`} />
+            {/* RELABELLED. This is derived from distinct user_id in
+                workzo_usage_events, i.e. signed-in users who completed a
+                tracked product action. It never measured sign-ins. The
+                Sign-ins tile below is the real number. */}
+            <Kpi icon={UserCheck} label="Active signed-in users" value={fmt(s.signedInUsers)} sub={`${fmt(s.activeSignedInUsers7d)} active in 7d`} />
+            <Kpi icon={LogIn} label="Sign-ins" value={fmt(s.signIns)} sub="auth callback events" />
             <Kpi icon={CreditCard} label="Paid users" value={fmt(s.paidUsers)} />
             <Kpi icon={Eye} label="Results viewed" value={fmt(s.resultsViewed)} />
           </div>
@@ -550,6 +556,7 @@ export default function FounderAnalyticsClient() {
             <div className="flex flex-wrap gap-2">
               {([
                 ["all", "All"],
+                ["auth", "Sign-ins"],
                 ["interview", "Interviews"],
                 ["cv", "CV & letters"],
                 ["jobs", "Jobs"],

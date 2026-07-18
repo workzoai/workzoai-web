@@ -5904,6 +5904,14 @@ function InterviewPageInner() {
             overallScore: recruiterSignalRef.current.overall,
           }),
         });
+        // SIGN-IN REQUIRED. This route 401s anonymous callers. Previously only
+        // 403 was handled, so a 401 fell through to `blocked: false` and the
+        // interview ran anyway — an anonymous visitor could burn a full voice
+        // session (real Vapi + model spend) that was never recorded, which is
+        // also why signed-in counts never matched interview activity.
+        if (response.status === 401) {
+          return { sessionId, blocked: true as const, requiresSignIn: true as const };
+        }
         if (response.status === 403) {
           const data = await response.json().catch(() => null);
           if (data?.error === "interview_limit_reached") {
@@ -5920,6 +5928,10 @@ function InterviewPageInner() {
         // Network failure shouldn't block the interview: the server-side
         // limit is a backstop, not the only line of defense (client-side
         // check still runs first). Fail open here, not closed.
+        //
+        // NOTE: this fail-open covers TRANSPORT failure only. An actual 401/403
+        // response is handled above and always blocks — auth is never failed
+        // open, only unreachable-network is.
       }
       return { sessionId, blocked: false as const };
     },
@@ -8086,6 +8098,28 @@ function InterviewPageInner() {
 
     const sessionPersistResult = await persistInterviewSessionToDb("active");
     if (sessionPersistResult.blocked) {
+      // Anonymous: this is a sign-in wall, not a paywall. Showing an upgrade
+      // modal to someone without an account is the wrong ask.
+      if ((sessionPersistResult as { requiresSignIn?: boolean }).requiresSignIn) {
+        addTranscript({
+          role: "system",
+          speaker: "System",
+          text: "Please sign in to start your interview. Your setup has been saved.",
+        });
+        setStatus("idle");
+        try {
+          document.cookie = "workzo_after_login=/interview; path=/; max-age=1800; samesite=lax";
+        } catch { /* non-fatal */ }
+        // Full-page navigation, not router.push(): this component has no
+        // useRouter, and an auth redirect SHOULD hard-navigate so the new
+        // session cookie is read from a clean document rather than inherited
+        // through a client-side transition.
+        if (typeof window !== "undefined") {
+          window.location.assign(`/login?redirect=${encodeURIComponent("/interview")}`);
+        }
+        return;
+      }
+
       const blockedPlan = sessionPersistResult.plan || serverPlan;
       const gateFeature =
         blockedPlan === "premium" ? "premium_pro_interview" : "interview_limit";

@@ -622,6 +622,9 @@ export default function OnboardingPage() {
   // whichever path completes first "win" and suppresses the other.
   const cvUploadTrackedRef = useRef(false);
   const [uploadError, setUploadError] = useState("");
+  const [uploadRequiresSignIn, setUploadRequiresSignIn] = useState(false);
+  const [uploadCooldownUntil, setUploadCooldownUntil] = useState(0);
+  const [uploadCooldownSeconds, setUploadCooldownSeconds] = useState(0);
   const [fileName, setFileName] = useState("");
   const [manualCv, setManualCv] = useState("");
   const [restoredCvText, setRestoredCvText] = useState(setup.cvText || "");
@@ -659,6 +662,32 @@ export default function OnboardingPage() {
   const [nudgeKey, setNudgeKey] = useState(0);
   const [persistRequest, setPersistRequest] = useState(0);
   const [persistFullRequest, setPersistFullRequest] = useState(0);
+
+  useEffect(() => {
+    if (!uploadCooldownUntil) {
+      setUploadCooldownSeconds(0);
+      return;
+    }
+
+    const updateCooldown = () => {
+      const remaining = Math.max(0, Math.ceil((uploadCooldownUntil - Date.now()) / 1000));
+      setUploadCooldownSeconds(remaining);
+      if (remaining === 0) setUploadCooldownUntil(0);
+    };
+
+    updateCooldown();
+    const timer = window.setInterval(updateCooldown, 1000);
+    return () => window.clearInterval(timer);
+  }, [uploadCooldownUntil]);
+
+  useEffect(() => {
+    if (isSignedIn) {
+      setUploadRequiresSignIn(false);
+      setUploadCooldownUntil(0);
+    }
+  }, [isSignedIn]);
+
+  const uploadBlocked = uploading || uploadRequiresSignIn || uploadCooldownSeconds > 0;
 
   const readiness = useMemo(() => {
     const cvReady = Boolean(effectiveCvText.trim());
@@ -919,12 +948,16 @@ export default function OnboardingPage() {
   async function handleCvUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (uploadInFlightRef.current) return;
+    if (uploadInFlightRef.current || uploadBlocked) {
+      event.target.value = "";
+      return;
+    }
     uploadInFlightRef.current = true;
     cvUploadTrackedRef.current = false; // a new file selection is a new upload attempt
     setFileName(file.name);
     setUploading(true);
     setUploadError("");
+    setUploadRequiresSignIn(false);
     setIdentityConfirmed(false); // a fresh CV must be re-confirmed
     try {
       clearLatestInterviewSetup();
@@ -941,7 +974,34 @@ export default function OnboardingPage() {
       }).finally(() => window.clearTimeout(timeout));
       const data = await response.json().catch(() => null);
       if (response.status === 401) throw new Error("Please sign in to upload your CV.");
-      if (!response.ok) throw new Error(data?.error === "Unauthorized" ? "Please sign in to upload your CV." : data?.error || "CV extraction failed");
+      if (response.status === 429) {
+        const requiresSignIn = Boolean(data?.requiresSignIn);
+        const retryAfterHeader = Number(response.headers.get("retry-after") || 0);
+        const retryAfterSeconds = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
+          ? retryAfterHeader
+          : requiresSignIn ? 0 : 300;
+
+        setUploadRequiresSignIn(requiresSignIn);
+        if (retryAfterSeconds > 0) {
+          setUploadCooldownUntil(Date.now() + retryAfterSeconds * 1000);
+        }
+
+        throw new Error(
+          String(data?.message || (requiresSignIn
+            ? "You've reached the guest CV upload limit. Sign in to continue."
+            : "Too many CV uploads in a short time. Please wait a few minutes and try again.")),
+        );
+      }
+      if (!response.ok) {
+        const backendMessage = String(data?.message || "").trim();
+        const backendCode = String(data?.error || "").trim();
+        const friendlyMessage = backendCode === "Unauthorized"
+          ? "Please sign in to upload your CV."
+          : backendMessage || (backendCode === "rate_limited"
+            ? "Too many CV uploads in a short time. Please wait a few minutes and try again."
+            : backendCode || "We couldn't read this CV. Please try again or paste the CV text manually.");
+        throw new Error(friendlyMessage);
+      }
       debugCvPipeline("onboarding.upload.api_response", { keys: data && typeof data === "object" ? Object.keys(data) : [], fileName: file.name, chars: data?.chars || null });
       const extracted = data?.text || data?.cvText || data?.content || data?.resumeText || data?.extractedText || "";
       if (!String(extracted).trim()) throw new Error("PDF uploaded, but no readable CV text was found. Paste the CV text manually.");
@@ -1034,9 +1094,12 @@ export default function OnboardingPage() {
         return;
       }
 
+      const normalizedRawMsg = rawMsg.trim().toLowerCase();
       const friendlyMsg = rawMsg === "Unauthorized" || rawMsg === "Please sign in to upload your CV."
         ? "Please sign in to upload your CV."
-        : rawMsg || "Automatic CV reading did not finish. Paste the CV text below and you can continue without uploading again.";
+        : normalizedRawMsg === "rate_limited"
+          ? "Too many CV uploads in a short time. Please wait a few minutes and try again."
+          : rawMsg || "Automatic CV reading did not finish. Paste the CV text below and you can continue without uploading again.";
       if (friendlyMsg !== "Please sign in to upload your CV.") setContextModalOpen(true);
       setUploadError(friendlyMsg);
     } finally {
@@ -1046,9 +1109,49 @@ export default function OnboardingPage() {
     }
   }
 
-  function launchInterview() { persistFast(); router.push("/interview"); }
+  /**
+   * SIGN-IN GATE. Enforced here, at Start Interview, rather than at CV upload.
+   *
+   * Everything before this point (upload, role, JD, recruiter) is free and
+   * anonymous: it is how a visitor discovers the product is worth an account.
+   * The interview is where we spend real money (voice minutes, model calls) and
+   * where the per-account quota lives, so this is the correct wall.
+   *
+   * Returns true when the caller may proceed. When it returns false it has
+   * already persisted the setup and navigated to /login, and the caller must
+   * stop. The work is saved first so nothing is lost across the round trip, and
+   * `redirect` brings the user straight back here.
+   */
+  function requireSignInToStart(): boolean {
+    if (isSignedIn === true) return true;
+
+    // Persist BEFORE navigating. Sign-in is a full page round trip through
+    // /auth/callback; anything only in React state would be gone on return.
+    try { persistFast(); } catch { /* never block the login redirect */ }
+
+    // Mirrors the cookie the auth routes already read (workzo_after_login) so
+    // the redirect survives providers that drop the query string.
+    try {
+      document.cookie = `workzo_after_login=/onboarding; path=/; max-age=1800; samesite=lax`;
+    } catch { /* non-fatal */ }
+
+    router.push(`/login?redirect=${encodeURIComponent("/onboarding")}`);
+    return false;
+  }
+
+  function launchInterview() {
+    // Last line of client defence. Every navigation to /interview funnels
+    // through here or through the identity-confirm path below, and both gate.
+    if (!requireSignInToStart()) return;
+    persistFast();
+    router.push("/interview");
+  }
 
   function startInterview() {
+    // Sign-in first: no point confirming identity for a visitor who cannot
+    // start anyway, and the login round trip would discard the confirmation.
+    if (!requireSignInToStart()) return;
+
     // Global reliability gate: never start an interview on an unverified
     // identity. Only gates real uploaded profiles, manual-paste users (no
     // structured profile) proceed unchanged.
@@ -1109,6 +1212,10 @@ export default function OnboardingPage() {
       // with the pre-confirmation one, which is exactly why the confirmed
       // name never reached the interview. Navigate directly; the corrected
       // setup is already saved via saveCanonicalCvSetup.
+      // Gate here too: this path deliberately bypasses launchInterview() to
+      // avoid persistFast() clobbering the corrected setup, so it would
+      // otherwise be an unguarded door into /interview.
+      if (!requireSignInToStart()) return;
       router.push("/interview");
       return;
     }
@@ -1426,24 +1533,23 @@ export default function OnboardingPage() {
               </button>
             </div>
 
-            {isSignedIn === false ? (
-              <div className="mt-5 flex min-h-[108px] flex-col items-center justify-center rounded-lg border-[1.5px] border-dashed border-line bg-fg/[0.03] p-4 text-center">
-                <Upload className="h-7 w-7 text-muted" />
-                <span className="mt-2 block text-sm font-black text-muted">Upload your CV</span>
-                <span className="mt-1 block text-xs text-muted">Requires an account</span>
-                <a
-                  href="/login"
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-black text-on-brand transition hover:bg-brand"
-                >
-                  Sign in to upload
-                </a>
-              </div>
-            ) : (
-              <label className={cn("mt-5 flex min-h-[108px] cursor-pointer flex-col items-center justify-center rounded-lg border-[1.5px] p-4 text-center transition",
+            {/* NO LOGIN WALL HERE. CV upload is open to anonymous visitors:
+                this is the product's first value moment and gating it was
+                costing us the whole funnel. Sign-in is enforced at Start
+                Interview instead, by requireSignInToStart(). The previous gate
+                also read `isSignedIn === false`, so while auth was still
+                resolving (`null`) it showed a working uploader that then 401'd. */}
+            {(
+              <label className={cn("mt-5 flex min-h-[108px] flex-col items-center justify-center rounded-lg border-[1.5px] p-4 text-center transition",
+                uploadBlocked ? "cursor-not-allowed opacity-70" : "cursor-pointer",
                 manualCv && fileName ? "border-success/40 bg-success/[0.07]" : "border-dashed border-brand/35 bg-brand/[0.07] hover:bg-brand/[0.12]")}>
-                <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleCvUpload} className="hidden" />
+                <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleCvUpload} disabled={uploadBlocked} className="hidden" />
                 {uploading ? (
                   <><Upload className="h-7 w-7 text-brand" /><span className="mt-2 block text-sm font-black">Reading your CV…</span></>
+                ) : uploadRequiresSignIn ? (
+                  <><Lock className="h-7 w-7 text-brand" /><span className="mt-2 block text-sm font-black">Sign in to upload another CV</span><span className="mt-1 block text-xs text-muted">Your guest upload limit has been reached</span></>
+                ) : uploadCooldownSeconds > 0 ? (
+                  <><Upload className="h-7 w-7 text-brand" /><span className="mt-2 block text-sm font-black">Please wait {uploadCooldownSeconds}s</span><span className="mt-1 block text-xs text-muted">Upload will be available again automatically</span></>
                 ) : manualCv && fileName ? (
                   <><Check className="h-7 w-7 text-success" strokeWidth={2.5} /><span className="mt-2 block text-sm font-black text-success">{fileName}</span><span className="mt-1 block text-xs text-muted">Click to replace</span></>
                 ) : (
@@ -1453,7 +1559,7 @@ export default function OnboardingPage() {
             )}
 
             {uploadError && (
-              (uploadError.includes("sign in") ? (
+              ((uploadRequiresSignIn || uploadError.toLowerCase().includes("sign in")) ? (
                 <div className="mt-3 rounded-lg border border-brand/20 bg-brand/10 p-4">
                   <p className="text-sm text-muted">Sign in to upload your CV and get a personalised interview.</p>
                   <a

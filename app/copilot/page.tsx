@@ -20,6 +20,10 @@ import {
 
 import { getRecruiterProfile } from "@/lib/launchIntelligenceEngine";
 import { trackWorkZoLaunchEvent } from "@/lib/workzoLaunchAnalytics";
+import {
+  purgeLegacySharedJobDescriptions,
+  readActiveJobDescription,
+} from "@/lib/workzoJobDescriptionSource";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -61,8 +65,32 @@ type MemoryItem = {
 const HISTORY_KEY = "workzo-copilot-history-v1";
 const MAX_CONVS = 30;
 
+/**
+ * Read the copilot's working context.
+ *
+ * THE JOB DESCRIPTION DOES NOT LIVE HERE.
+ *
+ * This function used to return `parsed.jobDescription` straight out of the
+ * shared interview-setup bucket. Those keys are written by several features,
+ * including the jobs board, so picking ONE job on /jobs silently became "the
+ * job description" for every copilot answer afterwards. The user pasted their
+ * JD; the copilot quietly coached them for a different job.
+ *
+ * lib/workzoJobDescriptionSource.ts now owns the JD, and only the user can make
+ * one active. So we take everything EXCEPT the JD from this bucket, and we take
+ * the JD from its owner. Reading it from both places is what caused the bug in
+ * the first place.
+ *
+ * The purge is also called here, not just on /cv and /onboarding, because a user
+ * can land on /copilot first and would otherwise still be carrying the stale
+ * value in these keys.
+ */
 function readSetup(): SavedSetup {
   if (typeof window === "undefined") return {};
+
+  purgeLegacySharedJobDescriptions();
+
+  let base: SavedSetup = {};
   for (const key of ["workzo-latest-interview-setup", "workzo-interview-setup-v4", "workzo-interview-setup-latest"]) {
     try {
       const raw = window.localStorage.getItem(key);
@@ -74,10 +102,13 @@ function readSetup(): SavedSetup {
           if (c.resumeProfile) parsed.resumeProfile = c.resumeProfile;
         } catch { /* ignore */ }
       }
-      return parsed;
+      base = parsed;
+      break;
     } catch { /* ignore */ }
   }
-  return {};
+
+  // The JD is never inherited from the shared bucket. It has exactly one owner.
+  return { ...base, jobDescription: readActiveJobDescription() || "" };
 }
 
 function loadHistory(): Conversation[] {

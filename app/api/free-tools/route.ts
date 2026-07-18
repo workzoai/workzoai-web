@@ -57,11 +57,15 @@ export async function POST(request: NextRequest) {
     const action = ACTION_ALIASES[rawAction];
 
     if (!action) {
+      /* Derived from the registry, never hand-listed. The hardcoded version of
+         this string still named only 4 of the 8 tools long after the other 4
+         shipped, so callers were told a valid action was invalid. */
+      const valid = FREE_TOOLS.map((tool) => tool.action).join(", ");
       return NextResponse.json(
         {
           ok: false,
           code: "missing_or_unknown_action",
-          message: "Choose one free tool action: cv_review, resume_tailor, cover_letter, interview_questions.",
+          message: `Choose one free tool action: ${valid}.`,
         },
         { status: 400 },
       );

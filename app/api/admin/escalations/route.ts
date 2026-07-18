@@ -166,7 +166,7 @@ export async function POST(request: Request) {
       db,
       organizationId: auth.orgId,
       event: "interview_escalation",
-      title: `${sevLabel} — ${label} flagged for review`,
+      title: `${sevLabel}: ${label} flagged for review`,
       lines: [
         record.role ? `Role: ${record.role}` : "",
         record.wiri != null ? `WIRI: ${record.wiri}` : "",

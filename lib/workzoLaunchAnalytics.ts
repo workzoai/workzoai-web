@@ -21,7 +21,16 @@ export type WorkZoEventName =
   | "results_viewed"
   | "weak_answer_retried"
   | "feedback_submitted"
-  | "waitlist_joined";
+  | "waitlist_joined"
+  /* Smart Apply funnel (spec section 23). Payloads carry NO PII: no CV text, no
+     cover-letter text, no email. See lib/smart-apply/analytics.ts, which is the only
+     thing that should emit these and enforces that rule at the boundary. */
+  | "smart_apply_started"
+  | "smart_apply_cv_generated"
+  | "smart_apply_cover_letter_generated"
+  | "smart_apply_interview_prepared"
+  | "smart_apply_linkedin_advice_viewed"
+  | "smart_apply_external_apply_clicked";
 
 export type WorkZoAnalyticsPayload = {
   event: WorkZoEventName;

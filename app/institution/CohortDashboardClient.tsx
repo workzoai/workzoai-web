@@ -89,8 +89,8 @@ const SAMPLE: CohortPayload = {
   engagement: [12, 18, 9, 22, 27, 19, 31, 24, 28, 35, 30, 41, 38, 44],
   wiri: { average: 81, tiers: [
     { key: "employer-ready", label: "Employer Ready", range: "WIRI 90+", count: 18, percent: 10, description: "Ready to share with hiring partners first." },
-    { key: "minor-coaching", label: "Ready with Minor Coaching", range: "WIRI 80–89", count: 42, percent: 23, description: "Strong candidates who need one final polish round." },
-    { key: "needs-improvement", label: "Needs Improvement", range: "WIRI 60–79", count: 85, percent: 46, description: "Needs targeted coaching before employer exposure." },
+    { key: "minor-coaching", label: "Ready with Minor Coaching", range: "WIRI 80-89", count: 42, percent: 23, description: "Strong candidates who need one final polish round." },
+    { key: "needs-improvement", label: "Needs Improvement", range: "WIRI 60-79", count: 85, percent: 46, description: "Needs targeted coaching before employer exposure." },
     { key: "early-stage", label: "Early Preparation Stage", range: "WIRI <60", count: 39, percent: 21, description: "Needs foundational interview practice first." },
   ], breakdown: [
     { key: "cvQuality", label: "CV Quality", score: 82, count: 184, weight: 10, source: "CV completeness heuristic", risk: "strong" },
@@ -118,9 +118,9 @@ const SAMPLE: CohortPayload = {
     { label: "Confidence and clarity issues", percent: 19, count: 31, severity: "low", suggestedAction: "Schedule short confidence drills: concise openings, pauses, and answer closing practice." },
   ],
   curriculumInsights: [
-    { weakCompetency: "Evidence & Impact", affectedPercent: 63, affectedStudents: 116, suggestedAction: "Require measurable achievement rewrites and evidence-backed answers.", expectedImpact: "+12–18% readiness" },
-    { weakCompetency: "Confidence", affectedPercent: 41, affectedStudents: 75, suggestedAction: "Run 10-minute confidence simulations before employer day.", expectedImpact: "+7–12% readiness" },
-    { weakCompetency: "Business Communication", affectedPercent: 36, affectedStudents: 66, suggestedAction: "Add a stakeholder communication workshop with KPI examples.", expectedImpact: "+8–14% readiness" },
+    { weakCompetency: "Evidence & Impact", affectedPercent: 63, affectedStudents: 116, suggestedAction: "Require measurable achievement rewrites and evidence-backed answers.", expectedImpact: "+12-18% readiness" },
+    { weakCompetency: "Confidence", affectedPercent: 41, affectedStudents: 75, suggestedAction: "Run 10-minute confidence simulations before employer day.", expectedImpact: "+7-12% readiness" },
+    { weakCompetency: "Business Communication", affectedPercent: 36, affectedStudents: 66, suggestedAction: "Add a stakeholder communication workshop with KPI examples.", expectedImpact: "+8-14% readiness" },
   ],
   departmentMetrics: [
     { department: "Data", readiness: 88, students: 52, sessions: 221 },

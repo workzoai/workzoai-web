@@ -1046,14 +1046,22 @@ CANDIDATE BACKGROUND: ${cvText.slice(0, 800)}`,
                       </div>
 
                       {job.applyUrl ? (
-                        <a
-                          href={job.applyUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-brand px-4 py-3 text-sm font-black text-on-brand hover:bg-brand"
-                        >
-                          Apply <ExternalLink className="h-4 w-4" />
-                        </a>
+                        <div className="flex shrink-0 flex-col gap-2">
+                          <button
+                            onClick={() => { rememberJob(job); window.location.href = `/jobs/${encodeURIComponent(job.id)}/apply`; }}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-3 text-sm font-black text-on-brand hover:opacity-90"
+                          >
+                            Smart Apply <Sparkles className="h-4 w-4" />
+                          </button>
+                          <a
+                            href={job.applyUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2 text-xs font-black text-muted hover:text-fg"
+                          >
+                            Apply directly <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </div>
                       ) : null}
                     </div>
 

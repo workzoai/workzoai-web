@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRequire } from "module";
 import { resolveWorkZoServerPlan } from "@/lib/workzoServerPlan";
+import { checkWorkZoRateLimit } from "@/lib/workzoRateLimit";
 import {
   normalizeResumeText,
   extractResumeProfileComplex,
@@ -12,11 +13,10 @@ import {
   repairResumeProfileAfterParsing,
 } from "@/lib/workzoAiCvParser";
 import { debugCvPipeline, debugCvProfile, debugCvText } from "@/lib/workzoCvPipelineDebug";
-import { enforceCanonicalCandidateName } from "@/lib/workzoResumeProfileManager";
-import { finalizeCanonicalCvProfile } from "@/lib/workzoCvGlobalFinalizer";
-import { guardCanonicalParse } from "@/lib/workzoCanonicalGuard";
 import { sanitizeExtractedCvText } from "@/lib/workzoCvTextSanitizer";
 import { extractPdfTextLayoutAware } from "@/lib/workzoSpatialPdfExtractor";
+import { buildCanonicalResumeProfile } from "@/lib/workzoCvCanonicalBuilder";
+import { validateCanonicalProfile, formatValidationReport } from "@/lib/workzoCvValidator";
 
 const require = createRequire(import.meta.url);
 
@@ -885,9 +885,9 @@ function mapAffindaProfile(
     previewText: rawText.slice(0, 1200),
   } as ResumeProfile;
 
-  // Final identity repair using WorkZo rules, but keep Affinda structure.
-  const repaired = repairResumeProfileAfterParsing(profile, rawText, fileName);
-  return enforceCanonicalCandidateName(repaired, rawText, fileName, "") as ResumeProfile;
+  // READ-ONLY EXTRACTOR. Maps Affinda's structure into our shape and stops.
+  // It no longer enforces identity: `name` has exactly one owner.
+  return repairResumeProfileAfterParsing(profile, rawText, fileName) as ResumeProfile;
 }
 
 async function sleep(ms: number) {
@@ -1094,44 +1094,20 @@ function buildProfileText(profile: ResumeProfile, fallbackText: string) {
   return lines.join("\n").trim() || fallbackText;
 }
 
-function lockResumeProfileIdentity(input: {
-  profile: ResumeProfile;
-  rawText: string;
-  fileName?: string;
-  candidateName?: string;
-}) {
-  return enforceCanonicalCandidateName(
-    input.profile,
-    input.rawText,
-    input.fileName || "",
-    input.candidateName || "",
-  ) as ResumeProfile;
-}
-
-function lockParserResultIdentity<T extends { resumeProfile?: ResumeProfile }>(
-  result: T,
-  context: { rawText: string; fileName?: string; candidateName?: string },
-): T {
-  if (!result?.resumeProfile) return result;
-
-  const lockedProfile = lockResumeProfileIdentity({
-    profile: result.resumeProfile,
-    rawText: context.rawText,
-    fileName: context.fileName,
-    candidateName: context.candidateName,
-  });
-
-  return {
-    ...result,
-    resumeProfile: lockedProfile,
-  };
-}
+const BOUNDARY_SECTION_RE = /^(contact|contacts|profile|profile summary|professional summary|executive summary|summary|about me|overview|skills?|expertise|core skills|competencies|education|work experience|professional experience|experience|projects?|languages?|certifications?|references?|awards?|interests?|kontakt|profil|profil ubersicht|zusammenfassung|kenntnisse|fahigkeiten|bildung|ausbildung|berufserfahrung|sprachen)$/i;
+const BOUNDARY_CONTACT_RE = /@|https?:|www\.|linkedin|github|\+?\d[\d ()+.-]{6,}|\b\d{4,6}\b|\b(street|straße|strasse|road|avenue|city|postal|address)\b/i;
+const BOUNDARY_DEGREE_RE = /\b(bachelor|master|phd|doctorate|degree|diploma|certificate|university|college|school|bootcamp|b\.?a\.?|m\.?a\.?|bsc|msc|mba)\b/i;
+const BOUNDARY_SENTENCE_RE = /[.!?]$|\b(with|who|that|which|seeking|passionate|results[- ]driven|experienced|skilled|proven|responsible|worked|delivered|managed|created|developed|supported|helping)\b/i;
+const BOUNDARY_SKILL_ONLY_RE = /^(project management|data analysis|digital marketing|public relations|communication|leadership|teamwork|time management|problem solving|critical thinking|stakeholder engagement|brand management|content creation|software development)$/i;
+const BOUNDARY_ROLE_SIGNAL_RE = /\b(manager|engineer|developer|designer|analyst|scientist|specialist|consultant|accountant|teacher|representative|director|strategist|administrator|technician|architect|coordinator|officer|lead|head|executive|recruiter|support|marketing|sales|product|project|customer success|service desk|illustrator|researcher|writer|nurse|doctor|attorney|advisor|associate|intern|trainee)\b/i;
 
 function buildResponse(input: {
   aiOk: boolean;
   source: string;
   error: string;
   rawCvText: string;
+  /** Unsanitized extraction retained only for header/identity resolution. */
+  identityText?: string;
   resumeProfile: ResumeProfile;
   fileName?: string;
   candidateName?: string;
@@ -1140,36 +1116,112 @@ function buildResponse(input: {
   targetMarket?: string;
   confidence?: { name: number; experience: number; skills: number; overall: number };
 }) {
-  // Single authoritative finalize step, matching /api/cv exactly so both
-  // endpoints return the same validated CandidateProfile shape. The finalizer
-  // rejects layout markers, section headers, skills, roles, companies, and
-  // schools from name/headline, moves education out of experience, and dedupes.
-  // mergeCvProfile() and api.cv.name_override are removed from this path.
-  // STAGE 1 GUARD. Previously the fact guard ran ONLY inside app/cv/page.tsx,
-  // so /api/cv handed an unguarded profile to Supabase, /api/copilot,
-  // /api/interview/reply and /api/linkedin/*. The guard now runs here, which
-  // means every surface inherits the same canonical, repaired profile.
-  const guardedProfile = guardCanonicalParse({
-    profile: input.resumeProfile,
+  // ==========================================================================
+  // SINGLE-OWNER CANONICAL BUILD.
+  //
+  // This boundary previously ran FOUR profile-rewriting stages in sequence:
+  //   guardCanonicalParse -> finalizeCanonicalCvProfile
+  //     -> resolveAuthoritativeCvName -> preserveAuthoritative{Experience,Education}
+  // Each owned overlapping fields. The finalizer repaired experience DOWN and
+  // the boundary step reverted it back UP to raw parser output, while the
+  // frontend re-ran its own guards on top. Production logs show the result:
+  // parser 7 -> guarded 4 -> finalized 4 -> returned 7 -> final 4, on 11 of 13
+  // CVs. Only 1 of 13 had parser == final.
+  //
+  // There is now exactly ONE writer. The builder is pure and deterministic and
+  // returns a deep-frozen profile. Every stage before it is read-only; no stage
+  // after it is permitted to exist.
+  // ==========================================================================
+  const { profile: resumeProfile, report } = buildCanonicalResumeProfile({
+    parsed: input.resumeProfile,
     rawText: input.rawCvText,
-    fileName: input.fileName || "",
+    identityText: input.identityText || input.rawCvText,
     candidateName: input.candidateName || "",
+    fileName: input.fileName || "",
   });
 
-  const finalizedProfile = finalizeCanonicalCvProfile(guardedProfile as any, {
+  // READ-ONLY post-condition. The validator never mutates; if it fires, the
+  // builder has a bug and we want it in the logs, loudly.
+  const validation = validateCanonicalProfile({
+    parsed: input.resumeProfile,
+    final: resumeProfile,
     rawText: input.rawCvText,
-    fileName: input.fileName || "",
-    selectedName: input.candidateName || "",
-    targetRole: input.targetRole || "",
-    source: input.source,
-    confidence: input.confidence,
-  }) as ResumeProfile;
+  });
+  if (!validation.ok) {
+    console.error("[WorkZo CV Pipeline] api.cv.validation_failed", {
+      fileName: input.fileName || "",
+      violations: formatValidationReport(validation),
+    });
+  }
 
-  // The finalizer is the last profile-changing function. Freeze so no later
-  // stage can mutate name, headline, experience, or education.
-  const resumeProfile = Object.freeze(finalizedProfile) as ResumeProfile;
+  // Identity violations are ENFORCING, not informational.
+  //
+  // The builder now repairs or blanks a contaminated identity before it freezes
+  // the profile, so this should be unreachable. If it is ever reached the
+  // builder has a bug, and the only safe answer is to ask the user rather than
+  // publish the name the validator just rejected — which is exactly what this
+  // boundary used to do: log `name_contaminated_by_headline`, then return the
+  // contaminated name with needsConfirmation:false.
+  const identityViolations = validation.violations.filter(
+    (violation) => violation.severity === "error" && violation.rule.startsWith("name_"),
+  );
+  const identityRejected = identityViolations.length > 0;
+  if (identityRejected) {
+    console.error("[WorkZo CV Pipeline] api.cv.identity_validation_repair", {
+      fileName: input.fileName || "",
+      rules: identityViolations.map((violation) => violation.rule),
+      nameSource: report.nameSource,
+      action: "identity suppressed; confirmation required",
+    });
+  }
+
+  const identityNeedsConfirmation =
+    report.needsConfirmation || identityRejected || !resumeProfile.basics.name;
+
+  // §17 identity telemetry: provenance and shape only. No email, phone,
+  // address, LinkedIn URL, or raw CV text.
+  console.log("[WorkZo CV Pipeline] api.cv.identity_resolution", {
+    source: report.nameSource,
+    confidence: report.nameConfidence,
+    needsConfirmation: identityNeedsConfirmation,
+    resolved: Boolean(resumeProfile.basics.name),
+    rejectedCount: report.rejectedNames.length,
+    headlineSource: report.headlineSource,
+  });
+
+  console.log("[WorkZo CV Pipeline] api.cv.canonical_build", {
+    fileName: input.fileName || "",
+    source: input.source,
+    // The resolved NAME was missing from this log. Production shipped
+    // "Tools Ticketing-systeme" as a candidate's name and the logs recorded
+    // only nameSource:'parser' — the failure was invisible in telemetry. Log the
+    // value, not just its provenance.
+    name: resumeProfile.basics.name,
+    nameSource: report.nameSource,
+    nameRejected: report.rejectedNames,
+    needsConfirmation: report.needsConfirmation,
+    headline: resumeProfile.basics.headline,
+    headlineSource: report.headlineSource,
+    languages: resumeProfile.languages,
+    // Parser vs returned. These may ONLY differ by exact duplicates.
+    counts: report.counts,
+    validation: validation.ok ? "ok" : formatValidationReport(validation),
+  });
 
   const cleanProfileText = buildProfileText(resumeProfile, input.rawCvText);
+
+  // Carry server-authoritative identity metadata with the profile itself. The
+  // browser canonical cache receives `profile`, not the surrounding response;
+  // keeping metadata only beside the profile caused valid names to be rejected
+  // a second time by the legacy browser resolver.
+  const responseProfile = {
+    ...resumeProfile,
+    identityAuthoritative: !identityNeedsConfirmation && Boolean(resumeProfile.basics.name),
+    headlineAuthoritative: Boolean(resumeProfile.basics.headline),
+    identityConfidence: report.nameConfidence,
+    identityNeedsConfirmation: identityNeedsConfirmation,
+    selectedNameSource: `canonical:${report.nameSource}`,
+  };
 
   return NextResponse.json({
     ok: input.aiOk,
@@ -1183,8 +1235,15 @@ function buildResponse(input: {
     resumeText: cleanProfileText,
     candidateCv: cleanProfileText,
     content: input.rawCvText,
-    resumeProfile,
-    profile: resumeProfile,
+    resumeProfile: responseProfile,
+    profile: responseProfile,
+    // Identity metadata is reported ALONGSIDE the profile, never written into
+    // it. The profile is frozen; the report is advisory.
+    identityConfidence: report.nameConfidence,
+    identityNeedsConfirmation: identityNeedsConfirmation,
+    needsConfirmation: identityNeedsConfirmation,
+    selectedNameSource: `canonical:${report.nameSource}`,
+    validation: validation.ok ? null : validation.violations,
     fileName: input.fileName,
     candidateName: resumeProfile.basics?.name || "",
     chars: input.rawCvText.length,
@@ -1309,7 +1368,6 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
       });
       // Fall through to fresh AI parse below
     } else {
-      // Profile looks clean, use it but still run through lockResumeProfileIdentity
       // to normalize any minor issues (encoding artifacts, trailing whitespace, etc.)
       const profile = incoming;
       debugCvProfile("api.cv.json.existing_profile_used", profile, {
@@ -1440,11 +1498,9 @@ async function buildMemoryFromJson(body: RequestBody, isPremium: boolean) {
   }
   }
 
-  aiResult = lockParserResultIdentity(aiResult, {
-    rawText: rawCv,
-    fileName: body.fileName || "pasted-cv.txt",
-    candidateName: body.candidateName || "",
-  });
+  // READ-ONLY STAGE. Identity is no longer locked here: the Canonical Builder
+  // is the single owner of `name`. Pre-locking upstream created two writers for
+  // one field and let the earlier, weaker value win non-deterministically.
 
   debugCvProfile("api.cv.json.profile", aiResult.resumeProfile, {
     source: aiResult.source,
@@ -1487,12 +1543,52 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!resolved.authenticated) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // ==========================================================================
+  // ANONYMOUS CV UPLOAD IS ALLOWED.
+  //
+  // This route used to 401 anonymous callers. That put the login wall in front
+  // of the product's first value moment: visitors landed, hit "sign in to
+  // upload", and bounced. Sign-in is now enforced later, at Start Interview,
+  // where the expensive work begins and where the per-account quota lives.
+  //
+  // BUT this route calls a vision model on OUR key, so removing auth turns it
+  // into an unauthenticated AI endpoint billed to us — the same failure mode as
+  // the custom-LLM gateway that was deleted. Anonymous callers are therefore
+  // rate limited by IP. Signed-in callers get a far higher limit keyed by user
+  // id, which cannot be evaded by rotating proxies.
+  // ==========================================================================
+  const forwardedFor = request.headers.get("x-forwarded-for") || "";
+  const clientIp =
+    forwardedFor.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown";
+
+  const rateKey = resolved.authenticated && resolved.userId
+    ? `cv_parse_user:${resolved.userId}`
+    : `cv_parse_anon:${clientIp}`;
+  // Anonymous: 5 uploads/hour per IP — enough to try the product and retry a
+  // bad scan, too few to be worth farming. Signed in: 30/hour.
+  const rateLimit = resolved.authenticated ? 30 : 5;
+
+  const { allowed } = await checkWorkZoRateLimit(rateKey, rateLimit, 60 * 60 * 1000);
+  if (!allowed) {
+    return NextResponse.json(
+      {
+        error: "rate_limited",
+        message: resolved.authenticated
+          ? "Too many CV uploads in a row. Please wait a few minutes."
+          : "You've reached the limit for guest uploads. Sign in to continue.",
+        requiresSignIn: !resolved.authenticated,
+      },
+      { status: 429 },
+    );
   }
 
+  // Anonymous callers are always free plan. Premium extraction is never granted
+  // without a verified session.
   const isPremium =
-    resolved.plan === "premium" || resolved.plan === "premium_pro";
+    resolved.authenticated &&
+    (resolved.plan === "premium" || resolved.plan === "premium_pro");
 
   // Hard internal deadline so the route never hangs long enough for the browser
   // to abort. Everything below degrades to the best-effort profile once passed.
@@ -1574,10 +1670,7 @@ export async function POST(request: Request) {
         };
       }
 
-      aiResult = lockParserResultIdentity(aiResult, {
-        rawText: cleanedCv,
-        fileName: safeFileName,
-      });
+      // READ-ONLY STAGE. Name is owned by the Canonical Builder (see note above).
 
       debugCvProfile("api.cv.parser.output", aiResult.resumeProfile, {
         fileName: safeFileName,
@@ -1592,6 +1685,8 @@ export async function POST(request: Request) {
           source: aiResult.source,
           error: aiResult.error,
           rawCvText: cleanedCv,
+          identityText: extracted,
+          candidateName: uploadCandidateName,
           resumeProfile: aiResult.resumeProfile,
           fileName: safeFileName,
         });
@@ -1607,6 +1702,8 @@ export async function POST(request: Request) {
         source: `${aiResult.source}_resilient_upload_returned_without_slow_fallback`,
         error: aiResult.error || "CV parser used the best available structure.",
         rawCvText: cleanedCv,
+        identityText: extracted,
+        candidateName: uploadCandidateName,
         resumeProfile: aiResult.resumeProfile,
         fileName: safeFileName,
       });

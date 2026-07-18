@@ -1,0 +1,29 @@
+MARIA OKONKWO
+Senior Data Scientist
+Berlin, Germany | maria.okonkwo@example.com
+
+PROFILE
+Senior data scientist with six years building and shipping production machine
+learning systems. Comfortable owning a problem end to end, from framing the
+question with stakeholders through to model deployment and monitoring.
+
+EXPERIENCE
+
+Senior Data Scientist, Northwind Analytics (early-stage startup)   2023 - present
+- Built a churn prediction model in PyTorch, lifting recall from 0.61 to 0.83
+- Owned the full ML pipeline: feature engineering, training, evaluation, deployment
+- Shipped the first MVP of the recommender in eight weeks with a team of three
+- Set up Airflow DAGs for nightly ETL over 40M events in Spark
+- Startup environment, so I also did my own MLOps and on-call
+
+Data Scientist, Meridian Retail Group                               2020 - 2023
+- Demand forecasting with XGBoost across 1,200 SKUs, cut stockouts by 18%
+- NLP pipeline for support ticket triage, scikit-learn then fine-tuned transformer
+- A/B tested pricing changes, wrote up causal caveats the business kept ignoring
+
+SKILLS
+Python, PyTorch, TensorFlow, scikit-learn, XGBoost, SQL, Spark, Airflow, Docker
+Machine learning, deep learning, NLP, computer vision, model evaluation, MLOps
+
+EDUCATION
+MSc Statistics, Humboldt University of Berlin, 2020

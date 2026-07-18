@@ -130,7 +130,7 @@ const STRONG_SECTION_RE = /^(page\s*(?:start|end)|(?:page\s*)?(?:left|right)\s+c
 // which works at the individual-word level.
 const SOFT_SKILL_PHRASE_RE = /^(magna cum laude|summa cum laude|cum laude|educational background|relevant experience|key projects|security projects|professional summary|critical thinking|effective communication|public relations|time management|project management|stakeholder management|problem solving|decision making|data analysis|data visualization|machine learning|generative ai|cloud security|threat detection|threat hunting|soc operations|incident response|penetration testing|vulnerability management|client acquisition|market analysis|market research|brand management|crisis communication|event planning|content creation|social media|digital marketing|agile methodology|process improvement|personal training|team training|product strategy|product design|product lifecycle|user research|growth optimization|cross.functional|analytical thinking|design thinking|lesson planning|classroom management|web design|front end|back end|full stack|database administration|network security|system administration|active directory|windows server|requirements analysis|service delivery|requirements management)$/i;
 
-const BAD_NAME_WORD_RE = /\b(candidate|page|pages|left|right|column|columns|start|end|marker|layout|workzo|professional|unknown|resume|cv|curriculum|profile|profilesummary|summary|experience|workexperience|education|skills?|projects?|languages?|contact|email|phone|linkedin|github|headline|english|german|deutsch|dutch|french|spanish|italian|portuguese|arabic|mandarin|chinese|japanese|korean|russian|turkish|polish|hindi|tamil|englisch|françösisch|franzosisch|spanisch|italienisch|portugiesisch|arabisch|japanisch|chinesisch|russisch|türkisch|turkisch|polnisch|fluent|native|conversational|fließend|fliesend|muttersprache|verhandlungssicher|fortgeschritten|grundkenntnisse|anfänger|anfanger|c1|c2|b1|b2|a1|a2|support|engineer|analyst|manager|specialist|developer|consultant|technical|data|customer|success|sales|marketing|product|project|program|software|frontend|backend|fullstack|itil|itsm|api|sql|python|tableau|power|gcp|aws|rag|nlp|matplotlib|seaborn|tensorflow|sklearn|langchain|programming|bash|powershell|security|cloud|ticketing|roadmapping|agile|scrum|stakeholder|competencies|initiative|platform|dashboard|teacher|preschool|accountant|designer|coordinator|assistant|intern|executive|director|officer|lead|head|chief|owner|founder|recruiter|architect|scientist|researcher|writer|editor|planner|technician|school|university|college|industries|solutions|community|financial|senior|junior|principal|jede|stadt|straße|strasse|service|services|startup|bootcamp|institute|corporation|corp|gmbh|inc|ltd|llc|group|holding|digital|technologies|technology|systems|agency|studio|labs|ventures|consulting|innovations?|coaching|thinking|leadership|communication|planning|analysis|management|visualization|engineering|integration|scraping|generation|retrieval|augmented|certification|freelance|volunteer|degree|bachelor|master|associate|diploma|certificate|science|arts|computer|software|development|achievements?|accomplishments?|proficiencies|proficiency|capabilities|strengths?|competency|expertise|tools?|tooling|magna|cum|laude|honours?|honors?|itsd|hts|ats|sop|kpi|okr|roi|ict|erp|crm|saas|sla)\b/i;
+const BAD_NAME_WORD_RE = /\b(candidate|page|pages|left|right|column|columns|start|end|marker|layout|workzo|professional|unknown|resume|cv|curriculum|profile|profilesummary|summary|experience|workexperience|education|skills?|projects?|languages?|contact|email|phone|linkedin|github|headline|english|german|deutsch|dutch|french|spanish|italian|portuguese|arabic|mandarin|chinese|japanese|korean|russian|turkish|polish|hindi|tamil|englisch|françösisch|franzosisch|spanisch|italienisch|portugiesisch|arabisch|japanisch|chinesisch|russisch|türkisch|turkisch|polnisch|fluent|native|conversational|fließend|fliesend|muttersprache|verhandlungssicher|fortgeschritten|grundkenntnisse|anfänger|anfanger|c1|c2|b1|b2|a1|a2|support|engineer|analyst|manager|specialist|developer|consultant|technical|data|customer|success|sales|marketing|product|project|program|software|frontend|backend|fullstack|itil|itsm|api|sql|python|tableau|power|gcp|aws|rag|nlp|matplotlib|seaborn|tensorflow|sklearn|langchain|programming|bash|powershell|security|cloud|ticketing|roadmapping|agile|scrum|stakeholder|competencies|initiative|platform|dashboard|teacher|preschool|accountant|designer|coordinator|assistant|intern|executive|director|officer|lead|head|chief|owner|founder|recruiter|architect|scientist|researcher|writer|editor|planner|technician|school|university|college|industries|solutions|community|financial|senior|junior|principal|jede|stadt|straße|strasse|service|services|startup|bootcamp|institute|corporation|corp|gmbh|inc|ltd|llc|group|holding|digital|technologies|technology|systems|agency|studio|labs|ventures|consulting|innovations?|coaching|thinking|leadership|communication|planning|analysis|management|visualization|engineering|integration|scraping|generation|retrieval|augmented|certification|freelance|volunteer|degree|bachelor|master|associate|diploma|certificate|science|arts|computer|software|development|achievements?|accomplishments?|proficiencies|proficiency|capabilities|strengths?|curiosity|creativity|graphic|address|postal|city|website|competency|expertise|tools?|tooling|magna|cum|laude|honours?|honors?|itsd|hts|ats|sop|kpi|okr|roi|ict|erp|crm|saas|sla)\b/i;
 
 // Detects phrases that are clearly job titles (adjective + role word, or role word + company).
 // Generic: any 2-3 word phrase where at least half the words are role/job words.
@@ -395,6 +395,80 @@ function chooseSaferName(
   return "";
 }
 
+
+const LANGUAGE_ALIAS: Record<string, string> = {
+  deutsch: "german", allemand: "german", aleman: "german", tedesco: "german",
+  englisch: "english", anglais: "english", ingles: "english", inglese: "english",
+  francais: "french", französisch: "french", franzosisch: "french", frances: "french",
+  español: "spanish", espanol: "spanish", spanisch: "spanish",
+  italienisch: "italian", italiano: "italian",
+  portugiesisch: "portuguese", portugues: "portuguese",
+};
+
+function canonicalLanguageKey(value: unknown): string {
+  const base = cleanText(value, 100)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/\s*(?:[-–—:,(|/]|\b(?:native|fluent|conversational|intermediate|beginner|basic|advanced|proficient|mother tongue|a1|a2|b1|b2|c1|c2)\b)/i)[0]
+    .replace(/[^a-z\p{L}]/gu, "")
+    .trim();
+  return LANGUAGE_ALIAS[base] || base;
+}
+
+function splitLanguageCandidates(value: unknown): string[] {
+  const text = cleanText(value, 400);
+  if (!text) return [];
+
+  // A PDF column often collapses several language rows and even the following
+  // References block into one string. Extract every language+proficiency pair
+  // independently instead of treating the whole string as one language.
+  const level = String.raw`(?:native|mother\s+tongue|fluent|business\s+fluent|professional(?:\s+working)?\s+proficiency|working\s+proficiency|proficient|conversational|intermediate|beginner|basic(?:s)?|elementary|advanced|muttersprache|flie(?:ß|ss)end|verhandlungssicher|fortgeschritten|grundkenntnisse|konversationsniveau|[abc][12])`;
+  const pair = new RegExp(String.raw`([\p{L}][\p{L}'’.-]{1,28})\s*(?:[:\-–—]|\()\s*(${level})(?:\))?`, 'giu');
+  const found: string[] = [];
+  for (const match of text.matchAll(pair)) {
+    const language = cleanText(match[1], 40);
+    const proficiency = cleanText(match[2], 60);
+    if (language && proficiency) found.push(`${language} - ${proficiency}`);
+  }
+  if (found.length) return found;
+
+  // Bare language names are valid too, but only when the value is a short
+  // standalone label. Long prose/reference contamination is rejected.
+  if (text.length <= 40 && /^[\p{L}][\p{L}'’ .-]{1,38}$/u.test(text)) return [text];
+  return [];
+}
+
+function languageLevelRank(value: string): number {
+  const v = norm(value);
+  if (/\b(native|mother tongue|muttersprache|c2)\b/.test(v)) return 60;
+  if (/\b(c1|fluent|business fluent|verhandlungssicher|fliesend|fliessend)\b/.test(v)) return 50;
+  if (/\b(b2|professional|proficient|advanced|fortgeschritten)\b/.test(v)) return 40;
+  if (/\b(b1|conversational|intermediate|working proficiency|konversationsniveau)\b/.test(v)) return 30;
+  if (/\b(a2|basic|basics|elementary|grundkenntnisse)\b/.test(v)) return 20;
+  if (/\b(a1|beginner)\b/.test(v)) return 10;
+  return 0;
+}
+
+function normalizeLanguages(values: unknown[]): string[] {
+  const best = new Map<string, string>();
+  for (const raw of values) {
+    for (const value of splitLanguageCandidates(raw)) {
+      const key = canonicalLanguageKey(value);
+      if (!value || !key || key.length < 3) continue;
+      const existing = best.get(key);
+      const score = languageLevelRank(value);
+      const existingScore = existing ? languageLevelRank(existing) : -1;
+      // Prefer the most specific/highest evidenced proficiency. On ties, keep
+      // the shorter clean representation rather than a contaminated long one.
+      if (!existing || score > existingScore || (score === existingScore && value.length < existing.length)) {
+        best.set(key, value);
+      }
+    }
+  }
+  return [...best.values()].slice(0, 20);
+}
+
 export function enforceCanonicalCandidateName<T extends Partial<ResumeProfile> | ResumeProfile>(
   profile: T,
   rawText = "",
@@ -529,6 +603,9 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
     } catch { /* non-fatal */ }
   }
 
+  const normalizedLanguages = normalizeLanguages(Array.isArray(p.languages) ? p.languages : []);
+  const languageKeys = new Set(normalizedLanguages.map(canonicalLanguageKey).filter(Boolean));
+
   const built: ResumeProfile = {
     rawText: cleanText(p.rawText || rawText, 50000),
     basics: {
@@ -642,8 +719,12 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
           // Reject the candidate's own name or headline from skills (parser artifact).
           if (nameNorm && sn === nameNorm) return false;
           if (headlineNorm && sn === headlineNorm) return false;
-          // Reject obvious non-skills: bare personal pronouns, single chars
+          // Reject obvious non-skills: bare personal pronouns, single chars.
           if (s.length < 2) return false;
+          // Languages belong only in the Languages section. This catches both
+          // bare names (English) and proficiency forms (German - B2).
+          const languageKey = canonicalLanguageKey(s);
+          if (languageKey && languageKeys.has(languageKey)) return false;
           return true;
         }),
       (s) => s
@@ -652,7 +733,7 @@ export function completeResumeProfile(profile: Partial<ResumeProfile> | null | u
       name: cleanText(proj.name, 180) || "Selected Project",
       bullets: Array.isArray(proj.bullets) ? proj.bullets.map((b) => cleanText(b, 500)).filter(Boolean).filter((b) => !isAiPreambleGarbage(b)).slice(0, 10) : [],
     })),
-    languages: unique(Array.isArray(p.languages) ? p.languages.map((l) => cleanText(l, 90)).filter(Boolean) : [], (l) => l),
+    languages: normalizedLanguages,
     certifications: unique(Array.isArray(p.certifications) ? p.certifications.map((c) => cleanText(c, 160)).filter(Boolean) : [], (c) => c),
     strengths: unique(Array.isArray(p.strengths) ? p.strengths.map((s) => cleanText(s, 160)).filter(Boolean) : [], (s) => s),
     additionalEvidence: unique(Array.isArray(p.additionalEvidence) ? p.additionalEvidence.map((s) => cleanText(s, 300)).filter(Boolean) : [], (s) => s),

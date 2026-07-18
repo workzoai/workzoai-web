@@ -416,12 +416,12 @@ export async function GET(request: Request) {
 
     for (const s of sessions) {
       const uid = String(s.user_id || "unknown");
-      const a = byUser.get(uid) || { id: uid, name: idToName.get(uid) || String(s.candidate_name || "Learner"), email: idToEmail.get(uid) || "", role: String(s.target_role || "—"), rows: [], sessions: [], scores: [], last: null, skills: [], languages: [], location: "Remote / flexible", availability: "Available on request", comps: {} };
+      const a = byUser.get(uid) || { id: uid, name: idToName.get(uid) || String(s.candidate_name || "Learner"), email: idToEmail.get(uid) || "", role: String(s.target_role || "Not set"), rows: [], sessions: [], scores: [], last: null, skills: [], languages: [], location: "Remote / flexible", availability: "Available on request", comps: {} };
       a.sessions.push(s);
       const score = clamp(s.overall_score, NaN);
       if (Number.isFinite(score)) a.scores.push({ s: score, t: new Date(String(s.created_at)).getTime() || now });
       if (!a.last || new Date(String(s.created_at)).getTime() > new Date(a.last).getTime()) a.last = String(s.created_at);
-      if (!a.role || a.role === "—") a.role = String(s.target_role || "—");
+      if (!a.role || a.role === "Not set") a.role = String(s.target_role || "Not set");
       byUser.set(uid, a);
     }
 
@@ -433,12 +433,12 @@ export async function GET(request: Request) {
     for (const r of resultRows) {
       const uid = String(r.user_id || sessionById.get(String(r.session_id))?.user_id || "unknown");
       const session = sessionById.get(String(r.session_id));
-      const a = byUser.get(uid) || { id: uid, name: idToName.get(uid) || String(session?.candidate_name || "Learner"), email: idToEmail.get(uid) || "", role: String(session?.target_role || "—"), rows: [], sessions: [], scores: [], last: null, skills: [], languages: [], location: "Remote / flexible", availability: "Available on request", comps: {} };
+      const a = byUser.get(uid) || { id: uid, name: idToName.get(uid) || String(session?.candidate_name || "Learner"), email: idToEmail.get(uid) || "", role: String(session?.target_role || "Not set"), rows: [], sessions: [], scores: [], last: null, skills: [], languages: [], location: "Remote / flexible", availability: "Available on request", comps: {} };
       a.rows.push(r);
       const score = clamp(r.overall_score ?? session?.overall_score, NaN);
       if (Number.isFinite(score)) a.scores.push({ s: score, t: new Date(String(r.created_at || session?.created_at)).getTime() || now });
       if (!a.last || new Date(String(r.created_at)).getTime() > new Date(a.last).getTime()) a.last = String(r.created_at);
-      if (!a.role || a.role === "—") a.role = String(session?.target_role || getRawResult(r)?.targetRole || getRawResult(r)?.role || "—");
+      if (!a.role || a.role === "Not set") a.role = String(session?.target_role || getRawResult(r)?.targetRole || getRawResult(r)?.role || "Not set");
       a.skills = [...new Set([...a.skills, ...extractSkills(r)])].slice(0, 10);
       a.languages = [...new Set([...a.languages, ...extractLanguages(r)])].slice(0, 6);
       a.location = extractLocation(r) || a.location;
@@ -535,14 +535,14 @@ export async function GET(request: Request) {
       affectedPercent: percent(learners.filter((l) => clamp(l.competencySnapshot[m.key]) > 0 && clamp(l.competencySnapshot[m.key]) < 70).length, learners.length),
       affectedStudents: learners.filter((l) => clamp(l.competencySnapshot[m.key]) > 0 && clamp(l.competencySnapshot[m.key]) < 70).length,
       suggestedAction: curriculumActionFor(m.label),
-      expectedImpact: m.score < 60 ? "+12–18% readiness" : "+7–12% readiness",
+      expectedImpact: m.score < 60 ? "+12-18% readiness" : "+7-12% readiness",
     }));
 
     const departmentMetrics = departmentFromLearners(learners);
     const wiriTiers: WiriTierMetric[] = [
       { key: "employer-ready", label: "Employer Ready", range: "WIRI 90+", count: learners.filter((l) => l.wiri >= 90).length, percent: percent(learners.filter((l) => l.wiri >= 90).length, learners.length), description: "Ready to share with hiring partners first." },
-      { key: "minor-coaching", label: "Ready with Minor Coaching", range: "WIRI 80–89", count: learners.filter((l) => l.wiri >= 80 && l.wiri < 90).length, percent: percent(learners.filter((l) => l.wiri >= 80 && l.wiri < 90).length, learners.length), description: "Strong candidates who need one final polish round." },
-      { key: "needs-improvement", label: "Needs Improvement", range: "WIRI 60–79", count: learners.filter((l) => l.wiri >= 60 && l.wiri < 80).length, percent: percent(learners.filter((l) => l.wiri >= 60 && l.wiri < 80).length, learners.length), description: "Needs targeted coaching before employer exposure." },
+      { key: "minor-coaching", label: "Ready with Minor Coaching", range: "WIRI 80-89", count: learners.filter((l) => l.wiri >= 80 && l.wiri < 90).length, percent: percent(learners.filter((l) => l.wiri >= 80 && l.wiri < 90).length, learners.length), description: "Strong candidates who need one final polish round." },
+      { key: "needs-improvement", label: "Needs Improvement", range: "WIRI 60-79", count: learners.filter((l) => l.wiri >= 60 && l.wiri < 80).length, percent: percent(learners.filter((l) => l.wiri >= 60 && l.wiri < 80).length, learners.length), description: "Needs targeted coaching before employer exposure." },
       { key: "early-stage", label: "Early Preparation Stage", range: "WIRI <60", count: learners.filter((l) => l.wiri < 60).length, percent: percent(learners.filter((l) => l.wiri < 60).length, learners.length), description: "Needs foundational interview practice first." },
     ];
 

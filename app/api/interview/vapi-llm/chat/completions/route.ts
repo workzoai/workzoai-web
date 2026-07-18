@@ -28,6 +28,7 @@
  */
 
 import OpenAI from "openai";
+import { timingSafeEqual } from "node:crypto";
 import {
   runInterviewEngineV3FromTranscript,
   type TranscriptTurn,
@@ -36,6 +37,39 @@ import { PERSONA_STYLE_CONTRACT } from "@/lib/persona/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// ── Caller authentication ───────────────────────────────────────────────────
+// This route is an OpenAI-compatible endpoint that forwards to OUR OpenAI key.
+// It was previously unauthenticated, which made it a free GPT-4o gateway for
+// anyone who guessed the URL, billed to us.
+//
+// Vapi sends custom headers configured on the assistant's model block:
+//   model: { provider: "custom-llm", url: "...", headers: { "x-workzo-vapi-secret": "<secret>" } }
+//
+// Set VAPI_CUSTOM_LLM_SECRET in the environment AND in the Vapi assistant
+// config. We fail CLOSED: an unset secret rejects every request rather than
+// silently reopening the hole.
+function authorizeVapiCaller(request: Request): boolean {
+  const expected = process.env.VAPI_CUSTOM_LLM_SECRET || "";
+  if (!expected) {
+    console.error("[vapi-llm] VAPI_CUSTOM_LLM_SECRET is not set, rejecting all calls");
+    return false;
+  }
+
+  const provided =
+    request.headers.get("x-workzo-vapi-secret") ||
+    (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "") ||
+    "";
+
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
 
 // ── Name safety (server-side, bulletproof) ──────────────────────────────────
 // Mirrors the client guard: a plain `|| "there"` does NOT catch the literal
@@ -170,6 +204,11 @@ function sseChunk(id: string, model: string, delta: object, finish: string | nul
 }
 
 export async function POST(request: Request) {
+  // Reject before we touch the body, and before we spend a single OpenAI token.
+  if (!authorizeVapiCaller(request)) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;

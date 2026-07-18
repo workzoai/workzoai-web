@@ -185,18 +185,39 @@ export function dismissPendingJobOffer(): void {
  * the CV, the target role, or any other field. Idempotent, so it is safe to call
  * on every page load.
  */
+/**
+ * Every key that has ever held a shared `jobDescription` field.
+ *
+ * This list MUST stay exhaustive. A key that is missing here is a key that keeps
+ * its stale JD forever, and any reader that falls back to it resurrects the bug.
+ *
+ * The first version of this list was written from memory and missed four keys
+ * that are genuinely in the codebase (`workzo-interview-setup`, `-v2`, `-v3`,
+ * and `workzo_setup`), while listing one that is not (`workzo_interview_setup`,
+ * underscored). The harmless-looking ones are the dangerous ones: the v2 and v3
+ * buckets are exactly what a long-lived browser still has sitting in it.
+ *
+ * To re-derive this list, grep the app for localStorage keys:
+ *   grep -rho "localStorage\.\(get\|set\)Item(\s*[\"'\`][^\"'\`]*" app components lib
+ */
 const LEGACY_SETUP_KEYS = [
   "workzoInterviewSetup",
-  "workzo_interview_setup",
+  "workzo_setup",
   "latestInterviewSetup",
   "workzo_latest_interview_setup",
   "onboardingSetup",
+  "workzo-interview-setup",
+  "workzo-interview-setup-v2",
+  "workzo-interview-setup-v3",
   "workzo-interview-setup-v4",
   "workzo-latest-interview-setup",
   "workzo-interview-setup-latest",
 ];
 
-const PURGE_FLAG = "workzo_jd_ownership_migrated_v1";
+/* Bumped to v2: the v1 purge ran with an incomplete key list, so browsers that
+   already set the v1 flag would never clean the four keys added above. A new
+   flag forces exactly one more purge pass for everyone. */
+const PURGE_FLAG = "workzo_jd_ownership_migrated_v2";
 
 export function purgeLegacySharedJobDescriptions(): void {
   if (typeof window === "undefined") return;

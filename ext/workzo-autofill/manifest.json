@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "WorkZo Autofill",
+  "version": "1.0.0",
+  "description": "Fill job application forms with your WorkZo profile. Every field is highlighted for you to review. WorkZo never submits for you.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["https://*.workzoai.com/*"],
+  "optional_host_permissions": ["https://*/*"],
+  "externally_connectable": {
+    "matches": ["https://workzoai.com/*", "https://*.workzoai.com/*"]
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_title": "WorkZo Autofill",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/fieldMap.js", "src/jdScraper.js", "src/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

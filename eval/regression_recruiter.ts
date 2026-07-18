@@ -108,5 +108,65 @@ check("Brand Marketing Lead", { targetRole: "Brand Marketing Lead", cvText: cv("
 check("Chef de Projet Digital (French)", { targetRole: "Chef de Projet Digital", cvText: cv("z5_french.txt") }, "Markus");
 check("Analista de Datos (Spanish)", { targetRole: "Analista de Datos", cvText: cv("z6_spanish.txt") }, "ProdLead");
 
+/* ─── THE STARTUP HIJACK ───────────────────────────────────────────────────
+ *
+ * The bug this corpus was blind to.
+ *
+ * `data_science_ml` deliberately omits `pro`, so that `primary = pro || free`
+ * resolves to Alex. But the startup modifier used to fire on `!winner.domain.pro`,
+ * which is true for exactly the domains that omit `pro` ON PURPOSE. So the
+ * modifier hijacked the very mechanism the Alex fix depended on:
+ *
+ *     Data scientist, CV says "startup" twice  => FOUNDER, not Alex
+ *     Nurse, CV mentions a health startup      => FOUNDER, not Sarah
+ *
+ * It hit ten domains: data_science_ml, healthcare, skilled_trades, education,
+ * finance_legal, enterprise, operations_logistics, hospitality_food, hr_people,
+ * implementation_delivery.
+ *
+ * Why the corpus missed it: NOT ONE of the 18 CVs contained startup vocabulary,
+ * and "startup" / "MVP" / "early-stage" are ordinary words in a real tech CV.
+ * The evidence bar needs only two CV hits to fire.
+ *
+ * A startup changes the FLAVOUR of an interview, not the KIND. A data scientist
+ * at a seed-stage company still gets a technical screen.
+ */
+console.log("\nstartup_modifier_must_not_hijack_the_domain");
+
+check(
+  "Senior data scientist AT A STARTUP (was FOUNDER)",
+  { targetRole: "Data Scientist", cvText: cv("z7_data_scientist_startup.txt") },
+  "Alex",
+);
+check(
+  "Data scientist, startup JD (was FOUNDER)",
+  {
+    targetRole: "Data Scientist",
+    jobDescription:
+      "Seed stage startup seeking a data scientist for ML pipelines, NLP and model training. Scrappy, 0 to 1 team.",
+    cvText: "TensorFlow, XGBoost, computer vision, ETL, Airflow, feature engineering.",
+  },
+  "Alex",
+);
+check(
+  "Nurse who volunteered at a health startup (was FOUNDER)",
+  { targetRole: "Registered Nurse", cvText: cv("z8_nurse_startup_mention.txt") },
+  "Sarah",
+);
+check(
+  "Senior data scientist, no target role typed",
+  { cvText: cv("z0_data_scientist.txt") },
+  "Alex",
+);
+
+// The founder must still be REACHABLE. Startup signal with no domain at all is
+// the one case where "startup" is genuinely the only thing we know, and that
+// path is handled before the domains are ranked.
+check(
+  "pure startup signal, no domain -> founder still reachable",
+  { cvText: "Founding team member at an early-stage startup. Scrappy 0 to 1 seed stage MVP work." },
+  "Founder",
+);
+
 console.log(`\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`}\n`);
 process.exit(failures === 0 ? 0 : 1);

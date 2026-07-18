@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root { color-scheme: light; }
+      body {
+        width: 320px;
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: #0f172a;
+        background: #ffffff;
+      }
+      .head { padding: 16px 16px 8px; }
+      .brand { font-weight: 800; font-size: 15px; }
+      .sub { color: #64748b; font-size: 12px; margin-top: 2px; line-height: 1.4; }
+      .body { padding: 8px 16px 16px; }
+      .row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 0; }
+      .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+      .ok { background: #16a34a; }
+      .no { background: #cbd5e1; }
+      button {
+        width: 100%;
+        border: none;
+        border-radius: 10px;
+        padding: 11px;
+        font-weight: 800;
+        font-size: 13px;
+        cursor: pointer;
+        margin-top: 8px;
+      }
+      .primary { background: #2563eb; color: #fff; }
+      .primary:disabled { background: #93c5fd; cursor: default; }
+      .ghost { background: #f1f5f9; color: #0f172a; }
+      .note { font-size: 11px; color: #64748b; margin-top: 10px; line-height: 1.5; }
+      .status { font-size: 12px; margin-top: 10px; min-height: 16px; }
+      .status.good { color: #16a34a; }
+      .status.warn { color: #d97706; }
+      .status.err { color: #dc2626; }
+      .legend { display: flex; gap: 12px; margin-top: 10px; font-size: 11px; color: #64748b; }
+      .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+      .blue { background: #2563eb; }
+      .amber { background: #d97706; }
+    </style>
+  </head>
+  <body>
+    <div class="head">
+      <div class="brand">WorkZo Autofill</div>
+      <div class="sub">Fills this application from your verified WorkZo profile. You review every field and submit yourself.</div>
+    </div>
+    <div class="body">
+      <div class="row"><span id="dot-signin" class="dot no"></span><span id="txt-signin">Not signed in</span></div>
+      <div class="row"><span id="dot-session" class="dot no"></span><span id="txt-session">No active application</span></div>
+
+      <button id="fill" class="primary" disabled>Fill this form</button>
+      <button id="scan" class="ghost">Scan this job page</button>
+      <button id="clear" class="ghost">Clear highlights</button>
+
+      <div id="status" class="status"></div>
+
+      <div class="legend">
+        <span><span class="swatch blue"></span>Filled from your profile</span>
+        <span><span class="swatch amber"></span>Review before sending</span>
+      </div>
+
+      <div class="note">
+        WorkZo never submits an application for you. It fills the fields and highlights them so you stay in control.
+      </div>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,6 +1,7 @@
 import { extractResumeProfileComplex, type ResumeProfile } from "./workzoResumeParser";
 import { recoverNameFromRawText } from "./workzoProfileIntegrityGuard";
 import { determineCanonicalIdentity, healSpacedHeaders, resolveTargetHeadline } from "./workzoCvIdentityEngine";
+import { findIdentityViolations } from "./workzoCvCanonicalBuilder";
 
 /**
  * CV ENGINE VERSION, and why it matters.
@@ -14,13 +15,21 @@ import { determineCanonicalIdentity, healSpacedHeaders, resolveTargetHeadline } 
  * stamped with a different version is discarded and rebuilt with the current
  * parser, so fixes actually reach existing users instead of only new ones.
  */
-export const WORKZO_CV_ENGINE_VERSION = "cv-engine-v6.0-segmenter-role-company-shape-mononym-preamble-guard";
+// v7.3 — identity is enforced, not merely reported: contaminated names are
+// repaired or blanked before the profile is frozen, the browser no longer
+// re-resolves an identity the server declined, and cached identities are
+// re-validated on load (§19). The bump is deliberate: it marks every cached
+// profile stale so an identity contaminated by an older engine cannot survive
+// behind the cache. user_confirmed identities are exempt from re-litigation.
+export const WORKZO_CV_ENGINE_VERSION = "cv-engine-v7.3-identity-enforced-single-authority";
 
 export type WorkZoCanonicalProfile = ResumeProfile & {
   canonicalVersion?: string;
   identityConfidence?: number;
   identityNeedsConfirmation?: boolean;
   selectedNameSource?: string;
+  identityAuthoritative?: boolean;
+  headlineAuthoritative?: boolean;
   fileName?: string;
   updatedAt?: string;
 };
@@ -85,6 +94,24 @@ export function buildCanonicalProfile(input: {
   const aiHeadline = profile?.basics?.headline || profile?.headline || profile?.title || profile?.targetRole || "";
 
   const confirmedName = input.confirmedIdentity?.name?.trim();
+  const serverAuthoritativeName = Boolean(
+    profile?.identityAuthoritative &&
+    profile?.identityNeedsConfirmation === false &&
+    typeof aiName === "string" &&
+    aiName.trim().length > 1
+  );
+
+  // Has the server-side canonical builder already ruled on this profile?
+  //
+  // If it has, its verdict is FINAL — including the verdict "I could not
+  // resolve this safely". Re-running the legacy browser resolver in that case
+  // makes the browser a second identity authority that can publish a name the
+  // server deliberately refused (§11, §13). The fallback below therefore only
+  // applies to profiles that predate server identity metadata.
+  const serverRuled =
+    typeof profile?.identityNeedsConfirmation === "boolean" ||
+    (typeof profile?.selectedNameSource === "string" && profile.selectedNameSource.startsWith("canonical:"));
+
   const decision = confirmedName
     ? {
         selectedName: confirmedName,
@@ -93,12 +120,28 @@ export function buildCanonicalProfile(input: {
         needsConfirmation: false,
         rejectedCandidates: [] as string[],
       }
-    : determineCanonicalIdentity({
-        aiName,
-        rawText,
-        fileName: input.fileName,
-        email: emailOf(profile),
-      });
+    : serverAuthoritativeName
+      ? {
+          selectedName: aiName.trim(),
+          selectedNameSource: profile?.selectedNameSource || "server_authoritative",
+          confidence: typeof profile?.identityConfidence === "number" ? profile.identityConfidence : 0.99,
+          needsConfirmation: false,
+          rejectedCandidates: [] as string[],
+        }
+      : serverRuled
+        ? {
+            selectedName: "",
+            selectedNameSource: "needs_confirmation",
+            confidence: 0,
+            needsConfirmation: true,
+            rejectedCandidates: [] as string[],
+          }
+        : determineCanonicalIdentity({
+            aiName,
+            rawText,
+            fileName: input.fileName,
+            email: emailOf(profile),
+          });
 
   if (!decision.selectedName || decision.needsConfirmation) {
     console.warn("[WorkZo] cv.profile.cache_rejected", {
@@ -111,6 +154,7 @@ export function buildCanonicalProfile(input: {
   const headline =
     input.confirmedIdentity?.headline?.trim() ||
     input.confirmedIdentity?.role?.trim() ||
+    (profile?.headlineAuthoritative && typeof aiHeadline === "string" ? aiHeadline.trim() : "") ||
     resolveTargetHeadline({
       aiHeadline,
       rawText,
@@ -125,6 +169,8 @@ export function buildCanonicalProfile(input: {
     identityConfidence: decision.confidence,
     identityNeedsConfirmation: false,
     selectedNameSource: decision.selectedNameSource,
+    identityAuthoritative: serverAuthoritativeName || Boolean(confirmedName),
+    headlineAuthoritative: Boolean(profile?.headlineAuthoritative),
     fileName: input.fileName || profile.fileName || "",
     updatedAt: new Date().toISOString(),
   };
@@ -275,10 +321,27 @@ export function normalizeCanonicalProfile(profile: any): WorkZoCanonicalProfile 
       }
     }
 
+    // §11/§19 — a user-confirmed identity outranks every resolver and survives
+    // an engine bump. Without this, the rebuild below re-resolved the name from
+    // scratch and the legacy resolver overwrote a name the USER had explicitly
+    // confirmed (observed: it replaced it with the job title "Accounting
+    // Executive"). A confirmed name changes only when the user edits it.
+    const cachedIsUserConfirmed =
+      profile.selectedNameSource === "user_confirmed" ||
+      profile.identity?.source === "user_confirmed";
+    const cachedConfirmedIdentity =
+      cachedIsUserConfirmed && (profile.basics?.name || "").trim()
+        ? {
+            name: String(profile.basics?.name || "").trim(),
+            headline: String(profile.basics?.headline || "").trim(),
+          }
+        : null;
+
     const rebuilt = buildCanonicalProfile({
       profile: refreshed,
       rawText,
       fileName: profile.fileName || "",
+      confirmedIdentity: cachedConfirmedIdentity,
     });
     if (rebuilt) {
       // normalizeCanonicalProfile is also called for profiles coming from the
@@ -297,9 +360,39 @@ export function normalizeCanonicalProfile(profile: any): WorkZoCanonicalProfile 
     // Recover what we can and keep going. A CV with real experience/education is
     // still useful even if the name needs confirming, and the identity gate can
     // correct the name separately.
-    const cachedName: string =
+    // §19 — validate the CACHED identity before trusting it.
+    //
+    // Profiles cached by an older engine can already contain a contaminated
+    // name ("Emaawarner Accounting", "Web Design"). Replaying it here would let
+    // the exact bug this pipeline fixes survive forever behind the cache, and
+    // the old code then stamped identityNeedsConfirmation:false on top of it.
+    // A user-confirmed identity is exempt: it is never re-litigated.
+    const identityEvidence = {
+      headline: profile.basics?.headline || "",
+      skills: refreshed.skills,
+      languages: refreshed.languages,
+      projectNames: (refreshed.projects || []).map((project: any) => project?.name).filter(Boolean),
+      companies: (refreshed.experience || []).map((job: any) => job?.company).filter(Boolean),
+      institutions: (refreshed.education || []).map((item: any) => item?.institution).filter(Boolean),
+      degrees: (refreshed.education || []).map((item: any) => item?.degree).filter(Boolean),
+    };
+
+    const cachedNameRaw: string =
       (profile.basics && profile.basics.name) || profile.name || "";
-    const recoveredName =
+    const cachedName =
+      cachedIsUserConfirmed || !findIdentityViolations(cachedNameRaw, identityEvidence).length
+        ? cachedNameRaw
+        : "";
+    if (cachedNameRaw && !cachedName) {
+      try {
+        console.warn("[WorkZo] cv.profile.identity_validation_repair", {
+          reason: "cached identity failed validation; confirmation required",
+          rules: findIdentityViolations(cachedNameRaw, identityEvidence),
+        });
+      } catch { /* non-fatal */ }
+    }
+
+    const recoveredCandidate =
       cachedName ||
       recoverNameFromRawText(rawText, {
         location: profile.basics?.location,
@@ -307,6 +400,11 @@ export function normalizeCanonicalProfile(profile: any): WorkZoCanonicalProfile 
         skills: refreshed.skills,
         languages: refreshed.languages,
       });
+    // Deterministic recovery is evidence, not truth: validate it too.
+    const recoveredName =
+      recoveredCandidate && !findIdentityViolations(recoveredCandidate, identityEvidence).length
+        ? recoveredCandidate
+        : "";
 
     const hasEvidence =
       (Array.isArray(refreshed.experience) && refreshed.experience.length > 0) ||
@@ -326,7 +424,8 @@ export function normalizeCanonicalProfile(profile: any): WorkZoCanonicalProfile 
       },
       rawText,
       canonicalVersion: WORKZO_CV_ENGINE_VERSION,
-      identityNeedsConfirmation: false,
+      // Honest metadata: a profile we could not name still needs confirmation.
+      identityNeedsConfirmation: !recoveredName,
       identityConfidence: recoveredName ? 0.5 : 0,
       fileName: profile.fileName || "",
       updatedAt: new Date().toISOString(),

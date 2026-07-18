@@ -489,11 +489,38 @@ export default function FreeToolRunner({ tool }: { tool: FreeTool }) {
     setError("");
     setResult(null);
     try {
+      // Resolve once at execution time so ATS, CV review, cover-letter and the
+      // other free tools consume the same validated canonical profile as the
+      // premium workspaces. User-edited fields remain authoritative.
+      const source = resolveCvSource();
+      const canonicalProfile = rememberedProfile || source.profile;
+      const canonicalCvText = values.cvText || values.resumeText || source.rawCvText || canonicalProfile?.rawText || "";
+      const payload = {
+        ...values,
+        cvText: canonicalCvText,
+        resumeText: values.resumeText || canonicalCvText,
+        targetRole: values.targetRole || source.targetRole || "",
+        jobDescription: values.jobDescription || source.jobDescription || "",
+        resumeProfile: canonicalProfile,
+        canonicalProfileVersion: (canonicalProfile as any)?.canonicalVersion || "",
+      };
+
+      persistCvSource({
+        ...source,
+        rawCvText: canonicalCvText,
+        profile: canonicalProfile,
+        targetRole: payload.targetRole,
+        jobDescription: payload.jobDescription,
+        origin: "shared-tool-run",
+        source: "shared-tool-run",
+        needsReupload: !canonicalProfile,
+      });
+
       const res = await fetch(tool.apiPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       });
       const data = (await res.json().catch(() => ({}))) as Result;
       if (res.status === 401) {

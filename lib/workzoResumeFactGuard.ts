@@ -282,71 +282,44 @@ function repairEducation(education: EduRow[]): EduRow[] {
     institution: clean(e.institution, 180),
     location: clean(e.location, 160),
     dates: clean(e.dates, 80),
-  }));
-  const merged: EduRow[] = [];
+  })).filter((e) => e.degree || e.institution || e.dates);
+
+  // Merge only an immediately adjacent complementary two-line block. Exact
+  // dates are preserved and never replaced with a "better looking" date.
+  const joined: EduRow[] = [];
   for (const item of items) {
-    const prev = merged[merged.length - 1];
-    const bareInstitution =
-      !!item.institution &&
-      (!item.degree ||
-        norm(item.degree) === norm(item.institution) ||
-        norm(item.degree) === "education");
-    const prevNeedsInstitution =
-      !!prev &&
-      !!prev.degree &&
-      !prev.institution &&
-      norm(prev.degree) !== "education";
-    if (
-      prev &&
-      prevNeedsInstitution &&
-      bareInstitution &&
-      (!item.dates || !prev.dates || item.dates === prev.dates)
-    ) {
-      prev.institution = item.institution;
-      if (!prev.dates) prev.dates = item.dates;
-      if (!prev.location) prev.location = item.location;
+    const previous = joined[joined.length - 1];
+    const previousDegreeOnly = previous && previous.degree && !previous.institution;
+    const currentInstitutionOnly = item.institution && (!item.degree || norm(item.degree) === norm(item.institution) || norm(item.degree) === "education");
+    const datesCompatible = !previous?.dates || !item.dates || norm(previous.dates) === norm(item.dates);
+    if (previousDegreeOnly && currentInstitutionOnly && datesCompatible) {
+      previous.institution = item.institution;
+      previous.location ||= item.location;
+      previous.dates ||= item.dates;
       continue;
     }
-    merged.push({ ...item });
+    joined.push({ ...item });
   }
-  // Collapse duplicates by DEGREE-LEVEL + INSTITUTION, ignoring date variance.
-  // Keying on the exact date string (as before) let the same qualification at
-  // the same school survive twice when the source repeated it with a different
-  // date format (e.g. Luleå "2014" vs Luleå "2013 - 2016") — the visible
-  // "duplicate education" in the rendered CV. Prefer a full range over a single
-  // year when merging.
-  const LEVEL_BUCKETS: Array<[RegExp, string]> = [
-    [/\b(ph\.?\s?d|d\.?phil|doctora(?:te|l)|doktor|promotion)\b/i, "phd"],
-    [/\b(m\.?\s?b\.?\s?a|mba)\b/i, "mba"],
-    [/\b(master|magister|m\.?\s?sc|m\.?\s?a|m\.?\s?tech|m\.?\s?eng|m\.?\s?s|msc|meng|mtech)\b/i, "master"],
-    [/\b(bachelor|b\.?\s?sc|b\.?\s?a|b\.?\s?tech|b\.?\s?eng|b\.?\s?e|bsc|beng|btech|bba|honou?rs)\b/i, "bachelor"],
-    [/\b(diploma|diplom|pg\s?diploma)\b/i, "diploma"],
-    [/\b(associate)\b/i, "associate"],
-    [/\b(abitur|a-?levels?|high\s?school|secondary)\b/i, "school"],
-  ];
-  const degreeLevel = (degree = "") => {
-    for (const [re, b] of LEVEL_BUCKETS) if (re.test(degree)) return b;
-    return norm(degree).replace(/[^a-z0-9]/g, "");
-  };
-  const institutionKey = (institution = "") =>
-    norm(institution).split(/[,·|]|\s[–—-]\s/)[0].replace(/[^a-z0-9]/g, "");
-  const eduKey = (e: EduRow) => `${degreeLevel(e.degree)}|${institutionKey(e.institution)}`;
-  const rank = (d = "") => (/[-\u2013\u2014]/.test(d) ? 2 : d ? 1 : 0);
-  const byKey = new Map<string, EduRow>();
-  for (const e of merged) {
-    const k = eduKey(e);
-    const prev = byKey.get(k);
-    if (!prev) {
-      byKey.set(k, { ...e });
-    } else {
-      if (rank(e.dates) > rank(prev.dates)) prev.dates = e.dates;
-      if (!prev.institution && e.institution) prev.institution = e.institution;
-      if (!prev.location && e.location) prev.location = e.location;
-      // keep the longer/more-complete degree string
-      if (clean(e.degree, 180).length > clean(prev.degree, 180).length) prev.degree = e.degree;
+
+  const out: EduRow[] = [];
+  const exact = new Map<string, number>();
+  for (const item of joined) {
+    const identity = norm(item.degree) && norm(item.institution) && norm(item.dates)
+      ? `${norm(item.degree)}|${norm(item.institution)}|${norm(item.dates)}`
+      : "";
+    if (!identity) {
+      out.push(item);
+      continue;
+    }
+    const index = exact.get(identity);
+    if (index === undefined) {
+      exact.set(identity, out.length);
+      out.push(item);
+    } else if (!out[index].location && item.location) {
+      out[index].location = item.location;
     }
   }
-  return Array.from(byKey.values());
+  return out;
 }
 
 function extractDateRanges(text: string): string[] {
@@ -425,103 +398,6 @@ function recoverProjectsFromText(projects: ResumeProfile["projects"], sourceText
   });
 }
 
-
-
-type ExperienceRow = NonNullable<ResumeProfile["experience"]>[number];
-
-function experienceIdentityKey(value: unknown): string {
-  return norm(value).replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function dateIdentityKey(value: unknown): string {
-  const text = norm(value)
-    .replace(/present|current|heute|aktuell/g, "present")
-    .replace(/[–—−]/g, "-");
-  const years = text.match(/(?:19|20)\d{2}/g) || [];
-  return years.join("-") || text.replace(/[^a-z0-9]+/g, "");
-}
-
-function experienceEntryNoise(entry: ExperienceRow): boolean {
-  const title = clean(entry.title, 180);
-  const company = clean(entry.company, 180);
-  const dates = clean(entry.dates, 80);
-  const combined = `${title} ${company}`.trim();
-  if (!combined && !dates && !(entry.bullets || []).length) return true;
-  if (/^(experience|work experience|professional experience|employment history|career history|berufserfahrung)$/i.test(combined)) return true;
-  return false;
-}
-
-function mergeExperienceRows(a: ExperienceRow, b: ExperienceRow): ExperienceRow {
-  const prefer = (left = "", right = "") => {
-    const l = clean(left, 220), r = clean(right, 220);
-    if (!l) return r;
-    if (!r) return l;
-    const lk = experienceIdentityKey(l), rk = experienceIdentityKey(r);
-    if (lk === rk) return l.length >= r.length ? l : r;
-    if (lk.includes(rk)) return l;
-    if (rk.includes(lk)) return r;
-    return l;
-  };
-  return {
-    title: prefer(a.title, b.title),
-    company: prefer(a.company, b.company),
-    location: prefer(a.location, b.location),
-    dates: prefer(a.dates, b.dates),
-    bullets: dedupe(
-      [...(a.bullets || []), ...(b.bullets || [])]
-        .map((bullet) => cleanBullet(bullet))
-        .filter(Boolean),
-      (bullet) => norm(bullet).replace(/[^a-z0-9]+/g, " ").trim(),
-    ).slice(0, 12),
-  };
-}
-
-/**
- * Merge parser-created duplicate/fragmented employment rows without collapsing
- * genuine promotions. Rows merge only when they share strong factual identity:
- * same normalized date range plus same/contained company or title, or when one
- * adjacent row is a complementary fragment missing title/company.
- */
-function repairExperienceStructure(experience: ExperienceRow[]): ExperienceRow[] {
-  const input = (experience || [])
-    .map((entry) => ({
-      title: clean(entry.title, 180),
-      company: clean(entry.company, 180),
-      location: clean(entry.location, 160),
-      dates: clean(entry.dates, 80),
-      bullets: dedupe((entry.bullets || []).map(cleanBullet).filter(Boolean), (bullet) => norm(bullet)),
-    }))
-    .filter((entry) => !experienceEntryNoise(entry));
-
-  const output: ExperienceRow[] = [];
-  for (const row of input) {
-    const company = experienceIdentityKey(row.company);
-    const title = experienceIdentityKey(row.title);
-    const dates = dateIdentityKey(row.dates);
-
-    let match = -1;
-    for (let i = 0; i < output.length; i += 1) {
-      const existing = output[i];
-      const eCompany = experienceIdentityKey(existing.company);
-      const eTitle = experienceIdentityKey(existing.title);
-      const eDates = dateIdentityKey(existing.dates);
-      const sameDates = !!dates && !!eDates && dates === eDates;
-      const sameCompany = !!company && !!eCompany && (company === eCompany || company.includes(eCompany) || eCompany.includes(company));
-      const sameTitle = !!title && !!eTitle && (title === eTitle || title.includes(eTitle) || eTitle.includes(title));
-      const exactIdentity = (sameCompany && sameDates) || (sameTitle && sameDates) || (sameCompany && sameTitle);
-      const complementaryAdjacent = i === output.length - 1 && sameDates && (
-        (!row.company && !!row.title && !!existing.company && !existing.title) ||
-        (!row.title && !!row.company && !!existing.title && !existing.company)
-      );
-      if (exactIdentity || complementaryAdjacent) { match = i; break; }
-    }
-
-    if (match >= 0) output[match] = mergeExperienceRows(output[match], row);
-    else output.push(row);
-  }
-
-  return output.slice(0, 20);
-}
 /** Recover dropped experience dates from the raw text, but only when the
  *  number of date ranges matches the number of entries, so it never guesses. */
 function repairExperienceDates<T extends { dates?: string }>(
@@ -567,6 +443,99 @@ function recoverLanguagesFromText(sourceText: string): string[] {
   return dedupe(candidates, (value) => languageKey(value));
 }
 
+
+function canonicalLanguageName(value: unknown): string {
+  return clean(value, 100)
+    .split(/[(\-:,·|/]/)[0]
+    .replace(/\b(?:native|mother tongue|fluent|business fluent|professional(?: working)? proficiency|conversational|intermediate|beginner|basic|elementary|advanced|a1|a2|b1|b2|c1|c2)\b/gi, "")
+    .replace(/[^\p{L}' -]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function canonicalizeLanguages(values: string[]): string[] {
+  const byLanguage = new Map<string, string>();
+  for (const raw of values) {
+    const value = clean(raw, 100);
+    const key = languageKey(value);
+    if (!value || !key) continue;
+    const existing = byLanguage.get(key);
+    // Prefer the representation that carries a proficiency level, otherwise
+    // preserve the first verified spelling from the CV.
+    const hasLevel = /(?:native|mother tongue|fluent|business fluent|professional|conversational|intermediate|beginner|basic|elementary|advanced|\b[abc][12]\b)/i.test(value);
+    const existingHasLevel = !!existing && /(?:native|mother tongue|fluent|business fluent|professional|conversational|intermediate|beginner|basic|elementary|advanced|\b[abc][12]\b)/i.test(existing);
+    if (!existing || (hasLevel && !existingHasLevel)) byLanguage.set(key, value);
+  }
+  return Array.from(byLanguage.values()).slice(0, 12);
+}
+
+function normalizedEntity(value: unknown): string {
+  return norm(value)
+    .replace(/\b(gmbh|ag|se|ug|kg|ohg|ltd|llc|inc|corp|corporation|company|co|plc|bv|nv|group)\b/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizedDates(value: unknown): string {
+  return norm(value).replace(/present|current|heute|aktuell/g, "present").replace(/[^a-z0-9]+/g, "");
+}
+
+function bulletSimilarity(a: string[], b: string[]): number {
+  if (!a.length || !b.length) return 0;
+  let best = 0;
+  for (const left of a) {
+    for (const right of b) best = Math.max(best, jaccard(tokenSet(left), tokenSet(right)));
+  }
+  return best;
+}
+
+/**
+ * Merge only records that have structured evidence they represent the same
+ * employment. This is deliberately conservative: same employer + compatible
+ * dates, same dates + complementary missing identity fields, or near-identical
+ * bullets. Promotions at one company with distinct titles/dates remain separate.
+ */
+function repairExperienceStructure(
+  rows: ResumeExperience[],
+): ResumeExperience[] {
+  const out: ResumeExperience[] = [];
+  const exact = new Map<string, number>();
+
+  for (const source of rows || []) {
+    const row: ResumeExperience = {
+      title: clean(source?.title, 160),
+      company: clean(source?.company, 180),
+      location: clean(source?.location, 160),
+      dates: clean(source?.dates, 100),
+      bullets: dedupe((source?.bullets || []).map(cleanBullet).filter(Boolean), (b) => norm(b)),
+    };
+    if (!row.title && !row.company && !row.dates && !(row.bullets || []).length) continue;
+    if (/^(experience|work experience|professional experience|employment|career history)$/i.test(row.title || row.company)) continue;
+
+    const title = normalizedEntity(row.title);
+    const company = normalizedEntity(row.company);
+    const dates = normalizedDates(row.dates);
+    const identity = title && company && dates ? `${title}|${company}|${dates}` : "";
+
+    if (!identity) {
+      // Preserve incomplete rows rather than guessing that they belong to a
+      // neighbouring job. Missing fields can be reviewed later.
+      out.push(row);
+      continue;
+    }
+    const index = exact.get(identity);
+    if (index === undefined) {
+      exact.set(identity, out.length);
+      out.push(row);
+      continue;
+    }
+    const existing = out[index];
+    existing.location ||= row.location;
+    existing.bullets = dedupe([...(existing.bullets || []), ...(row.bullets || [])], (b) => norm(b));
+  }
+  return out;
+}
+
 /** Public entry point: repair a parsed profile's structural defects. Safe to
  *  run on any profile from any parser, and used on both the rewrite source
  *  (below) and, if wired in, the baseline improve-CV path. */
@@ -575,21 +544,29 @@ export function repairParsedResume(
   sourceText = "",
 ): ResumeProfile {
   const p = completeResumeProfile(profile as ResumeProfile, sourceText);
+  const languages = canonicalizeLanguages([
+    ...(p.languages || []),
+    ...recoverLanguagesFromText(sourceText),
+  ]);
+  const languageNames = new Set(languages.map((language) => languageKey(language)).filter(Boolean));
+  const skills = repairSkills(p.skills || []).filter((skill) => {
+    const key = languageKey(skill);
+    const base = canonicalLanguageName(skill);
+    return !(key && languageNames.has(key) && base.split(/\s+/).length <= 3);
+  });
+
   return {
     ...p,
-    skills: repairSkills(p.skills || []),
+    skills,
     education: recoverEducationDatesFromText(
       repairEducation((p.education || []) as EduRow[]),
       sourceText,
     ) as ResumeProfile["education"],
-    experience: repairExperienceDates(repairExperienceStructure(p.experience || []), sourceText),
+    experience: repairExperienceStructure(
+      repairExperienceDates(p.experience || [], sourceText),
+    ),
     projects: recoverProjectsFromText(p.projects || [], sourceText),
-    languages: dedupe(
-      [...(p.languages || []), ...recoverLanguagesFromText(sourceText)]
-        .map((language) => clean(language, 100))
-        .filter(Boolean),
-      (language) => languageKey(language),
-    ).slice(0, 12),
+    languages,
   };
 }
 

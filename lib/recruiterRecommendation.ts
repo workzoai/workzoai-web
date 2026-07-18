@@ -101,6 +101,31 @@ type Domain = {
   free: RecommendableRecruiterKey;
   pro?: RecommendableRecruiterKey;
   reason: string;
+  /**
+   * May the "startup" modifier replace this domain's interviewer with a
+   * generic startup founder?
+   *
+   * THE BUG THIS EXISTS TO KILL
+   *
+   * The startup override used to be gated on `!winner.domain.pro`, which was
+   * read as "this domain has no premium upsell, so a founder is a reasonable
+   * Pro-tier stand-in". But a missing `pro` also means something completely
+   * different in this table: "the FREE persona is the correct primary for this
+   * domain, do not demote them". `data_science_ml` omits `pro` for exactly that
+   * reason, so that Alex (the technical interviewer) is the primary.
+   *
+   * The result: any data scientist whose CV said "startup" twice, or "startup"
+   * plus "MVP", got a startup founder instead of a technical screen. The same
+   * override hijacked healthcare, skilled_trades, education, finance_legal and
+   * five more, so a NURSE who volunteered at a health startup was routed to a
+   * founder. The interviewer the job actually needs was silently replaced by a
+   * vibe.
+   *
+   * Two meanings, one flag. Now they are separate. This is opt-in and defaults
+   * to false: a domain only surrenders its interviewer if it explicitly says a
+   * founder is genuinely the better screen for that kind of work.
+   */
+  startupOverridable?: boolean;
 };
 
 /**
@@ -521,7 +546,12 @@ export function recommendRecruiters(input: {
     primary = "executive_recruiter";
     reason = `${winner.domain.reason}, at leadership level`;
   }
-  if (isStartup && !isEarlyCareer && !isLeadership && !winner.domain.pro) {
+  // A startup context changes the FLAVOUR of an interview, not the KIND. A data
+  // scientist at a seed-stage company still gets a technical screen; a nurse at
+  // a health startup still gets a healthcare interviewer. Only domains that
+  // explicitly opt in surrender their interviewer to a generic founder.
+  // See the `startupOverridable` note on the Domain type.
+  if (isStartup && !isEarlyCareer && !isLeadership && winner.domain.startupOverridable) {
     primary = "startup_founder";
   }
 

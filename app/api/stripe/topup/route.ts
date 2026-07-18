@@ -77,7 +77,7 @@ export async function POST(request: Request) {
             currency,
             unit_amount: unitAmount,
             product_data: {
-              name: `WorkZo AI — ${pack.label}`,
+              name: `WorkZo AI: ${pack.label}`,
               description: `${pack.minutes} extra AI voice interview minutes. Credits never expire and are used after your monthly plan minutes.`,
             },
           },

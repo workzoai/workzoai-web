@@ -11,6 +11,9 @@ export type WorkZoFeatureKey =
   | "improve_cv"
   | "cover_letter"
   | "job_assist"
+  | "smart_apply"
+  | "smart_apply_documents"
+  | "smart_apply_interview"
   | "ats_optimization"
   | "career_brain"
   // LinkedIn Career Optimizer, tiered Analyze -> Improve -> Master.
@@ -317,6 +320,10 @@ export function getWorkZoFeatureRequiredPlan(feature: WorkZoFeatureKey): WorkZoP
     case "interview_history":
     case "advanced_reports":
     case "job_assist":
+    // Smart Apply: opening a session and seeing the detailed, evidence-backed fit
+    // analysis is a Premium capability, alongside the tailored CV and cover letter.
+    case "smart_apply":
+    case "smart_apply_documents":
     case "ats_optimization":
     case "career_brain":
     case "performance_tracking":
@@ -330,6 +337,9 @@ export function getWorkZoFeatureRequiredPlan(feature: WorkZoFeatureKey): WorkZoP
     case "career_coach":
     case "career_roadmaps":
     case "replay_intelligence":
+    // Smart Apply job-specific interview simulation is the Pro-tier capability, in
+    // line with voice_interview simulation living at Pro.
+    case "smart_apply_interview":
     case "priority_models":
     case "early_access":
     // Master tier: item 10, the recruiter simulation. Reserved, not yet built.

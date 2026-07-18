@@ -1057,6 +1057,10 @@ function buildAnalyticsResponse(
   // workzo_analytics_events cv_uploaded is blocked on localhost by shouldSkipProductionAnalytics().
   // Using Math.max means we always surface the real count from whichever table has it.
   const usageFC = usageSummary.featureCounts || {};
+  // sign_in is written SERVER-side by app/auth/callback and app/auth/confirm
+  // (lib/workzoServerUsageEvent.ts), so unlike client analytics it is never
+  // dropped by ad blockers or shouldSkipProductionAnalytics() on localhost.
+  const signIns = Math.max(counts.sign_in || 0, usageFC.sign_in || 0);
   const uploads = Math.max(counts.cv_uploaded || 0, usageFC.cv_uploaded || 0);
   const interviewsStarted = Math.max(
     counts.interview_started || 0,
@@ -1084,6 +1088,10 @@ function buildAnalyticsResponse(
   );
   const dropoffFunnel = [
     { stage: "Page views", count: counts.page_view || 0 },
+    // The step that was previously invisible. CV upload is now open to
+    // anonymous users and sign-in is enforced at Start Interview, so this is
+    // the real conversion point and must be measurable.
+    { stage: "Sign-ins", count: signIns },
     { stage: "CV uploads", count: uploads },
     { stage: "Interview starts", count: interviewsStarted },
     { stage: "Answers submitted", count: answersSubmitted },
@@ -1144,6 +1152,7 @@ function buildAnalyticsResponse(
     uniqueVisitors: visitors.size,
     activeVisitors7d: activeVisitors7d.size,
     activeVisitors30d: activeVisitors30d.size,
+    signIns,
     signedInUsers: usageSummary.signedInUsers,
     activeSignedInUsers7d: usageSummary.activeSignedInUsers7d,
     activeSignedInUsers30d: usageSummary.activeSignedInUsers30d,
@@ -1210,7 +1219,8 @@ function buildAnalyticsResponse(
       uniqueVisitors: visitors.size,
       activeVisitors7d: activeVisitors7d.size,
       activeVisitors30d: activeVisitors30d.size,
-      signedInUsers: usageSummary.signedInUsers,
+      signIns,
+    signedInUsers: usageSummary.signedInUsers,
       activeSignedInUsers7d: usageSummary.activeSignedInUsers7d,
       activeSignedInUsers30d: usageSummary.activeSignedInUsers30d,
       totalUsageEvents: usageSummary.totalUsageEvents,

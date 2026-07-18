@@ -65,7 +65,11 @@ function rateLimit(identity: string): { ok: boolean; retryAfter: number } {
     return { ok: true, retryAfter: 0 };
   }
   if (bucket.count >= MAX_RUNS_PER_WINDOW) {
-    return { ok: true, retryAfter: Math.ceil((bucket.resetAt - now) / 1000) };
+    /* Was `ok: true`. The limiter only worked because the caller happened to
+       check `retryAfter > 0` instead of `!ok`, so the field was a live lie: the
+       first refactor to the obvious `if (!limit.ok)` would have silently
+       disabled rate limiting entirely. */
+    return { ok: false, retryAfter: Math.ceil((bucket.resetAt - now) / 1000) };
   }
   bucket.count += 1;
   return { ok: true, retryAfter: 0 };
@@ -111,7 +115,7 @@ export async function POST(request: NextRequest) {
   }
 
   const limit = rateLimit(identify(request));
-  if (limit.retryAfter > 0) {
+  if (!limit.ok) {
     return NextResponse.json(
       {
         error: `Too many runs. Try again in ${limit.retryAfter}s.`,

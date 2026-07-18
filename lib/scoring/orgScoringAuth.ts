@@ -28,8 +28,21 @@ function serviceClient(): SupabaseClient | null {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+/**
+ * Derive an organization's access key.
+ *
+ * FAILS CLOSED. This used to fall back to `|| ""`, which meant that if
+ * FOUNDER_ANALYTICS_SECRET was ever missing on a deploy, every org key became an
+ * HMAC keyed on the EMPTY STRING: deterministic, and reproducible offline by
+ * anyone who knows the scheme. Combined with ensureOrganization() auto-creating
+ * orgs on demand, an attacker could mint a valid key for any slug and read or
+ * write another company's scoring profiles.
+ *
+ * A missing secret is a broken deploy, not a permissive one.
+ */
 export function orgKey(org: string): string {
   const secret = process.env.FOUNDER_ANALYTICS_SECRET || "";
+  if (!secret) throw new Error("FOUNDER_ANALYTICS_SECRET is not set: refusing to derive an org key");
   return createHmac("sha256", secret).update(`org:${org.toLowerCase().trim()}`).digest("hex").slice(0, 32);
 }
 
@@ -139,7 +152,15 @@ export async function authorizeOrgScoring(request: Request): Promise<OrgScoringA
   const secret = url.searchParams.get("secret") || request.headers.get("x-workzo-secret") || "";
 
   const founderSecret = process.env.FOUNDER_ANALYTICS_SECRET || "";
-  const isFounder = founderSecret.length > 0 && safeEqual(secret, founderSecret);
+
+  /* No secret configured means NOBODY is authorized, not everybody. Checked up
+     front so orgKey() below can never be reached with an empty HMAC key. */
+  if (!founderSecret) {
+    console.error("[orgScoringAuth] FOUNDER_ANALYTICS_SECRET is not set, denying all scoring admin access");
+    return { ok: false, status: 500, error: "not_configured" };
+  }
+
+  const isFounder = safeEqual(secret, founderSecret);
 
   if (!org) return { ok: false, status: 400, error: "missing_org" };
 
@@ -147,7 +168,9 @@ export async function authorizeOrgScoring(request: Request): Promise<OrgScoringA
   if (!authorized) return { ok: false, status: 401, error: "unauthorized" };
 
   const db = serviceClient();
-  if (!db) return { ok: false, status: 200, error: "not_configured" };
+  /* Was status 200, so a client checking `res.ok` treated a hard config failure
+     as a success and rendered an empty dashboard instead of an error. */
+  if (!db) return { ok: false, status: 500, error: "not_configured" };
 
   const orgId = await ensureOrganization(db, org);
   if (!orgId) return { ok: false, status: 500, error: "organization_resolve_failed" };

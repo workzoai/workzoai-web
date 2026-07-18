@@ -22,6 +22,7 @@ const PROVIDER_RANK: Record<WorkZoJob["provider"], number> = {
   adzuna: 3,
   jooble: 4,
   apify: 5,
+  external: 6,
 };
 
 function freshness(job: WorkZoJob): number {
@@ -50,7 +51,14 @@ export function dedupeJobs(jobs: WorkZoJob[]): WorkZoJob[] {
       continue;
     }
     const existing = byPrint.get(key);
-    byPrint.set(key, existing ? preferred(existing, job) : job);
+    const winner = existing ? preferred(existing, job) : job;
+    /*
+     * Carry the fingerprint ONTO the record. It used to be computed here, used as a
+     * Map key, and thrown away, so nothing downstream could ever see it. The
+     * application tracker's duplicate guard is `user_id + job_fingerprint`, and it
+     * has nothing to guard on if the fingerprint does not survive the pipeline.
+     */
+    byPrint.set(key, { ...winner, fingerprint: key });
   }
   return [...byPrint.values()];
 }

@@ -8,6 +8,8 @@ import {
   type ResumeProject,
 } from "@/lib/workzoResumeParser";
 import { resolveTargetHeadline } from "@/lib/workzoCvIdentityEngine";
+import { canonicalizeResumeProfileIntegrity } from "@/lib/workzoCvCanonicalIntegrity";
+import { resolveAuthoritativeCvName } from "@/lib/workzoCvNameStage";
 
 export type WorkZoCvParserSource =
   | "ai_structured_cv"
@@ -1226,62 +1228,77 @@ function normIdentity(value: string): string {
 }
 
 function mergeExperienceIdentity(aiItems: ResumeExperience[], fallbackItems: ResumeExperience[]): ResumeExperience[] {
-  if (!fallbackItems.length) return aiItems;
-  return fallbackItems.map((original, index) => {
-    const companyKey = normIdentity(original.company || "");
-    const datesKey = normIdentity(original.dates || "");
-    const matched = aiItems.find((candidate) => {
-      const cCompany = normIdentity(candidate.company || "");
-      const cDates = normIdentity(candidate.dates || "");
-      return (companyKey && cCompany && companyKey === cCompany) || (datesKey && cDates && datesKey === cDates);
-    }) || aiItems[index];
+  // AI-extracted rows are the authoritative ordered timeline. Deterministic
+  // fallback rows may fill blank fields, but may never replace, collapse or
+  // truncate AI rows. Matching requires exact normalized company + dates, and
+  // title when both sides provide one. Unmatched fallback rows are appended so
+  // evidence found only by deterministic extraction is not lost.
+  const usedFallback = new Set<number>();
+  const merged = aiItems.map((ai) => {
+    const aiCompany = normIdentity(ai.company || "");
+    const aiDates = normIdentity(ai.dates || "");
+    const aiTitle = normIdentity(ai.title || "");
+    const matchIndex = fallbackItems.findIndex((fallback, index) => {
+      if (usedFallback.has(index)) return false;
+      const fallbackCompany = normIdentity(fallback.company || "");
+      const fallbackDates = normIdentity(fallback.dates || "");
+      const fallbackTitle = normIdentity(fallback.title || "");
+      if (!aiCompany || !aiDates || aiCompany !== fallbackCompany || aiDates !== fallbackDates) return false;
+      return !aiTitle || !fallbackTitle || aiTitle === fallbackTitle;
+    });
+
+    if (matchIndex < 0) return { ...ai, bullets: [...(ai.bullets || [])] };
+    usedFallback.add(matchIndex);
+    const fallback = fallbackItems[matchIndex];
     return {
-      ...original,
-      title: original.title || matched?.title || "",
-      company: original.company || matched?.company || "",
-      location: original.location || matched?.location || "",
-      dates: original.dates || matched?.dates || "",
-      bullets: matched?.bullets?.length ? matched.bullets : original.bullets || [],
+      ...ai,
+      title: ai.title || fallback.title || "",
+      company: ai.company || fallback.company || "",
+      location: ai.location || fallback.location || "",
+      dates: ai.dates || fallback.dates || "",
+      bullets: ai.bullets?.length ? [...ai.bullets] : [...(fallback.bullets || [])],
     };
   });
+
+  fallbackItems.forEach((fallback, index) => {
+    if (!usedFallback.has(index)) merged.push({ ...fallback, bullets: [...(fallback.bullets || [])] });
+  });
+  return merged.slice(0, 20);
 }
 
-
 function mergeRawExperienceIdentity(baseItems: ResumeExperience[], rawItems: ResumeExperience[]): ResumeExperience[] {
-  if (!rawItems.length) return baseItems;
-  if (!baseItems.length) return rawItems;
-  const used = new Set<number>();
-  const merged = baseItems.map((base, index) => {
+  if (!rawItems.length) return baseItems.map((item) => ({ ...item, bullets: [...(item.bullets || [])] }));
+  if (!baseItems.length) return rawItems.map((item) => ({ ...item, bullets: [...(item.bullets || [])] }));
+
+  const usedRaw = new Set<number>();
+  const merged = baseItems.map((base) => {
     const companyKey = normIdentity(base.company || "");
     const datesKey = normIdentity(base.dates || "");
-    let matchIndex = rawItems.findIndex((raw, rawIndex) => {
-      if (used.has(rawIndex)) return false;
+    const titleKey = normIdentity(base.title || "");
+    const matchIndex = rawItems.findIndex((raw, index) => {
+      if (usedRaw.has(index)) return false;
       const rawCompany = normIdentity(raw.company || "");
       const rawDates = normIdentity(raw.dates || "");
-      return (companyKey && rawCompany && (companyKey === rawCompany || companyKey.includes(rawCompany) || rawCompany.includes(companyKey)))
-        || (datesKey && rawDates && datesKey === rawDates);
+      const rawTitle = normIdentity(raw.title || "");
+      if (!companyKey || !datesKey || companyKey !== rawCompany || datesKey !== rawDates) return false;
+      return !titleKey || !rawTitle || titleKey === rawTitle;
     });
-    if (matchIndex < 0 && rawItems[index] && !used.has(index)) matchIndex = index;
-    if (matchIndex < 0) return base;
-    used.add(matchIndex);
+    if (matchIndex < 0) return { ...base, bullets: [...(base.bullets || [])] };
+    usedRaw.add(matchIndex);
     const raw = rawItems[matchIndex];
-    const baseTitle = clean(base.title || "");
-    const rawTitle = clean(raw.title || "");
-    const baseKey = normIdentity(baseTitle);
-    const rawKey = normIdentity(rawTitle);
-    const rawIsMoreSpecific = rawTitle.length > baseTitle.length
-      && (rawKey.includes(baseKey) || baseKey.includes(rawKey) || baseTitle.split(/\s+/).length <= 2);
     return {
       ...base,
-      title: rawIsMoreSpecific || !baseTitle ? rawTitle : baseTitle,
+      title: base.title || raw.title || "",
       company: base.company || raw.company || "",
       location: base.location || raw.location || "",
       dates: base.dates || raw.dates || "",
-      bullets: base.bullets || [],
+      bullets: base.bullets?.length ? [...base.bullets] : [...(raw.bullets || [])],
     };
   });
-  rawItems.forEach((raw, index) => { if (!used.has(index)) merged.push(raw); });
-  return merged.slice(0, 12);
+  rawItems.forEach((raw, index) => {
+    if (!usedRaw.has(index)) merged.push({ ...raw, bullets: [...(raw.bullets || [])] });
+  });
+  return merged.slice(0, 20);
 }
 
 function extractLanguagesFromRawText(rawText: string): string[] {
@@ -1627,78 +1644,23 @@ export function repairResumeProfileAfterParsing(profile: ResumeProfile, rawText:
   const repaired = repairProfileIdentity(profile, rawText, fileName, profile.basics?.name || "");
   const sanitized = sanitizeParsedProfileFields(repaired, rawText, fileName);
 
-  // ── Deterministic post-processing ────────────────────────────────────────
-  // These three bugs were not fixed by AI prompt rules alone across multiple
-  // iterations. Moving to deterministic code makes them reliable globally.
-
-  // 1. EMPTY BULLETS on second employer in two-column CVs.
-  //    When all bullets appear before the second employer's header in the
-  //    extracted text, the AI assigns everything to the first employer.
-  //    Fix: if any employer has bullets:[] but there are enough bullets on
-  //    the first employer to share, redistribute only the last few bullets.
-  //    CONSERVATIVE: only redistribute if first employer has 6+ bullets,
-  //    and give at most 2-3 to the second, never empty the first employer.
-  const experience = sanitized.experience || [];
-  if (experience.length >= 2) {
-    for (let i = 1; i < experience.length; i++) {
-      const prev = experience[i - 1];
-      const curr = experience[i];
-      const prevBullets = prev.bullets || [];
-      const currBullets = curr.bullets || [];
-      // Only redistribute if: previous has 6+ bullets AND current has none
-      // Give at most the last 2 bullets, never strip first employer bare
-      if (currBullets.length === 0 && prevBullets.length >= 6) {
-        const giveCount = Math.min(2, Math.floor(prevBullets.length * 0.25));
-        const splitAt = prevBullets.length - giveCount;
-        experience[i - 1] = { ...prev, bullets: prevBullets.slice(0, splitAt) };
-        experience[i] = { ...curr, bullets: prevBullets.slice(splitAt) };
-      }
-    }
+  // One final deterministic integrity pass is shared by AI, vision, Affinda,
+  // pasted text, and local fallback results. It never invents facts and only
+  // performs evidence-preserving repairs: contact bleed removal, duplicate /
+  // fragment merging, sentence deduplication, and canonical language/skill
+  // normalization. Deliberately removed the old positional bullet redistribution
+  // and chronological date-swapping heuristics because both could fabricate a
+  // candidate history when a PDF layout was ambiguous.
+  const integrity = canonicalizeResumeProfileIntegrity(sanitized, rawText);
+  if (integrity.warnings.length) {
+    console.log("[WorkZo CV Pipeline] api.cv.integrity_repair", {
+      fileName,
+      warnings: integrity.warnings,
+      ...integrity.counts,
+    });
   }
 
-  // 2. DATE SWAP, if experience entries are chronologically inverted
-  //    (first job has older dates than second job), swap their dates.
-  if (experience.length >= 2) {
-    const getEndYear = (dates: string) => {
-      if (!dates) return 0;
-      const years = (dates.match(/\d{4}/g) || []).map(Number);
-      return years.length ? Math.max(...years) : 0;
-    };
-    for (let i = 0; i < experience.length - 1; i++) {
-      const a = experience[i];
-      const b = experience[i + 1];
-      const endA = getEndYear(a.dates || "");
-      const endB = getEndYear(b.dates || "");
-      // First job should have LATER end date than second job
-      // If first job ends BEFORE second job, dates are swapped
-      if (endA > 0 && endB > 0 && endA < endB) {
-        experience[i] = { ...a, dates: b.dates };
-        experience[i + 1] = { ...b, dates: a.dates };
-      }
-    }
-  }
-
-  // 3. CERTIFICATIONS from non-standard section headings.
-  //    When the PDF cleaner correctly routes content to "certifications" kind
-  //    but the AI ignores it, scan the raw text directly for cert/award
-  //    section content and populate certifications if they're empty.
-  const hasCerts = (sanitized.certifications || []).length > 0;
-  if (!hasCerts) {
-    const CERT_SECTION_RE = /(?:awards?\s*(?:and|&)\s*certifications?|certifications?\s*(?:and|&)\s*awards?|short\s*courses?|honours?\s*(?:and|&)\s*awards?|professional\s*development|training\s*(?:and|&)\s*certifications?|continuing\s*education|additional\s*training|licences?\s*(?:and|&)\s*certifications?)\s*\n([\s\S]{0,600}?)(?:\n[A-Z][A-Z\s]{3,}|\n===|$)/i;
-    const certMatch = rawText.match(CERT_SECTION_RE);
-    if (certMatch) {
-      const block = certMatch[1];
-      const entries = block
-        .split(/\n/)
-        .map(l => l.replace(/^[-•·*]\s*/, "").trim())
-        .filter(l => l.length > 5 && l.length < 120 && !/^\d{4}[-–]\d{4}$/.test(l));
-      if (entries.length > 0) {
-        (sanitized as any).certifications = entries;
-      }
-    }
-  }
-
-  return { ...sanitized, experience };
+  return integrity.profile;
 }
 
 // Note: parse-result caching has been intentionally removed.
@@ -1713,6 +1675,22 @@ export function repairResumeProfileAfterParsing(profile: ResumeProfile, rawText:
 export async function parseResumeWithAiStructure(input: ParseInput): Promise<WorkZoAiCvParserResult> {
   const rawText = normalizeCvTextForParsing(input.layoutText || input.cvText || "");
   const localFallback = repairResumeProfileAfterParsing(extractResumeProfileComplex(rawText), rawText, input.fileName || "");
+
+  // Resolve identity BEFORE the generative parser. The model is good at
+  // semantic section extraction but is not the authority for page layout.
+  // Supplying a deterministic lock prevents recurring contamination such as
+  // skills, section labels, companies, or role phrases being returned as the
+  // candidate's name. The canonical builder still validates the result later.
+  const preResolvedIdentity = resolveAuthoritativeCvName({
+    rawText,
+    parserName: "",
+    currentName: input.candidateName || localFallback.basics?.name || "",
+    fileName: input.fileName || "",
+    email: localFallback.basics?.email || "",
+  });
+  const lockedCandidateName = preResolvedIdentity.needsConfirmation
+    ? ""
+    : preResolvedIdentity.name;
 
   if (!rawText.trim()) return { ok: false, source: "empty", resumeProfile: localFallback, error: "No CV text provided." };
 
@@ -1867,9 +1845,17 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
           role: "user",
           content: [
             `File name: ${input.fileName || "uploaded CV"}`,
-            // If we already know the correct name (from a prior parse or filename),
-            // tell the AI explicitly so it doesn't pick a skill/phrase instead.
-            ...(input.candidateName ? [`Known candidate name (use this): ${input.candidateName}`] : []),
+            // Identity is resolved before the LLM. When locked, the model must
+            // copy it exactly and must not independently infer a different name.
+            ...(lockedCandidateName
+              ? [
+                  `AUTHORITATIVE CANDIDATE NAME: ${lockedCandidateName}`,
+                  "Copy this exact value into basics.name. Do not replace, expand, shorten, or infer another name.",
+                ]
+              : [
+                  "AUTHORITATIVE CANDIDATE NAME: UNRESOLVED",
+                  "Set basics.name to an empty string. Do not infer a name from skills, headings, companies, filenames, or role text.",
+                ]),
             "",
             `CV TEXT:\n${truncateCvText(rawText)}`,
           ].join("\n"),
@@ -1881,6 +1867,18 @@ export async function parseResumeWithAiStructure(input: ParseInput): Promise<Wor
     const parsed = extractJsonObject(content);
     if (!parsed) {
       return { ok: false, source: "local_fallback_invalid_ai_json", resumeProfile: localFallback, error: "AI returned invalid JSON." };
+    }
+
+    // Enforce the deterministic identity lock after generation as well. Prompt
+    // compliance alone is not a safety boundary. When unresolved, keep the AI
+    // name blank so the canonical stage can request confirmation honestly.
+    parsed.basics = {
+      ...(parsed.basics && typeof parsed.basics === "object" ? parsed.basics : {}),
+      name: lockedCandidateName,
+    };
+    if (!lockedCandidateName) {
+      const warnings = asList(parsed.warnings);
+      parsed.warnings = unique([...warnings, "identity_needs_confirmation"], 10);
     }
 
     const aiProfile = buildProfileFromAi(parsed, localFallback, rawText, input.fileName || "", input.knownHeadline || "");
