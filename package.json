@@ -13,6 +13,7 @@
     "@daily-co/daily-react": "^0.25.1",
     "@monaco-editor/react": "^4.7.0",
     "@napi-rs/canvas": "^1.0.2",
+    "@react-pdf/renderer": "^4.5.1",
     "@sentry/nextjs": "^10.56.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
